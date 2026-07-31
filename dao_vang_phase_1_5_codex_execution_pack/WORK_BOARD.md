@@ -6,12 +6,12 @@ Goal: Dựng repository Python có quality gates và module boundaries theo Docu
 
 | ID | Task | Owner | Status | Scope | Gate | Depends | Base SHA |
 |---|---|---|---|---|---|---|---|
-| M0-FOUND-001 | Scaffold Python project | Codex-Integrator | merged | root, pyproject, src/tests skeleton | full | - | 651d17453a7ae9f6287cd9ca86594015ff176af3 |
-| M0-DOMAIN-001 | Domain types/errors | Codex-Agent-A | ready | src/dao_vang/domain/*, tests/unit/domain/* | unit+type | M0-FOUND-001 | b950f9f86f41fc95fad9836bb8aeb7b3a521ed86 |
-| M0-CONFIG-001 | Typed config | Codex-Agent-B | ready | src/dao_vang/config/*, tests/unit/config/* | unit+type | M0-FOUND-001 | b950f9f86f41fc95fad9836bb8aeb7b3a521ed86 |
-| M0-LOG-001 | Structured logging | Codex-Agent-C | ready | src/dao_vang/logging/*, tests/unit/logging/* | unit | M0-FOUND-001 | b950f9f86f41fc95fad9836bb8aeb7b3a521ed86 |
-| M0-CI-001 | CI workflow | Codex-Agent-D | ready | .github/workflows/* | CI | M0-FOUND-001 | b950f9f86f41fc95fad9836bb8aeb7b3a521ed86 |
-| M0-CLI-001 | CLI skeleton | Codex-Agent-A | waiting | src/dao_vang/cli/*, tests/unit/cli/* | unit | M0-CONFIG-001 | - |
+| M0-FOUND-001 | Scaffold Python project | Codex-Integrator | merged | root, pyproject, src/tests skeleton | full | - | 651d174 |
+| M0-DOMAIN-001 | Domain types/errors | Codex-Agent-A | merged | src/dao_vang/domain/*, tests/unit/domain/* | unit+type | M0-FOUND-001 | e2c3058 |
+| M0-CONFIG-001 | Typed config | Codex-Agent-B | merged | src/dao_vang/config/*, tests/unit/config/* | unit+type | M0-FOUND-001 | 29deab1 |
+| M0-LOG-001 | Structured logging | Codex-Agent-C | merged | src/dao_vang/logging/*, tests/unit/logging/* | unit | M0-FOUND-001 | f3fd9a7 |
+| M0-CI-001 | CI workflow | Codex-Agent-D | merged | .github/workflows/* | CI | M0-FOUND-001 | 5b24b42 |
+| M0-CLI-001 | CLI skeleton | Codex-Agent-A | merged | src/dao_vang/cli/*, tests/unit/cli/* | unit | M0-CONFIG-001 | ddedb7d |
 
 ## Ownership rule
 
