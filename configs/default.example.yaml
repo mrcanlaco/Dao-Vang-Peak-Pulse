@@ -1,0 +1,15 @@
+binance:
+  base_url: "https://fapi.binance.com"
+  symbol: "BTCUSDT"
+  interval: "5m"
+  availability_lag_ms: 1000
+
+collection:
+  timeout_seconds: 15
+  max_retries: 5
+  max_concurrency: 2
+
+paths:
+  data_dir: "data"
+  raw_dir: "data/raw"
+  normalized_dir: "data/normalized"
