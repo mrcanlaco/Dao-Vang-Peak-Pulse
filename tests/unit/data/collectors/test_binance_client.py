@@ -5,6 +5,7 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from dao_vang.data.collectors.binance_client import BinanceClient
 from dao_vang.domain.errors import RateLimitError, SourceAPIError
 
@@ -18,7 +19,9 @@ def create_mock_response(
     mock_resp.read.return_value = json.dumps(body).encode("utf-8")
 
     mock_headers = MagicMock()
-    mock_headers.get.side_effect = lambda k, d=None: (headers or {}).get(k, d)
+    def _get_header(k: str, d: Any = None) -> Any:
+        return (headers or {}).get(k, d)
+    mock_headers.get.side_effect = _get_header
     mock_resp.info.return_value = mock_headers
     return mock_resp
 

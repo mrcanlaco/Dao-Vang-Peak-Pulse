@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 
 class BinanceClient:
-    """HTTP client for Binance USD-M Futures public API with retry and rate-limit handling."""
+    """Binance USD-M Futures public API HTTP client with retry and rate-limit."""
 
     def __init__(
         self,
