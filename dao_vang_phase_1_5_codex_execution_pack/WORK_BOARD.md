@@ -36,7 +36,8 @@ Goal: Normalize raw JSON to typed models, apply quality filters, and store as ca
 |---|---|---|---|---|---|---|---|
 | M2-SCHEMA-001 | Pydantic normalized schemas | Codex-Integrator | merged | src/dao_vang/data/schemas.py | unit | M0-DOMAIN-001 | cb92482 |
 | M2-NORM-001 | Normalizers for all MVP data | Codex-Integrator | merged | src/dao_vang/data/normalization/normalizers.py | unit | M2-SCHEMA-001 | 6a92dd4 |
-| M2-QUALITY-001 | Data quality engine | Codex-Integrator | ready | src/dao_vang/data/quality.py | unit | M2-NORM-001 | b644861 |
+| M2-QUALITY-001 | Data quality engine | Codex-Integrator | merged | src/dao_vang/data/quality.py | unit | M2-NORM-001 | 6038bc5 |
+| M2-PARQUET-001 | Normalized Parquet writer | Codex-Integrator | ready | src/dao_vang/data/storage/parquet.py | unit | M2-NORM-001, M1-STORAGE-001 | 6038bc5 |
 
 ## Ownership rule
 
