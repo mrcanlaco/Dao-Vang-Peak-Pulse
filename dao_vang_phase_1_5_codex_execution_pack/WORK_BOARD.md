@@ -68,6 +68,14 @@ Goal: Xây dựng feature engine dựa trên DuckDB CTEs, loại bỏ Pandas/Pol
 | M4-RATIOS-001 | Ratio Features | Codex-Integrator | merged | src/dao_vang/features/builders/ratios.py | unit | M4-CORE-001 | 5543fac |
 | M4-FEATURESET-001 | Feature Table Builder | Codex-Integrator | merged | src/dao_vang/features/builder.py | unit | M4-PRICE-001, ... | 5543fac |
 
+## Sprint M5 — Validation & Metrics
+
+Goal: Chống leakage và thiết lập metrics.
+
+| ID | Task | Owner | Status | Scope | Gate | Depends | Base SHA |
+|---|---|---|---|---|---|---|---|
+| M5-SPLIT-001 | Chronological split and embargo | Codex-Integrator | merged | src/dao_vang/validation/splits.py | unit | M4-FEATURESET-001 | e04dec9 |
+
 ## Ownership rule
 
 Mỗi file chỉ một owner trong cùng wave.
