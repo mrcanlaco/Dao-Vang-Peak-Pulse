@@ -24,6 +24,6 @@ def test_exception_inheritance() -> None:
         LeakageDetected,
         ArtifactIntegrityError,
     ]
-    
+
     for exc in exceptions:
         assert issubclass(exc, DaoVangError)

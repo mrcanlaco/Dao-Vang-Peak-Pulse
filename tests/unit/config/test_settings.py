@@ -29,7 +29,7 @@ def test_invalid_lag() -> None:
 def test_env_override() -> None:
     os.environ["DAO_VANG_BINANCE__SYMBOL"] = "ETHUSDT"
     os.environ["DAO_VANG_COLLECTION__MAX_RETRIES"] = "10"
-    
+
     try:
         settings = AppSettings()
         assert settings.binance.symbol == "ETHUSDT"
@@ -41,17 +41,10 @@ def test_env_override() -> None:
 
 def test_yaml_load(tmp_path: Path) -> None:
     yaml_file = tmp_path / "config.yaml"
-    data = {
-        "binance": {
-            "symbol": "BNBUSDT"
-        },
-        "collection": {
-            "timeout_seconds": 30
-        }
-    }
+    data = {"binance": {"symbol": "BNBUSDT"}, "collection": {"timeout_seconds": 30}}
     with open(yaml_file, "w", encoding="utf-8") as f:
         yaml.dump(data, f)
-        
+
     settings = AppSettings.from_yaml(yaml_file)
     assert settings.binance.symbol == "BNBUSDT"
     assert settings.collection.timeout_seconds == 30

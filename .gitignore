@@ -25,7 +25,7 @@ htmlcov/
 coverage.xml
 
 # Data and artifacts
-data/
+/data/
 artifacts/
 
 # OS generated files
