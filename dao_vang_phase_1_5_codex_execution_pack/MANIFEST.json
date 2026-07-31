@@ -1,0 +1,307 @@
+{
+  "pack_version": "1.0.0",
+  "task_count": 46,
+  "file_count": 61,
+  "files": [
+    {
+      "path": "ACCEPTANCE_TEST_MATRIX.md",
+      "sha256": "2a149bc01b709965ebad22bac68707902c829904e5bd9813bdd95833a6b91daf",
+      "bytes": 1168
+    },
+    {
+      "path": "CODEX_OPERATING_RULES.md",
+      "sha256": "be3fcbacb87e83b189c6532211d556fbc3d0534b608a36827ce737fb9f1cff6b",
+      "bytes": 1534
+    },
+    {
+      "path": "DISPATCH_SHEETS.md",
+      "sha256": "068d9077dca25682f496b87224de6ac9df0cabf9babe1f1e42c762065c5304ea",
+      "bytes": 392
+    },
+    {
+      "path": "INTEGRATOR_PROMPT.md",
+      "sha256": "1385d65119f71051bb37c7a45a9dd61333eb941b2473c6952342372060384564",
+      "bytes": 1182
+    },
+    {
+      "path": "MASTER_BACKLOG.md",
+      "sha256": "0d57de67cc79b3a183b2562987734e4f883a80c1597123fdb0720b14af7aa7b9",
+      "bytes": 4290
+    },
+    {
+      "path": "README.md",
+      "sha256": "d0b452a1bd26e887842b9a8853217e61930420239cdb56f4cd240e421e271442",
+      "bytes": 1522
+    },
+    {
+      "path": "SPRINT_PLAN.md",
+      "sha256": "497c47a5a1d128a8476145ec815657cb9e3d52f8e64710874a3a9fef620f8a1a",
+      "bytes": 1695
+    },
+    {
+      "path": "WORK_BOARD.md",
+      "sha256": "e27097233ef86584665d97a4099ca4e19349abfdda39e99cac115a888cbf6860",
+      "bytes": 1194
+    },
+    {
+      "path": "phase3/DOCUMENTATION_V1_1_PLAN.md",
+      "sha256": "df0874a5a7edd736327ae183ee3b7cf58cd9e3f7bbe21f0e929aeeb9bb0e14c5",
+      "bytes": 732
+    },
+    {
+      "path": "phase3/DOC_SYNC_CHECKLIST.md",
+      "sha256": "14d581d0ad8aab1d4f9ad5730667249d052f9bc7772028257642c5ec0189a81d",
+      "bytes": 497
+    },
+    {
+      "path": "tasks/M0-CI-001.md",
+      "sha256": "a1aa5c3fe9de2a3c785e1e50a1c1127fa6b91e8d6f376937c0446f0d4c6b76f1",
+      "bytes": 856
+    },
+    {
+      "path": "tasks/M0-CLI-001.md",
+      "sha256": "69c9461943b2048ed4cda1ea34f2dfa739706d6c3b434994e858f6f6d927454d",
+      "bytes": 1032
+    },
+    {
+      "path": "tasks/M0-CONFIG-001.md",
+      "sha256": "e1c81220ef74099dc160fbc11c25fab5e1ddf947818edfe6fea19baf5ffb1345",
+      "bytes": 1138
+    },
+    {
+      "path": "tasks/M0-DOMAIN-001.md",
+      "sha256": "9ea0bbb28d2103e599c62f6b098b18bb37be49ccfbfe8c0b9c9197bfa8f08dbf",
+      "bytes": 1140
+    },
+    {
+      "path": "tasks/M0-FOUND-001.md",
+      "sha256": "411e97c5919c707c7cc23b758d6654032974fff46a52769217fab4ede02fc12a",
+      "bytes": 1227
+    },
+    {
+      "path": "tasks/M0-LOG-001.md",
+      "sha256": "711d8e24bae4229553849ac34ded78c5e8378eab1a8600b186b66fa5ccc8b8a0",
+      "bytes": 995
+    },
+    {
+      "path": "tasks/M1-BINANCE-001.md",
+      "sha256": "1bf9d55fb1943ec8f21c0d48d770c48b200b5f4efd4b59789d7d5bc8b198bd99",
+      "bytes": 1315
+    },
+    {
+      "path": "tasks/M1-FUNDING-001.md",
+      "sha256": "8a8d33cb0851225d7ba6f0f8a3f9d316e5f09f23196083df99852c6798b08b80",
+      "bytes": 1237
+    },
+    {
+      "path": "tasks/M1-KLINES-001.md",
+      "sha256": "54dd792c215aea307235e318ce13a1b1ec840f16cac6d701a454a1e9aa7d0320",
+      "bytes": 1281
+    },
+    {
+      "path": "tasks/M1-MANIFEST-001.md",
+      "sha256": "7d7e83a576f3a12adec09e80cbb055e9f51f8d4ecf10610a8b38906c677c3a5b",
+      "bytes": 1254
+    },
+    {
+      "path": "tasks/M1-OI-001.md",
+      "sha256": "5101cdfb68e82fe303b2a975be7c5109f96a3546d5967ca80c8beba1bcb484d1",
+      "bytes": 1248
+    },
+    {
+      "path": "tasks/M1-RATIOS-001.md",
+      "sha256": "62165a0313d02b33d201ca224ef0b485a13ae21c76c535dce44f2b07a7adf732",
+      "bytes": 1254
+    },
+    {
+      "path": "tasks/M1-STORAGE-001.md",
+      "sha256": "6ecd22f8810cf965761233e4726548a957b690b53d5f43fb8b93de5a29642e38",
+      "bytes": 1241
+    },
+    {
+      "path": "tasks/M1-TAKER-001.md",
+      "sha256": "0d4bbb712913a1226ec09126249179df05bbd6c768c02fa911f5107fc4467ed5",
+      "bytes": 1234
+    },
+    {
+      "path": "tasks/M2-ALIGN-001.md",
+      "sha256": "33523adf5d486ee95a4fe9c76185a1009ec633bc444618d5b291d824ee4318fd",
+      "bytes": 1275
+    },
+    {
+      "path": "tasks/M2-ASOF-001.md",
+      "sha256": "cfc5f5881c11e94057b4dbf6b78652841d8f26812ef4ca09fd37b40a12c992dd",
+      "bytes": 1225
+    },
+    {
+      "path": "tasks/M2-DATASET-001.md",
+      "sha256": "4f233e0a9ad257800ae0c0d1c3d8a1c2055f694220c8feaff8dabc9b41b5f126",
+      "bytes": 1262
+    },
+    {
+      "path": "tasks/M2-DUCKDB-001.md",
+      "sha256": "0b3f61696fa6c10ed3a2ff2a83f7b9b9ea4ba699429904893cd785cd595ea2b0",
+      "bytes": 1188
+    },
+    {
+      "path": "tasks/M2-NORM-001.md",
+      "sha256": "b41cda331c239b787120fadde5b70c54e12de6d5339111935f8b65261d660c37",
+      "bytes": 1242
+    },
+    {
+      "path": "tasks/M2-PARQUET-001.md",
+      "sha256": "c6a72f5c4f420833648ed26729b33eccedc6124416b0054fa36b362063af0d62",
+      "bytes": 1226
+    },
+    {
+      "path": "tasks/M2-QUALITY-001.md",
+      "sha256": "4ec4476049c9826badc98800d84eebf4959fbd0b5158de2ef427ed1c270199c2",
+      "bytes": 1241
+    },
+    {
+      "path": "tasks/M2-SCHEMA-001.md",
+      "sha256": "a5023bac234a8f3d2d08d94b15331c7269b2c5c88229e660fe81dd6b786981af",
+      "bytes": 1208
+    },
+    {
+      "path": "tasks/M3-LABEL-001.md",
+      "sha256": "b202ac415cab8b78d0ed194c3cb198dc298e503f1df934e3f07c8b211b18179b",
+      "bytes": 1266
+    },
+    {
+      "path": "tasks/M3-LABEL-MODEL-001.md",
+      "sha256": "7fe58eca597678c48e295db623182cd8fdd04683ce4b7fd39f9ee2ac3b740584",
+      "bytes": 1202
+    },
+    {
+      "path": "tasks/M3-LABEL-QA-001.md",
+      "sha256": "76712b9556eb6bb3ae0ac7a96b626ec51bdd2b0214de9db160456053c0841135",
+      "bytes": 1243
+    },
+    {
+      "path": "tasks/M4-FEATURE-REG-001.md",
+      "sha256": "776165e3a817eb1a94bdc5277810641b35a4fe1d799b82394eeadb1d44e24b3d",
+      "bytes": 1232
+    },
+    {
+      "path": "tasks/M4-FEATURESET-001.md",
+      "sha256": "598d4e343c2e18162471d13541faf4c9df1af3ecdd17db6ed75c300ea5257ae3",
+      "bytes": 1262
+    },
+    {
+      "path": "tasks/M4-FUNDING-001.md",
+      "sha256": "7d8e2623488ee6804fde3a217f8a0c40a6c66dac95255867827ee754c03f653b",
+      "bytes": 1260
+    },
+    {
+      "path": "tasks/M4-OI-001.md",
+      "sha256": "0ba26442cb1e9596b45f9dc7b6adc97c9ba164dc3c98946d63fd772ff7a2f6c9",
+      "bytes": 1232
+    },
+    {
+      "path": "tasks/M4-PRICE-001.md",
+      "sha256": "0401c6df8f077508b0f0c65d3938d44b435d63dd460ee8894f289bf6d6c11995",
+      "bytes": 1258
+    },
+    {
+      "path": "tasks/M4-RATIOS-001.md",
+      "sha256": "79b689b6067f9bd0d768b04714abf9fb5ae9d4e2678cb19ffcd2cd31928e2a3a",
+      "bytes": 1219
+    },
+    {
+      "path": "tasks/M4-TAKER-001.md",
+      "sha256": "94a2352d5d86d8c07db5303b96ad4966be9606185c881d750abae4305f2707bc",
+      "bytes": 1208
+    },
+    {
+      "path": "tasks/M5-BASELINE-RULES-001.md",
+      "sha256": "fd127c72f571e565ded0b41aedccab5dd33bf4a0bcad1fc2d70d68659827bc0a",
+      "bytes": 1201
+    },
+    {
+      "path": "tasks/M5-BOOTSTRAP-001.md",
+      "sha256": "ca2477a76cfb1c0cd37555f7eb90f46c5ec0f867e2f4022ee2590e0343f2ee59",
+      "bytes": 1235
+    },
+    {
+      "path": "tasks/M5-CALIBRATION-001.md",
+      "sha256": "bec6bc7eacc7f9b79f815beb8e7fe822f52eb2145b21b8a532867776d1a25b6d",
+      "bytes": 1240
+    },
+    {
+      "path": "tasks/M5-LEAKAGE-001.md",
+      "sha256": "35981de4e1032222b850a163c5eb16e9e27f43ef216ebca530d22b0bcefabc41",
+      "bytes": 1213
+    },
+    {
+      "path": "tasks/M5-LOGREG-001.md",
+      "sha256": "adda27d360cccae2e66d918a0336aabaf62d9d77e4b92ac8237b62128df91193",
+      "bytes": 1301
+    },
+    {
+      "path": "tasks/M5-METRICS-001.md",
+      "sha256": "577d7aee98d51d142619429e61079a82417db7b98207d0de1b1f007d6149c17c",
+      "bytes": 1252
+    },
+    {
+      "path": "tasks/M5-SPLIT-001.md",
+      "sha256": "6d70ce720ba6758b2480e51a315e9fb500322ec24a18ec76119c8e312769d45c",
+      "bytes": 1227
+    },
+    {
+      "path": "tasks/M5-WALKFORWARD-001.md",
+      "sha256": "7328c3fa8dd147eebab567a1b0a2d1c386e18af82c0eadffc9b40504815e738d",
+      "bytes": 1230
+    },
+    {
+      "path": "tasks/M6-ARTIFACT-001.md",
+      "sha256": "a95b05e20f4bcd67f2e036fea5e0bc76dff4209f2905d17b9b74381e13e5b836",
+      "bytes": 1273
+    },
+    {
+      "path": "tasks/M6-CLI-001.md",
+      "sha256": "172019d39849e4d469bb34922d517b8efdee2302e5eb57892c2764f61118bb87",
+      "bytes": 1193
+    },
+    {
+      "path": "tasks/M6-E2E-001.md",
+      "sha256": "0fb44a9b847a5c957a21f4048baae46a3a80f8dc7a813e860dce1b47c7c13f6d",
+      "bytes": 1187
+    },
+    {
+      "path": "tasks/M6-EXPERIMENT-001.md",
+      "sha256": "c9d92812fa35b1639fa875b5eef06d3032cbc5961273d71ea2359c200197d31d",
+      "bytes": 1270
+    },
+    {
+      "path": "tasks/M6-MVP-RC-001.md",
+      "sha256": "7e68bf22ae8506d06c22c025cb8660a5fda8af0a80db8d1599a9544bd4524334",
+      "bytes": 1217
+    },
+    {
+      "path": "tasks/M6-REPORT-001.md",
+      "sha256": "4b7b7c2f45fc3ef7d60f06a01a776ff81fc300a4446e232c6c5647c13d3476d3",
+      "bytes": 1181
+    },
+    {
+      "path": "templates/CHANGES_REQUESTED_TEMPLATE.md",
+      "sha256": "1bae7364a11839e3b386f38005242b3f903352da0050b51bb69b5e4d13440ebf",
+      "bytes": 160
+    },
+    {
+      "path": "templates/HANDOFF_TEMPLATE.md",
+      "sha256": "5032cc6217012c1432ba03710a7fe65a998edd8f1bae90ad31cf0e66b15a1e6a",
+      "bytes": 282
+    },
+    {
+      "path": "templates/MERGE_REPORT_TEMPLATE.md",
+      "sha256": "a245f9ad92b3eb1f95e57b2004ec5e4e832929d9301c8403b1a3322a5780f90c",
+      "bytes": 176
+    },
+    {
+      "path": "templates/REVIEW_TEMPLATE.md",
+      "sha256": "1917f46bef36cf71ca429c300012e42d1b8de663fe611acbd2b3b335383b16ee",
+      "bytes": 311
+    }
+  ]
+}
