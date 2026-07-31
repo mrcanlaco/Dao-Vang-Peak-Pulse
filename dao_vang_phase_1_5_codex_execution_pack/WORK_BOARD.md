@@ -21,6 +21,7 @@ Goal: Xây dựng layer collection cho Binance USD-M, raw storage atomic, checks
 |---|---|---|---|---|---|---|---|
 | M1-STORAGE-001 | Atomic storage/checksum | Codex-Integrator | merged | src/dao_vang/data/storage/* | unit | M0-DOMAIN-001 | 77d4baf |
 | M1-BINANCE-001 | Binance HTTP client | Codex-Integrator | merged | src/dao_vang/data/collectors/binance_client.py | unit | M0-CONFIG-001 | 77d4baf |
+
 | M1-MANIFEST-001 | Manifest models | Codex-Integrator | merged | src/dao_vang/data/manifest.py | unit | M1-STORAGE-001 | 9ef2c0f |
 | M1-KLINES-001 | Klines collector | Codex-Integrator | merged | src/dao_vang/data/collectors/klines.py | unit | M1-BINANCE-001 | e7da9b0 |
 | M1-FUNDING-001 | Funding collector | Codex-Integrator | merged | src/dao_vang/data/collectors/funding.py | unit | M1-BINANCE-001 | 5045288 |
@@ -38,7 +39,20 @@ Goal: Normalize raw JSON to typed models, apply quality filters, and store as ca
 | M2-NORM-001 | Normalizers for all MVP data | Codex-Integrator | merged | src/dao_vang/data/normalization/normalizers.py | unit | M2-SCHEMA-001 | 6a92dd4 |
 | M2-QUALITY-001 | Data quality engine | Codex-Integrator | merged | src/dao_vang/data/quality.py | unit | M2-NORM-001 | 6038bc5 |
 | M2-PARQUET-001 | Normalized Parquet writer | Codex-Integrator | merged | src/dao_vang/data/storage/parquet.py | unit | M2-NORM-001, M1-STORAGE-001 | 0a3ccac |
-| M2-DUCKDB-001 | DuckDB query layer | Codex-Integrator | ready | src/dao_vang/data/storage/duckdb.py | unit | M2-PARQUET-001 | 0a3ccac |
+| M2-DUCKDB-001 | DuckDB query layer | Codex-Integrator | merged | src/dao_vang/data/storage/duckdb.py | unit | M2-PARQUET-001 | 781dfd7 |
+| M2-ALIGN-001 | Canonical timeline and exact joins | Codex-Integrator | merged | src/dao_vang/data/timeline.py | unit | M2-QUALITY-001, M2-DUCKDB-001 | 781dfd7 |
+| M2-ASOF-001 | Backward as-of funding join | Codex-Integrator | merged | src/dao_vang/data/timeline.py | unit | M2-ALIGN-001 | 781dfd7 |
+| M2-DATASET-001 | Dataset builder and fingerprint | Codex-Integrator | merged | src/dao_vang/data/dataset.py | unit | M2-ASOF-001, M1-MANIFEST-001 | 781dfd7 |
+
+## Sprint M3 — Label Engine
+
+Goal: Gắn nhãn Distribution v0.1 với đầy đủ edge cases.
+
+| ID | Task | Owner | Status | Scope | Gate | Depends | Base SHA |
+|---|---|---|---|---|---|---|---|
+| M3-LABEL-MODEL-001 | Label result models | Codex-Integrator | merged | src/dao_vang/labels/models.py | unit | M0-DOMAIN-001 | 781dfd7 |
+| M3-LABEL-001 | Distribution Label v0.1 engine | Codex-Integrator | merged | src/dao_vang/labels/engine.py | unit | M3-LABEL-MODEL-001, M2-DATASET-001 | 781dfd7 |
+| M3-LABEL-QA-001 | Label diagnostics and edge-case suite | Codex-Integrator | merged | tests/unit/labels/test_engine.py | unit | M3-LABEL-001 | 781dfd7 |
 
 ## Ownership rule
 
