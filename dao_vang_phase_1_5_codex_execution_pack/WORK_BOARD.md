@@ -6,7 +6,7 @@ Goal: Dựng repository Python có quality gates và module boundaries theo Docu
 
 | ID | Task | Owner | Status | Scope | Gate | Depends | Base SHA |
 |---|---|---|---|---|---|---|---|
-| M0-FOUND-001 | Scaffold Python project | Codex-Integrator | ready | root, pyproject, src/tests skeleton | full | - | TO_FILL |
+| M0-FOUND-001 | Scaffold Python project | Codex-Integrator | ready | root, pyproject, src/tests skeleton | full | - | 651d17453a7ae9f6287cd9ca86594015ff176af3 |
 | M0-DOMAIN-001 | Domain types/errors | Codex-Agent-A | waiting | src/dao_vang/domain/*, tests/unit/domain/* | unit+type | M0-FOUND-001 | - |
 | M0-CONFIG-001 | Typed config | Codex-Agent-B | waiting | src/dao_vang/config/*, tests/unit/config/* | unit+type | M0-FOUND-001 | - |
 | M0-LOG-001 | Structured logging | Codex-Agent-C | waiting | src/dao_vang/logging/*, tests/unit/logging/* | unit | M0-FOUND-001 | - |
