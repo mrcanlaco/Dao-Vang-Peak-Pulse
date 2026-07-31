@@ -76,6 +76,7 @@ Goal: Chống leakage và thiết lập metrics.
 |---|---|---|---|---|---|---|---|
 | M5-SPLIT-001 | Chronological split and embargo | Codex-Integrator | merged | src/dao_vang/validation/splits.py | unit | M4-FEATURESET-001 | e04dec9 |
 | M5-METRICS-001 | Metrics and event-level cooldown | Codex-Integrator | merged | src/dao_vang/validation/metrics.py | unit | M5-SPLIT-001 | 44a47e0 |
+| M5-BASELINE-RULES-001 | Rule baselines B0–B4 | Codex-Integrator | merged | src/dao_vang/baselines/rules.py | unit | M5-METRICS-001 | eaa77b3 |
 
 ## Ownership rule
 
