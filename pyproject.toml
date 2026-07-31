@@ -1,0 +1,34 @@
+[project]
+name = "dao-vang"
+version = "0.1.0"
+description = "Đảo Vàng - Predictive model for crypto distribution phases"
+authors = [{name = "Integrator"}]
+requires-python = "==3.12.*"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.5.0",
+    "pyright>=1.1.0",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = []
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
