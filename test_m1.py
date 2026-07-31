@@ -16,7 +16,7 @@ def run_tests():
     print("Testing M1 Collectors...")
 
     settings = AppSettings()
-    # Override data dir for testing if you want, 
+    # Override data dir for testing if you want,
     # or just let it write to the default data dir.
 
     client = BinanceClient()

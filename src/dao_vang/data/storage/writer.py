@@ -18,12 +18,12 @@ def compute_checksum(file_path: Path) -> str:
 def write_atomic(target_path: Path, data: bytes) -> str:
     """Atomically write data to target_path and return its SHA-256 checksum."""
     target_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     fd, temp_path = tempfile.mkstemp(dir=target_path.parent, prefix=".tmp_")
     try:
         with os.fdopen(fd, "wb") as f:
             f.write(data)
-            
+
         checksum = compute_checksum(Path(temp_path))
         os.replace(temp_path, target_path)
         return checksum

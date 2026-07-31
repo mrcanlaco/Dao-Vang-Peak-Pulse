@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+from decimal import Decimal
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
@@ -89,3 +91,76 @@ class AccountRatioData(BaseModel):
     @field_validator("timestamp", mode="before")
     def parse_timestamp(cls, v: Any) -> Any:
         return _ms_to_datetime(v)
+
+
+class QualityStatus(str, Enum):
+    VALID = "valid"
+    WARNING = "warning"
+    INVALID = "invalid"
+    QUARANTINED = "quarantined"
+
+
+class NormalizedBase(BaseModel):
+    symbol: str
+    market: str
+    data_type: str
+    interval: str | None
+    event_time: datetime
+    available_time: datetime
+    collected_at: datetime
+    source_version: str
+    dataset_version: str
+    quality_status: QualityStatus
+    quality_flags: list[str]
+
+
+class NormalizedKline(NormalizedBase):
+    open_time: datetime
+    close_time: datetime
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume_base: Decimal
+    volume_quote: Decimal
+    trade_count: int
+    taker_buy_base: Decimal
+    taker_buy_quote: Decimal
+
+
+class NormalizedFunding(NormalizedBase):
+    funding_time: datetime
+    funding_rate: Decimal
+    mark_price: Decimal | None
+
+
+class NormalizedOpenInterest(NormalizedBase):
+    period_start: datetime
+    period_end: datetime
+    open_interest_contracts: Decimal
+    open_interest_value: Decimal | None
+
+
+class NormalizedTakerVolume(NormalizedBase):
+    period_start: datetime
+    period_end: datetime
+    buy_volume: Decimal
+    sell_volume: Decimal
+    buy_sell_ratio: Decimal | None
+
+
+class NormalizedGlobalRatio(NormalizedBase):
+    period_start: datetime
+    period_end: datetime
+    long_account: Decimal | None
+    short_account: Decimal | None
+    long_short_ratio: Decimal
+
+
+class NormalizedTopRatio(NormalizedBase):
+    period_start: datetime
+    period_end: datetime
+    long_account: Decimal | None
+    short_account: Decimal | None
+    long_short_ratio: Decimal
+    population: str = "top_trader_accounts"

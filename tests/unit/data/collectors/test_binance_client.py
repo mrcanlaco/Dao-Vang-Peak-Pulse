@@ -19,8 +19,10 @@ def create_mock_response(
     mock_resp.read.return_value = json.dumps(body).encode("utf-8")
 
     mock_headers = MagicMock()
+
     def _get_header(k: str, d: Any = None) -> Any:
         return (headers or {}).get(k, d)
+
     mock_headers.get.side_effect = _get_header
     mock_resp.info.return_value = mock_headers
     return mock_resp
