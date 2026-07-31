@@ -54,6 +54,20 @@ Goal: Gắn nhãn Distribution v0.1 với đầy đủ edge cases.
 | M3-LABEL-001 | Distribution Label v0.1 engine | Codex-Integrator | merged | src/dao_vang/labels/engine.py | unit | M3-LABEL-MODEL-001, M2-DATASET-001 | 781dfd7 |
 | M3-LABEL-QA-001 | Label diagnostics and edge-case suite | Codex-Integrator | merged | tests/unit/labels/test_engine.py | unit | M3-LABEL-001 | 781dfd7 |
 
+## Sprint M4 — Feature Engine
+
+Goal: Xây dựng feature engine dựa trên DuckDB CTEs, loại bỏ Pandas/Polars.
+
+| ID | Task | Owner | Status | Scope | Gate | Depends | Base SHA |
+|---|---|---|---|---|---|---|---|
+| M4-CORE-001 | Feature Registry & Models | Codex-Integrator | merged | src/dao_vang/features/models.py, registry.py | unit | M0-DOMAIN-001 | 5543fac |
+| M4-PRICE-001 | Price Features | Codex-Integrator | merged | src/dao_vang/features/builders/price.py | unit | M4-CORE-001 | 5543fac |
+| M4-FUNDING-001 | Funding Features | Codex-Integrator | merged | src/dao_vang/features/builders/funding.py | unit | M4-CORE-001 | 5543fac |
+| M4-OI-001 | Open Interest Features | Codex-Integrator | merged | src/dao_vang/features/builders/open_interest.py | unit | M4-CORE-001 | 5543fac |
+| M4-TAKER-001 | Taker Features | Codex-Integrator | merged | src/dao_vang/features/builders/taker.py | unit | M4-CORE-001 | 5543fac |
+| M4-RATIOS-001 | Ratio Features | Codex-Integrator | merged | src/dao_vang/features/builders/ratios.py | unit | M4-CORE-001 | 5543fac |
+| M4-FEATURESET-001 | Feature Table Builder | Codex-Integrator | merged | src/dao_vang/features/builder.py | unit | M4-PRICE-001, ... | 5543fac |
+
 ## Ownership rule
 
 Mỗi file chỉ một owner trong cùng wave.
