@@ -5,11 +5,16 @@ description = "Đảo Vàng - Predictive model for crypto distribution phases"
 authors = [{name = "Integrator"}]
 requires-python = "==3.12.*"
 dependencies = [
-    "pydantic>=2.13.4",
-    "pydantic-settings>=2.14.2",
-    "pyyaml>=6.0.3",
-    "structlog>=26.1.0",
+    "pydantic-core==2.46.4",
+    "pydantic-settings==2.14.2",
+    "pydantic==2.13.4",
+    "pyyaml==6.0.3",
+    "structlog==26.1.0",
+    "typer>=0.27.0",
 ]
+
+[project.scripts]
+dao-vang = "dao_vang.cli.main:app"
 
 [build-system]
 requires = ["hatchling"]
