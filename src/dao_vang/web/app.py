@@ -77,10 +77,28 @@ if run_button:
             CREATE TABLE raw_timeline AS 
             SELECT 
                 epoch_ms(1700000000000 + (range * 300000)) as feature_time,
+                epoch_ms(1700000000000 + (range * 300000) + 5000) as decision_time,
                 100.0 + sin(range/10.0)*10 as open,
                 105.0 + sin(range/10.0)*10 as high,
                 95.0 + sin(range/10.0)*10 as low,
                 100.0 + sin((range+1)/10.0)*10 as close,
+                1000.0 + sin(range/5.0)*100 as volume_base,
+                100000.0 + sin(range/5.0)*10000 as volume_quote,
+                500 as trade_count,
+                5000.0 as open_interest_contracts,
+                500000.0 as open_interest_value,
+                500.0 as buy_volume,
+                500.0 as sell_volume,
+                1.0 as buy_sell_ratio,
+                0.5 as global_long_account,
+                0.5 as global_short_account,
+                1.0 as global_long_short_ratio,
+                0.5 as top_long_account,
+                0.5 as top_short_account,
+                1.0 as top_long_short_ratio,
+                0.0001 as funding_rate_last_known,
+                epoch_ms(1700000000000) as funding_event_time,
+                0 as funding_age_minutes,
                 'valid' as quality_status
             FROM range(1000)
         """)
