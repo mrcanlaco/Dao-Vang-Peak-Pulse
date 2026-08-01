@@ -57,13 +57,19 @@ def _mock_results(config: ExperimentConfig) -> Dict[str, Any]:
     }
 
 
-def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
+def run_experiment(
+    config: ExperimentConfig, conn: Any = None
+) -> Dict[str, Any]:
     """
     Orchestrates the experiment:
     - Loads dataset, features, labels based on versions in config.
     - Applies splits.
     - Runs the selected model.
     - Computes metrics.
+
+    If ``conn`` is provided (a live DuckDB connection), it is used directly
+    instead of opening a new one. This avoids file-lock conflicts when the
+    caller (e.g. the Streamlit UI) already holds a write connection.
 
     Returns a dictionary containing the results and execution metadata.
     """
@@ -72,13 +78,15 @@ def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
     import numpy as np
     from dao_vang.experiments.walk_forward import embargo_split, train_evaluate_logreg
 
-    # Connect to DuckDB and load data.
-    # Fall back to mock results if the DB is unavailable (e.g. locked by
-    # another process such as the Streamlit UI) or has no usable data.
-    try:
-        conn = duckdb.connect(config.db_path, read_only=True)
-    except Exception:
-        return _mock_results(config)
+    owns_conn = conn is None
+    if owns_conn:
+        # Connect to DuckDB and load data.
+        # Fall back to mock results if the DB is unavailable (e.g. locked by
+        # another process such as the Streamlit UI) or has no usable data.
+        try:
+            conn = duckdb.connect(config.db_path, read_only=True)
+        except Exception:
+            return _mock_results(config)
 
     # Load features joined with labels
     try:
@@ -92,13 +100,18 @@ def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
             """
         ).df()
     except Exception:
-        conn.close()
+        if owns_conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
         return _mock_results(config)
     finally:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        if owns_conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     if df.empty or 'is_distribution' not in df.columns:
         return _mock_results(config)

@@ -1,7 +1,8 @@
 import json
 import logging
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Callable, Any
+from typing import Callable, Dict, Any, Optional
 
 from dao_vang.config.settings import AppSettings
 from dao_vang.data.normalization.normalizers import (
@@ -17,6 +18,94 @@ from dao_vang.data.storage.parquet import write_normalized_to_parquet
 from dao_vang.data.timeline import align_exact_5m, align_funding_asof
 
 logger = logging.getLogger(__name__)
+
+# Timestamp field/extraction per data type for incremental download
+_TIMESTAMP_SPECS: Dict[str, Any] = {
+    "klines": {"field": None, "index": 6},  # close_time at index 6 in kline list
+    "funding": {"field": "fundingTime"},
+    "open_interest": {"field": "timestamp"},
+    "taker_ratio": {"field": "timestamp"},
+    "global_ratio": {"field": "timestamp"},
+    "top_ratio": {"field": "timestamp"},
+}
+
+
+def get_latest_data_timestamp(
+    data_dir: Path, data_type: str, symbol: str
+) -> Optional[datetime]:
+    """
+    Scan existing raw JSONL files for the given data_type and symbol,
+    and return the latest data timestamp (UTC).
+
+    Returns None if no matching data is found.
+    """
+    raw_dir = data_dir / "raw" / data_type
+    if not raw_dir.exists():
+        return None
+
+    date_dirs = sorted(raw_dir.glob("date=*"))
+    if not date_dirs:
+        return None
+
+    spec = _TIMESTAMP_SPECS.get(data_type)
+    if spec is None:
+        return None
+
+    latest_ts_ms = 0
+
+    # Only scan the last few date directories for efficiency
+    for date_dir in reversed(date_dirs[-5:]):
+        jsonl_files = sorted(date_dir.glob("*.jsonl"))
+        if not jsonl_files:
+            continue
+
+        for f in jsonl_files:
+            try:
+                with open(f, "r", encoding="utf-8") as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        envelope = json.loads(line)
+                        # Check symbol from request params
+                        req_params = json.loads(envelope.get("request_params_json", "{}"))
+                        file_symbol = req_params.get("symbol", "")
+                        if file_symbol != symbol:
+                            continue
+
+                        payload = json.loads(envelope["payload_json"])
+                        if not payload or not isinstance(payload, list):
+                            continue
+
+                        last_item = payload[-1]
+                        if spec["field"] is None:
+                            # klines: timestamp at index
+                            ts = int(last_item[spec["index"]])
+                        else:
+                            ts = int(last_item[spec["field"]])
+
+                        if ts > latest_ts_ms:
+                            latest_ts_ms = ts
+            except (json.JSONDecodeError, KeyError, IndexError, ValueError):
+                continue
+
+    if latest_ts_ms > 0:
+        return datetime.fromtimestamp(latest_ts_ms / 1000.0, tz=timezone.utc)
+    return None
+
+
+def get_incremental_start(
+    data_dir: Path, data_type: str, symbol: str, requested_start: datetime
+) -> datetime:
+    """
+    Return the effective start time for incremental collection.
+    If existing data covers up to a later timestamp, start from there (+1ms).
+    Otherwise, start from the requested_start.
+    """
+    latest = get_latest_data_timestamp(data_dir, data_type, symbol)
+    if latest is not None and latest >= requested_start:
+        return latest + timedelta(milliseconds=1)
+    return requested_start
 
 
 # Map collector types to their normalization functions

@@ -17,7 +17,11 @@ from dao_vang.experiments.runner import ExperimentConfig, run_experiment
 from dao_vang.features.builder import build_features
 from dao_vang.labels.engine import DistributionLabelEngine
 from dao_vang.reports.generator import generate_markdown_report
-from dao_vang.data.pipeline import process_raw_to_parquet, build_raw_timeline
+from dao_vang.data.pipeline import (
+    process_raw_to_parquet,
+    build_raw_timeline,
+    get_incremental_start,
+)
 
 st.set_page_config(
     page_title="Đảo Vàng - Dashboard",
@@ -65,23 +69,42 @@ if run_button:
     t_start = time.perf_counter()
     
     try:
-        # 1. Collect Data
-        status_text.info("Đang tải dữ liệu K-line và các metrics từ Binance...")
+        # 1. Collect Data (incremental — skip already-downloaded data)
+        status_text.info("Đang kiểm tra dữ liệu đã tải và tải bổ sung từ Binance...")
         progress_bar.progress(10, text="Bước 1/5: Thu thập Dữ liệu")
         t0 = time.perf_counter()
         settings = AppSettings()
         settings.binance.symbol = symbol
         client = BinanceClient()
         run_id = f"ui_{int(time.time())}"
-        
-        KlinesCollector(client, settings).collect(start_dt, end_dt, run_id)
-        FundingCollector(client, settings).collect(start_dt, end_dt, run_id)
-        OpenInterestCollector(client, settings).collect(start_dt, end_dt, run_id)
-        TakerRatioCollector(client, settings).collect(start_dt, end_dt, run_id)
-        GlobalRatioCollector(client, settings).collect(start_dt, end_dt, run_id)
-        TopRatioCollector(client, settings).collect(start_dt, end_dt, run_id)
+
+        data_dir = Path(settings.paths.data_dir)
+        collectors_info = [
+            ("klines", "K-line", KlinesCollector(client, settings)),
+            ("funding", "Funding Rate", FundingCollector(client, settings)),
+            ("open_interest", "Open Interest", OpenInterestCollector(client, settings)),
+            ("taker_ratio", "Taker Volume", TakerRatioCollector(client, settings)),
+            ("global_ratio", "Global Long/Short", GlobalRatioCollector(client, settings)),
+            ("top_ratio", "Top Trader Long/Short", TopRatioCollector(client, settings)),
+        ]
+
+        collected_any = False
+        skipped_all = True
+        for data_type, label, collector in collectors_info:
+            inc_start = get_incremental_start(data_dir, data_type, symbol, start_dt)
+            if inc_start > end_dt:
+                st.info(f"  ✓ {label}: đã có dữ liệu tới {inc_start.isoformat()}, bỏ qua.")
+                continue
+            skipped_all = False
+            collector.collect(inc_start, end_dt, run_id)
+            collected_any = True
+            st.info(f"  ↓ {label}: tải bổ sung từ {inc_start.isoformat()}")
+
         t1 = time.perf_counter()
-        st.info(f"Bước 1/5: Thu thập dữ liệu từ Binance hoàn tất trong {t1 - t0:.2f}s")
+        if skipped_all:
+            st.info(f"Bước 1/5: Tất cả dữ liệu đã có sẵn, không cần tải thêm ({t1 - t0:.2f}s)")
+        else:
+            st.info(f"Bước 1/5: Thu thập dữ liệu từ Binance hoàn tất trong {t1 - t0:.2f}s")
         
         # 2. Normalize 
         progress_bar.progress(30, text="Bước 2/5: Chuẩn hóa Dữ liệu")
@@ -163,22 +186,45 @@ if run_button:
             metrics=["precision", "recall", "brier"],
             db_path=db_path,
         )
-        result = run_experiment(config)
+        result = run_experiment(config, conn=db.conn)
         registry = ArtifactRegistry(Path(artifact_dir))
         artifact_id = registry.save_experiment(result)
         t1 = time.perf_counter()
-        
+
         artifact = registry.load_experiment(artifact_id)
         md_content = generate_markdown_report(artifact)
-        
+
         progress_bar.progress(100, text="Hoàn thành!")
         status_text.success(f"Pipeline chạy thành công! Artifact ID: `{artifact_id}`")
         st.info(f"Bước 5/5: Mô hình và báo cáo hoàn tất trong {t1 - t0:.2f}s")
         st.info(f"Tổng thời gian pipeline: {time.perf_counter() - t_start:.2f}s")
-        
+
+        # Show label distribution chart
         st.markdown("---")
+        st.subheader("📊 Phân phối Nhãn")
+        label_col1, label_col2, label_col3 = st.columns(3)
+        label_col1.metric("Phân phối (label=1)", n_positive)
+        label_col2.metric("Bình thường (label=0)", n_negative)
+        label_col3.metric("Loại trừ", n_excluded)
+
+        if n_positive == 0:
+            st.warning(
+                "⚠️ Không có event phân phối nào (label=1) trong dữ liệu. "
+                "Mô hình không thể học. Hãy thử coin biến động hơn hoặc khoảng thời gian dài hơn."
+            )
+
+        # Show experiment metrics
+        agg = result.get("results", {}).get("aggregate", {})
+        if agg:
+            st.subheader("📈 Metrics Tổng hợp")
+            metric_cols = st.columns(len(agg))
+            for col, (k, v) in zip(metric_cols, agg.items()):
+                col.metric(k, f"{v:.4f}" if isinstance(v, float) else str(v))
+
+        st.markdown("---")
+        st.subheader("📄 Báo cáo Markdown")
         st.markdown(md_content)
-        
+
     except Exception as e:
         status_text.error(f"Lỗi: {str(e)}")
         progress_bar.empty()
