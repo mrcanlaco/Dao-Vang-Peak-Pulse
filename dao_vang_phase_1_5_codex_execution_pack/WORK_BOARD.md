@@ -90,6 +90,7 @@ Goal: Provide artifact registry, reporting and E2E CLI.
 | ID | Task | Owner | Status | Scope | Gate | Depends | Base SHA |
 |---|---|---|---|---|---|---|---|
 | M6-EXPERIMENT-001 | Experiment config and runner | Codex-Integrator | merged | src/dao_vang/experiments/runner.py | unit | M5-WALKFORWARD-001 | 83d147b |
+| M6-ARTIFACT-001 | Artifact registry | Codex-Integrator | merged | src/dao_vang/experiments/artifacts.py | unit | M6-EXPERIMENT-001 | 8c792fc |
 
 ## Ownership rule
 
