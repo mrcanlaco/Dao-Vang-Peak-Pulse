@@ -14,10 +14,12 @@ dependencies = [
     "pyarrow>=15.0.0",
     "duckdb>=1.0.0",
     "pytz>=2024.1",
+    "streamlit>=1.30.0",
 ]
 
 [project.scripts]
 dao-vang = "dao_vang.cli.main:app"
+dao-vang-ui = "dao_vang.web.run:main"
 
 [build-system]
 requires = ["hatchling"]
