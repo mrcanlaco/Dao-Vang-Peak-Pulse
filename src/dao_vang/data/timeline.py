@@ -19,10 +19,11 @@ def align_exact_5m(
     and its quality_status is 'valid' or 'warning'.
     """
 
-    try:
-        db.conn.execute(f"DROP TABLE {output_view}")
-    except Exception:
-        pass
+    for kind in ("VIEW", "TABLE"):
+        try:
+            db.conn.execute(f"DROP {kind} IF EXISTS {output_view}")
+        except Exception:
+            pass
 
     sql = f"""
     CREATE OR REPLACE VIEW {output_view} AS
@@ -75,10 +76,11 @@ def align_funding_asof(
     """
     max_age_minutes = max_funding_age_hours * 60
 
-    try:
-        db.conn.execute(f"DROP TABLE {output_view}")
-    except Exception:
-        pass
+    for kind in ("VIEW", "TABLE"):
+        try:
+            db.conn.execute(f"DROP {kind} IF EXISTS {output_view}")
+        except Exception:
+            pass
 
     sql = f"""
     CREATE OR REPLACE TABLE {output_view} AS
