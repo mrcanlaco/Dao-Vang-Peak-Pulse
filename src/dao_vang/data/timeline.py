@@ -19,9 +19,11 @@ def align_exact_5m(
     and its quality_status is 'valid' or 'warning'.
     """
 
+    # DuckDB's DROP ... IF EXISTS checks only the name, not the type,
+    # so a VIEW/TABLE type mismatch still raises. Try both explicitly.
     for kind in ("VIEW", "TABLE"):
         try:
-            db.conn.execute(f"DROP {kind} IF EXISTS {output_view}")
+            db.conn.execute(f"DROP {kind} {output_view}")
         except Exception:
             pass
 
@@ -78,7 +80,7 @@ def align_funding_asof(
 
     for kind in ("VIEW", "TABLE"):
         try:
-            db.conn.execute(f"DROP {kind} IF EXISTS {output_view}")
+            db.conn.execute(f"DROP {kind} {output_view}")
         except Exception:
             pass
 

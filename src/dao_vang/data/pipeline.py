@@ -178,12 +178,12 @@ def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
         path_pattern = str(normalized_dir / subdir / "**/*.parquet").replace("\\", "/")
         # We check if there are any parquet files first.
         if list((normalized_dir / subdir).rglob("*.parquet")):
-            try:
-                db.conn.execute(f"DROP VIEW IF EXISTS {view_name}")
-                db.conn.execute(f"DROP TABLE IF EXISTS {view_name}")
-            except Exception:
-                pass
-            
+            for kind in ("VIEW", "TABLE"):
+                try:
+                    db.conn.execute(f"DROP {kind} {view_name}")
+                except Exception:
+                    pass
+
             db.conn.execute(f"""
                 CREATE OR REPLACE VIEW {view_name} AS 
                 SELECT * FROM read_parquet('{path_pattern}', union_by_name=true)
