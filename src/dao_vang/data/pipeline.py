@@ -108,6 +108,77 @@ def get_incremental_start(
     return requested_start
 
 
+def scan_downloaded_data(data_dir: Path) -> Dict[str, Dict[str, Any]]:
+    """
+    Scan all raw JSONL files and return a summary of downloaded data
+    organized by symbol and data_type.
+
+    Returns:
+        {
+            "BTCUSDT": {
+                "klines": {"rows": 12345, "files": 5, "first_date": "2026-07-01", "last_date": "2026-07-31"},
+                "funding": {...},
+                ...
+            },
+            ...
+        }
+    """
+    raw_dir = data_dir / "raw"
+    if not raw_dir.exists():
+        return {}
+
+    result: Dict[str, Dict[str, Any]] = {}
+
+    for data_type, spec in _TIMESTAMP_SPECS.items():
+        dtype_dir = raw_dir / data_type
+        if not dtype_dir.exists():
+            continue
+
+        for jsonl in sorted(dtype_dir.rglob("*.jsonl")):
+            date_str = jsonl.parent.name.replace("date=", "")
+            try:
+                with open(jsonl, "r", encoding="utf-8") as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        envelope = json.loads(line)
+                        req = json.loads(envelope.get("request_params_json", "{}"))
+                        sym = req.get("symbol", "")
+                        if not sym:
+                            continue
+
+                        if sym not in result:
+                            result[sym] = {}
+                        if data_type not in result[sym]:
+                            result[sym][data_type] = {
+                                "rows": 0,
+                                "files": set(),
+                                "first_date": date_str,
+                                "last_date": date_str,
+                            }
+
+                        entry = result[sym][data_type]
+                        entry["files"].add(jsonl.name)
+                        if date_str < entry["first_date"]:
+                            entry["first_date"] = date_str
+                        if date_str > entry["last_date"]:
+                            entry["last_date"] = date_str
+
+                        payload = json.loads(envelope["payload_json"])
+                        if isinstance(payload, list):
+                            entry["rows"] += len(payload)
+            except (json.JSONDecodeError, KeyError, IndexError, ValueError):
+                continue
+
+    # Convert file sets to counts
+    for sym in result:
+        for dt in result[sym]:
+            result[sym][dt]["files"] = len(result[sym][dt]["files"])
+
+    return result
+
+
 # Map collector types to their normalization functions
 NORMALIZER_MAP: Dict[str, Callable[[Dict[str, Any], str], list[Any]]] = {
     "klines": normalize_kline,

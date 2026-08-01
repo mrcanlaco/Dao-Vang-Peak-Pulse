@@ -21,6 +21,7 @@ from dao_vang.data.pipeline import (
     process_raw_to_parquet,
     build_raw_timeline,
     get_incremental_start,
+    scan_downloaded_data,
 )
 
 st.set_page_config(
@@ -33,20 +34,89 @@ st.set_page_config(
 st.title("🪙 Đảo Vàng MVP Dashboard")
 st.markdown("Mô hình dự đoán các giai đoạn phân phối crypto")
 
+# --- Scan existing downloaded data ---
+_data_dir_scan = Path("data")
+_downloaded = scan_downloaded_data(_data_dir_scan)
+_all_symbols = sorted(_downloaded.keys())
+
 with st.sidebar:
     st.header("⚙️ Cấu hình Pipeline")
-    
-    # Date selection
+
+    # --- Symbol selection with data info ---
+    st.subheader("📊 Chọn Mã Coin")
+
+    if _all_symbols:
+        # Build display labels with data summary
+        _symbol_labels = {}
+        for sym in _all_symbols:
+            info = _downloaded.get(sym, {})
+            dtypes = sorted(info.keys())
+            klines_info = info.get("klines", {})
+            date_range = ""
+            if klines_info:
+                date_range = f" ({klines_info['first_date']} → {klines_info['last_date']})"
+            _symbol_labels[sym] = f"{sym}{date_range}"
+
+        selected_label = st.selectbox(
+            "Mã coin đã có dữ liệu",
+            options=list(_symbol_labels.keys()),
+            format_func=lambda s: _symbol_labels[s],
+            help="Chọn mã coin từ dữ liệu đã tải. Chọn 'Nhập mã khác' để tải mã mới.",
+        )
+        symbol = selected_label
+
+        # Allow entering a new symbol not yet downloaded
+        use_custom = st.checkbox("Nhập mã khác (tải mới)")
+        if use_custom:
+            custom_symbol = st.text_input(
+                "Mã coin mới", value="", placeholder="VD: SOLUSDT, DOGEUSDT..."
+            ).strip().upper()
+            if custom_symbol:
+                symbol = custom_symbol
+    else:
+        st.info("Chưa có dữ liệu nào. Nhập mã coin để bắt đầu tải.")
+        symbol = st.text_input(
+            "Mã coin", value="BTCUSDT", placeholder="VD: BTCUSDT, ETHUSDT..."
+        ).strip().upper()
+
+    # --- Show downloaded data details for selected symbol ---
+    if symbol and symbol in _downloaded:
+        st.markdown("---")
+        st.markdown(f"**📦 Dữ liệu đã tải: `{symbol}`**")
+        sym_data = _downloaded[symbol]
+        _dtype_names = {
+            "klines": "Nến (K-lines 5m)",
+            "funding": "Funding Rate",
+            "open_interest": "Open Interest",
+            "taker_ratio": "Taker Volume",
+            "global_ratio": "Global Long/Short",
+            "top_ratio": "Top Trader L/Short",
+        }
+        for dt in ["klines", "funding", "open_interest", "taker_ratio", "global_ratio", "top_ratio"]:
+            if dt in sym_data:
+                d = sym_data[dt]
+                st.markdown(
+                    f"- **{_dtype_names.get(dt, dt)}**: {d['rows']:,} dòng, "
+                    f"{d['files']} file, {d['first_date']} → {d['last_date']}"
+                )
+            else:
+                st.markdown(f"- ~~{_dtype_names.get(dt, dt)}~~: chưa có")
+    elif symbol:
+        st.markdown("---")
+        st.warning(f"⚠️ Chưa có dữ liệu cho `{symbol}`. Sẽ tải mới khi bấm chạy.")
+
+    st.markdown("---")
+
+    # --- Date selection ---
     now = datetime.now()
     default_start = now - timedelta(days=7)
-    
+
     start_date = st.date_input("Ngày bắt đầu", value=default_start)
     end_date = st.date_input("Ngày kết thúc", value=now)
-    
+
     db_path = st.text_input("Đường dẫn Database", value="./data/dev.duckdb")
     artifact_dir = st.text_input("Thư mục Artifact", value="./artifacts")
-    symbol = st.text_input("Coin / Symbol", value="ETHUSDT").strip().upper()
-    
+
     st.markdown("---")
     st.subheader("Cấu hình Thử nghiệm")
     hypothesis_id = st.text_input("ID Giả thuyết", value="hyp_dashboard_001")
