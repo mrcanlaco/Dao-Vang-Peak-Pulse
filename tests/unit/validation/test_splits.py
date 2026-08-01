@@ -5,7 +5,7 @@ from dao_vang.validation.splits import generate_walk_forward_splits
 
 def test_happy_path_walk_forward():
     start = datetime(2023, 1, 1)
-    # 90d train + 24h embargo + 30d val + 24h embargo + 30d test 
+    # 90d train + 24h embargo + 30d val + 24h embargo + 30d test
     # = 152 days for first fold
     end = start + timedelta(days=200)
 

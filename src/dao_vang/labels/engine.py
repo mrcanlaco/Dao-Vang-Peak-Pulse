@@ -61,7 +61,7 @@ class DistributionLabelEngine:
             return null_result("invalid_signal_price")
 
         target_threshold = float(P0) * float(1 - self.target_drawdown)
-        mae_threshold_price = float(P0) * float(1 + self.max_ae)
+        float(P0) * float(1 + self.max_ae)
 
         horizon_end_time = signal_time + timedelta(minutes=self.max_horizon_minutes)
 

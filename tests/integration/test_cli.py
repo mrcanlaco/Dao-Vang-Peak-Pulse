@@ -18,11 +18,8 @@ def test_cli_help():
 
 def test_report_generate_not_found(tmp_path: Path):
     out_file = tmp_path / "report.md"
-    result = runner.invoke(app, [
-        "report", "generate",
-        "exp_non_existent",
-        str(tmp_path),
-        str(out_file)
-    ])
+    result = runner.invoke(
+        app, ["report", "generate", "exp_non_existent", str(tmp_path), str(out_file)]
+    )
     assert result.exit_code == 1
     assert "not found" in result.output
