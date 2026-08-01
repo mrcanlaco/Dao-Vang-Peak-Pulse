@@ -83,6 +83,14 @@ Goal: Chống leakage và thiết lập metrics.
 | M5-WALKFORWARD-001 | Walk-forward runner | Codex-Integrator | merged | src/dao_vang/validation/walk_forward.py | unit | M5-BOOTSTRAP-001 | 0aaf429 |
 | M5-LEAKAGE-001 | Full leakage audit suite | Codex-Integrator | merged | src/dao_vang/validation/leakage.py | unit | M5-WALKFORWARD-001 | c610b3b |
 
+## Sprint M6 — Experiment and Reporting
+
+Goal: Provide artifact registry, reporting and E2E CLI.
+
+| ID | Task | Owner | Status | Scope | Gate | Depends | Base SHA |
+|---|---|---|---|---|---|---|---|
+| M6-EXPERIMENT-001 | Experiment config and runner | Codex-Integrator | merged | src/dao_vang/experiments/runner.py | unit | M5-WALKFORWARD-001 | 83d147b |
+
 ## Ownership rule
 
 Mỗi file chỉ một owner trong cùng wave.
