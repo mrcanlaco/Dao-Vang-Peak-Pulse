@@ -80,6 +80,7 @@ Goal: Chống leakage và thiết lập metrics.
 | M5-LOGREG-001 | Logistic regression baseline | Codex-Integrator | merged | src/dao_vang/baselines/logistic.py | unit, leakage | M5-BASELINE-RULES-001 | dd6ce30 |
 | M5-CALIBRATION-001 | Calibration metrics and curves | Codex-Integrator | merged | src/dao_vang/validation/calibration.py | unit | M5-LOGREG-001 | dae0f5d |
 | M5-BOOTSTRAP-001 | Confidence intervals | Codex-Integrator | merged | src/dao_vang/validation/bootstrap.py | unit | M5-CALIBRATION-001 | d3e0718 |
+| M5-WALKFORWARD-001 | Walk-forward runner | Codex-Integrator | merged | src/dao_vang/validation/walk_forward.py | unit | M5-BOOTSTRAP-001 | 0aaf429 |
 
 ## Ownership rule
 
