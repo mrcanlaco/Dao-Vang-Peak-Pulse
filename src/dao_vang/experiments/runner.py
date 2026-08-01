@@ -37,7 +37,7 @@ def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
         "results": {
             "per_fold": [
                 {
-                    "fold_index": 1,
+                    "fold_idx": 1,
                     "train_start": "2023-01-01",
                     "train_end": "2023-06-01",
                     "test_start": "2023-06-01",
@@ -45,7 +45,7 @@ def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
                     "metrics": {"precision": 0.55, "recall": 0.60, "brier": 0.22}
                 },
                 {
-                    "fold_index": 2,
+                    "fold_idx": 2,
                     "train_start": "2023-02-01",
                     "train_end": "2023-07-01",
                     "test_start": "2023-07-01",
