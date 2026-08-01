@@ -92,6 +92,7 @@ Goal: Provide artifact registry, reporting and E2E CLI.
 | M6-EXPERIMENT-001 | Experiment config and runner | Codex-Integrator | merged | src/dao_vang/experiments/runner.py | unit | M5-WALKFORWARD-001 | 83d147b |
 | M6-ARTIFACT-001 | Artifact registry | Codex-Integrator | merged | src/dao_vang/experiments/artifacts.py | unit | M6-EXPERIMENT-001 | 8c792fc |
 | M6-REPORT-001 | Markdown/JSON experiment report | Codex-Integrator | merged | src/dao_vang/reports/generator.py | unit | M6-ARTIFACT-001 | 84c61da |
+| M6-CLI-001 | End-to-end CLI commands | Codex-Integrator | merged | src/dao_vang/cli/main.py | e2e | M6-REPORT-001 | 74f2b7f |
 
 ## Ownership rule
 
