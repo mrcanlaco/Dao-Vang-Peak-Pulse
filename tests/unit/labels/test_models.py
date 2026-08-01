@@ -9,6 +9,7 @@ def test_distribution_label_result_valid():
 
     result = DistributionLabelResult(
         signal_time=dt,
+        symbol="BTCUSDT",
         signal_price=Decimal("100.0"),
         label_value=1,
         target_reached=True,
@@ -32,6 +33,7 @@ def test_distribution_label_result_null():
 
     result = DistributionLabelResult(
         signal_time=dt,
+        symbol="BTCUSDT",
         signal_price=Decimal("100.0"),
         exclusion_reason="ambiguous_intrabar",
     )

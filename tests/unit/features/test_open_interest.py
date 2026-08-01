@@ -9,6 +9,7 @@ def test_build_oi_features():
         """
         CREATE TABLE raw_timeline (
             feature_time TIMESTAMP,
+            symbol VARCHAR,
             close DOUBLE,
             open_interest_value DOUBLE
         )
@@ -18,7 +19,7 @@ def test_build_oi_features():
     # Insert dummy data
     for i in range(100):
         db.execute(
-            f"INSERT INTO raw_timeline VALUES (epoch_ms({i * 300000}), {100 + i}, {1000 + i * 10})"
+            f"INSERT INTO raw_timeline VALUES (epoch_ms({i * 300000}), 'BTCUSDT', {100 + i}, {1000 + i * 10})"
         )
 
     sql = build_oi_features_sql("raw_timeline")

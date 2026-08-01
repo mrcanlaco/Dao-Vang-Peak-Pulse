@@ -73,11 +73,12 @@ def build_oi_features_sql(source_table: str) -> str:
             
             close / NULLIF(lag(close, 12) OVER w_all, 0) - 1 AS price_ret_1h
         FROM {source_table}
-        WINDOW w_all AS (ORDER BY feature_time)
+        WINDOW w_all AS (PARTITION BY symbol ORDER BY feature_time)
     ),
     oi_features AS (
         SELECT
             feature_time,
+            symbol,
             
             COALESCE(oi_ret_1h, 0.0) AS {OI_CHANGE_1H.id},
             COALESCE(oi_ret_4h, 0.0) AS {OI_CHANGE_4H.id},
@@ -94,7 +95,7 @@ def build_oi_features_sql(source_table: str) -> str:
             
         FROM oi_base
         WINDOW 
-            w_all AS (ORDER BY feature_time),
-            w_2016 AS (ORDER BY feature_time ROWS BETWEEN 2015 PRECEDING AND CURRENT ROW)
+            w_all AS (PARTITION BY symbol ORDER BY feature_time),
+            w_2016 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 2015 PRECEDING AND CURRENT ROW)
     )
     """

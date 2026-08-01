@@ -75,15 +75,16 @@ def build_funding_features_sql(source_table: str) -> str:
     funding_features AS (
         SELECT
             feature_time,
+            symbol,
             COALESCE(funding_rate_last_known, 0.0) AS {FUNDING_RATE_RAW.id},
             
-            -- Percentile 7d (2016 rows of 5m)
-            length(list_filter(list(funding_rate_last_known) OVER w_2016, x -> x <= funding_rate_last_known)) * 1.0 
-            / greatest(length(list(funding_rate_last_known) OVER w_2016), 1) AS {FUNDING_PERCENTILE_7D.id},
+            -- Relative position within 7d range
+            (funding_rate_last_known - min(funding_rate_last_known) OVER w_2016) 
+            / NULLIF(max(funding_rate_last_known) OVER w_2016 - min(funding_rate_last_known) OVER w_2016, 0) AS {FUNDING_PERCENTILE_7D.id},
             
-            -- Percentile 30d (8640 rows of 5m)
-            length(list_filter(list(funding_rate_last_known) OVER w_8640, x -> x <= funding_rate_last_known)) * 1.0 
-            / greatest(length(list(funding_rate_last_known) OVER w_8640), 1) AS {FUNDING_PERCENTILE_30D.id},
+            -- Relative position within 30d range
+            (funding_rate_last_known - min(funding_rate_last_known) OVER w_8640) 
+            / NULLIF(max(funding_rate_last_known) OVER w_8640 - min(funding_rate_last_known) OVER w_8640, 0) AS {FUNDING_PERCENTILE_30D.id},
             
             -- Z-score 30d
             (funding_rate_last_known - avg(funding_rate_last_known) OVER w_8640) / NULLIF(stddev_samp(funding_rate_last_known) OVER w_8640, 0) AS {FUNDING_ZSCORE_30D.id},
@@ -99,8 +100,8 @@ def build_funding_features_sql(source_table: str) -> str:
             
         FROM {source_table}
         WINDOW
-            w_all AS (ORDER BY feature_time),
-            w_2016 AS (ORDER BY feature_time ROWS BETWEEN 2015 PRECEDING AND CURRENT ROW),
-            w_8640 AS (ORDER BY feature_time ROWS BETWEEN 8639 PRECEDING AND CURRENT ROW)
+            w_all AS (PARTITION BY symbol ORDER BY feature_time),
+            w_2016 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 2015 PRECEDING AND CURRENT ROW),
+            w_8640 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 8639 PRECEDING AND CURRENT ROW)
     )
     """

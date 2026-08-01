@@ -9,6 +9,7 @@ def test_build_taker_features():
         """
         CREATE TABLE raw_timeline (
             feature_time TIMESTAMP,
+            symbol VARCHAR,
             close DOUBLE,
             buy_volume DOUBLE,
             sell_volume DOUBLE,
@@ -22,7 +23,7 @@ def test_build_taker_features():
         b = 1000 + i * 10
         s = 1000 - i * 10
         db.execute(
-            f"INSERT INTO raw_timeline VALUES (epoch_ms({i * 300000}), {100 + i}, {b}, {s}, {b / s if s else 1.0})"
+            f"INSERT INTO raw_timeline VALUES (epoch_ms({i * 300000}), 'BTCUSDT', {100 + i}, {b}, {s}, {b / s if s else 1.0})"
         )
 
     sql = build_taker_features_sql("raw_timeline")

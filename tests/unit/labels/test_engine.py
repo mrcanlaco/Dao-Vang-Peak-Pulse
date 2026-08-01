@@ -1,17 +1,22 @@
 from datetime import datetime, timedelta, timezone
 
 import duckdb
+import pytest
 
 from dao_vang.labels.engine import DistributionLabelEngine
+
+TEST_SYMBOL = "BTCUSDT"
 
 
 def create_test_db(rows):
     db = duckdb.connect(":memory:")
     db.execute(
-        "CREATE TABLE test_data (feature_time TIMESTAMP, open DECIMAL, high DECIMAL, low DECIMAL, close DECIMAL, quality_status VARCHAR)"
+        "CREATE TABLE test_data (symbol VARCHAR, feature_time TIMESTAMP, open DECIMAL, high DECIMAL, low DECIMAL, close DECIMAL, quality_status VARCHAR)"
     )
     for r in rows:
-        db.execute("INSERT INTO test_data VALUES (?, ?, ?, ?, ?, ?)", r)
+        # Prepend the symbol to each row if not already present.
+        row = (TEST_SYMBOL, *r) if len(r) == 6 else r
+        db.execute("INSERT INTO test_data VALUES (?, ?, ?, ?, ?, ?, ?)", row)
     return db
 
 
@@ -53,7 +58,7 @@ def test_label_positive_clean():
     res = results[0]
     assert res.label_value == 1
     assert res.target_reached is True
-    assert res.max_adverse_excursion == 0.01
+    assert res.max_adverse_excursion == pytest.approx(0.01)
     assert res.exclusion_reason is None
 
 
@@ -106,7 +111,7 @@ def test_label_negative_mae_breached():
     res = results[0]
     assert res.label_value == 0
     assert res.target_reached is True  # Target was actually reached!
-    assert res.max_adverse_excursion == 0.05
+    assert res.max_adverse_excursion == pytest.approx(0.05)
     assert res.exclusion_reason is None
 
 

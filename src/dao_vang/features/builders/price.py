@@ -92,11 +92,12 @@ def build_price_features_sql(source_table: str) -> str:
             close / lag(close, 48) OVER w_all - 1 AS {PRICE_RET_4H.id},
             close / lag(close, 288) OVER w_all - 1 AS {PRICE_RET_24H.id}
         FROM {source_table}
-        WINDOW w_all AS (ORDER BY feature_time)
+        WINDOW w_all AS (PARTITION BY symbol ORDER BY feature_time)
     ),
     price_features AS (
         SELECT
             feature_time,
+            symbol,
             {PRICE_RET_5M.id},
             {PRICE_RET_1H.id},
             {PRICE_RET_4H.id},
@@ -106,15 +107,15 @@ def build_price_features_sql(source_table: str) -> str:
             
             close / max(high) OVER w_288 - 1 AS {DISTANCE_FROM_HIGH_24H.id},
             
-            -- Volume percentile using list_filter hack for rolling percentile rank
-            length(list_filter(list(volume_base) OVER w_288, x -> x <= volume_base)) * 1.0 / length(list(volume_base) OVER w_288) AS {VOLUME_PERCENTILE_24H.id},
+            -- Volume relative to 24h max
+            volume_base / NULLIF(max(volume_base) OVER w_288, 0) AS {VOLUME_PERCENTILE_24H.id},
             
             -- Momentum deceleration: current 1h return - 1h return 3 hours ago (lag 36)
             {PRICE_RET_1H.id} - lag({PRICE_RET_1H.id}, 36) OVER w_all AS {MOMENTUM_DECELERATION_4H.id}
             
         FROM price_base
         WINDOW 
-            w_all AS (ORDER BY feature_time),
-            w_288 AS (ORDER BY feature_time ROWS BETWEEN 287 PRECEDING AND CURRENT ROW)
+            w_all AS (PARTITION BY symbol ORDER BY feature_time),
+            w_288 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 287 PRECEDING AND CURRENT ROW)
     )
     """

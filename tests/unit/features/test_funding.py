@@ -9,6 +9,7 @@ def test_build_funding_features():
         """
         CREATE TABLE raw_timeline (
             feature_time TIMESTAMP,
+            symbol VARCHAR,
             funding_rate_last_known DOUBLE
         )
         """
@@ -18,7 +19,7 @@ def test_build_funding_features():
     for i in range(100):
         # alternate funding rates
         val = 0.0001 if i % 2 == 0 else -0.0001
-        db.execute(f"INSERT INTO raw_timeline VALUES (epoch_ms({i * 300000}), {val})")
+        db.execute(f"INSERT INTO raw_timeline VALUES (epoch_ms({i * 300000}), 'BTCUSDT', {val})")
 
     sql = build_funding_features_sql("raw_timeline")
     query = f"""

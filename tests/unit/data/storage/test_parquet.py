@@ -46,7 +46,7 @@ def test_write_normalized_to_parquet_success():
         pydict = table.to_pydict()  # type: ignore
         assert pydict["symbol"][0] == "BTCUSDT"  # type: ignore
         assert pydict["quality_status"][0] == "valid"  # type: ignore
-        assert pydict["funding_rate"][0] == Decimal("0.0001")  # type: ignore
+        assert Decimal(pydict["funding_rate"][0]) == Decimal("0.0001")  # type: ignore
 
 
 def test_write_normalized_to_parquet_empty_list():

@@ -9,6 +9,7 @@ def test_build_price_features():
         """
         CREATE TABLE raw_timeline (
             feature_time TIMESTAMP,
+            symbol VARCHAR,
             close DOUBLE,
             high DOUBLE,
             volume_base DOUBLE
@@ -19,7 +20,7 @@ def test_build_price_features():
     # Insert some dummy rows to test the logic
     for i in range(300):
         db.execute(
-            f"INSERT INTO raw_timeline VALUES (epoch_ms({i * 300000}), {100 + i}, {105 + i}, {1000 + (i % 10) * 100})"
+            f"INSERT INTO raw_timeline VALUES (epoch_ms({i * 300000}), 'BTCUSDT', {100 + i}, {105 + i}, {1000 + (i % 10) * 100})"
         )
 
     sql = build_price_features_sql("raw_timeline")

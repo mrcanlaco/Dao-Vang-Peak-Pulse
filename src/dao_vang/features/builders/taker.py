@@ -62,11 +62,12 @@ def build_taker_features_sql(source_table: str) -> str:
             -- Price return 1h for divergence calculation
             close / NULLIF(lag(close, 12) OVER w_all, 0) - 1 AS price_ret_1h
         FROM {source_table}
-        WINDOW w_all AS (ORDER BY feature_time)
+        WINDOW w_all AS (PARTITION BY symbol ORDER BY feature_time)
     ),
     taker_features AS (
         SELECT
             feature_time,
+            symbol,
             
             COALESCE(raw_buy_ratio, 0.5) AS {TAKER_BUY_RATIO.id},
             
@@ -85,8 +86,8 @@ def build_taker_features_sql(source_table: str) -> str:
             
         FROM taker_base
         WINDOW 
-            w_all AS (ORDER BY feature_time),
-            w_12 AS (ORDER BY feature_time ROWS BETWEEN 11 PRECEDING AND CURRENT ROW),
-            w_48 AS (ORDER BY feature_time ROWS BETWEEN 47 PRECEDING AND CURRENT ROW)
+            w_all AS (PARTITION BY symbol ORDER BY feature_time),
+            w_12 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 11 PRECEDING AND CURRENT ROW),
+            w_48 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 47 PRECEDING AND CURRENT ROW)
     )
     """

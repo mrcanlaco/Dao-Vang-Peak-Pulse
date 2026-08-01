@@ -11,6 +11,7 @@ def test_build_features():
         CREATE VIEW raw_timeline AS 
         SELECT 
             epoch_ms(i * 300000) AS feature_time,
+            'BTCUSDT' AS symbol,
             100 + i AS close,
             105 + i AS high,
             95 + i AS low,

@@ -64,6 +64,7 @@ def build_ratio_features_sql(source_table: str) -> str:
     ratios_features AS (
         SELECT
             feature_time,
+            symbol,
             
             global_ls AS {GLOBAL_LS_RATIO.id},
             top_ls AS {TOP_LS_RATIO.id},
@@ -79,7 +80,7 @@ def build_ratio_features_sql(source_table: str) -> str:
             
         FROM ratios_base
         WINDOW 
-            w_12 AS (ORDER BY feature_time ROWS BETWEEN 11 PRECEDING AND CURRENT ROW),
-            w_48 AS (ORDER BY feature_time ROWS BETWEEN 47 PRECEDING AND CURRENT ROW)
+            w_12 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 11 PRECEDING AND CURRENT ROW),
+            w_48 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 47 PRECEDING AND CURRENT ROW)
     )
     """

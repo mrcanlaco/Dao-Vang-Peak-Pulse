@@ -12,6 +12,7 @@ class DistributionLabelResult(BaseModel):
     """
 
     signal_time: datetime = Field(..., description="Time of the signal (UTC)")
+    symbol: str = Field(..., description="Trading pair symbol")
     signal_price: Decimal = Field(
         ..., description="Price at the signal time (e.g., close price)"
     )

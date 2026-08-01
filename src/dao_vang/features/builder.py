@@ -27,15 +27,14 @@ def build_features(db: DuckDBQueryLayer, source_table: str, target_table: str):
     
     SELECT 
        p.*,
-       f.* EXCLUDE (feature_time),
-       o.* EXCLUDE (feature_time),
-       t.* EXCLUDE (feature_time),
-       r.* EXCLUDE (feature_time)
+       f.* EXCLUDE (feature_time, symbol),
+       o.* EXCLUDE (feature_time, symbol),
+       t.* EXCLUDE (feature_time, symbol),
+       r.* EXCLUDE (feature_time, symbol)
     FROM price_features p
-    LEFT JOIN funding_features f ON p.feature_time = f.feature_time
-    LEFT JOIN oi_features o ON p.feature_time = o.feature_time
-    LEFT JOIN taker_features t ON p.feature_time = t.feature_time
-    LEFT JOIN ratios_features r ON p.feature_time = r.feature_time
-    ORDER BY p.feature_time
+    LEFT JOIN funding_features f ON p.feature_time = f.feature_time AND p.symbol = f.symbol
+    LEFT JOIN oi_features o ON p.feature_time = o.feature_time AND p.symbol = o.symbol
+    LEFT JOIN taker_features t ON p.feature_time = t.feature_time AND p.symbol = t.symbol
+    LEFT JOIN ratios_features r ON p.feature_time = r.feature_time AND p.symbol = r.symbol
     """
     db.conn.execute(sql)

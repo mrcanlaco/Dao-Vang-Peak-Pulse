@@ -19,6 +19,11 @@ def align_exact_5m(
     and its quality_status is 'valid' or 'warning'.
     """
 
+    try:
+        db.conn.execute(f"DROP TABLE {output_view}")
+    except Exception:
+        pass
+
     sql = f"""
     CREATE OR REPLACE VIEW {output_view} AS
     SELECT
@@ -29,7 +34,8 @@ def align_exact_5m(
         oi.open_interest_contracts, oi.open_interest_value,
         tv.buy_volume, tv.sell_volume, tv.buy_sell_ratio,
         gr.long_account AS global_long_account, gr.short_account AS global_short_account, gr.long_short_ratio AS global_long_short_ratio,
-        tr.long_account AS top_long_account, tr.short_account AS top_short_account, tr.long_short_ratio AS top_long_short_ratio
+        tr.long_account AS top_long_account, tr.short_account AS top_short_account, tr.long_short_ratio AS top_long_short_ratio,
+        k.quality_status
     FROM {kline_view} k
     LEFT JOIN {oi_view} oi 
         ON k.symbol = oi.symbol AND k.close_time = oi.period_end 
@@ -69,8 +75,13 @@ def align_funding_asof(
     """
     max_age_minutes = max_funding_age_hours * 60
 
+    try:
+        db.conn.execute(f"DROP TABLE {output_view}")
+    except Exception:
+        pass
+
     sql = f"""
-    CREATE OR REPLACE VIEW {output_view} AS
+    CREATE OR REPLACE TABLE {output_view} AS
     WITH joined AS (
         SELECT
             a.*,
