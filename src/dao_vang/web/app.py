@@ -126,6 +126,15 @@ st.markdown("""
         100% { transform: translateX(-50%); }
     }
     .dv-ticker:hover .dv-ticker-track { animation-play-state: paused; }
+
+    /* Coin buttons in top gainers grid */
+    .stButton > button[kind="secondary"] {
+        font-size: 13px;
+        padding: 6px 4px;
+        text-align: center;
+        white-space: pre-line;
+        line-height: 1.3;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -251,63 +260,64 @@ with _col_refresh:
     if st.button("🔄", help="Làm mới ticker"):
         st.rerun()
 
-# --- Top gainers table (clickable) ---
+# --- Top gainers panel (clickable buttons) ---
 if _tickers:
-    with st.expander("🔥 Top tăng/giảm 24h — bấm chọn coin để xem chi tiết", expanded=False):
+    with st.expander("🔥 Top tăng/giảm 24h — bấm vào coin để xem chart", expanded=True):
         _top_gainers = _tickers[:15]
         _top_losers = sorted(_tickers, key=lambda x: float(x.get("priceChangePercent", 0)))[:5]
 
-        _gainer_rows = []
-        for d in _top_gainers:
-            _gainer_rows.append({
-                "Coin": d["symbol"],
-                "Giá": float(d["lastPrice"]),
-                "Thay đổi 24h": f"{float(d['priceChangePercent']):+.2f}%",
-                "Volume 24h": float(d["quoteVolume"]),
-                "High 24h": float(d["highPrice"]),
-                "Low 24h": float(d["lowPrice"]),
-            })
-        st.markdown("**🟢 Top 15 tăng mạnh nhất**")
-        st.dataframe(
-            pd.DataFrame(_gainer_rows).style.format({
-                "Giá": "{:.6f}", "Volume 24h": "{:,.0f}",
-                "High 24h": "{:.6f}", "Low 24h": "{:.6f}",
-            }),
-            use_container_width=True, hide_index=True,
-        )
+        # --- Top gainers as clickable buttons ---
+        st.markdown("**🟢 Top 15 tăng mạnh nhất — bấm để xem**")
+        _gainer_grid = st.columns(5)
+        for i, d in enumerate(_top_gainers):
+            sym = d["symbol"]
+            pct = float(d["priceChangePercent"])
+            price = float(d["lastPrice"])
+            col = _gainer_grid[i % 5]
+            label = f"{sym}\n{pct:+.2f}%"
+            if col.button(label, key=f"gainer_{sym}", use_container_width=True, help=f"Giá: {price:.6f} | Volume: {float(d['quoteVolume']):,.0f}"):
+                st.session_state.selected_gainer = sym
 
-        _loser_rows = []
-        for d in _top_losers:
-            _loser_rows.append({
-                "Coin": d["symbol"],
-                "Giá": float(d["lastPrice"]),
-                "Thay đổi 24h": f"{float(d['priceChangePercent']):+.2f}%",
-                "Volume 24h": float(d["quoteVolume"]),
-            })
-        st.markdown("**🔴 Top 5 giảm mạnh nhất**")
-        st.dataframe(
-            pd.DataFrame(_loser_rows).style.format({
-                "Giá": "{:.6f}", "Volume 24h": "{:,.0f}",
-            }),
-            use_container_width=True, hide_index=True,
-        )
+        # --- Top losers ---
+        st.markdown("**🔴 Top 5 giảm mạnh nhất — bấm để xem**")
+        _loser_grid = st.columns(5)
+        for i, d in enumerate(_top_losers):
+            sym = d["symbol"]
+            pct = float(d["priceChangePercent"])
+            price = float(d["lastPrice"])
+            col = _loser_grid[i % 5]
+            label = f"{sym}\n{pct:+.2f}%"
+            if col.button(label, key=f"loser_{sym}", use_container_width=True, help=f"Giá: {price:.6f} | Volume: {float(d['quoteVolume']):,.0f}"):
+                st.session_state.selected_gainer = sym
 
-        # --- Coin detail viewer ---
+        # --- Also allow manual search ---
         st.markdown("---")
-        st.markdown("#### 🔍 Xem chi tiết coin")
-        _all_ticker_symbols = [d["symbol"] for d in _tickers[:50]]
-        _detail_symbol = st.selectbox(
-            "Chọn coin để xem chart",
-            options=_all_ticker_symbols,
-            index=0,
-            key="detail_gainer_select",
-        )
+        _search_col, _scan_col = st.columns([3, 1])
+        with _search_col:
+            _all_ticker_symbols = [d["symbol"] for d in _tickers[:50]]
+            _detail_symbol = st.selectbox(
+                "Hoặc chọn coin từ danh sách",
+                options=_all_ticker_symbols,
+                index=0 if not st.session_state.selected_gainer else _all_ticker_symbols.index(st.session_state.selected_gainer) if st.session_state.selected_gainer in _all_ticker_symbols else 0,
+                key="detail_gainer_select",
+            )
+        with _scan_col:
+            st.write("")  # spacer
+            st.write("")  # spacer
+            if st.button("🔍 Xem chart", key="view_chart_btn", use_container_width=True):
+                st.session_state.selected_gainer = _detail_symbol
 
-        if _detail_symbol:
-            _klines = _fetch_recent_klines(_detail_symbol, "1h", 48)
+        # Use selected_gainer if set, otherwise use selectbox
+        _show_symbol = st.session_state.selected_gainer or _detail_symbol
+
+        if _show_symbol:
+            _klines = _fetch_recent_klines(_show_symbol, "1h", 48)
             if _klines:
                 _kdf = pd.DataFrame(_klines)
-                _ticker_info = next((d for d in _tickers if d["symbol"] == _detail_symbol), {})
+                _ticker_info = next((d for d in _tickers if d["symbol"] == _show_symbol), {})
+
+                st.markdown("---")
+                st.markdown(f"### 📊 {_show_symbol}")
 
                 dc1, dc2, dc3, dc4 = st.columns(4)
                 dc1.metric("Giá hiện tại", f"{float(_ticker_info.get('lastPrice', 0)):.6f}")
@@ -316,28 +326,28 @@ if _tickers:
                 dc4.metric("High/Low 24h", f"{float(_ticker_info.get('highPrice', 0)):.6f} / {float(_ticker_info.get('lowPrice', 0)):.6f}")
 
                 # Price chart
-                st.markdown(f"**{_detail_symbol} — 48h gần nhất (1h candle)**")
+                st.markdown(f"**{_show_symbol} — 48h gần nhất (1h candle)**")
                 _chart_data = _kdf.set_index("time")[["close"]]
                 st.line_chart(_chart_data, use_container_width=True)
 
-                # Add to watchlist
+                # Add to watchlist + scan
                 st.markdown("---")
                 _wl_cols = st.columns([2, 1, 1])
                 with _wl_cols[0]:
-                    if _detail_symbol in st.session_state.watchlist:
-                        st.success(f"✅ {_detail_symbol} đã có trong watchlist")
+                    if _show_symbol in st.session_state.watchlist:
+                        st.success(f"✅ {_show_symbol} đã có trong watchlist")
                     else:
-                        if st.button(f"➕ Thêm {_detail_symbol} vào watchlist", key="add_wl"):
-                            st.session_state.watchlist.append(_detail_symbol)
+                        if st.button(f"➕ Thêm {_show_symbol} vào watchlist", key="add_wl"):
+                            st.session_state.watchlist.append(_show_symbol)
                             _save_watchlist(st.session_state.watchlist)
-                            st.success(f"✅ Đã thêm {_detail_symbol} vào watchlist!")
+                            st.success(f"✅ Đã thêm {_show_symbol} vào watchlist!")
                             st.rerun()
                 with _wl_cols[1]:
                     if st.button("🔄 Làm mới chart"):
                         st.rerun()
                 with _wl_cols[2]:
                     if st.button("🚀 Quét coin này", key="scan_gainer"):
-                        st.session_state.scan_symbol = _detail_symbol
+                        st.session_state.scan_symbol = _show_symbol
                         st.rerun()
 
 

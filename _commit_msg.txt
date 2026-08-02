@@ -1,14 +1,13 @@
-feat: top gainers ticker + watchlist — dex screener style
+fix: top gainers now clickable — button grid replaces static dataframe
 
-- Add scrolling ticker marquee at top: top 20 gainers + 5 losers
-  Green/red color, price + % change, pause on hover
-- Add "Top tăng/giảm 24h" expander with sortable table
-- Click coin → 48h price chart (1h candle) + 24h stats
-- "➕ Thêm vào watchlist" button — persists to data/watchlist.json
-- "🚀 Quét coin này" button — prefill symbol in sidebar for Watchlist scan
-- Watchlist panel: view saved coins, remove individual or clear all
-- Fetch via BinanceClient: /fapi/v1/ticker/24hr + /fapi/v1/klines
-- Min volume filter: 1M USDT (avoid dust coins)
+- Replace dataframe (not clickable in Streamlit) with button grid
+  Each coin is a button: "SYMBOL\n+12.34%" — bấm vào → hiện chart ngay
+- Top 15 gainers in 5-column grid
+- Top 5 losers in 5-column grid
+- Selectbox fallback for manual search from top 50
+- Chart + stats + watchlist buttons appear below after clicking
+- CSS: compact button styling, pre-line text for 2-line label
+- Expander default expanded=True (was False)
 
 Generated with [Devin](https://devin.ai)
 
