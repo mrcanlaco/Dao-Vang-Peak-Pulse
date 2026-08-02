@@ -380,30 +380,35 @@ if _tickers:
 
                 elif _chart_type == "📊 TradingView":
                     # Embed TradingView widget
+                    # Symbol format: BINANCE:BTCUSDT.P (perpetual futures)
                     import streamlit.components.v1 as components
-                    _tv_sym = _show_symbol.replace("USDT", "USD")
+                    _tv_sym = _show_symbol  # keep USDT suffix
                     _tv_html = f"""
-                    <div class="tradingview-widget-container" style="height:400px;">
+                    <div class="tradingview-widget-container" style="height:450px;">
                         <div id="tradingview_chart"></div>
                         <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
                         <script type="text/javascript">
                         new TradingView.widget({{
                             "autosize": true,
-                            "symbol": "BINANCE:{_tv_sym}PERP",
+                            "symbol": "BINANCE:{_tv_sym}.P",
                             "interval": "{_tf}",
                             "timezone": "Etc/UTC",
                             "theme": "dark",
                             "style": "1",
                             "locale": "vi_VN",
-                            "toolbar_bg": "#f1f3f6",
+                            "toolbar_bg": "#1a1a2e",
                             "enable_publishing": false,
                             "allow_symbol_change": true,
+                            "hide_side_toolbar": false,
+                            "details": true,
+                            "hotlist": true,
+                            "calendar": false,
                             "container_id": "tradingview_chart"
                         }});
                         </script>
                     </div>
                     """
-                    components.html(_tv_html, height=420)
+                    components.html(_tv_html, height=470)
 
                 # Add to watchlist + scan + external links
                 st.markdown("---")

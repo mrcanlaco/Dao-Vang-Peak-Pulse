@@ -1,13 +1,10 @@
-feat: candlestick chart + TradingView widget embed + timeframe selector
+fix: TradingView symbol format — BINANCE:BTCUSDT.P (not BTCUSDPERP)
 
-- 3 chart types: 🕯️ Candlestick (plotly), 📈 Line (streamlit), 📊 TradingView (embed)
-- Timeframe selector: 15m, 1h, 4h, 1d
-- Candle count selector: 48, 96, 200, 500
-- Candlestick: plotly go.Candlestick, dark theme, no slider, compact
-- TradingView: embedded widget via st.components.v1.html
-  Symbol: BINANCE:{SYMBOL}PERP, dark theme, vi_VN locale
-  Full toolbar, allow symbol change, real-time data
-- Add plotly dependency
+- Fix symbol: BINANCE:{SYMBOL}.P for perpetual futures
+  Old: BINANCE:BTCUSDPERP → invalid, caused "Infinite extent" + "invalid parameters"
+  New: BINANCE:BTCUSDT.P → correct TradingView format
+- Add toolbar_bg dark, hide_side_toolbar=false, details=true, hotlist=true
+- Increase height to 450px
 
 Generated with [Devin](https://devin.ai)
 
