@@ -1,18 +1,13 @@
-feat: add Watchlist mode — predict distribution probability on latest candles
+refactor: compact UI — radio mode toggle, shared pipeline helper, CSS tuning
 
-Implements Khối 4 (probability) + Khối 5 (watchlist) from Constitution.
-
-- Add train_and_predict_latest() in walk_forward.py:
-  Train LogReg on historical data, predict on last N candles
-  Threshold tuning on validation set, risk level classification
-  Feature importance (top 5 coefficients)
-
-- Add Watchlist UI mode:
-  "� Quét tín hiệu hiện tại" button in sidebar
-  Shows probability table with color-coded risk levels (CAO/TRUNG BÌNH/THẤP)
-  Alert banner when high-risk signals detected
-  Probability chart over time with threshold line
-  Model info: train size, positives, validation metrics
+- Replace 2 separate buttons with radio toggle (Watchlist / Backtest)
+- Sidebar: 320px fixed width, collapsed advanced config, compact data status
+- Shared _run_pipeline_steps() helper — both modes use same collect→label→feature flow
+- Watchlist: table + chart side-by-side, summary row, feature importance in expander
+- Backtest: 5 tabs (was 6), compact metric row with ±std, log in expander
+- Custom CSS: tighter metrics, smaller tabs, compact alerts
+- Idle state: clear instructions for each mode
+- Default date range: 30 days (was 7)
 
 Generated with [Devin](https://devin.ai)
 
