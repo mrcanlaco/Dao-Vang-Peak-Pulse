@@ -88,7 +88,7 @@ def _render_glossary_tab():
         with st.expander(f"**{term}**", expanded=False):
             st.markdown(explanation)
 
-# --- CSS for compact UI ---
+# --- CSS for compact UI + ticker marquee ---
 st.markdown("""
 <style>
     .stMetric { padding: 4px 0 !important; }
@@ -98,8 +98,277 @@ st.markdown("""
     .stAlert { padding: 8px 12px !important; }
     div[data-testid="stSidebar"] { width: 320px !important; }
     div[data-testid="stSidebar"] > div { padding-top: 1rem; }
+
+    /* Ticker marquee */
+    .dv-ticker {
+        overflow: hidden;
+        white-space: nowrap;
+        background: #1a1a2e;
+        border-radius: 8px;
+        padding: 8px 0;
+        margin-bottom: 12px;
+    }
+    .dv-ticker-track {
+        display: inline-block;
+        animation: dv-scroll 60s linear infinite;
+    }
+    .dv-ticker-item {
+        display: inline-block;
+        padding: 0 16px;
+        font-size: 14px;
+        font-family: monospace;
+    }
+    .dv-ticker-up { color: #0ecb81; }
+    .dv-ticker-down { color: #f6465d; }
+    .dv-ticker-symbol { font-weight: bold; }
+    @keyframes dv-scroll {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+    }
+    .dv-ticker:hover .dv-ticker-track { animation-play-state: paused; }
 </style>
 """, unsafe_allow_html=True)
+
+
+# ============================================================
+# TOP GAINERS — 24h ticker (like dex screener)
+# ============================================================
+import json as _json
+
+_WATCHLIST_FILE = Path("data/watchlist.json")
+
+
+def _fetch_24h_tickers() -> list[dict]:
+    """Fetch 24h ticker stats for all USDT futures from Binance."""
+    try:
+        client = BinanceClient()
+        data = client.get("fapi/v1/ticker/24hr")
+        # Filter USDT pairs, sort by priceChangePercent desc
+        usdt_pairs = [
+            d for d in data
+            if d.get("symbol", "").endswith("USDT")
+            and float(d.get("quoteVolume", 0)) > 1_000_000  # min volume filter
+        ]
+        usdt_pairs.sort(key=lambda x: float(x.get("priceChangePercent", 0)), reverse=True)
+        return usdt_pairs
+    except Exception:
+        return []
+
+
+def _fetch_recent_klines(symbol: str, interval: str = "1h", limit: int = 48) -> list[dict]:
+    """Fetch recent klines for mini chart display."""
+    try:
+        client = BinanceClient()
+        data = client.get("fapi/v1/klines", {
+            "symbol": symbol,
+            "interval": interval,
+            "limit": limit,
+        })
+        # Each kline: [openTime, open, high, low, close, volume, closeTime, ...]
+        return [
+            {
+                "time": datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc),
+                "open": float(k[1]),
+                "high": float(k[2]),
+                "low": float(k[3]),
+                "close": float(k[4]),
+                "volume": float(k[5]),
+            }
+            for k in data
+        ]
+    except Exception:
+        return []
+
+
+def _load_watchlist() -> list[str]:
+    """Load watchlist from persistent file."""
+    if _WATCHLIST_FILE.exists():
+        try:
+            return _json.loads(_WATCHLIST_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+    return []
+
+
+def _save_watchlist(symbols: list[str]):
+    """Save watchlist to persistent file."""
+    _WATCHLIST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _WATCHLIST_FILE.write_text(_json.dumps(symbols, indent=2), encoding="utf-8")
+
+
+def _render_ticker_marquee(tickers: list[dict], top_n: int = 20):
+    """Render scrolling ticker marquee with top gainers/losers."""
+    if not tickers:
+        return
+
+    items = tickers[:top_n] + tickers[-5:]  # top gainers + top losers
+    # Build HTML items (duplicate for seamless loop)
+    html_items = []
+    for d in items:
+        sym = d["symbol"]
+        pct = float(d.get("priceChangePercent", 0))
+        price = float(d.get("lastPrice", 0))
+        cls = "dv-ticker-up" if pct >= 0 else "dv-ticker-down"
+        arrow = "▲" if pct >= 0 else "▼"
+        # Format price nicely
+        if price > 1000:
+            price_str = f"${price:,.0f}"
+        elif price > 1:
+            price_str = f"${price:.2f}"
+        else:
+            price_str = f"${price:.6f}"
+        html_items.append(
+            f'<span class="dv-ticker-item {cls}">'
+            f'<span class="dv-ticker-symbol">{sym}</span> '
+            f'{price_str} {arrow}{abs(pct):.2f}%</span>'
+        )
+
+    items_html = "".join(html_items)
+    # Duplicate for seamless scroll
+    st.markdown(f"""
+    <div class="dv-ticker">
+        <div class="dv-ticker-track">{items_html}{items_html}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# --- Session state for watchlist ---
+if "watchlist" not in st.session_state:
+    st.session_state.watchlist = _load_watchlist()
+if "selected_gainer" not in st.session_state:
+    st.session_state.selected_gainer = None
+
+
+# --- Render ticker + top gainers panel ---
+st.title("🪙 Đảo Vàng")
+st.caption("Phát hiện coin sắp xả phân phối")
+
+_col_ticker, _col_refresh = st.columns([6, 1])
+with _col_ticker:
+    _tickers = _fetch_24h_tickers()
+    _render_ticker_marquee(_tickers, top_n=20)
+with _col_refresh:
+    if st.button("🔄", help="Làm mới ticker"):
+        st.rerun()
+
+# --- Top gainers table (clickable) ---
+if _tickers:
+    with st.expander("🔥 Top tăng/giảm 24h — bấm chọn coin để xem chi tiết", expanded=False):
+        _top_gainers = _tickers[:15]
+        _top_losers = sorted(_tickers, key=lambda x: float(x.get("priceChangePercent", 0)))[:5]
+
+        _gainer_rows = []
+        for d in _top_gainers:
+            _gainer_rows.append({
+                "Coin": d["symbol"],
+                "Giá": float(d["lastPrice"]),
+                "Thay đổi 24h": f"{float(d['priceChangePercent']):+.2f}%",
+                "Volume 24h": float(d["quoteVolume"]),
+                "High 24h": float(d["highPrice"]),
+                "Low 24h": float(d["lowPrice"]),
+            })
+        st.markdown("**🟢 Top 15 tăng mạnh nhất**")
+        st.dataframe(
+            pd.DataFrame(_gainer_rows).style.format({
+                "Giá": "{:.6f}", "Volume 24h": "{:,.0f}",
+                "High 24h": "{:.6f}", "Low 24h": "{:.6f}",
+            }),
+            use_container_width=True, hide_index=True,
+        )
+
+        _loser_rows = []
+        for d in _top_losers:
+            _loser_rows.append({
+                "Coin": d["symbol"],
+                "Giá": float(d["lastPrice"]),
+                "Thay đổi 24h": f"{float(d['priceChangePercent']):+.2f}%",
+                "Volume 24h": float(d["quoteVolume"]),
+            })
+        st.markdown("**🔴 Top 5 giảm mạnh nhất**")
+        st.dataframe(
+            pd.DataFrame(_loser_rows).style.format({
+                "Giá": "{:.6f}", "Volume 24h": "{:,.0f}",
+            }),
+            use_container_width=True, hide_index=True,
+        )
+
+        # --- Coin detail viewer ---
+        st.markdown("---")
+        st.markdown("#### 🔍 Xem chi tiết coin")
+        _all_ticker_symbols = [d["symbol"] for d in _tickers[:50]]
+        _detail_symbol = st.selectbox(
+            "Chọn coin để xem chart",
+            options=_all_ticker_symbols,
+            index=0,
+            key="detail_gainer_select",
+        )
+
+        if _detail_symbol:
+            _klines = _fetch_recent_klines(_detail_symbol, "1h", 48)
+            if _klines:
+                _kdf = pd.DataFrame(_klines)
+                _ticker_info = next((d for d in _tickers if d["symbol"] == _detail_symbol), {})
+
+                dc1, dc2, dc3, dc4 = st.columns(4)
+                dc1.metric("Giá hiện tại", f"{float(_ticker_info.get('lastPrice', 0)):.6f}")
+                dc2.metric("Thay đổi 24h", f"{float(_ticker_info.get('priceChangePercent', 0)):+.2f}%")
+                dc3.metric("Volume 24h", f"{float(_ticker_info.get('quoteVolume', 0)):,.0f}")
+                dc4.metric("High/Low 24h", f"{float(_ticker_info.get('highPrice', 0)):.6f} / {float(_ticker_info.get('lowPrice', 0)):.6f}")
+
+                # Price chart
+                st.markdown(f"**{_detail_symbol} — 48h gần nhất (1h candle)**")
+                _chart_data = _kdf.set_index("time")[["close"]]
+                st.line_chart(_chart_data, use_container_width=True)
+
+                # Add to watchlist
+                st.markdown("---")
+                _wl_cols = st.columns([2, 1, 1])
+                with _wl_cols[0]:
+                    if _detail_symbol in st.session_state.watchlist:
+                        st.success(f"✅ {_detail_symbol} đã có trong watchlist")
+                    else:
+                        if st.button(f"➕ Thêm {_detail_symbol} vào watchlist", key="add_wl"):
+                            st.session_state.watchlist.append(_detail_symbol)
+                            _save_watchlist(st.session_state.watchlist)
+                            st.success(f"✅ Đã thêm {_detail_symbol} vào watchlist!")
+                            st.rerun()
+                with _wl_cols[1]:
+                    if st.button("🔄 Làm mới chart"):
+                        st.rerun()
+                with _wl_cols[2]:
+                    if st.button("🚀 Quét coin này", key="scan_gainer"):
+                        st.session_state.scan_symbol = _detail_symbol
+                        st.rerun()
+
+
+# --- Watchlist panel (persistent) ---
+if st.session_state.watchlist:
+    st.markdown("---")
+    st.markdown(f"#### 📋 Watchlist thủ công ({len(st.session_state.watchlist)} coin)")
+    _wl_df = pd.DataFrame([
+        {"Coin": s, "Trạng thái": "Đã lưu"}
+        for s in st.session_state.watchlist
+    ])
+    st.dataframe(_wl_df, use_container_width=True, hide_index=True)
+
+    _wl_action = st.columns([1, 1, 1])
+    with _wl_action[0]:
+        if st.button("🗑️ Xóa watchlist"):
+            st.session_state.watchlist = []
+            _save_watchlist([])
+            st.rerun()
+    with _wl_action[1]:
+        _remove_sym = st.selectbox(
+            "Chọn coin để xóa",
+            options=st.session_state.watchlist,
+            key="remove_wl_select",
+        )
+    with _wl_action[2]:
+        if st.button("➖ Xóa coin", key="remove_wl_btn"):
+            if _remove_sym in st.session_state.watchlist:
+                st.session_state.watchlist.remove(_remove_sym)
+                _save_watchlist(st.session_state.watchlist)
+                st.rerun()
 
 # ============================================================
 # SIDEBAR
@@ -122,7 +391,13 @@ with st.sidebar:
     _downloaded = scan_downloaded_data(_data_dir_scan)
     _all_symbols = sorted(_downloaded.keys())
 
-    if _all_symbols:
+    # If user clicked "Quét coin này" from top gainers, prefill symbol
+    _scan_from_gainer = st.session_state.get("scan_symbol")
+    if _scan_from_gainer:
+        symbol = _scan_from_gainer
+        st.info(f"🎯 Đã chọn {_scan_from_gainer} từ top gainers")
+        st.session_state.scan_symbol = None  # consume
+    elif _all_symbols:
         _symbol_labels = {}
         for sym in _all_symbols:
             klines_info = _downloaded.get(sym, {}).get("klines", {})

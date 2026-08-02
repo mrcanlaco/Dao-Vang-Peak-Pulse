@@ -1,13 +1,14 @@
-feat: incremental pipeline with detailed progress — skip already-fetched data
+feat: top gainers ticker + watchlist — dex screener style
 
-- _run_pipeline_steps() now reports per-step progress via callbacks
-  Watchlist + Backtest show: "📡 Kiểm tra & tải" → "🔄 Chuẩn hóa" → "🔗 Timeline" → "🏷️ Nhãn" → "⚙️ Feature"
-- Collector: get_incremental_start() already skips data already downloaded
-  Now shows "✓ Dữ liệu đã cập nhật (6/6 nguồn đã có) — bỏ qua tải" when nothing new
-- Normalize: process_raw_to_parquet() already skips files with existing parquet
-- DuckDB persists on disk (dev.duckdb) — labels/feature_results tables survive restart
-- Views recreated each run (fast, in-memory) — no stale data
-- Stop deleting dev.duckdb on app restart — preserves cached tables
+- Add scrolling ticker marquee at top: top 20 gainers + 5 losers
+  Green/red color, price + % change, pause on hover
+- Add "Top tăng/giảm 24h" expander with sortable table
+- Click coin → 48h price chart (1h candle) + 24h stats
+- "➕ Thêm vào watchlist" button — persists to data/watchlist.json
+- "🚀 Quét coin này" button — prefill symbol in sidebar for Watchlist scan
+- Watchlist panel: view saved coins, remove individual or clear all
+- Fetch via BinanceClient: /fapi/v1/ticker/24hr + /fapi/v1/klines
+- Min volume filter: 1M USDT (avoid dust coins)
 
 Generated with [Devin](https://devin.ai)
 
