@@ -1,13 +1,15 @@
-refactor: compact UI — radio mode toggle, shared pipeline helper, CSS tuning
+feat: add glossary tooltips + searchable term dictionary to GUI
 
-- Replace 2 separate buttons with radio toggle (Watchlist / Backtest)
-- Sidebar: 320px fixed width, collapsed advanced config, compact data status
-- Shared _run_pipeline_steps() helper — both modes use same collect→label→feature flow
-- Watchlist: table + chart side-by-side, summary row, feature importance in expander
-- Backtest: 5 tabs (was 6), compact metric row with ±std, log in expander
-- Custom CSS: tighter metrics, smaller tabs, compact alerts
-- Idle state: clear instructions for each mode
-- Default date range: 30 days (was 7)
+- Add GLOSSARY dict (28 terms from GLOSSARY.md) with Vietnamese explanations
+- Add _render_glossary_tab() — searchable, expandable term list
+- Add tooltips (st.metric help=) on key metrics:
+  Precision, Recall, Brier, Probability, Risk Level, Prevalence, Phân phối
+- Add captions explaining:
+  Watchlist: probability/risk meaning, threshold line
+  Backtest: walk-forward folds, baseline comparison, leakage, label definition
+  Feature importance: positive/negative coefficient meaning
+- Add "📖 Thuật ngữ" tab in Backtest (6 tabs total)
+- Glossary available in idle state (before running any mode)
 
 Generated with [Devin](https://devin.ai)
 

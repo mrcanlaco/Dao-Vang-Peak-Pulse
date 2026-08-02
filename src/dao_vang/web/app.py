@@ -32,6 +32,62 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ============================================================
+# GLOSSARY — giải nghĩa thuật ngữ (từ GLOSSARY.md)
+# ============================================================
+GLOSSARY = {
+    "Distribution": "Trạng thái chuyển tiếp: tài sản mất động lượng tăng, xác suất cao xuất hiện nhịp giảm đạt điều kiện Label Spec. Không phải nhận định bằng mắt — chỉ có ý nghĩa khi gắn với label version.",
+    "Phân phối": "Distribution — trạng thái coin bắt đầu xả. Label=1 nghĩa là trong 24h tới, giá giảm ≥8% (target drawdown) và MAE ≤4%.",
+    "Precision": "Trong số tín hiệu dương đã phát, tỷ lệ đạt label dương. Precision cao = ít báo sai (false positive thấp).",
+    "Recall": "Trong số label dương thực tế, tỷ lệ được hệ thống phát hiện. Recall cao = ít bỏ sót (false negative thấp).",
+    "Brier Score": "Mức độ phù hợp giữa xác suất dự báo và kết quả thực tế. Brier thấp = calibration tốt (dự báo 70% thì thực sự ~70%).",
+    "Threshold": "Ngưỡng probability để quyết định tín hiệu dương/âm. Threshold thấp = phát hiện nhiều nhưng sai nhiều; cao = chính xác nhưng bỏ sót.",
+    "Baseline": "Phương pháp đơn giản dùng làm mốc so sánh. Model phức tạp không vượt baseline thì không được triển khai.",
+    "Walk-Forward": "Quy trình train/validate/test theo thời gian, cửa sổ tiến về phía sau. Không shuffle — đảm bảo không dùng dữ liệu tương lai.",
+    "Leakage": "Data leakage — feature/evaluation sử dụng thông tin không hợp pháp tại thời điểm dự báo (dữ liệu tương lai). Phải fail.",
+    "Label": "Kết quả mục tiêu tạo bằng thuật toán từ dữ liệu tương lai. Chỉ dùng cho training/evaluation, KHÔNG dùng làm feature.",
+    "Feature Time": "Timestamp mà feature vector đại diện. MVP dùng close time của nến 5 phút đã đóng.",
+    "Signal Price": "Giá tham chiếu tại thời điểm tín hiệu. MVP v0.1 dùng close của nến futures 5 phút đã đóng.",
+    "Horizon": "Khoảng thời gian tương lai dùng để xác định outcome. MVP: 24 giờ.",
+    "Target Drawdown": "Mức giảm tối thiểu từ signal price cần đạt trong horizon để label dương. MVP: 8%.",
+    "MAE": "Max Adverse Excursion — mức tăng bất lợi lớn nhất so với signal price trước khi target đạt. MVP: ≤4%.",
+    "Probability": "Xác suất model dự đoán coin sẽ phân phối trong 24h tới. >Threshold = tín hiệu dương.",
+    "Risk Level": "Phân loại nguy cơ dựa trên probability vs threshold: CAO (≥1.5×threshold), TRUNG BÌNH (≥threshold), THẤP (≥0.5×threshold), RẤT THẤP (<0.5×threshold).",
+    "Prevalence": "Tỷ lệ label dương trong dataset. Prevalence thấp = dataset mất cân bằng, model khó học.",
+    "Embargo": "Khoảng thời gian (12h) giữa train và test để tránh lookahead bias từ horizon overlap.",
+    "Open Interest (OI)": "Tổng số hợp đồng futures đang mở. OI tăng + giá giảm = phe short vào mạnh.",
+    "Funding Rate": "Lãi suất định kỳ (8h) mà long trả short (hoặc ngược lại). Funding âm = short trả long = thị trường oversold.",
+    "Taker Buy/Sell Ratio": "Tỷ lệ volume mua/bán chủ động của taker. >1 = mua mạnh, <1 = bán mạnh.",
+    "Long/Short Ratio": "Tỷ lệ tài khoản long/short. L/S cao = nhiều long = nguy cơ squeeze ngược.",
+    "Calibration": "Mức độ phù hợp giữa xác suất dự báo và tần suất thực tế. Nhóm 70% phải xảy ra ~70%.",
+    "Forward Test": "Đánh giá trên dữ liệu phát sinh SAU khi phương pháp đã đóng băng — kiểm tra stability thực tế.",
+    "Point-in-Time": "Mọi dữ liệu dùng tại thời điểm T thực sự có thể biết tại hoặc trước T. Vi phạm = leakage.",
+    "Artifact": "Bản ghi bất biến của một experiment: config, metrics, predictions, report. Có version và hash.",
+    "Feature Importance": "Hệ số (coefficient) cho biết feature nào ảnh hưởng nhiều nhất đến dự đoán. Dương = tăng xác suất phân phối, âm = giảm.",
+}
+
+
+def _glossary_tooltip(term: str) -> str:
+    """Return glossary explanation for a term, or empty string if not found."""
+    return GLOSSARY.get(term, "")
+
+
+def _render_glossary_tab():
+    """Render a glossary tab with searchable term explanations."""
+    st.markdown("#### 📖 Từ điển thuật ngữ")
+    st.caption("Nguồn: GLOSSARY.md — bấm vào từng mục để xem giải thích đầy đủ")
+
+    search = st.text_input("🔍 Tìm thuật ngữ", placeholder="VD: precision, distribution, MAE...", key="glossary_search")
+
+    items = list(GLOSSARY.items())
+    if search:
+        search_lower = search.lower()
+        items = [(k, v) for k, v in items if search_lower in k.lower() or search_lower in v.lower()]
+
+    for term, explanation in items:
+        with st.expander(f"**{term}**", expanded=False):
+            st.markdown(explanation)
+
 # --- CSS for compact UI ---
 st.markdown("""
 <style>
@@ -250,10 +306,10 @@ if run_button and mode == "🔍 Watchlist":
                 max_prob = max(p["probability"] for p in predictions)
 
                 c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Probability cao nhất", f"{max_prob:.1%}")
-                c2.metric("Tín hiệu CAO", len(high_risk))
-                c3.metric("Tín hiệu TB", len(med_risk))
-                c4.metric("Val Precision", f"{model_metrics.get('precision', 0):.1%}")
+                c1.metric("Probability cao nhất", f"{max_prob:.1%}", help=_glossary_tooltip("Probability"))
+                c2.metric("Tín hiệu CAO", len(high_risk), help=_glossary_tooltip("Risk Level"))
+                c3.metric("Tín hiệu TB", len(med_risk), help=_glossary_tooltip("Risk Level"))
+                c4.metric("Val Precision", f"{model_metrics.get('precision', 0):.1%}", help=_glossary_tooltip("Precision"))
 
                 # === Alert ===
                 if high_risk:
@@ -268,6 +324,7 @@ if run_button and mode == "🔍 Watchlist":
 
                 with col_table:
                     st.markdown("#### Dự đoán 12 nến mới nhất")
+                    st.caption("Probability = xác suất coin phân phối trong 24h tới. Risk = phân loại dựa trên threshold.")
                     pred_df = pd.DataFrame(predictions)
                     pred_df["probability"] = pred_df["probability"].apply(lambda x: f"{x:.1%}")
                     pred_df["close"] = pred_df["close"].apply(lambda x: f"{x:.6f}" if x else "N/A")
@@ -293,16 +350,21 @@ if run_button and mode == "🔍 Watchlist":
                     chart_df = chart_df.set_index("feature_time")[["probability"]]
                     thresh = model_metrics.get("threshold", 0.5)
                     st.line_chart(chart_df)
-                    st.caption(f"🔴 Threshold = {thresh:.2f}")
+                    st.caption(f"🔴 Threshold = {thresh:.2f} — probability vượt đường này = tín hiệu phân phối (xem 📖 Thuật ngữ)")
 
                 # === Feature importance ===
                 top_feats = model_info.get("top_features", [])
                 if top_feats:
                     with st.expander("🔍 Top 5 feature quan trọng nhất", expanded=False):
+                        st.caption("Hệ số dương = feature tăng → xác suất phân phối tăng. Hệ số âm = ngược lại.")
                         feat_df = pd.DataFrame(top_feats)
                         feat_df["coefficient"] = feat_df["coefficient"].apply(lambda x: f"{x:+.4f}")
                         feat_df.columns = ["Feature", "Hệ số"]
                         st.dataframe(feat_df, use_container_width=True, hide_index=True)
+
+                # === Glossary ===
+                st.markdown("---")
+                _render_glossary_tab()
 
         db.conn.close()
     except Exception as e:
@@ -387,8 +449,8 @@ elif run_button and mode == "🧪 Backtest":
             st.error("🔴 **DỪNG** — Model không hoạt động (metrics = 0)")
 
         # === Results tabs ===
-        tab1, tab2, tab3, tab4, tab5 = st.tabs([
-            "📈 Metrics", "📊 Baselines", "🏷️ Nhãn", "🔍 Chất lượng", "📄 Báo cáo"
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📈 Metrics", "📊 Baselines", "🏷️ Nhãn", "🔍 Chất lượng", "📄 Báo cáo", "📖 Thuật ngữ"
         ])
 
         # --- Tab: Metrics ---
@@ -397,24 +459,25 @@ elif run_button and mode == "🧪 Backtest":
             per_fold = results_data.get("per_fold", [])
 
             if agg:
-                # Compact metric row
+                # Compact metric row with tooltips
                 mc = st.columns(6)
                 metrics_display = [
-                    ("Precision", agg.get("precision_mean", 0)),
-                    ("±", agg.get("precision_std", 0)),
-                    ("Recall", agg.get("recall_mean", 0)),
-                    ("±", agg.get("recall_std", 0)),
-                    ("Brier", agg.get("brier_mean", 0)),
-                    ("±", agg.get("brier_std", 0)),
+                    ("Precision", agg.get("precision_mean", 0), _glossary_tooltip("Precision")),
+                    ("±", agg.get("precision_std", 0), ""),
+                    ("Recall", agg.get("recall_mean", 0), _glossary_tooltip("Recall")),
+                    ("±", agg.get("recall_std", 0), ""),
+                    ("Brier", agg.get("brier_mean", 0), _glossary_tooltip("Brier Score")),
+                    ("±", agg.get("brier_std", 0), ""),
                 ]
-                for col, (k, v) in zip(mc, metrics_display):
+                for col, (k, v, tip) in zip(mc, metrics_display):
                     if k == "±":
                         col.caption(f"±{v:.4f}")
                     else:
-                        col.metric(k, f"{v:.4f}")
+                        col.metric(k, f"{v:.4f}", help=tip if tip else None)
 
                 if per_fold:
                     st.markdown("#### Walk-Forward Folds")
+                    st.caption("Mỗi fold: train trên quá khứ, test trên tương lai. Thresh = threshold tối ưu. Train/Test = rows (số positive).")
                     fold_rows = []
                     for fold in per_fold:
                         row = {"Fold": fold.get("fold_idx", "?")}
@@ -441,6 +504,7 @@ elif run_button and mode == "🧪 Backtest":
         with tab2:
             baselines = results_data.get("baselines", {})
             if baselines:
+                st.caption("Baseline = phương pháp đơn giản làm mốc. Model phải vượt baseline tốt nhất mới được triển khai.")
                 rows = [{"Model": "LogReg", "Precision": model_p, "Recall": agg.get("recall_mean", 0), "Brier": agg.get("brier_mean", 0)}]
                 for name, m in baselines.items():
                     rows.append({"Model": name, "Precision": m.get("precision_mean", 0), "Recall": m.get("recall_mean", 0), "Brier": m.get("brier_mean", 0)})
@@ -460,11 +524,12 @@ elif run_button and mode == "🧪 Backtest":
 
         # --- Tab: Labels ---
         with tab3:
+            st.caption("Phân phối (1) = coin giảm ≥8% trong 24h tới, MAE ≤4%. Bình thường (0) = không đạt. Loại trừ = không đủ dữ liệu tương lai.")
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Tổng", f"{n_total:,}")
-            c2.metric("Phân phối (1)", n_positive)
+            c2.metric("Phân phối (1)", n_positive, help=_glossary_tooltip("Phân phối"))
             c3.metric("Bình thường (0)", f"{n_negative:,}")
-            c4.metric("Loại trừ", n_excluded)
+            c4.metric("Loại trừ", n_excluded, help="Rows không đủ dữ liệu tương lai trong horizon 24h để gán label.")
 
             chart_data = pd.DataFrame({
                 "Nhãn": ["Phân phối", "Bình thường", "Loại trừ"],
@@ -482,6 +547,7 @@ elif run_button and mode == "🧪 Backtest":
             dq = results_data.get("data_quality", {})
             leak = results_data.get("leakage_report", {})
 
+            st.caption("Leakage = dùng dữ liệu tương lai trong feature/evaluation. Phải PASS mới được triển khai.")
             leak_status = leak.get("status", "unknown")
             if leak_status == "passed":
                 st.success("✅ Không phát hiện leakage")
@@ -492,7 +558,7 @@ elif run_button and mode == "🧪 Backtest":
                 qc = st.columns(4)
                 qc[0].metric("Rows", f"{dq.get('total_rows', 0):,}")
                 qc[1].metric("Duplicates", dq.get("duplicate_count", 0))
-                qc[2].metric("Prevalence", f"{dq.get('label_distribution', {}).get('prevalence', 0):.4f}")
+                qc[2].metric("Prevalence", f"{dq.get('label_distribution', {}).get('prevalence', 0):.4f}", help=_glossary_tooltip("Prevalence"))
                 qc[3].metric("Days", f"{dq.get('time_range', {}).get('duration_days', 0):.1f}")
 
                 nc = dq.get("null_counts", {})
@@ -509,6 +575,10 @@ elif run_button and mode == "🧪 Backtest":
                 st.markdown(md_content)
             with st.expander("📋 Log", expanded=False):
                 st.code("\n".join(log_lines), language="text")
+
+        # --- Tab: Glossary ---
+        with tab6:
+            _render_glossary_tab()
 
         db.conn.close()
     except Exception as e:
@@ -543,3 +613,7 @@ elif not run_button:
         App sẽ chạy pipeline 5 bước: thu thập → chuẩn hóa → nhãn → feature → model.
         Kết quả: metrics, baseline comparison, data quality, leakage audit, conclusion.
         """)
+
+    # Glossary always available in idle state
+    st.markdown("---")
+    _render_glossary_tab()
