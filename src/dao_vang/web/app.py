@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -241,9 +241,39 @@ if run_button:
         # ===== RESULTS SECTION =====
         st.markdown("---")
 
+        # Conclusion card (Constitution §9)
+        results_data = result.get("results", {})
+        model_p = results_data.get("aggregate", {}).get("precision_mean", 0.0)
+        baselines_data = results_data.get("baselines", {})
+        best_bp = max((m.get("precision_mean", 0) for m in baselines_data.values()), default=0)
+        leak_status = results_data.get("leakage_report", {}).get("status", "unknown")
+        n_pos = results_data.get("data_quality", {}).get("label_distribution", {}).get("positive", 0)
+
+        if results_data.get("warning"):
+            st.error(f"⚠️ {results_data['warning']}")
+        elif model_p > best_bp and model_p > 0:
+            if n_pos < 100:
+                st.warning(
+                    f"🟡 **TIẾP TỤC (thận trọng)** — Model vượt baseline "
+                    f"(precision {model_p:.4f} > {best_bp:.4f}) nhưng chỉ có {n_pos} event. "
+                    "Cần thu thêm dữ liệu + forward test."
+                )
+            else:
+                st.success(
+                    f"🟢 **TIẾP TỤC** — Model vượt baseline "
+                    f"(precision {model_p:.4f} > {best_bp:.4f}, leakage: {leak_status})."
+                )
+        elif model_p > 0:
+            st.warning(
+                f"🟡 **SỬA GIẢ THUYẾT** — Model chưa vượt baseline "
+                f"(precision {model_p:.4f} ≤ {best_bp:.4f}). Thử feature/coin khác."
+            )
+        else:
+            st.error("🔴 **DỪNG** — Model không hoạt động (metrics = 0). Xem lại data/label/split.")
+
         # Tab layout for clean results
         tab_labels, tab_metrics, tab_baselines, tab_quality, tab_report, tab_log = st.tabs([
-            "🏷️ Nhãn", "📈 Metrics", "� Baselines", "🔍 Chất lượng", "�📄 Báo cáo", "📋 Log"
+            "🏷️ Nhãn", "📈 Metrics", "📊 Baselines", "🔍 Chất lượng", "📄 Báo cáo", "📋 Log"
         ])
 
         # --- Tab: Labels ---

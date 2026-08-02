@@ -1,14 +1,10 @@
-fix: walk-forward split + threshold tuning — model now beats baseline
+feat: add conclusion card + full report with baselines, quality, leakage
 
-- Fix walk-forward split: use expanding window instead of naive 3-way equal split
-  Old split had 0 positives in train → model couldn't learn (all metrics = 0)
-  New split adjusts boundaries to ensure both classes in train and test
-- Add threshold tuning in train_evaluate_logreg: scan 0.05-0.95 to find
-  optimal F1 threshold (critical for 1.4% prevalence imbalanced data)
-- Show threshold, train/test sizes, positives per fold in UI
-- Results: precision=0.282, recall=0.455, brier=0.082
-  vs best baseline B1_price_ret_0.05: precision=0.230, brier=0.177
-  Model now exceeds baseline per Constitution §7
+- Add conclusion card in UI (Constitution §9: "có kết luận rõ: tiếp tục, sửa giả thuyết hoặc dừng")
+  Shows 🟢 TIẾP TỤC / 🟡 SỬA GIẢ THUYẾT / 🔴 DỪNG based on model vs baseline
+- Expand markdown report with baseline comparison table, data quality,
+  leakage audit, and auto-generated conclusion
+- Fix broken emoji in tab names
 
 Generated with [Devin](https://devin.ai)
 
