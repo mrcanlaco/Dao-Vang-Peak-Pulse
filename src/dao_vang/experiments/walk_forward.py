@@ -87,3 +87,132 @@ def train_evaluate_logreg(
         "brier": brier,
         "threshold": float(best_threshold),
     }
+
+
+def train_and_predict_latest(
+    df: pd.DataFrame,
+    feature_cols: list,
+    n_latest: int = 10,
+    embargo_minutes: int = 12 * 60,
+) -> Dict[str, Any]:
+    """
+    Train LogisticRegression on all data except the last n_latest rows (with embargo),
+    then predict probability of distribution for the most recent candles.
+
+    This implements Khối 4 (probability) and Khối 5 (watchlist) from the Constitution.
+
+    Returns:
+        predictions: list of {feature_time, symbol, probability, risk_level, top_features}
+        model_metrics: precision, recall, brier, threshold from last-fold validation
+        model_info: coefficients, intercept, feature_importance
+    """
+    df = df.sort_values("feature_time").reset_index(drop=True)
+
+    if len(df) < 200 or "is_distribution" not in df.columns:
+        return {"predictions": [], "model_metrics": {}, "model_info": {}}
+
+    # Drop rows without labels for training
+    labeled = df.dropna(subset=["is_distribution"])
+    if labeled["is_distribution"].nunique() < 2:
+        return {"predictions": [], "model_metrics": {}, "model_info": {}}
+
+    # Split: train = all except last n_latest + embargo, predict = last n_latest
+    latest_time = df["feature_time"].max()
+    cutoff_time = df["feature_time"].iloc[-n_latest]
+    embargo_end = cutoff_time - pd.Timedelta(minutes=embargo_minutes)
+
+    train_df = labeled[labeled["feature_time"] < embargo_end].copy()
+    predict_df = df[df["feature_time"] >= cutoff_time].copy()
+
+    if len(train_df) == 0 or train_df["is_distribution"].nunique() < 2:
+        return {"predictions": [], "model_metrics": {}, "model_info": {}}
+
+    X_train = train_df[feature_cols].fillna(0)
+    y_train = train_df["is_distribution"]
+    X_predict = predict_df[feature_cols].fillna(0)
+
+    # Train model
+    model = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
+    model.fit(X_train, y_train)
+
+    # Get probabilities for latest candles
+    y_prob = model.predict_proba(X_predict)[:, 1] if len(model.classes_) > 1 else np.zeros(len(X_predict))
+
+    # Find optimal threshold on a validation set (last 20% of training data)
+    val_cutoff = train_df["feature_time"].quantile(0.8)
+    val_df = train_df[train_df["feature_time"] >= val_cutoff]
+    if len(val_df) > 0 and val_df["is_distribution"].nunique() >= 2:
+        X_val = val_df[feature_cols].fillna(0)
+        y_val = val_df["is_distribution"]
+        y_val_prob = model.predict_proba(X_val)[:, 1] if len(model.classes_) > 1 else np.zeros(len(X_val))
+
+        best_threshold = 0.5
+        best_f1 = 0.0
+        y_val_arr = y_val.values
+        for thresh in np.arange(0.05, 0.95, 0.05):
+            y_pred_t = (y_val_prob >= thresh).astype(int)
+            tp = int(((y_pred_t == 1) & (y_val_arr == 1)).sum())
+            fp = int(((y_pred_t == 1) & (y_val_arr == 0)).sum())
+            fn = int(((y_pred_t == 0) & (y_val_arr == 1)).sum())
+            if tp + fp == 0 or tp + fn == 0:
+                continue
+            p = tp / (tp + fp)
+            r = tp / (tp + fn)
+            f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
+            if f1 > best_f1:
+                best_f1 = f1
+                best_threshold = thresh
+
+        from sklearn.metrics import precision_score, recall_score, brier_score_loss
+        y_val_pred = (y_val_prob >= best_threshold).astype(int)
+        val_metrics = {
+            "precision": float(precision_score(y_val, y_val_pred, zero_division=0)),
+            "recall": float(recall_score(y_val, y_val_pred, zero_division=0)),
+            "brier": float(brier_score_loss(y_val, y_val_prob)),
+            "threshold": float(best_threshold),
+        }
+    else:
+        val_metrics = {"precision": 0.0, "recall": 0.0, "brier": 0.0, "threshold": 0.5}
+        best_threshold = 0.5
+
+    # Build predictions
+    predictions = []
+    for i in range(len(predict_df)):
+        prob = float(y_prob[i])
+        # Risk level based on probability and threshold
+        if prob >= best_threshold:
+            risk = "CAO" if prob >= best_threshold * 1.5 else "TRUNG BÌNH"
+        elif prob >= best_threshold * 0.5:
+            risk = "THẤP"
+        else:
+            risk = "RẤT THẤP"
+
+        predictions.append({
+            "feature_time": str(predict_df["feature_time"].iloc[i]),
+            "symbol": predict_df["symbol"].iloc[i] if "symbol" in predict_df.columns else "N/A",
+            "close": float(predict_df["close"].iloc[i]) if "close" in predict_df.columns else None,
+            "probability": prob,
+            "risk_level": risk,
+            "threshold": float(best_threshold),
+        })
+
+    # Feature importance (top 5)
+    if hasattr(model, "coef_") and len(feature_cols) == len(model.coef_[0]):
+        coefs = list(zip(feature_cols, model.coef_[0]))
+        coefs.sort(key=lambda x: abs(x[1]), reverse=True)
+        top_features = [{"feature": f, "coefficient": float(c)} for f, c in coefs[:5]]
+    else:
+        top_features = []
+
+    model_info = {
+        "top_features": top_features,
+        "train_size": len(train_df),
+        "train_positives": int(y_train.sum()),
+        "n_predictions": len(predictions),
+    }
+
+    return {
+        "predictions": predictions,
+        "model_metrics": val_metrics,
+        "model_info": model_info,
+    }

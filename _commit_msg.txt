@@ -1,10 +1,18 @@
-feat: add conclusion card + full report with baselines, quality, leakage
+feat: add Watchlist mode — predict distribution probability on latest candles
 
-- Add conclusion card in UI (Constitution §9: "có kết luận rõ: tiếp tục, sửa giả thuyết hoặc dừng")
-  Shows 🟢 TIẾP TỤC / 🟡 SỬA GIẢ THUYẾT / 🔴 DỪNG based on model vs baseline
-- Expand markdown report with baseline comparison table, data quality,
-  leakage audit, and auto-generated conclusion
-- Fix broken emoji in tab names
+Implements Khối 4 (probability) + Khối 5 (watchlist) from Constitution.
+
+- Add train_and_predict_latest() in walk_forward.py:
+  Train LogReg on historical data, predict on last N candles
+  Threshold tuning on validation set, risk level classification
+  Feature importance (top 5 coefficients)
+
+- Add Watchlist UI mode:
+  "� Quét tín hiệu hiện tại" button in sidebar
+  Shows probability table with color-coded risk levels (CAO/TRUNG BÌNH/THẤP)
+  Alert banner when high-risk signals detected
+  Probability chart over time with threshold line
+  Model info: train size, positives, validation metrics
 
 Generated with [Devin](https://devin.ai)
 

@@ -122,8 +122,13 @@ with st.sidebar:
     hypothesis_id = st.text_input("ID Giả thuyết", value="hyp_dashboard_001")
     baseline_model = st.selectbox("Mô hình Cơ sở", ["logreg_walkforward", "dummy"])
     seed = st.number_input("Giá trị ngẫu nhiên (Seed)", value=42, step=1)
-    
+
     run_button = st.button("🚀 Chạy toàn bộ quy trình", type="primary", use_container_width=True)
+
+    st.markdown("---")
+    st.subheader("🔍 Watchlist (Khối 4+5)")
+    st.caption("Phát hiện coin sắp xả — dự đoán trên nến mới nhất")
+    watch_button = st.button("🔍 Quét tín hiệu hiện tại", type="secondary", use_container_width=True)
 
 if run_button:
     start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
@@ -473,5 +478,184 @@ if run_button:
     except Exception as e:
         status_text.error(f"❌ Lỗi: {str(e)}")
         progress_bar.empty()
-else:
-    st.info("👈 Bấm 'Chạy toàn bộ quy trình' ở thanh bên trái để bắt đầu.")
+elif not watch_button:
+    st.info("👈 Chọn 'Chạy toàn bộ quy trình' để backtest, hoặc 'Quét tín hiệu' để xem watchlist.")
+
+# ===== WATCHLIST MODE (Khối 4+5) =====
+if watch_button:
+    st.markdown("---")
+    st.markdown("## 🔍 Watchlist — Phát hiện coin sắp xả")
+    st.caption("Train model trên lịch sử → dự đoán probability trên nến mới nhất")
+
+    watch_start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+    watch_end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+
+    watch_status = st.empty()
+    watch_progress = st.progress(0, text="Chuẩn bị...")
+
+    try:
+        t_w0 = time.perf_counter()
+
+        # Step 1: Collect data (incremental)
+        watch_status.info("📡 Đang tải/cập nhật dữ liệu...")
+        watch_progress.progress(20, text="Thu thập dữ liệu")
+        settings = AppSettings()
+        settings.binance.symbol = symbol
+        client = BinanceClient()
+        run_id = f"watch_{int(time.time())}"
+        data_dir = Path(settings.paths.data_dir)
+
+        collectors_info = [
+            ("klines", "K-line", KlinesCollector(client, settings)),
+            ("funding", "Funding Rate", FundingCollector(client, settings)),
+            ("open_interest", "Open Interest", OpenInterestCollector(client, settings)),
+            ("taker_ratio", "Taker Volume", TakerRatioCollector(client, settings)),
+            ("global_ratio", "Global Long/Short", GlobalRatioCollector(client, settings)),
+            ("top_ratio", "Top Trader Long/Short", TopRatioCollector(client, settings)),
+        ]
+        for data_type, label, collector in collectors_info:
+            inc_start = get_incremental_start(data_dir, data_type, symbol, watch_start_dt)
+            if inc_start > watch_end_dt:
+                continue
+            collector.collect(inc_start, watch_end_dt, run_id)
+
+        # Step 2: Normalize + timeline
+        watch_status.info("🔄 Đang chuẩn hóa dữ liệu...")
+        watch_progress.progress(40, text="Chuẩn hóa + Timeline")
+        process_raw_to_parquet(settings)
+        db = DuckDBQueryLayer(db_path)
+        build_raw_timeline(db, settings)
+
+        # Step 3: Labels
+        watch_status.info("🏷️ Đang tính nhãn...")
+        watch_progress.progress(60, text="Sinh nhãn")
+        engine = DistributionLabelEngine()
+        n_total, n_pos, n_neg = engine.compute_all_to_table(db.conn, "raw_timeline", "labels")
+
+        if n_pos == 0:
+            watch_status.warning(
+                f"⚠️ Không có event phân phối nào (label=1) trong dữ liệu {symbol}. "
+                "Không thể train model. Hãy thử coin biến động hơn hoặc khoảng thời gian dài hơn."
+            )
+            watch_progress.empty()
+        else:
+            # Step 4: Features
+            watch_status.info("⚙️ Đang tính feature...")
+            watch_progress.progress(75, text="Tính feature")
+            build_features(db, "raw_timeline", "feature_results")
+
+            # Step 5: Train + Predict
+            watch_status.info("🧠 Đang train model và dự đoán...")
+            watch_progress.progress(90, text="Train + Predict")
+
+            from dao_vang.experiments.walk_forward import train_and_predict_latest
+            import pandas as pd
+
+            query = """
+                SELECT f.*, l.label_value AS is_distribution
+                FROM feature_results f
+                LEFT JOIN labels l ON f.feature_time = l.signal_time AND f.symbol = l.symbol
+            """
+            df = db.conn.execute(query).df()
+            df = df.dropna(subset=['is_distribution'])
+
+            exclude_cols = ['feature_time', 'decision_time', 'is_distribution', 'quality_status', 'symbol']
+            feature_cols = [c for c in df.columns if c not in exclude_cols]
+
+            result_w = train_and_predict_latest(df, feature_cols, n_latest=12)
+            predictions = result_w.get("predictions", [])
+            model_metrics = result_w.get("model_metrics", {})
+            model_info = result_w.get("model_info", {})
+
+            watch_progress.progress(100, text="Hoàn thành!")
+            elapsed = time.perf_counter() - t_w0
+            watch_status.success(f"✅ Quét xong trong {elapsed:.1f}s — {len(predictions)} nến mới nhất")
+
+            if not predictions:
+                st.warning("Không đủ dữ liệu để dự đoán. Cần ít nhất 200 nến có nhãn.")
+            else:
+                # === Model info ===
+                st.markdown("### 📊 Thông tin Model")
+                mi_c1, mi_c2, mi_c3, mi_c4 = st.columns(4)
+                mi_c1.metric("Train rows", model_info.get("train_size", 0))
+                mi_c2.metric("Train positives", model_info.get("train_positives", 0))
+                mi_c3.metric("Val Precision", f"{model_metrics.get('precision', 0):.4f}")
+                mi_c4.metric("Val Recall", f"{model_metrics.get('recall', 0):.4f}")
+
+                # === Top features ===
+                top_feats = model_info.get("top_features", [])
+                if top_feats:
+                    st.markdown("#### Top 5 Feature quan trọng nhất")
+                    feat_df = pd.DataFrame(top_feats)
+                    feat_df["coefficient"] = feat_df["coefficient"].apply(lambda x: f"{x:+.4f}")
+                    st.dataframe(feat_df, use_container_width=True)
+
+                # === Predictions table ===
+                st.markdown("---")
+                st.markdown("### 🔮 Dự đoán trên nến mới nhất")
+                st.caption(
+                    f"Threshold = {model_metrics.get('threshold', 0.5):.2f} "
+                    f"(tối ưu từ validation set)"
+                )
+
+                pred_df = pd.DataFrame(predictions)
+                # Format
+                pred_df["probability"] = pred_df["probability"].apply(lambda x: f"{x:.4f}")
+                pred_df["close"] = pred_df["close"].apply(lambda x: f"{x:.6f}" if x else "N/A")
+                pred_df["feature_time"] = pred_df["feature_time"].str[:19]
+
+                # Color-code risk
+                def risk_color(val):
+                    if val == "CAO":
+                        return "background-color: #ff4444; color: white"
+                    elif val == "TRUNG BÌNH":
+                        return "background-color: #ffaa00; color: black"
+                    elif val == "THẤP":
+                        return "background-color: #44aa44; color: white"
+                    return ""
+
+                styled = pred_df.style.map(risk_color, subset=["risk_level"])
+                st.dataframe(styled, use_container_width=True, hide_index=True)
+
+                # === Alert if any high risk ===
+                high_risk = [p for p in predictions if p["risk_level"] == "CAO"]
+                medium_risk = [p for p in predictions if p["risk_level"] == "TRUNG BÌNH"]
+
+                st.markdown("---")
+                if high_risk:
+                    st.error(
+                        f"🚨 **CẢNH BÁO: {len(high_risk)} nến có nguy cơ CAO** "
+                        f"phân phối trong 24h tới!"
+                    )
+                    for p in high_risk[-3:]:  # Show last 3
+                        st.markdown(
+                            f"- **{p['symbol']}** @ {p['feature_time'][:19]}: "
+                            f"probability = **{p['probability']:.1%}** "
+                            f"(close = {p['close']:.6f})"
+                        )
+                elif medium_risk:
+                    st.warning(
+                        f"⚠️ {len(medium_risk)} nến có nguy cơ TRUNG BÌNH. "
+                        "Theo dõi sát."
+                    )
+                else:
+                    st.success("✅ Không có tín hiệu nguy cơ cao. Thị trường bình thường.")
+
+                # === Probability chart ===
+                st.markdown("---")
+                st.markdown("### 📈 Biểu đồ Probability theo thời gian")
+                chart_df = pd.DataFrame(predictions)
+                chart_df["feature_time"] = pd.to_datetime(chart_df["feature_time"])
+                chart_df = chart_df.set_index("feature_time")[["probability"]]
+                st.line_chart(chart_df)
+                st.caption(
+                    f"Đường ngang = threshold {model_metrics.get('threshold', 0.5):.2f}. "
+                    "Probability vượt đường này = tín hiệu phân phối."
+                )
+
+        db.conn.close()
+    except Exception as e:
+        watch_status.error(f"❌ Lỗi: {str(e)}")
+        watch_progress.empty()
