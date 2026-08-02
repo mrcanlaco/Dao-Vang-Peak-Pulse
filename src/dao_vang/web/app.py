@@ -274,6 +274,10 @@ if run_button:
         with tab_metrics:
             agg = result.get("results", {}).get("aggregate", {})
             per_fold = result.get("results", {}).get("per_fold", [])
+            warning = result.get("results", {}).get("warning")
+            if warning:
+                st.warning(f"⚠️ {warning}")
+
             if agg:
                 metric_cols = st.columns(len(agg))
                 for col, (k, v) in zip(metric_cols, agg.items()):
@@ -284,7 +288,16 @@ if run_button:
                     fold_rows = []
                     for fold in per_fold:
                         row = {"Fold": fold.get("fold_idx", "?")}
-                        row.update(fold.get("metrics", {}))
+                        if fold.get("skipped"):
+                            row["Status"] = f"SKIP: {fold.get('reason', '')}"
+                        else:
+                            m = fold.get("metrics", {})
+                            row["Precision"] = f"{m.get('precision', 0):.4f}"
+                            row["Recall"] = f"{m.get('recall', 0):.4f}"
+                            row["Brier"] = f"{m.get('brier', 0):.4f}"
+                            row["Threshold"] = f"{m.get('threshold', 0.5):.2f}"
+                            row["Train"] = f"{fold.get('train_size', 0)} ({fold.get('train_positives', 0)}+)"
+                            row["Test"] = f"{fold.get('test_size', 0)} ({fold.get('test_positives', 0)}+)"
                         fold_rows.append(row)
                     st.dataframe(pd.DataFrame(fold_rows), use_container_width=True)
 

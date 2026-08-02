@@ -132,21 +132,60 @@ def run_experiment(
     # === Data quality report ===
     data_quality = _data_quality_report(df)
 
-    # We will do 2 simple walk-forward folds based on the data span
+    # === Walk-forward split: expanding window ===
+    # Instead of naive 3-way equal split, use expanding window that ensures
+    # both train and test have positive labels. This is critical for imbalanced
+    # datasets where events are clustered in time.
     min_time = df["feature_time"].min()
     max_time = df["feature_time"].max()
-
     total_duration = max_time - min_time
-    part_duration = total_duration / 3
 
-    t0 = min_time
-    t1 = min_time + part_duration
-    t2 = min_time + 2 * part_duration
-    t3 = max_time
+    # Find time points where positives first appear
+    pos_df = df[df["is_distribution"] == 1]
+    if len(pos_df) == 0:
+        # No positives at all — return with warning
+        return {
+            "config": config.model_dump(),
+            "status": "completed",
+            "results": {
+                "per_fold": [],
+                "aggregate": {
+                    "precision_mean": 0.0, "precision_std": 0.0,
+                    "recall_mean": 0.0, "recall_std": 0.0,
+                    "brier_mean": 0.0, "brier_std": 0.0,
+                },
+                "baselines": {},
+                "leakage_report": leakage_report,
+                "data_quality": data_quality,
+                "warning": "No positive labels in dataset — cannot train model.",
+            },
+        }
+
+    first_pos_time = pos_df["feature_time"].min()
+    last_pos_time = pos_df["feature_time"].max()
+
+    # Strategy: 2 folds with expanding window
+    # Fold 1: train = [start, 60%], test = [60%, 80%]
+    # Fold 2: train = [start, 80%], test = [80%, end]
+    # But adjust split points to ensure positives in both train and test.
+    fold_splits = []
+    for train_frac in [0.6, 0.8]:
+        split_time = min_time + total_duration * train_frac
+        # If split is before first positive, move split past first positive
+        if split_time <= first_pos_time:
+            split_time = first_pos_time + pd.Timedelta(hours=24)
+        # If split is after last positive, move split before last positive
+        if split_time >= last_pos_time:
+            split_time = last_pos_time - pd.Timedelta(hours=24)
+        # Ensure test period has at least 24h
+        test_end = max_time if train_frac == 0.8 else min_time + total_duration * (train_frac + 0.2)
+        if test_end <= split_time + pd.Timedelta(hours=24):
+            test_end = split_time + pd.Timedelta(hours=24)
+        fold_splits.append((min_time, split_time, split_time, test_end))
 
     folds = [
-        {"train_start": t0, "train_end": t1, "test_start": t1, "test_end": t2},
-        {"train_start": t1, "train_end": t2, "test_start": t2, "test_end": t3},
+        {"train_start": t0, "train_end": t1, "test_start": t1, "test_end": t2}
+        for t0, t1, t1b, t2 in fold_splits
     ]
 
     # Feature columns (everything except time, decision time, labels, etc.)
@@ -165,12 +204,26 @@ def run_experiment(
             fold["test_end"]
         )
 
+        # Skip fold if train or test has only one class
+        if train_df["is_distribution"].nunique() < 2 or test_df["is_distribution"].nunique() < 2:
+            results_per_fold.append({
+                "fold_idx": i + 1,
+                "train_start": str(fold["train_start"]),
+                "train_end": str(fold["train_end"]),
+                "test_start": str(fold["test_start"]),
+                "test_end": str(fold["test_end"]),
+                "metrics": {"precision": 0.0, "recall": 0.0, "brier": 0.0, "threshold": 0.5},
+                "skipped": True,
+                "reason": "Insufficient class diversity in train or test",
+            })
+            continue
+
         X_train = train_df[feature_cols].fillna(0)
         y_train = train_df['is_distribution']
         X_test = test_df[feature_cols].fillna(0)
         y_test = test_df['is_distribution']
 
-        # Model metrics
+        # Model metrics (with threshold tuning)
         metrics = train_evaluate_logreg(X_train, y_train, X_test, y_test)
 
         results_per_fold.append({
@@ -179,7 +232,11 @@ def run_experiment(
             "train_end": str(fold["train_end"]),
             "test_start": str(fold["test_start"]),
             "test_end": str(fold["test_end"]),
-            "metrics": metrics
+            "metrics": metrics,
+            "train_size": len(train_df),
+            "train_positives": int(y_train.sum()),
+            "test_size": len(test_df),
+            "test_positives": int(y_test.sum()),
         })
 
         # Baseline metrics for the same test set

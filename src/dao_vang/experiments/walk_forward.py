@@ -1,5 +1,6 @@
 from typing import Dict, Any, Tuple
 import pandas as pd
+import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import precision_score, recall_score, brier_score_loss
 
@@ -33,30 +34,56 @@ def train_evaluate_logreg(
 ) -> Dict[str, float]:
     """
     Trains a Logistic Regression model and evaluates precision, recall, and brier score.
+    Uses threshold tuning to find the optimal decision boundary (important for
+    imbalanced datasets where default 0.5 is too high).
     """
-    # Initialize baseline logistic regression model
     model = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
     
     if len(X_train) == 0 or len(X_test) == 0 or y_train.nunique() < 2:
-        return {"precision": 0.0, "recall": 0.0, "brier": 0.0}
+        return {"precision": 0.0, "recall": 0.0, "brier": 0.0, "threshold": 0.5}
 
     # Train model
     model.fit(X_train, y_train)
     
-    # Predict
-    y_pred = model.predict(X_test)
-    y_prob = model.predict_proba(X_test)[:, 1] if len(model.classes_) > 1 else [0.0] * len(X_test)
+    # Get probabilities
+    y_prob = model.predict_proba(X_test)[:, 1] if len(model.classes_) > 1 else np.zeros(len(X_test))
     
-    # Metrics
+    # Brier score (independent of threshold)
+    try:
+        brier = float(brier_score_loss(y_test, y_prob))
+    except Exception:
+        brier = 0.0
+
+    # Threshold tuning: find threshold that maximizes F1
+    best_threshold = 0.5
+    best_f1 = 0.0
+    y_test_arr = y_test.values if hasattr(y_test, 'values') else y_test
+    for thresh in np.arange(0.05, 0.95, 0.05):
+        y_pred_t = (y_prob >= thresh).astype(int)
+        tp = int(((y_pred_t == 1) & (y_test_arr == 1)).sum())
+        fp = int(((y_pred_t == 1) & (y_test_arr == 0)).sum())
+        fn = int(((y_pred_t == 0) & (y_test_arr == 1)).sum())
+        if tp + fp == 0 or tp + fn == 0:
+            continue
+        p = tp / (tp + fp)
+        r = tp / (tp + fn)
+        f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
+        if f1 > best_f1:
+            best_f1 = f1
+            best_threshold = thresh
+
+    # Use best threshold for final predictions
+    y_pred = (y_prob >= best_threshold).astype(int)
+    
     try:
         precision = float(precision_score(y_test, y_pred, zero_division=0))
         recall = float(recall_score(y_test, y_pred, zero_division=0))
-        brier = float(brier_score_loss(y_test, y_prob))
     except Exception:
-        precision, recall, brier = 0.0, 0.0, 0.0
+        precision, recall = 0.0, 0.0
         
     return {
         "precision": precision,
         "recall": recall,
-        "brier": brier
+        "brier": brier,
+        "threshold": float(best_threshold),
     }

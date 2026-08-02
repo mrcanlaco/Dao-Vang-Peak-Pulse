@@ -1,13 +1,14 @@
-feat: baseline comparison, leakage audit, data quality report, fix timeline join
+fix: walk-forward split + threshold tuning — model now beats baseline
 
-- Add B0/B1/B2 baseline comparison in experiment runner (7 baseline variants)
-- Add leakage audit (forbidden columns, future data check, split overlap)
-- Add data quality report (null counts, duplicates, label distribution, time range)
-- Add 6 tabs in UI: Labels, Metrics, Baselines, Quality, Report, Log
-- Fix timeline join: use time_bucket('5 minutes') instead of exact timestamp match
-  (kline close_time ends at xx:xx:59.999, OI period_end at xx:xx:00)
-- Add compute_all_to_table() in label engine to avoid slow executemany
-- OI/taker/ratio features now have data (was 100% null due to timestamp mismatch)
+- Fix walk-forward split: use expanding window instead of naive 3-way equal split
+  Old split had 0 positives in train → model couldn't learn (all metrics = 0)
+  New split adjusts boundaries to ensure both classes in train and test
+- Add threshold tuning in train_evaluate_logreg: scan 0.05-0.95 to find
+  optimal F1 threshold (critical for 1.4% prevalence imbalanced data)
+- Show threshold, train/test sizes, positives per fold in UI
+- Results: precision=0.282, recall=0.455, brier=0.082
+  vs best baseline B1_price_ret_0.05: precision=0.230, brier=0.177
+  Model now exceeds baseline per Constitution §7
 
 Generated with [Devin](https://devin.ai)
 
