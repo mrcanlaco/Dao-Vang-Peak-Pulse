@@ -205,36 +205,78 @@ with st.sidebar:
 # HELPER: Run pipeline steps (shared by both modes)
 # ============================================================
 def _run_pipeline_steps(
-    symbol: str, start_dt, end_dt, db_path: str, settings: AppSettings
-) -> tuple[DuckDBQueryLayer, int, int, int, int, int, float]:
-    """Run collect → normalize → labels → features. Returns (db, n_total, n_pos, n_neg, n_exc, n_rows, n_cols, elapsed)."""
+    symbol: str, start_dt, end_dt, db_path: str, settings: AppSettings,
+    progress_cb=None, status_cb=None,
+) -> tuple[DuckDBQueryLayer, int, int, int, int, int, int, float]:
+    """
+    Run collect → normalize → labels → features.
+    Incremental: skips collectors if data already covers range,
+    skips parquet files already processed, reuses DuckDB if exists.
+
+    progress_cb: optional callback(step_pct, step_text)
+    status_cb: optional callback(status_text)
+    Returns (db, n_total, n_pos, n_neg, n_exc, n_rows, n_cols, elapsed).
+    """
     t0 = time.perf_counter()
     client = BinanceClient()
     run_id = f"run_{int(time.time())}"
     data_dir = Path(settings.paths.data_dir)
 
+    def _p(pct, txt):
+        if progress_cb:
+            progress_cb(pct, txt)
+
+    def _s(txt):
+        if status_cb:
+            status_cb(txt)
+
+    # --- Step 1: Incremental collect (skip if already covered) ---
+    _s("📡 Kiểm tra & tải dữ liệu mới...")
+    _p(10, "Thu thập (incremental)")
     collectors = [
-        ("klines", KlinesCollector(client, settings)),
-        ("funding", FundingCollector(client, settings)),
-        ("open_interest", OpenInterestCollector(client, settings)),
-        ("taker_ratio", TakerRatioCollector(client, settings)),
-        ("global_ratio", GlobalRatioCollector(client, settings)),
-        ("top_ratio", TopRatioCollector(client, settings)),
+        ("klines", "Nến 5m", KlinesCollector(client, settings)),
+        ("funding", "Funding Rate", FundingCollector(client, settings)),
+        ("open_interest", "Open Interest", OpenInterestCollector(client, settings)),
+        ("taker_ratio", "Taker Volume", TakerRatioCollector(client, settings)),
+        ("global_ratio", "Global L/S", GlobalRatioCollector(client, settings)),
+        ("top_ratio", "Top L/S", TopRatioCollector(client, settings)),
     ]
-    for data_type, collector in collectors:
+    n_fetched = 0
+    n_skipped = 0
+    for data_type, label, collector in collectors:
         inc_start = get_incremental_start(data_dir, data_type, symbol, start_dt)
         if inc_start > end_dt:
+            n_skipped += 1
             continue
         collector.collect(inc_start, end_dt, run_id)
+        n_fetched += 1
 
+    if n_fetched == 0:
+        _s(f"✓ Dữ liệu đã cập nhật (tất cả {n_skipped} nguồn đã có) — bỏ qua tải")
+    else:
+        _s(f"✓ Đã tải {n_fetched} nguồn mới, {n_skipped} nguồn đã có")
+
+    # --- Step 2: Normalize (skip files already processed) ---
+    _s("🔄 Chuẩn hóa dữ liệu...")
+    _p(30, "Chuẩn hóa Parquet")
     process_raw_to_parquet(settings)
+
+    # --- Step 3: Build timeline (recreate views — fast, in-memory) ---
+    _s("🔗 Xây dựng timeline...")
+    _p(40, "Timeline + Align")
     db = DuckDBQueryLayer(db_path)
     build_raw_timeline(db, settings)
 
+    # --- Step 4: Labels (recompute — fast with SQL CREATE TABLE AS) ---
+    _s("🏷️ Tính nhãn phân phối...")
+    _p(60, "Sinh nhãn")
     engine = DistributionLabelEngine()
     n_total, n_pos, n_neg = engine.compute_all_to_table(db.conn, "raw_timeline", "labels")
     n_exc = n_total - n_pos - n_neg
 
+    # --- Step 5: Features (recompute) ---
+    _s("⚙️ Tính feature...")
+    _p(80, "Tính feature")
     build_features(db, "raw_timeline", "feature_results")
     n_rows = db.conn.execute("SELECT count(*) FROM feature_results").fetchone()[0]
     n_cols = db.conn.execute(
@@ -260,10 +302,15 @@ if run_button and mode == "🔍 Watchlist":
         settings = AppSettings()
         settings.binance.symbol = symbol
 
-        status.info("📡 Đang tải dữ liệu...")
-        progress.progress(30, text="Thu thập + Chuẩn hóa")
+        def _wl_progress(pct, txt):
+            progress.progress(pct, text=txt)
+
+        def _wl_status(txt):
+            status.info(txt)
+
         db, n_total, n_pos, n_neg, n_exc, n_rows, n_cols, t_pipe = _run_pipeline_steps(
-            symbol, start_dt, end_dt, db_path, settings
+            symbol, start_dt, end_dt, db_path, settings,
+            progress_cb=_wl_progress, status_cb=_wl_status,
         )
 
         if n_pos == 0:
@@ -274,7 +321,7 @@ if run_button and mode == "🔍 Watchlist":
             progress.empty()
         else:
             status.info("🧠 Đang train model + dự đoán...")
-            progress.progress(80, text="Train + Predict")
+            progress.progress(90, text="Train + Predict")
 
             from dao_vang.experiments.walk_forward import train_and_predict_latest
 
@@ -394,11 +441,16 @@ elif run_button and mode == "🧪 Backtest":
         settings = AppSettings()
         settings.binance.symbol = symbol
 
-        # Steps 1-4
-        status.info("📡 Đang tải + chuẩn hóa + sinh nhãn + tính feature...")
-        progress.progress(50, text="Pipeline 1→4")
+        def _bt_progress(pct, txt):
+            progress.progress(pct, text=txt)
+
+        def _bt_status(txt):
+            status.info(txt)
+
+        # Steps 1-5 (with detailed progress)
         db, n_total, n_positive, n_negative, n_excluded, row_count, col_count, t_pipe = _run_pipeline_steps(
-            symbol, start_dt, end_dt, db_path, settings
+            symbol, start_dt, end_dt, db_path, settings,
+            progress_cb=_bt_progress, status_cb=_bt_status,
         )
         log(f"Pipeline 1→4: {t_pipe:.1f}s ({n_total} nhãn, {n_positive}+/{n_negative}-/{n_excluded}exc)")
 

@@ -1,15 +1,13 @@
-feat: add glossary tooltips + searchable term dictionary to GUI
+feat: incremental pipeline with detailed progress — skip already-fetched data
 
-- Add GLOSSARY dict (28 terms from GLOSSARY.md) with Vietnamese explanations
-- Add _render_glossary_tab() — searchable, expandable term list
-- Add tooltips (st.metric help=) on key metrics:
-  Precision, Recall, Brier, Probability, Risk Level, Prevalence, Phân phối
-- Add captions explaining:
-  Watchlist: probability/risk meaning, threshold line
-  Backtest: walk-forward folds, baseline comparison, leakage, label definition
-  Feature importance: positive/negative coefficient meaning
-- Add "📖 Thuật ngữ" tab in Backtest (6 tabs total)
-- Glossary available in idle state (before running any mode)
+- _run_pipeline_steps() now reports per-step progress via callbacks
+  Watchlist + Backtest show: "📡 Kiểm tra & tải" → "🔄 Chuẩn hóa" → "🔗 Timeline" → "🏷️ Nhãn" → "⚙️ Feature"
+- Collector: get_incremental_start() already skips data already downloaded
+  Now shows "✓ Dữ liệu đã cập nhật (6/6 nguồn đã có) — bỏ qua tải" when nothing new
+- Normalize: process_raw_to_parquet() already skips files with existing parquet
+- DuckDB persists on disk (dev.duckdb) — labels/feature_results tables survive restart
+- Views recreated each run (fast, in-memory) — no stale data
+- Stop deleting dev.duckdb on app restart — preserves cached tables
 
 Generated with [Devin](https://devin.ai)
 
