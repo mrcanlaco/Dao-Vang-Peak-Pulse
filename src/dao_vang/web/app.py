@@ -325,14 +325,89 @@ if _tickers:
                 dc3.metric("Volume 24h", f"{float(_ticker_info.get('quoteVolume', 0)):,.0f}")
                 dc4.metric("High/Low 24h", f"{float(_ticker_info.get('highPrice', 0)):.6f} / {float(_ticker_info.get('lowPrice', 0)):.6f}")
 
-                # Price chart
-                st.markdown(f"**{_show_symbol} — 48h gần nhất (1h candle)**")
-                _chart_data = _kdf.set_index("time")[["close"]]
-                st.line_chart(_chart_data, use_container_width=True)
+                # --- Chart type selector ---
+                _chart_type_col, _tf_col, _tv_col = st.columns([2, 2, 2])
+                with _chart_type_col:
+                    _chart_type = st.radio(
+                        "Loại chart",
+                        ["🕯️ Nến (Candlestick)", "📈 Đường (Line)", "📊 TradingView"],
+                        horizontal=True,
+                        key="chart_type_radio",
+                    )
+                with _tf_col:
+                    _tf = st.selectbox(
+                        "Khung thời gian",
+                        ["15m", "1h", "4h", "1d"],
+                        index=1,
+                        key="chart_tf_select",
+                    )
+                with _tv_col:
+                    _n_candles = st.selectbox(
+                        "Số nến",
+                        [48, 96, 200, 500],
+                        index=0,
+                        key="chart_n_select",
+                    )
 
-                # Add to watchlist + scan
+                # Re-fetch with selected timeframe if not 1h/48
+                if _tf != "1h" or _n_candles != 48:
+                    _klines = _fetch_recent_klines(_show_symbol, _tf, _n_candles)
+                    _kdf = pd.DataFrame(_klines) if _klines else _kdf
+
+                if _chart_type == "🕯️ Nến (Candlestick)":
+                    import plotly.graph_objects as go
+                    _fig = go.Figure(data=[go.Candlestick(
+                        x=_kdf["time"],
+                        open=_kdf["open"],
+                        high=_kdf["high"],
+                        low=_kdf["low"],
+                        close=_kdf["close"],
+                        name=_show_symbol,
+                    )])
+                    _fig.update_layout(
+                        template="plotly_dark",
+                        height=400,
+                        margin=dict(l=0, r=0, t=30, b=0),
+                        xaxis_rangeslider_visible=False,
+                        yaxis_title="Giá",
+                    )
+                    _fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(50,50,50,0.3)')
+                    st.plotly_chart(_fig, use_container_width=True, config={"displayModeBar": False})
+
+                elif _chart_type == "📈 Đường (Line)":
+                    _chart_data = _kdf.set_index("time")[["close"]]
+                    st.line_chart(_chart_data, use_container_width=True)
+
+                elif _chart_type == "📊 TradingView":
+                    # Embed TradingView widget
+                    import streamlit.components.v1 as components
+                    _tv_sym = _show_symbol.replace("USDT", "USD")
+                    _tv_html = f"""
+                    <div class="tradingview-widget-container" style="height:400px;">
+                        <div id="tradingview_chart"></div>
+                        <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+                        <script type="text/javascript">
+                        new TradingView.widget({{
+                            "autosize": true,
+                            "symbol": "BINANCE:{_tv_sym}PERP",
+                            "interval": "{_tf}",
+                            "timezone": "Etc/UTC",
+                            "theme": "dark",
+                            "style": "1",
+                            "locale": "vi_VN",
+                            "toolbar_bg": "#f1f3f6",
+                            "enable_publishing": false,
+                            "allow_symbol_change": true,
+                            "container_id": "tradingview_chart"
+                        }});
+                        </script>
+                    </div>
+                    """
+                    components.html(_tv_html, height=420)
+
+                # Add to watchlist + scan + external links
                 st.markdown("---")
-                _wl_cols = st.columns([2, 1, 1])
+                _wl_cols = st.columns([2, 1, 1, 1])
                 with _wl_cols[0]:
                     if _show_symbol in st.session_state.watchlist:
                         st.success(f"✅ {_show_symbol} đã có trong watchlist")
@@ -349,6 +424,9 @@ if _tickers:
                     if st.button("🚀 Quét coin này", key="scan_gainer"):
                         st.session_state.scan_symbol = _show_symbol
                         st.rerun()
+                with _wl_cols[3]:
+                    _binance_url = f"https://www.binance.com/en/futures/{_show_symbol}"
+                    st.link_button("📈 Binance", _binance_url, use_container_width=True)
 
 
 # --- Watchlist panel (persistent) ---

@@ -1,13 +1,13 @@
-fix: top gainers now clickable — button grid replaces static dataframe
+feat: candlestick chart + TradingView widget embed + timeframe selector
 
-- Replace dataframe (not clickable in Streamlit) with button grid
-  Each coin is a button: "SYMBOL\n+12.34%" — bấm vào → hiện chart ngay
-- Top 15 gainers in 5-column grid
-- Top 5 losers in 5-column grid
-- Selectbox fallback for manual search from top 50
-- Chart + stats + watchlist buttons appear below after clicking
-- CSS: compact button styling, pre-line text for 2-line label
-- Expander default expanded=True (was False)
+- 3 chart types: 🕯️ Candlestick (plotly), 📈 Line (streamlit), 📊 TradingView (embed)
+- Timeframe selector: 15m, 1h, 4h, 1d
+- Candle count selector: 48, 96, 200, 500
+- Candlestick: plotly go.Candlestick, dark theme, no slider, compact
+- TradingView: embedded widget via st.components.v1.html
+  Symbol: BINANCE:{SYMBOL}PERP, dark theme, vi_VN locale
+  Full toolbar, allow symbol change, real-time data
+- Add plotly dependency
 
 Generated with [Devin](https://devin.ai)
 
