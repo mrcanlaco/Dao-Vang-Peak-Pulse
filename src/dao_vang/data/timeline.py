@@ -27,6 +27,11 @@ def align_exact_5m(
         except Exception:
             pass
 
+    # Align timestamps to 5-minute buckets for joining.
+    # kline close_time ends at xx:xx:59.999 (end of candle),
+    # while OI/taker/ratio period_end is at xx:xx:00 (start of period).
+    # We truncate both to 5-minute boundaries to match them.
+    # E.g., kline 07:04:59.999 → 07:00:00, OI 07:00:00 → 07:00:00
     sql = f"""
     CREATE OR REPLACE VIEW {output_view} AS
     SELECT
@@ -40,20 +45,24 @@ def align_exact_5m(
         tr.long_account AS top_long_account, tr.short_account AS top_short_account, tr.long_short_ratio AS top_long_short_ratio,
         k.quality_status
     FROM {kline_view} k
-    LEFT JOIN {oi_view} oi 
-        ON k.symbol = oi.symbol AND k.close_time = oi.period_end 
+    LEFT JOIN {oi_view} oi
+        ON k.symbol = oi.symbol
+        AND time_bucket(INTERVAL '5 minutes', k.close_time) = time_bucket(INTERVAL '5 minutes', oi.period_end)
         AND oi.available_time <= (k.close_time + INTERVAL {max_lag_seconds} SECONDS)
         AND oi.quality_status IN ('valid', 'warning')
-    LEFT JOIN {taker_view} tv 
-        ON k.symbol = tv.symbol AND k.close_time = tv.period_end 
+    LEFT JOIN {taker_view} tv
+        ON k.symbol = tv.symbol
+        AND time_bucket(INTERVAL '5 minutes', k.close_time) = time_bucket(INTERVAL '5 minutes', tv.period_end)
         AND tv.available_time <= (k.close_time + INTERVAL {max_lag_seconds} SECONDS)
         AND tv.quality_status IN ('valid', 'warning')
-    LEFT JOIN {global_ratio_view} gr 
-        ON k.symbol = gr.symbol AND k.close_time = gr.period_end 
+    LEFT JOIN {global_ratio_view} gr
+        ON k.symbol = gr.symbol
+        AND time_bucket(INTERVAL '5 minutes', k.close_time) = time_bucket(INTERVAL '5 minutes', gr.period_end)
         AND gr.available_time <= (k.close_time + INTERVAL {max_lag_seconds} SECONDS)
         AND gr.quality_status IN ('valid', 'warning')
-    LEFT JOIN {top_ratio_view} tr 
-        ON k.symbol = tr.symbol AND k.close_time = tr.period_end 
+    LEFT JOIN {top_ratio_view} tr
+        ON k.symbol = tr.symbol
+        AND time_bucket(INTERVAL '5 minutes', k.close_time) = time_bucket(INTERVAL '5 minutes', tr.period_end)
         AND tr.available_time <= (k.close_time + INTERVAL {max_lag_seconds} SECONDS)
         AND tr.quality_status IN ('valid', 'warning')
     WHERE k.available_time <= (k.close_time + INTERVAL {max_lag_seconds} SECONDS)

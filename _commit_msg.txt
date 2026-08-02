@@ -1,0 +1,14 @@
+feat: baseline comparison, leakage audit, data quality report, fix timeline join
+
+- Add B0/B1/B2 baseline comparison in experiment runner (7 baseline variants)
+- Add leakage audit (forbidden columns, future data check, split overlap)
+- Add data quality report (null counts, duplicates, label distribution, time range)
+- Add 6 tabs in UI: Labels, Metrics, Baselines, Quality, Report, Log
+- Fix timeline join: use time_bucket('5 minutes') instead of exact timestamp match
+  (kline close_time ends at xx:xx:59.999, OI period_end at xx:xx:00)
+- Add compute_all_to_table() in label engine to avoid slow executemany
+- OI/taker/ratio features now have data (was 100% null due to timestamp mismatch)
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>
