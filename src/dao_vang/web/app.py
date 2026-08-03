@@ -752,6 +752,79 @@ if run_button and mode == "🔍 Watchlist":
                     st.line_chart(chart_df)
                     st.caption(f"🔴 Threshold = {thresh:.2f} — probability vượt đường này = tín hiệu phân phối (xem 📖 Thuật ngữ)")
 
+                # === Price chart for scanned coin ===
+                st.markdown("---")
+                st.markdown(f"#### 📊 Biểu đồ giá {symbol}")
+
+                _scan_chart_col, _scan_tf_col = st.columns([3, 1])
+                with _scan_chart_col:
+                    _scan_chart_type = st.radio(
+                        "Loại chart",
+                        ["🕯️ Nến", "📈 Đường", "📊 TradingView"],
+                        horizontal=True,
+                        key="scan_chart_type",
+                    )
+                with _scan_tf_col:
+                    _scan_tf = st.selectbox(
+                        "Khung thời gian",
+                        ["5m", "15m", "1h", "4h", "1d"],
+                        index=2,
+                        key="scan_chart_tf",
+                    )
+
+                if _scan_chart_type == "📊 TradingView":
+                    import streamlit.components.v1 as components
+                    _tv_embed = f"""
+                    <iframe
+                        src="https://s.tradingview.com/widgetembed/?frameElementId=tv_scan&symbol=BINANCE%3A{symbol}&interval={_scan_tf}&hidesidetoolbar=false&symboledit=true&saveimage=false&toolbarbg=%231a1a2e&theme=dark&style=1&hideideas=true&locale=vi_VN"
+                        style="width:100%;height:500px;border:0;margin:0;padding:0;"
+                        allowfullscreen
+                        allow="autoplay; clipboard-read; clipboard-write"
+                    ></iframe>
+                    """
+                    components.html(_tv_embed, height=520)
+                    st.caption("ℹ️ Nếu chart trắng — coin chưa có trên TradingView. Bấm ô symbol trên chart để đổi.")
+                else:
+                    _scan_klines = _fetch_recent_klines(symbol, _scan_tf, 200)
+                    if _scan_klines:
+                        _skdf = pd.DataFrame(_scan_klines)
+                        if _scan_chart_type == "🕯️ Nến":
+                            import plotly.graph_objects as go
+                            _sfig = go.Figure(data=[go.Candlestick(
+                                x=_skdf["time"],
+                                open=_skdf["open"],
+                                high=_skdf["high"],
+                                low=_skdf["low"],
+                                close=_skdf["close"],
+                                name=symbol,
+                            )])
+                            # Mark high-risk candles on chart
+                            if high_risk:
+                                _hr_times = [pd.to_datetime(p["feature_time"]) for p in high_risk]
+                                _hr_probs = [p["probability"] for p in high_risk]
+                                _sfig.add_trace(go.Scatter(
+                                    x=_hr_times,
+                                    y=[_skdf.loc[_skdf["time"] == t, "high"].values[0] if len(_skdf.loc[_skdf["time"] == t, "high"]) > 0 else None for t in _hr_times],
+                                    mode="markers",
+                                    marker=dict(symbol="triangle-down", size=14, color="red"),
+                                    name="🚨 Tín hiệu CAO",
+                                    text=[f"Prob: {p:.1%}" for p in _hr_probs],
+                                    hovertemplate="%{text}<br>%{x}<extra></extra>",
+                                ))
+                            _sfig.update_layout(
+                                template="plotly_dark",
+                                height=450,
+                                margin=dict(l=0, r=0, t=30, b=0),
+                                xaxis_rangeslider_visible=False,
+                                yaxis_title="Giá",
+                            )
+                            st.plotly_chart(_sfig, use_container_width=True, config={"displayModeBar": False})
+                        else:  # Line
+                            _sline_data = _skdf.set_index("time")[["close"]]
+                            st.line_chart(_sline_data, use_container_width=True)
+                    else:
+                        st.warning(f"Không lấy được klines cho {symbol} ở khung {_scan_tf}")
+
                 # === Feature importance ===
                 top_feats = model_info.get("top_features", [])
                 if top_feats:

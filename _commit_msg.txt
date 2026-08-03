@@ -1,12 +1,14 @@
-fix: remove TradingView studies param — caused create_study protocol error
+feat: add price chart to Watchlist scan results
 
-- Studies (MASimple, RSI) caused create_study error for coins not on TV
-  Error: "unknown_session_id, create_study, Sessions@tv-basicstudies-274"
-- Root cause: BINANCE:BLESSUSDT and similar new/small coins not listed on TV
-  → session can't be created → studies fail → protocol error
-- Remove studies param entirely — user adds indicators via toolbar
-- Add caption: "Nếu chart trắng — coin chưa có trên TradingView"
-- User can switch symbol within widget (symboledit=true)
+- After scanning a coin, show price chart below prediction table
+- 3 chart types: 🕯️ Candlestick (plotly), 📈 Line, 📊 TradingView
+- Timeframe selector: 5m, 15m, 1h, 4h, 1d (default 1h)
+- Candlestick: 200 candles, dark theme
+  + Mark high-risk candles with red triangle-down markers
+  + Hover shows probability %
+- TradingView: embed iframe, allow symbol change
+- Line: simple close price chart
+- Data from Binance API (fapi/v1/klines)
 
 Generated with [Devin](https://devin.ai)
 
