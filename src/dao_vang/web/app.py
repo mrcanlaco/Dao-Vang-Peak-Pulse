@@ -854,10 +854,6 @@ with _scan_container:
                             feat_df.columns = ["Feature", "Hệ số"]
                             st.dataframe(feat_df, use_container_width=True, hide_index=True)
 
-                    # === Glossary ===
-                    st.markdown("---")
-                    _render_glossary_tab()
-
             db.conn.close()
         except Exception as e:
             status.error(f"❌ Lỗi: {str(e)}")
