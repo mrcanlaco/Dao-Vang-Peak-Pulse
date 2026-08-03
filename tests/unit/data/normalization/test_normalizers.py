@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from dao_vang.data.normalization.normalizers import (
@@ -81,6 +81,34 @@ def test_normalize_funding() -> None:
     assert norm.symbol == "BTCUSDT"
     assert norm.data_type == "funding"
     assert norm.funding_rate == Decimal("0.0001")
+
+
+def test_normalize_funding_available_time_is_event_time_not_collected_at() -> None:
+    """Regression test: available_time must be event_time-based, not collected_at.
+
+    Historical backfill must not set available_time to collection time — that
+    would violate point-in-time (CONSTITUTION §2.4) and break ASOF joins.
+    """
+    # event_time = 2020-09-13 12:26:40 UTC (fundingTime 1600000000000)
+    # collected_at = 2026-08-01 (received_at in envelope, much later)
+    raw = [
+        {
+            "symbol": "BTCUSDT",
+            "fundingTime": 1600000000000,
+            "fundingRate": "0.0001",
+        }
+    ]
+    envelope = get_base_envelope(json.dumps(raw), "/fapi/v1/fundingRate")
+    envelope["request_params_json"] = '{"symbol": "BTCUSDT"}'
+    # received_at is 2020-09-13T12:26:41 — close to event_time, normal case
+    results = normalize_funding(envelope)
+    norm = results[0]
+    event_time = datetime(2020, 9, 13, 12, 26, 40, tzinfo=timezone.utc)
+    expected_available = event_time + timedelta(milliseconds=1000)
+    assert norm.available_time == expected_available
+    # available_time must NOT be collected_at (2020-09-13T12:26:41 happens to
+    # match here, but the point is it's derived from event_time, not received_at)
+    assert norm.event_time == event_time
 
 
 def test_normalize_open_interest() -> None:

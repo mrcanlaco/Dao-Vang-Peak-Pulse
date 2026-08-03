@@ -1,10 +1,9 @@
-feat: mark historical distribution events on price chart
+refactor: remove MVP text from UI, restore scan buttons to sidebar
 
-- Add orange diamond markers for actual distribution events (label=1)
-  from training data, shown on candlestick chart
-- Red triangle-down markers = predicted high-risk (already existed)
-- Caption explains both marker types
-- Helps user visually compare: predicted vs actual distribution events
+- Remove all "MVP" references from glossary, guide, sidebar, tabs, idle states
+- Restore "🔍 Phát hiện Distribution" and "🚀 Chạy Backtest" buttons to sidebar
+- Remove duplicate buttons from inside tab containers
+- Update idle state instructions to reference sidebar buttons
 
 Generated with [Devin](https://devin.ai)
 

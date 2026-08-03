@@ -1,5 +1,7 @@
+import json as _json
 import streamlit as st
 import time
+import duckdb
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -46,11 +48,11 @@ GLOSSARY = {
     "Walk-Forward": "Quy trình train/validate/test theo thời gian, cửa sổ tiến về phía sau. Không shuffle — đảm bảo không dùng dữ liệu tương lai.",
     "Leakage": "Data leakage — feature/evaluation sử dụng thông tin không hợp pháp tại thời điểm dự báo (dữ liệu tương lai). Phải fail.",
     "Label": "Kết quả mục tiêu tạo bằng thuật toán từ dữ liệu tương lai. Chỉ dùng cho training/evaluation, KHÔNG dùng làm feature.",
-    "Feature Time": "Timestamp mà feature vector đại diện. MVP dùng close time của nến 5 phút đã đóng.",
-    "Signal Price": "Giá tham chiếu tại thời điểm tín hiệu. MVP v0.1 dùng close của nến futures 5 phút đã đóng.",
-    "Horizon": "Khoảng thời gian tương lai dùng để xác định outcome. MVP: 24 giờ.",
-    "Target Drawdown": "Mức giảm tối thiểu từ signal price cần đạt trong horizon để label dương. MVP: 8%.",
-    "MAE": "Max Adverse Excursion — mức tăng bất lợi lớn nhất so với signal price trước khi target đạt. MVP: ≤4%.",
+    "Feature Time": "Timestamp mà feature vector đại diện. Dùng close time của nến 5 phút đã đóng.",
+    "Signal Price": "Giá tham chiếu tại thời điểm tín hiệu. Dùng close của nến futures 5 phút đã đóng.",
+    "Horizon": "Khoảng thời gian tương lai dùng để xác định outcome. Mặc định: 24 giờ.",
+    "Target Drawdown": "Mức giảm tối thiểu từ signal price cần đạt trong horizon để label dương. Mặc định: 8%.",
+    "MAE": "Max Adverse Excursion — mức tăng bất lợi lớn nhất so với signal price trước khi target đạt. Mặc định: ≤4%.",
     "Probability": "Xác suất model dự đoán coin sẽ phân phối trong 24h tới. >Threshold = tín hiệu dương.",
     "Risk Level": "Phân loại nguy cơ dựa trên probability vs threshold: CAO (≥1.5×threshold), TRUNG BÌNH (≥threshold), THẤP (≥0.5×threshold), RẤT THẤP (<0.5×threshold).",
     "Prevalence": "Tỷ lệ label dương trong dataset. Prevalence thấp = dataset mất cân bằng, model khó học.",
@@ -87,6 +89,184 @@ def _render_glossary_tab():
     for term, explanation in items:
         with st.expander(f"**{term}**", expanded=False):
             st.markdown(explanation)
+
+
+def _render_guide_tab():
+    """Render hướng dẫn dùng tool (web app) và CLI."""
+    st.markdown("#### 🧭 Hướng dẫn sử dụng tool & ứng dụng")
+    st.caption("Tổng hợp cách dùng giao diện web và CLI để thu thập dữ liệu, quét tín hiệu, chạy backtest và xuất báo cáo.")
+
+    guide_search = st.text_input(
+        "🔍 Tìm trong hướng dẫn",
+        placeholder="VD: backtest, CLI, watchlist, collect...",
+        key="guide_search",
+    )
+
+    def _match(text: str) -> bool:
+        if not guide_search:
+            return True
+        return guide_search.lower() in text.lower()
+
+    # ---------- 1. WEB APP ----------
+    if _match("Web app giao diện Streamlit Phát hiện Distribution Backtest Thuật ngữ Hướng dẫn Quan sát thị trường"):
+        with st.expander("🌐 1. Giao diện web (Streamlit app)", expanded=False):
+            st.markdown(
+                """
+App web gồm **5 tab** — sắp xếp theo ưu tiên:
+
+| # | Tab | Mục đích | Ưu tiên |
+|---|-----|----------|---------|
+| 1 | 🎯 **Phát hiện Distribution** | Tính probability + risk level + so sánh baseline cho BTCUSDT | **Core** |
+| 2 | 🧪 **Backtest** | Đánh giá model trên lịch sử (walk-forward, leakage, calibration) | Kiểm chứng |
+| 3 | 📖 **Thuật ngữ** | Tra cứu khái niệm (precision, MAE, funding...) | Reference |
+| 4 | 🧭 **Hướng dẫn** | (Tab này) Hướng dẫn dùng web + CLI | Reference |
+| 5 | 📊 **Quan sát thị trường** | Top gainers/losers, watchlist multi-coin | Phụ |
+
+**Mục tiêu tối cao:** Phát hiện sớm coin có xác suất cao chuyển từ tăng giá sang phân phối.
+
+**Khởi động web:**
+```bash
+python -m dao_vang.web.run
+# hoặc
+streamlit run src/dao_vang/web/app.py
+```
+"""
+            )
+
+    # ---------- 2. TAB PHÁT HIỆN DISTRIBUTION ----------
+    if _match("Phát hiện Distribution probability risk baseline threshold feature BTCUSDT"):
+        with st.expander("🎯 2. Tab Phát hiện Distribution — core", expanded=False):
+            st.markdown(
+                """
+**Đây là tab ưu tiên #1** — trả lời câu hỏi cốt lõi: *dữ liệu tối thiểu có tạo lợi thế thống kê trong phát hiện Distribution không?*
+
+**Quy trình:**
+1. Chọn mã coin ở thanh bên (mặc định **BTCUSDT**).
+2. Chọn khoảng thời gian (mặc định 30 ngày).
+3. Bấm **"🔍 Phát hiện Distribution"**.
+4. App tự thu thập klines/funding/OI/taker ratios từ Binance → build feature → train LogReg → dự đoán 12 nến mới nhất.
+
+**Label spec (v0.1):** horizon 24h, target drawdown ≥8%, MAE ≤4%.
+
+**Kết quả hiển thị:**
+- **Probability + Risk Level** cho 12 nến mới nhất:
+  - 🔴 **CAO**: probability ≥ 1.5×threshold
+  - 🟠 **TRUNG BÌNH**: probability ≥ threshold
+  - 🟡 **THẤP**: probability ≥ 0.5×threshold
+  - ⚪ **RẤT THẤP**: probability < 0.5×threshold
+- **Chart giá** + **Probability theo thời gian**.
+- **Top 5 feature quan trọng** (feature importance).
+- **So sánh Model vs Baseline** (prevalence baseline) — trả lời: có lợi thế thống kê không?
+"""
+            )
+
+    # ---------- 3. TAB BACKTEST ----------
+    if _match("Backtest experiment baseline walk-forward metrics calibration leakage"):
+        with st.expander("🧪 3. Tab Backtest — đánh giá model", expanded=False):
+            st.markdown(
+                """
+6 sub-tab bên trong:
+
+| Sub-tab | Nội dung |
+|---------|----------|
+| 📈 Metrics | Precision / Recall / Brier Score / walk-forward folds |
+| 📊 Baselines | So sánh model với baseline — model phải vượt baseline mới triển khai |
+| 🏷️ Nhãn | Phân phối label, prevalence, label spec |
+| 🔍 Chất lượng | Leakage check, calibration, embargo |
+| 📄 Báo cáo | Markdown report của experiment |
+| 📖 Thuật ngữ | Tra cứu thuật ngữ |
+
+**Lưu ý:** backtest dùng **walk-forward** (không shuffle) + **embargo 12h** giữa train/test để tránh lookahead bias.
+"""
+            )
+
+    # ---------- 4. CLI ----------
+    if _match("CLI command line typer data labels features experiment report"):
+        with st.expander("⌨️ 4. CLI (dòng lệnh) — tự động hóa & batch", expanded=False):
+            st.markdown(
+                """
+CLI dùng **Typer**. Cài: `pip install -e .` (hoặc `uv sync`). Gọi: `dao-vang --help`.
+
+**Nhóm lệnh:**
+
+```bash
+# Data — thu thập & chuẩn hóa
+dao-vang data collect --start-timestamp 1700000000 --end-timestamp 1700086400 --run-id manual_run
+dao-vang data normalize
+
+# Labels — tạo nhãn từ dữ liệu đã chuẩn hóa
+dao-vang labels generate --db-path ./data/duckdb --source-table klines_5m
+
+# Features — build feature vector
+dao-vang features generate \
+    --db-path ./data/duckdb \
+    --source-table klines_5m \
+    --target-table features_v1
+
+# Experiment — train + đánh giá + lưu artifact
+dao-vang experiment run \
+    --hypothesis-id H1 \
+    --baseline-model rules \
+    --dataset-version ds_v1 \
+    --label-version lbl_v1 \
+    --feature-set-version feat_v1 \
+    --split-version wf_v1 \
+    --seed 42 \
+    --metrics precision,recall \
+    --artifact-dir ./artifacts
+
+# Report — xuất markdown từ artifact
+dao-vang report generate \
+    --artifact-id <ARTIFACT_ID> \
+    --artifact-dir ./artifacts \
+    --output-file ./reports/exp_H1.md
+```
+
+**Workflow điển hình (tự động hoá):**
+```bash
+dao-vang data collect ... && \
+dao-vang labels generate ... && \
+dao-vang features generate ... && \
+dao-vang experiment run ... && \
+dao-vang report generate ...
+```
+"""
+            )
+
+    # ---------- 5. WORKFLOW END-TO-END ----------
+    if _match("workflow end-to-end pipeline thu thập train triển khai forward test"):
+        with st.expander("🔁 5. Workflow end-to-end (web + CLI)", expanded=False):
+            st.markdown(
+                """
+**Vòng lặp khuyến nghị:**
+
+1. **Phát hiện** (web → tab #1 Phát hiện Distribution): xem probability + risk level + so sánh baseline hằng ngày.
+2. **Đánh giá định kỳ** (web → tab #2 Backtest hoặc CLI `experiment run`):
+   - Chạy walk-forward trên dữ liệu mới.
+   - So sánh với baseline — nếu không vượt → sửa giả thuyết / thêm feature / thu thập thêm dữ liệu.
+   - Kiểm tra calibration & leakage.
+3. **Xuất báo cáo** (CLI `report generate` hoặc web sub-tab 📄 Báo cáo) để lưu vết experiment.
+4. **Forward test**: áp dụng model đã đóng băng lên dữ liệu mới sinh ra *sau* khi đóng băng — kiểm tra stability thực tế trước khi dùng thật.
+5. **Quan sát thị trường** (web → tab #5, phụ): tham khảo top gainers/losers khi cần mở rộng sang coin khác.
+
+**Quy tắc cốt lõi:** không bao giờ dùng label làm feature; mọi feature phải point-in-time; model không vượt baseline thì không triển khai.
+"""
+            )
+
+    # ---------- 6. TROUBLESHOOTING ----------
+    if _match("lỗi error troubleshooting binance api duckdb không có dữ liệu"):
+        with st.expander("🛠️ 6. Xử lý lỗi thường gặp", expanded=False):
+            st.markdown(
+                """
+- **Phát hiện Distribution không có kết quả**: đảm bảo có đủ dữ liệu 30 ngày cho BTCUSDT. Nếu chưa có, app sẽ tự tải khi bấm chạy.
+- **Model precision = 0**: quá ít event phân phối trong dữ liệu — mở rộng khoảng thời gian.
+- **Không vượt baseline**: feature hiện tại chưa đủ — thử thêm feature hoặc kiểm tra drift.
+- **Backtest fail leakage check**: feature đang dùng thông tin tương lai — rà `feature_set_version` và đảm bảo feature chỉ dùng dữ liệu ≤ feature time.
+- **CLI `dao-vang: command not found`**: chạy `pip install -e .` hoặc `uv sync` rồi `uv run dao-vang --help`.
+- **DuckDB file lock**: đảm bảo không có process khác đang mở cùng file `*.duckdb`.
+- **Calibration lệch nhiều**: tăng lượng dữ liệu train hoặc kiểm tra drift trên window mới.
+"""
+            )
 
 # --- CSS for compact UI + ticker marquee ---
 st.markdown("""
@@ -142,8 +322,6 @@ st.markdown("""
 # ============================================================
 # TOP GAINERS — 24h ticker (like dex screener)
 # ============================================================
-import json as _json
-
 _WATCHLIST_FILE = Path("data/watchlist.json")
 
 
@@ -271,22 +449,350 @@ st.markdown("---")
 
 
 # ============================================================
-# MAIN TABS
+# MAIN TABS — Phát hiện Distribution là ưu tiên #1
 # ============================================================
-tab_market, tab_scan, tab_backtest, tab_glossary = st.tabs([
-    "🔥 Thị trường", "🔍 Quét tín hiệu", "🧪 Backtest", "� Thuật ngữ"
+tab_detect, tab_scan, tab_backtest, tab_glossary, tab_guide, tab_market = st.tabs([
+    "🎯 Phát hiện Distribution",
+    "🔍 Quét Multi-Coin",
+    "🧪 Backtest",
+    "📖 Thuật ngữ",
+    "🧭 Hướng dẫn",
+    "📊 Quan sát thị trường",
 ])
 
-# Containers for dynamic content (filled later by mode logic)
+# Containers for dynamic content (filled later)
+_detect_container = tab_detect.container()
 _scan_container = tab_scan.container()
 _backtest_container = tab_backtest.container()
 _glossary_container = tab_glossary.container()
+_guide_container = tab_guide.container()
+_market_container = tab_market.container()
 
 
 # ============================================================
-# TAB 1: THỊ TRƯỜNG — Top gainers + coin detail + watchlist
+# TAB: QUÉT MULTI-COIN — scan top volatile coins for distribution edge
 # ============================================================
-with tab_market:
+with _scan_container:
+    st.markdown("#### 🔍 Quét Multi-Coin — tìm coin có edge phát hiện Distribution")
+    st.caption(
+        "Quét top coin biến động → thu thập 90 ngày klines → chạy labels → đếm events → chạy experiment. "
+        "Altcoin biến động lớn có nhiều distribution events hơn BTC → đủ data để validate. "
+        "Label v0.1: 8% drawdown trong 24h, MAE ≤4%."
+    )
+
+    _scan_db_path = "./data/scan_volatile.duckdb"
+    _scan_db_exists = Path(_scan_db_path).exists()
+
+    # --- Controls ---
+    _scan_col1, _scan_col2, _scan_col3 = st.columns([2, 1, 1])
+    with _scan_col1:
+        _n_coins = st.slider(
+            "Số coin volatile nhất cần quét",
+            min_value=5, max_value=30, value=15, step=5,
+            help="Lấy top N coin theo |24h price change|, min $10M volume",
+        )
+    with _scan_col2:
+        _scan_days = st.selectbox("Số ngày lịch sử", [30, 60, 90], index=2)
+    with _scan_col3:
+        _min_events = st.selectbox("Min events để chạy experiment", [30, 50, 100], index=1)
+
+    _scan_run = st.button(
+        "🚀 Chạy quét multi-coin",
+        help="Thu thập klines 90 ngày + funding cho top volatile coins, chạy labels + experiment",
+        type="primary",
+    )
+
+    # --- Display existing results if DB exists ---
+    if _scan_db_exists and not _scan_run:
+        try:
+            _scan_conn = duckdb.connect(_scan_db_path, read_only=True)
+
+            # Check if labels table exists
+            _has_labels = _scan_conn.execute(
+                "SELECT count(*) FROM information_schema.tables WHERE table_name = 'labels'"
+            ).fetchone()[0] > 0
+
+            if _has_labels:
+                _coin_stats = _scan_conn.execute("""
+                    SELECT
+                        l.symbol,
+                        count(*) AS total,
+                        sum(CASE WHEN l.label_value = 1 THEN 1 ELSE 0 END) AS pos,
+                        sum(CASE WHEN l.label_value = 0 THEN 1 ELSE 0 END) AS neg,
+                        min(l.signal_time) AS first_ts,
+                        max(l.signal_time) AS last_ts
+                    FROM labels l
+                    GROUP BY l.symbol
+                    ORDER BY pos DESC
+                """).fetchall()
+
+                if _coin_stats:
+                    st.markdown("##### 📊 Distribution events per coin (data đã thu thập)")
+                    _stats_data = []
+                    for sym, total, pos, neg, first_ts, last_ts in _coin_stats:
+                        prev = pos / total if total > 0 else 0
+                        days = (last_ts - first_ts).total_seconds() / 86400 if first_ts and last_ts else 0
+                        _stats_data.append({
+                            "Coin": sym,
+                            "Total rows": total,
+                            "Events (label=1)": pos,
+                            "Negative": neg,
+                            "Prevalence": f"{prev:.2%}",
+                            "Days": f"{days:.1f}",
+                        })
+                    st.dataframe(pd.DataFrame(_stats_data), use_container_width=True, hide_index=True)
+
+                    # Show experiment artifacts for scanned coins
+                    _registry = ArtifactRegistry(Path("./artifacts"))
+                    _artifacts = _registry.list_artifacts()
+                    _scan_artifacts = [
+                        a for a in _artifacts
+                        if "volatile" in a.get("config", {}).get("hypothesis_id", "")
+                    ]
+
+                    if _scan_artifacts:
+                        st.markdown("##### 🧪 Kết quả experiment (artifacts)")
+                        _exp_data = []
+                        for a in reversed(_scan_artifacts):
+                            cfg = a.get("config", {})
+                            res = a.get("results", {})
+                            agg = res.get("aggregate", {})
+                            baselines = res.get("baselines", {})
+                            leak = res.get("leakage_report", {})
+                            ci = agg.get("confidence_intervals", {}).get("precision", {})
+
+                            model_p = agg.get("precision_mean", 0)
+                            best_bp = max((m.get("precision_mean", 0) for m in baselines.values()), default=0)
+                            n_valid = agg.get("n_valid_folds", 0)
+                            n_skip = agg.get("n_skipped_folds", 0)
+                            leak_status = leak.get("status", "?")
+
+                            # Determine status
+                            if leak_status != "passed":
+                                status = "🔴 Leakage"
+                            elif n_valid == 0:
+                                status = "⚪ Không đủ fold"
+                            elif model_p > best_bp and model_p > 0:
+                                status = "🟢 Edge"
+                            else:
+                                status = "🟡 No edge"
+
+                            sym = cfg.get("hypothesis_id", "").replace("hyp_volatile_", "")
+                            _exp_data.append({
+                                "Coin": sym,
+                                "Status": status,
+                                "Model P": f"{model_p:.4f}",
+                                "Best Baseline P": f"{best_bp:.4f}",
+                                "CI 95%": f"[{ci.get('ci_lower', 0):.3f}, {ci.get('ci_upper', 0):.3f}]",
+                                "Valid folds": n_valid,
+                                "Skipped": n_skip,
+                                "Leakage": leak_status,
+                                "Artifact": a.get("artifact_id", "")[:20],
+                            })
+
+                        if _exp_data:
+                            st.dataframe(pd.DataFrame(_exp_data), use_container_width=True, hide_index=True)
+
+                            # Highlight edge coins
+                            _edge_coins = [e for e in _exp_data if "Edge" in e["Status"]]
+                            if _edge_coins:
+                                st.success(
+                                    f"🟢 **{len(_edge_coins)} coin có edge sạch** (model > baseline, leakage passed): "
+                                    + ", ".join(e["Coin"] for e in _edge_coins)
+                                )
+                            else:
+                                st.info("Chưa có coin nào với edge sạch. Thử quét thêm hoặc thu thập thêm data.")
+                    else:
+                        st.info("Chưa có experiment artifacts cho scan. Bấm 'Chạy quét' để bắt đầu.")
+                else:
+                    st.info("Database có nhưng chưa có labels. Bấm 'Chạy quét' để bắt đầu.")
+            else:
+                st.info("Database có nhưng chưa có labels table. Bấm 'Chạy quét' để bắt đầu.")
+
+            _scan_conn.close()
+        except Exception as e:
+            st.warning(f"Không đọc được scan DB: {e}")
+
+    # --- Run scan on button click ---
+    if _scan_run:
+        if not _tickers:
+            st.error("Không lấy được ticker data từ Binance.")
+        else:
+            import time as _time
+            import logging as _logging
+            _logging.getLogger("dao_vang").setLevel(_logging.WARNING)
+
+            _scan_settings = AppSettings()
+            _scan_client = BinanceClient()
+
+            # Step 1: Select top volatile coins
+            with st.spinner(f"Lấy top {_n_coins} coin volatile nhất..."):
+                _usdt_pairs = [
+                    d for d in _tickers
+                    if d.get("symbol", "").endswith("USDT")
+                    and float(d.get("quoteVolume", 0)) > 10_000_000
+                ]
+                _usdt_pairs.sort(
+                    key=lambda x: abs(float(x.get("priceChangePercent", 0))), reverse=True
+                )
+                _scan_coins = _usdt_pairs[:_n_coins]
+                # Ensure BTC included
+                _scan_syms = [d["symbol"] for d in _scan_coins]
+                if "BTCUSDT" not in _scan_syms:
+                    _btc = next((d for d in _tickers if d["symbol"] == "BTCUSDT"), None)
+                    if _btc:
+                        _scan_coins.insert(0, _btc)
+
+            st.markdown(f"**Top {len(_scan_coins)} coin volatile:** "
+                        + ", ".join(d["symbol"] for d in _scan_coins))
+
+            # Step 2: Collect klines + funding
+            _now = datetime.now(timezone.utc)
+            _start = _now - timedelta(days=_scan_days)
+            _run_id = f"scan_ui_{int(_now.timestamp())}"
+
+            _progress = st.progress(0.0, text="Bắt đầu thu thập...")
+            _collected = []
+            for i, d in enumerate(_scan_coins):
+                sym = d["symbol"]
+                _scan_settings.binance.symbol = sym
+                _progress.progress(
+                    (i / len(_scan_coins)) * 0.5,
+                    text=f"[{i+1}/{len(_scan_coins)}] Thu thập {sym}..."
+                )
+                try:
+                    _kl = KlinesCollector(_scan_client, _scan_settings)
+                    _kl.collect(_start, _now, _run_id)
+                    _fc = FundingCollector(_scan_client, _scan_settings)
+                    _fc.collect(_start, _now, _run_id)
+                    _collected.append(sym)
+                except Exception as e:
+                    st.warning(f"Lỗi thu thập {sym}: {e}")
+                _time.sleep(0.15)
+
+            _progress.progress(0.5, text=f"Đã thu thập {len(_collected)}/{len(_scan_coins)} coins. Normalize...")
+
+            # Step 3: Normalize + timeline + labels
+            try:
+                process_raw_to_parquet(_scan_settings)
+                _scan_db = DuckDBQueryLayer(_scan_db_path)
+                build_raw_timeline(_scan_db, _scan_settings)
+
+                _progress.progress(0.6, text="Tính labels...")
+                _engine = DistributionLabelEngine()
+                _n_total, _n_pos, _n_neg = _engine.compute_all_to_table(
+                    _scan_db.conn, "raw_timeline", "labels"
+                )
+
+                # Count events per coin
+                _coin_stats = _scan_db.conn.execute("""
+                    SELECT symbol, count(*) AS total,
+                           sum(CASE WHEN label_value = 1 THEN 1 ELSE 0 END) AS pos
+                    FROM labels GROUP BY symbol ORDER BY pos DESC
+                """).fetchall()
+
+                _viable = [r[0] for r in _coin_stats if r[2] >= _min_events]
+
+                _progress.progress(0.7, text=f"Build features + chạy experiment cho {len(_viable)} coin...")
+
+                # Build features
+                build_features(_scan_db, "raw_timeline", "feature_results")
+
+                _registry = ArtifactRegistry(Path("./artifacts"))
+                _results_summary = []
+
+                for j, sym in enumerate(_viable):
+                    _progress.progress(
+                        0.7 + (j / max(len(_viable), 1)) * 0.3,
+                        text=f"Experiment [{j+1}/{len(_viable)}]: {sym}"
+                    )
+                    # Swap to coin-only tables
+                    _scan_db.conn.execute("DROP TABLE IF EXISTS _fr_bak")
+                    _scan_db.conn.execute("CREATE TABLE _fr_bak AS SELECT * FROM feature_results")
+                    _scan_db.conn.execute("DROP TABLE feature_results")
+                    _scan_db.conn.execute(f"CREATE TABLE feature_results AS SELECT * FROM _fr_bak WHERE symbol = '{sym}'")
+                    _scan_db.conn.execute("DROP TABLE IF EXISTS _lb_bak")
+                    _scan_db.conn.execute("CREATE TABLE _lb_bak AS SELECT * FROM labels")
+                    _scan_db.conn.execute("DROP TABLE labels")
+                    _scan_db.conn.execute(f"CREATE TABLE labels AS SELECT * FROM _lb_bak WHERE symbol = '{sym}'")
+
+                    try:
+                        _cfg = ExperimentConfig(
+                            hypothesis_id=f"hyp_volatile_{sym}",
+                            baseline_model="logreg_walkforward",
+                            dataset_version=f"v_scan_{sym}",
+                            label_version="v1",
+                            feature_set_version="v1",
+                            split_version="v1",
+                            seed=42,
+                            metrics=["precision", "recall", "brier"],
+                            db_path=_scan_db_path,
+                        )
+                        _result = run_experiment(_cfg, conn=_scan_db.conn)
+                        _aid = _registry.save_experiment(_result)
+
+                        _agg = _result.get("results", {}).get("aggregate", {})
+                        _bl = _result.get("results", {}).get("baselines", {})
+                        _lk = _result.get("results", {}).get("leakage_report", {})
+                        _ci = _agg.get("confidence_intervals", {}).get("precision", {})
+                        _mp = _agg.get("precision_mean", 0)
+                        _bp = max((m.get("precision_mean", 0) for m in _bl.values()), default=0)
+                        _nv = _agg.get("n_valid_folds", 0)
+                        _ls = _lk.get("status", "?")
+
+                        if _ls != "passed":
+                            _st = "🔴 Leakage"
+                        elif _nv == 0:
+                            _st = "⚪ Không đủ fold"
+                        elif _mp > _bp and _mp > 0:
+                            _st = "🟢 Edge"
+                        else:
+                            _st = "🟡 No edge"
+
+                        _n = _scan_db.conn.execute("SELECT count(*) FROM feature_results").fetchone()[0]
+                        _np = _scan_db.conn.execute("SELECT count(*) FROM labels WHERE label_value = 1").fetchone()[0]
+                        _results_summary.append({
+                            "Coin": sym, "Status": _st, "N": _n, "Pos": _np,
+                            "Model P": f"{_mp:.4f}", "Best Baseline P": f"{_bp:.4f}",
+                            "CI 95%": f"[{_ci.get('ci_lower', 0):.3f}, {_ci.get('ci_upper', 0):.3f}]",
+                            "Valid folds": _nv, "Leakage": _ls,
+                        })
+                    except Exception as e:
+                        _results_summary.append({"Coin": sym, "Status": "❌ Error", "Error": str(e)})
+                    finally:
+                        _scan_db.conn.execute("DROP TABLE IF EXISTS feature_results")
+                        _scan_db.conn.execute("CREATE TABLE feature_results AS SELECT * FROM _fr_bak")
+                        _scan_db.conn.execute("DROP TABLE _fr_bak")
+                        _scan_db.conn.execute("DROP TABLE labels")
+                        _scan_db.conn.execute("CREATE TABLE labels AS SELECT * FROM _lb_bak")
+                        _scan_db.conn.execute("DROP TABLE _lb_bak")
+
+                _scan_db.conn.close()
+                _progress.progress(1.0, text="Hoàn tất!")
+
+                # Display results
+                st.markdown("##### 📊 Kết quả quét")
+                st.dataframe(pd.DataFrame(_results_summary), use_container_width=True, hide_index=True)
+
+                _edge = [r for r in _results_summary if "Edge" in r.get("Status", "")]
+                if _edge:
+                    st.success(
+                        f"🟢 **{len(_edge)} coin có edge sạch**: "
+                        + ", ".join(r["Coin"] for r in _edge)
+                    )
+                else:
+                    st.info("Chưa có coin với edge sạch. Thử tăng số ngày hoặc giảm min events.")
+
+            except Exception as e:
+                st.error(f"Lỗi chạy pipeline: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+
+
+# ============================================================
+# TAB 5 (REFERENCE): QUAN SÁT THỊ TRƯỜNG — multi-coin overview
+# ============================================================
+with _market_container:
     if _tickers:
         _top_gainers = _tickers[:15]
         _top_losers = sorted(_tickers, key=lambda x: float(x.get("priceChangePercent", 0)))[:5]
@@ -467,18 +973,11 @@ with tab_market:
                     st.rerun()
 
 # ============================================================
-# SIDEBAR
+# SIDEBAR — shared config (symbol, date range, advanced)
 # ============================================================
 with st.sidebar:
     st.markdown("## 🪙 Đảo Vàng")
-    st.caption("Phát hiện coin sắp xả phân phối")
-
-    # --- Mode for scan/backtest (tabs handle navigation, but we need to know which action) ---
-    mode = st.radio(
-        "Chế độ chạy",
-        ["🔍 Watchlist", "🧪 Backtest"],
-        help="Watchlist: quét tín hiệu hiện tại | Backtest: đánh giá model trên lịch sử",
-    )
+    st.caption("Phát hiện Distribution")
 
     st.markdown("---")
 
@@ -502,16 +1001,22 @@ with st.sidebar:
                 date_range = f" ({klines_info['first_date'][:10]})"
             _symbol_labels[sym] = f"{sym}{date_range}"
 
+        # Default to BTCUSDT if available
+        _default_idx = 0
+        if "BTCUSDT" in _symbol_labels:
+            _default_idx = list(_symbol_labels.keys()).index("BTCUSDT")
+
         selected_label = st.selectbox(
             "Mã coin",
             options=list(_symbol_labels.keys()),
+            index=_default_idx,
             format_func=lambda s: _symbol_labels[s],
         )
         symbol = selected_label
 
         with st.expander("➕ Thêm coin mới", expanded=False):
             custom_symbol = st.text_input(
-                "Nhập mã", value="", placeholder="VD: SOLUSDT, DOGEUSDT...", key="custom_sym"
+                "Nhập mã", value="", placeholder="VD: ETHUSDT, SOLUSDT...", key="custom_sym"
             ).strip().upper()
             if custom_symbol:
                 symbol = custom_symbol
@@ -534,21 +1039,9 @@ with st.sidebar:
     with st.expander("⚙️ Nâng cao", expanded=False):
         db_path = st.text_input("Database", value="./data/dev.duckdb")
         artifact_dir = st.text_input("Artifact dir", value="./artifacts")
-        if mode == "🧪 Backtest":
-            hypothesis_id = st.text_input("Hypothesis ID", value="hyp_dashboard_001")
-            baseline_model = st.selectbox("Model", ["logreg_walkforward", "dummy"])
-            seed = st.number_input("Seed", value=42, step=1)
-        else:
-            hypothesis_id = "hyp_dashboard_001"
-            baseline_model = "logreg_walkforward"
-            seed = 42
-
-    # --- Main action button ---
-    st.markdown("---")
-    if mode == "🔍 Watchlist":
-        run_button = st.button("🔍 Quét tín hiệu", type="primary", use_container_width=True)
-    else:
-        run_button = st.button("🚀 Chạy Backtest", type="primary", use_container_width=True)
+        hypothesis_id = st.text_input("Hypothesis ID", value="hyp_dashboard_001")
+        baseline_model = st.selectbox("Model", ["logreg_walkforward", "dummy"])
+        seed = st.number_input("Seed", value=42, step=1)
 
     # --- Data status (compact) ---
     if symbol and symbol in _downloaded:
@@ -570,6 +1063,11 @@ with st.sidebar:
                     st.caption(f"⬜ {_dtype_names.get(dt, dt)}: chưa có")
     elif symbol:
         st.caption(f"⬜ Chưa có dữ liệu {symbol} — sẽ tải khi bấm chạy")
+
+    # --- Action buttons ---
+    st.markdown("---")
+    run_scan = st.button("🔍 Phát hiện Distribution", type="primary", use_container_width=True)
+    run_bt = st.button("🚀 Chạy Backtest", use_container_width=True)
 
 
 # ============================================================
@@ -659,10 +1157,20 @@ def _run_pipeline_steps(
 
 
 # ============================================================
-# TAB 2: QUÉT TÍN HIỆU (Watchlist mode)
+# TAB 1 (ƯU TIÊN #1): PHÁT HIỆN DISTRIBUTION
+# Core: tính probability + risk level + so sánh baseline cho BTCUSDT
 # ============================================================
-with _scan_container:
-    if run_button and mode == "🔍 Watchlist":
+with _detect_container:
+    # --- Label spec reminder ---
+    _ls_c1, _ls_c2, _ls_c3, _ls_c4 = st.columns(4)
+    _ls_c1.metric("Symbol mặc định", "BTCUSDT", help="Mặc định: BTCUSDT")
+    _ls_c2.metric("Horizon", "24h", help=_glossary_tooltip("Horizon"))
+    _ls_c3.metric("Target drawdown", "≥8%", help=_glossary_tooltip("Target Drawdown"))
+    _ls_c4.metric("MAE tối đa", "≤4%", help=_glossary_tooltip("MAE"))
+
+    st.markdown("---")
+
+    if run_scan:
         start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
         end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -728,15 +1236,26 @@ with _scan_container:
                     med_risk = [p for p in predictions if p["risk_level"] == "TRUNG BÌNH"]
                     max_prob = max(p["probability"] for p in predictions)
 
-                    c1, c2, c3, c4 = st.columns(4)
+                    # Lead time from historical labels (how early does the signal warn?)
+                    _hist_lead = df[df['is_distribution'] == 1]['lead_time_minutes'].dropna() if 'lead_time_minutes' in df.columns else pd.Series(dtype=float)
+                    _median_lead = float(_hist_lead.median()) if len(_hist_lead) > 0 else None
+
+                    c1, c2, c3, c4, c5 = st.columns(5)
                     c1.metric("Probability cao nhất", f"{max_prob:.1%}", help=_glossary_tooltip("Probability"))
                     c2.metric("Tín hiệu CAO", len(high_risk), help=_glossary_tooltip("Risk Level"))
                     c3.metric("Tín hiệu TB", len(med_risk), help=_glossary_tooltip("Risk Level"))
                     c4.metric("Val Precision", f"{model_metrics.get('precision', 0):.1%}", help=_glossary_tooltip("Precision"))
+                    if _median_lead is not None:
+                        c5.metric("Median lead time", f"{_median_lead:.0f}m", f"~{_median_lead/60:.1f}h", help="Thời gian trung bình từ tín hiệu đến khi phân phối xảy ra (từ lịch sử)")
+                    else:
+                        c5.metric("Median lead time", "N/A", help="Chưa đủ event phân phối lịch sử")
 
                     # === Alert ===
                     if high_risk:
-                        st.error(f"🚨 **{len(high_risk)} nến nguy cơ CAO** — coin có thể xả trong 24h!")
+                        _alert_msg = f"🚨 **{len(high_risk)} nến nguy cơ CAO** — coin có thể xả trong 24h!"
+                        if _median_lead is not None:
+                            _alert_msg += f" Lịch sử: tín hiệu cảnh báo trước ~{_median_lead/60:.1f}h."
+                        st.error(_alert_msg)
                     elif med_risk:
                         st.warning(f"⚠️ {len(med_risk)} nến nguy cơ TRUNG BÌNH — theo dõi sát")
                     else:
@@ -747,13 +1266,18 @@ with _scan_container:
 
                     with col_table:
                         st.markdown("#### Dự đoán 12 nến mới nhất")
-                        st.caption("Probability = xác suất coin phân phối trong 24h tới. Risk = phân loại dựa trên threshold.")
+                        st.caption("Probability = xác suất coin phân phối trong 24h tới. Risk = phân loại dựa trên threshold. Hết hạn = khi tín hiệu hết giá trị (24h).")
                         pred_df = pd.DataFrame(predictions)
                         pred_df["probability"] = pred_df["probability"].apply(lambda x: f"{x:.1%}")
                         pred_df["close"] = pred_df["close"].apply(lambda x: f"{x:.6f}" if x else "N/A")
                         pred_df["feature_time"] = pred_df["feature_time"].str[:19]
-                        pred_df = pred_df[["feature_time", "symbol", "close", "probability", "risk_level"]]
-                        pred_df.columns = ["Thời gian", "Coin", "Giá close", "Probability", "Risk"]
+                        if "invalidation_time" in pred_df.columns:
+                            pred_df["invalidation_time"] = pred_df["invalidation_time"].str[:19]
+                            pred_df = pred_df[["feature_time", "symbol", "close", "probability", "risk_level", "invalidation_time"]]
+                            pred_df.columns = ["Thời gian", "Coin", "Giá close", "Probability", "Risk", "Hết hạn"]
+                        else:
+                            pred_df = pred_df[["feature_time", "symbol", "close", "probability", "risk_level"]]
+                            pred_df.columns = ["Thời gian", "Coin", "Giá close", "Probability", "Risk"]
 
                         def _risk_style(val):
                             colors = {"CAO": "#ff4444", "TRUNG BÌNH": "#ffaa00", "THẤP": "#44aa44", "RẤT THẤP": "#2266aa"}
@@ -872,17 +1396,68 @@ with _scan_container:
                             feat_df.columns = ["Feature", "Hệ số"]
                             st.dataframe(feat_df, use_container_width=True, hide_index=True)
 
+                    # === Baseline comparison (core: có lợi thế thống kê?) ===
+                    st.markdown("---")
+                    st.markdown("#### ⚖️ So sánh Model vs Baseline")
+                    st.caption("Câu hỏi cốt lõi: model có vượt baseline đơn giản không? Không vượt → không triển khai.")
+
+                    _train_pos = model_info.get("train_positives", 0)
+                    _train_size = model_info.get("train_size", 1)
+                    _prevalence = _train_pos / _train_size if _train_size > 0 else 0.0
+                    _model_prec = model_metrics.get("precision", 0.0)
+                    _model_recall = model_metrics.get("recall", 0.0)
+                    _model_brier = model_metrics.get("brier", 0.0)
+                    _thresh = model_metrics.get("threshold", 0.5)
+
+                    # Prevalence baseline: predict all positive → precision = prevalence
+                    _base_prec = _prevalence
+                    _base_recall = 1.0 if _prevalence > 0 else 0.0
+                    _base_brier = (_prevalence * (1 - _prevalence) ** 2 + (1 - _prevalence) * _prevalence ** 2) if _prevalence > 0 else 0.0
+
+                    _cmp_c1, _cmp_c2, _cmp_c3 = st.columns(3)
+                    with _cmp_c1:
+                        st.metric("Precision", f"{_model_prec:.4f}", f"{_model_prec - _base_prec:+.4f} vs baseline", help=_glossary_tooltip("Precision"))
+                    with _cmp_c2:
+                        st.metric("Recall", f"{_model_recall:.4f}", f"{_model_recall - _base_recall:+.4f} vs baseline", help=_glossary_tooltip("Recall"))
+                    with _cmp_c3:
+                        st.metric("Brier Score", f"{_model_brier:.4f}", f"{_model_brier - _base_brier:+.4f} vs baseline", help=_glossary_tooltip("Brier Score"))
+
+                    _cmp_df = pd.DataFrame([
+                        {"Model": "LogReg (walk-forward)", "Precision": _model_prec, "Recall": _model_recall, "Brier": _model_brier},
+                        {"Model": "Prevalence baseline", "Precision": _base_prec, "Recall": _base_recall, "Brier": _base_brier},
+                    ])
+                    st.dataframe(
+                        _cmp_df.style.format({"Precision": "{:.4f}", "Recall": "{:.4f}", "Brier": "{:.4f}"}),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                    st.bar_chart(_cmp_df.set_index("Model")[["Precision", "Recall"]])
+
+                    if _model_prec > _base_prec and _model_prec > 0:
+                        if _train_pos < 100:
+                            st.warning(f"🟡 **TIẾP TỤC (thận trọng)** — model precision {_model_prec:.4f} > baseline {_base_prec:.4f}, nhưng chỉ {_train_pos} event phân phối. Cần thêm dữ liệu.")
+                        else:
+                            st.success(f"🟢 **CÓ LỢI THẾ THỐNG KÊ** — model precision {_model_prec:.4f} > baseline {_base_prec:.4f}. Tiếp tục kiểm chứng bằng Backtest + Forward Test.")
+                    elif _model_prec > 0:
+                        st.warning(f"🟡 **CHƯA VƯỢT BASELINE** — model precision {_model_prec:.4f} ≤ baseline {_base_prec:.4f}. Sửa giả thuyết hoặc thêm feature.")
+                    else:
+                        st.error("🔴 **KHÔNG HOẠT ĐỘNG** — model precision = 0. Kiểm tra dữ liệu/split/imbalance.")
+
+                    st.caption(f"📌 Prevalence = {_prevalence:.4f} ({_train_pos}/{_train_size} event phân phối trong train) | Threshold = {_thresh:.2f}")
+
             db.conn.close()
         except Exception as e:
             status.error(f"❌ Lỗi: {str(e)}")
             progress.empty()
 
 
-    # ============================================================
-    # TAB 3: BACKTEST
-    # ============================================================
+# ============================================================
+# TAB 2: BACKTEST — đánh giá model trên lịch sử (walk-forward)
+# ============================================================
 with _backtest_container:
-    if run_button and mode == "🧪 Backtest":
+    st.caption("Chạy pipeline đầy đủ: thu thập → nhãn → feature → model → baseline → leakage audit. Kết luận: tiếp tục / sửa giả thuyết / dừng.")
+
+    if run_bt:
         start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
         end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -1058,6 +1633,7 @@ with _backtest_container:
             with tab4:
                 dq = results_data.get("data_quality", {})
                 leak = results_data.get("leakage_report", {})
+                lt = results_data.get("lead_time_stats", {})
 
                 st.caption("Leakage = dùng dữ liệu tương lai trong feature/evaluation. Phải PASS mới được triển khai.")
                 leak_status = leak.get("status", "unknown")
@@ -1081,6 +1657,22 @@ with _backtest_container:
                                 use_container_width=True, hide_index=True,
                             )
 
+                # --- Lead time + invalidation ---
+                if lt and lt.get("status") == "ok":
+                    st.markdown("---")
+                    st.markdown("##### ⏱️ Lead Time — cảnh báo trước bao lâu?")
+                    st.caption("Lead time = thời gian từ tín hiệu phát đến khi phân phối thực sự xảy ra. Invalidation = khi tín hiệu hết hạn (24h).")
+                    lc = st.columns(4)
+                    lc[0].metric("Median lead time", f"{lt.get('median_minutes', 0):.0f} min", f"~{lt.get('median_hours', 0):.1f}h", help="Thời gian trung bình từ tín hiệu đến khi giá giảm ≥8%")
+                    lc[1].metric("p25–p75", f"{lt.get('p25_minutes', 0):.0f}–{lt.get('p75_minutes', 0):.0f} min")
+                    lc[2].metric("Range", f"{lt.get('min_minutes', 0):.0f}–{lt.get('max_minutes', 0):.0f} min")
+                    lc[3].metric("Invalidation", f"{lt.get('horizon_minutes', 1440)} min", "24h horizon", help="Tín hiệu hết hạn sau 24h — nếu không xảy ra = false positive")
+                    st.info(f"📊 {lt.get('summary', '')}")
+                elif lt and lt.get("status") == "no_positive_labels":
+                    st.markdown("---")
+                    st.markdown("##### ⏱️ Lead Time")
+                    st.warning("Không có event phân phối — không tính được lead time.")
+
             # --- Tab: Report ---
             with tab5:
                 with st.expander("📄 Markdown Report", expanded=True):
@@ -1097,39 +1689,203 @@ with _backtest_container:
             status.error(f"❌ Lỗi: {str(e)}")
             progress.empty()
 
-
-    # ============================================================
-# IDLE STATE — instructions when no scan/backtest has been run
-# ============================================================
-with _scan_container:
-    if not run_button and mode == "🔍 Watchlist":
+    # Idle state for detect tab
+    if not run_scan:
         st.markdown("""
-        ### 🔍 Quét tín hiệu — Phát hiện coin sắp xả
+        ### 🎯 Phát hiện Distribution
+
+        **Mục tiêu tối cao:** Phát hiện sớm coin có xác suất cao chuyển từ tăng giá sang phân phối.
 
         **Cách dùng:**
-        1. Chọn mã coin ở thanh bên
+        1. Chọn mã coin ở thanh bên (mặc định **BTCUSDT**)
         2. Chọn khoảng thời gian (mặc định 30 ngày)
-        3. Bấm **"Quét tín hiệu"**
+        3. Bấm **"🔍 Phát hiện Distribution"** ở thanh bên
 
-        App sẽ train model trên lịch sử → dự đoán probability phân phối trên 12 nến mới nhất.
-        Kết quả: bảng dự đoán + biểu đồ giá + đánh dấu nến nguy cơ CAO.
+        App sẽ: thu thập dữ liệu → tính feature → train model → dự đoán probability trên 12 nến mới nhất → so sánh với baseline.
         """)
 
+
+# ============================================================
+# IDLE STATE — Backtest tab instructions
+# ============================================================
 with _backtest_container:
-    if not run_button and mode == "🧪 Backtest":
+    if not run_bt:
         st.markdown("""
         ### 🧪 Backtest — Đánh giá model
 
         **Cách dùng:**
-        1. Chọn mã coin + khoảng thời gian
-        2. Bấm **"Chạy Backtest"**
+        1. Chọn mã coin + khoảng thời gian ở thanh bên
+        2. Bấm **"🚀 Chạy Backtest"** ở thanh bên
 
         App sẽ chạy pipeline 5 bước: thu thập → chuẩn hóa → nhãn → feature → model.
         Kết quả: metrics, baseline comparison, data quality, leakage audit, conclusion.
         """)
+
+    # ============================================================
+    # FORWARD TEST — đóng băng model → chấm điểm trên dữ liệu mới
+    # ============================================================
+    st.markdown("---")
+    st.markdown("### 🔒 Forward Test")
+    st.caption(
+        "Đóng băng model (lock code + config + threshold) → chấm điểm trên dữ liệu MỚI sinh ra SAU khi đóng băng. "
+        "Kiểm tra stability thực tế trước khi dùng thật. Model không vượt baseline trong forward test → không triển khai."
+    )
+
+    from dao_vang.experiments.forward_test import (
+        evaluate_frozen,
+        freeze_model as _freeze_model,
+        list_frozen_models as _list_frozen,
+    )
+
+    _ft_c1, _ft_c2 = st.columns(2)
+    with _ft_c1:
+        if st.button("🔒 Đóng băng model hiện tại", help="Train LogReg trên tất cả dữ liệu đã có nhãn, lock threshold, lưu model + metadata. Data sau train_cutoff = forward test data."):
+            try:
+                from sklearn.linear_model import LogisticRegression as _LR
+                import numpy as _np
+
+                _ft_db = DuckDBQueryLayer(db_path)
+                _ft_df = _ft_db.conn.execute(
+                    """
+                    SELECT f.*, l.label_value AS is_distribution
+                    FROM feature_results f
+                    INNER JOIN labels l
+                        ON f.feature_time = l.signal_time AND f.symbol = l.symbol
+                    """
+                ).df()
+                _ft_db.conn.close()
+
+                if _ft_df.empty or len(_ft_df) < 200:
+                    st.warning("Cần ít nhất 200 dòng dữ liệu đã có nhãn. Chạy Backtest trước để build feature + labels.")
+                elif _ft_df["is_distribution"].nunique() < 2:
+                    st.warning("Cần cả 2 class (có/không phân phối) trong dữ liệu.")
+                else:
+                    _ft_df = _ft_df.sort_values("feature_time").reset_index(drop=True)
+                    _ft_exclude = ["feature_time", "decision_time", "is_distribution", "quality_status", "symbol", "lead_time_minutes", "invalidation_time"]
+                    _ft_feats = [c for c in _ft_df.columns if c not in _ft_exclude]
+
+                    # Tune threshold on last 20%
+                    _val_cut = _ft_df["feature_time"].quantile(0.8)
+                    _tr = _ft_df[_ft_df["feature_time"] < _val_cut]
+                    _va = _ft_df[_ft_df["feature_time"] >= _val_cut]
+                    _m = _LR(max_iter=1000, random_state=42, class_weight="balanced")
+                    _m.fit(_tr[_ft_feats].fillna(0), _tr["is_distribution"])
+
+                    _best_t, _best_f1 = 0.5, 0.0
+                    if len(_va) > 0 and _va["is_distribution"].nunique() >= 2:
+                        _yp = _m.predict_proba(_va[_ft_feats].fillna(0))[:, 1]
+                        _yv = _va["is_distribution"].values
+                        for _t in _np.arange(0.05, 0.95, 0.05):
+                            _yp_t = (_yp >= _t).astype(int)
+                            _tp = int(((_yp_t == 1) & (_yv == 1)).sum())
+                            _fp = int(((_yp_t == 1) & (_yv == 0)).sum())
+                            _fn = int(((_yp_t == 0) & (_yv == 1)).sum())
+                            if _tp + _fp == 0 or _tp + _fn == 0:
+                                continue
+                            _p = _tp / (_tp + _fp)
+                            _r = _tp / (_tp + _fn)
+                            _f1 = 2 * _p * _r / (_p + _r) if (_p + _r) > 0 else 0.0
+                            if _f1 > _best_f1:
+                                _best_f1 = _f1
+                                _best_t = _t
+
+                    # Retrain on ALL data
+                    _final_m = _LR(max_iter=1000, random_state=42, class_weight="balanced")
+                    _final_m.fit(_ft_df[_ft_feats].fillna(0), _ft_df["is_distribution"])
+
+                    _info = _freeze_model(
+                        model=_final_m,
+                        threshold=float(_best_t),
+                        feature_cols=_ft_feats,
+                        config={"hypothesis_id": hypothesis_id, "dataset_version": "v1", "label_version": "v1", "feature_set_version": "v1", "seed": seed},
+                        train_cutoff=_ft_df["feature_time"].max(),
+                        training_stats={
+                            "train_size": len(_ft_df),
+                            "train_positives": int(_ft_df["is_distribution"].sum()),
+                            "threshold": float(_best_t),
+                            "n_features": len(_ft_feats),
+                        },
+                        artifact_dir=Path(artifact_dir),
+                    )
+                    st.success(f"✅ Model đã đóng băng: `{_info.model_id}`")
+                    st.info(f"Train cutoff: {_info.train_cutoff[:19]} | Threshold: {_info.threshold:.4f} | Features: {len(_info.feature_cols)} | Train rows: {len(_ft_df)} ({int(_ft_df['is_distribution'].sum())}+)")
+            except Exception as _e:
+                st.error(f"❌ Lỗi đóng băng: {_e}")
+
+    with _ft_c2:
+        _frozen_models = _list_frozen(Path(artifact_dir))
+        if not _frozen_models:
+            st.info("Chưa có model nào đóng băng. Bấm **🔒 Đóng băng** để tạo.")
+        else:
+            st.markdown(f"**{len(_frozen_models)} model đã đóng băng:**")
+            _fm_options = {f"{m.model_id}  (cutoff: {m.train_cutoff[:10]}, thresh: {m.threshold:.3f})": m.model_id for m in _frozen_models}
+            _sel_fm = st.selectbox("Chọn model để đánh giá forward", options=list(_fm_options.keys()))
+            _sel_id = _fm_options[_sel_fm]
+
+            if st.button("📊 Chấm điểm forward test", type="primary"):
+                try:
+                    _ft_db2 = DuckDBQueryLayer(db_path)
+                    _ft_df2 = _ft_db2.conn.execute(
+                        """
+                        SELECT f.*, l.label_value AS is_distribution
+                        FROM feature_results f
+                        INNER JOIN labels l
+                            ON f.feature_time = l.signal_time AND f.symbol = l.symbol
+                        """
+                    ).df()
+                    _ft_db2.conn.close()
+
+                    _ft_result = evaluate_frozen(_sel_id, _ft_df2, artifact_dir=Path(artifact_dir))
+
+                    if _ft_result["status"] != "ok":
+                        st.warning(f"Không thể đánh giá: {_ft_result.get('message', _ft_result['status'])}")
+                    else:
+                        _ft_m = _ft_result["metrics"]
+                        _ft_tm = _ft_result["training_metrics"]
+                        _ft_drift = _ft_result["drift_check"]
+
+                        st.markdown("#### Kết quả Forward Test")
+                        _ftc1, _ftc2, _ftc3 = st.columns(3)
+                        _ftc1.metric("Precision", f"{_ft_m['precision']:.4f}", f"{_ft_m['precision'] - _ft_tm['precision']:+.4f} vs train", help=_glossary_tooltip("Precision"))
+                        _ftc2.metric("Recall", f"{_ft_m['recall']:.4f}", f"{_ft_m['recall'] - _ft_tm['recall']:+.4f} vs train", help=_glossary_tooltip("Recall"))
+                        _ftc3.metric("Brier", f"{_ft_m['brier']:.4f}", help=_glossary_tooltip("Brier Score"))
+
+                        st.info(f"📊 {_ft_result['summary']}")
+
+                        # Drift alert
+                        if _ft_drift["precision_drift"]:
+                            st.error("🔴 **DRIFT detected** — precision thay đổi >0.1 so với training. Model có thể không còn ổn định.")
+                        else:
+                            st.success("✅ Không có drift đáng kể — model ổn định trong forward test.")
+
+                        # Risk breakdown
+                        _rb = _ft_result["risk_breakdown"]
+                        if _rb:
+                            st.markdown("##### Phân tích theo Risk Level")
+                            _rb_rows = []
+                            for _lvl in ["CAO", "TRUNG BÌNH", "THẤP", "RẤT THẤP"]:
+                                _d = _rb.get(_lvl, {})
+                                _rb_rows.append({
+                                    "Risk": _lvl,
+                                    "Số tín hiệu": _d.get("n_signals", 0),
+                                    "Thực xả": _d.get("n_actual_distribution", 0),
+                                    "Precision": f"{_d.get('precision', 0):.4f}",
+                                })
+                            st.dataframe(pd.DataFrame(_rb_rows), use_container_width=True, hide_index=True)
+
+                        st.caption(f"Forward rows: {_ft_result['n_forward_rows']} | Actual distributions: {_ft_result['n_positive_labels']} | Predicted positive: {_ft_result['n_predicted_positive']}")
+                except Exception as _e:
+                    st.error(f"❌ Lỗi forward test: {_e}")
 
 # ============================================================
 # TAB 4: THUẬT NGỮ (Glossary)
 # ============================================================
 with _glossary_container:
     _render_glossary_tab()
+
+
+# ============================================================
+# TAB 5: HƯỚNG DẪN (Guide)
+# ============================================================
+with _guide_container:
+    _render_guide_tab()

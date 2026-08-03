@@ -50,3 +50,17 @@ class ArtifactRegistry:
 
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
+
+    def list_artifacts(self) -> list[Dict[str, Any]]:
+        """
+        List all experiment artifacts in the registry, newest first.
+        Returns a list of dicts with artifact_id, created_at, and data.
+        """
+        artifacts = []
+        for json_file in sorted(self.base_dir.glob("exp_*.json"), reverse=True):
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    artifacts.append(json.load(f))
+            except (json.JSONDecodeError, OSError):
+                continue
+        return artifacts

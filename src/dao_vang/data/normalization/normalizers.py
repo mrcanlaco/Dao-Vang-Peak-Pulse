@@ -76,7 +76,10 @@ def normalize_funding(
     for item in payload:
         raw = FundingRateData.model_validate(item)
         event_time = raw.funding_time
-        available_time = max(event_time, collected_at)
+        # Funding rate is published at event_time; available_time must reflect
+        # when the data became known, NOT when we collected it. Using collected_at
+        # for historical backfill would violate point-in-time (CONSTITUTION §2.4).
+        available_time = event_time + timedelta(milliseconds=1000)
 
         norm = NormalizedFunding(
             symbol=raw.symbol,

@@ -117,7 +117,6 @@ def train_and_predict_latest(
         return {"predictions": [], "model_metrics": {}, "model_info": {}}
 
     # Split: train = all except last n_latest + embargo, predict = last n_latest
-    latest_time = df["feature_time"].max()
     cutoff_time = df["feature_time"].iloc[-n_latest]
     embargo_end = cutoff_time - pd.Timedelta(minutes=embargo_minutes)
 
@@ -176,6 +175,7 @@ def train_and_predict_latest(
         best_threshold = 0.5
 
     # Build predictions
+    horizon_minutes = 1440  # MVP v0.1: 24h horizon
     predictions = []
     for i in range(len(predict_df)):
         prob = float(y_prob[i])
@@ -187,13 +187,19 @@ def train_and_predict_latest(
         else:
             risk = "RẤT THẤP"
 
+        ft = predict_df["feature_time"].iloc[i]
+        # Invalidation time: signal expires after horizon (24h).
+        # After this, if distribution hasn't materialized, signal is a false positive.
+        invalidation_time = ft + pd.Timedelta(minutes=horizon_minutes)
+
         predictions.append({
-            "feature_time": str(predict_df["feature_time"].iloc[i]),
+            "feature_time": str(ft),
             "symbol": predict_df["symbol"].iloc[i] if "symbol" in predict_df.columns else "N/A",
             "close": float(predict_df["close"].iloc[i]) if "close" in predict_df.columns else None,
             "probability": prob,
             "risk_level": risk,
             "threshold": float(best_threshold),
+            "invalidation_time": str(invalidation_time),
         })
 
     # Feature importance (top 5)

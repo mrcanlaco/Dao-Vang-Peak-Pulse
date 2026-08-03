@@ -18,6 +18,7 @@ def generate_markdown_report(artifact: Dict[str, Any]) -> str:
     baselines = results.get("baselines", {})
     leakage = results.get("leakage_report", {})
     data_quality = results.get("data_quality", {})
+    lead_time = results.get("lead_time_stats", {})
     warning = results.get("warning")
 
     lines = [
@@ -108,6 +109,34 @@ def generate_markdown_report(artifact: Dict[str, Any]) -> str:
             lines.append("- **Top null columns:**")
             for col, count in list(nc.items())[:5]:
                 lines.append(f"  - {col}: {count}")
+
+    # Lead time stats
+    if lead_time and lead_time.get("status") == "ok":
+        lines.extend(["", "## Lead Time (time-to-distribution)"])
+        lines.append(
+            f"- **Median lead time:** {lead_time.get('median_minutes', 0):.0f} min "
+            f"(~{lead_time.get('median_hours', 0):.1f}h)"
+        )
+        lines.append(
+            f"- **Mean:** {lead_time.get('mean_minutes', 0):.0f} min | "
+            f"**p25:** {lead_time.get('p25_minutes', 0):.0f} min | "
+            f"**p75:** {lead_time.get('p75_minutes', 0):.0f} min"
+        )
+        lines.append(
+            f"- **Range:** {lead_time.get('min_minutes', 0):.0f}–"
+            f"{lead_time.get('max_minutes', 0):.0f} min"
+        )
+        lines.append(
+            f"- **Invalidation horizon:** {lead_time.get('horizon_minutes', 1440)} min "
+            f"(signal expires after this; un-materialized positive = false positive)"
+        )
+        lines.append(
+            f"- **Positive labels with lead time:** "
+            f"{lead_time.get('n_positive_with_lead_time', 0)}"
+        )
+    elif lead_time and lead_time.get("status") == "no_positive_labels":
+        lines.extend(["", "## Lead Time (time-to-distribution)"])
+        lines.append("*No positive labels — lead time not available.*")
 
     # Leakage audit
     if leakage:

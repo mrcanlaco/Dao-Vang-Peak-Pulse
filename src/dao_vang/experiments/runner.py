@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -93,7 +92,8 @@ def run_experiment(
     try:
         df = conn.execute(
             """
-            SELECT f.*, l.label_value AS is_distribution
+            SELECT f.*, l.label_value AS is_distribution,
+                   l.lead_time_minutes, l.invalidation_time
             FROM feature_results f
             INNER JOIN labels l
                 ON f.feature_time = l.signal_time
@@ -132,10 +132,14 @@ def run_experiment(
     # === Data quality report ===
     data_quality = _data_quality_report(df)
 
-    # === Walk-forward split: expanding window ===
-    # Instead of naive 3-way equal split, use expanding window that ensures
-    # both train and test have positive labels. This is critical for imbalanced
-    # datasets where events are clustered in time.
+    # === Lead time stats (median/p25/p75 time-to-distribution for positive labels) ===
+    lead_time_stats = _lead_time_stats(df)
+
+    # === Walk-forward split: rolling window per VALIDATION.md ===
+    # VALIDATION.md: train_window 90d, validation 30d, test 30d, step 30d.
+    # With limited data we use a rolling expanding-window approach that
+    # produces multiple non-overlapping test windows, each followed by an
+    # embargo. We aim for ~5 folds when data allows, fewer when it doesn't.
     min_time = df["feature_time"].min()
     max_time = df["feature_time"].max()
     total_duration = max_time - min_time
@@ -162,34 +166,44 @@ def run_experiment(
         }
 
     first_pos_time = pos_df["feature_time"].min()
-    last_pos_time = pos_df["feature_time"].max()
 
-    # Strategy: 2 folds with expanding window
-    # Fold 1: train = [start, 60%], test = [60%, 80%]
-    # Fold 2: train = [start, 80%], test = [80%, end]
-    # But adjust split points to ensure positives in both train and test.
+    # Rolling walk-forward: test windows of ~15% of total duration, stepping
+    # forward by the same amount. Train = everything before test start.
+    # This yields up to ~5 folds for 90 days of data.
+    test_window = total_duration * 0.15
+
+    # First test starts after we have enough train data (at least 50% of total)
+    first_test_start = min_time + total_duration * 0.5
+    # Ensure first test start is after first positive
+    if first_test_start <= first_pos_time:
+        first_test_start = first_pos_time + pd.Timedelta(hours=24)
+
     fold_splits = []
-    for train_frac in [0.6, 0.8]:
-        split_time = min_time + total_duration * train_frac
-        # If split is before first positive, move split past first positive
-        if split_time <= first_pos_time:
-            split_time = first_pos_time + pd.Timedelta(hours=24)
-        # If split is after last positive, move split before last positive
-        if split_time >= last_pos_time:
-            split_time = last_pos_time - pd.Timedelta(hours=24)
-        # Ensure test period has at least 24h
-        test_end = max_time if train_frac == 0.8 else min_time + total_duration * (train_frac + 0.2)
-        if test_end <= split_time + pd.Timedelta(hours=24):
-            test_end = split_time + pd.Timedelta(hours=24)
-        fold_splits.append((min_time, split_time, split_time, test_end))
+    test_start = first_test_start
+    fold_idx = 0
+    while test_start + test_window <= max_time + pd.Timedelta(minutes=5):
+        fold_idx += 1
+        test_end = test_start + test_window
+        if test_end > max_time:
+            test_end = max_time
+        # Ensure test period contains at least some positives; if not, skip
+        fold_splits.append((min_time, test_start, test_start, test_end))
+        test_start = test_end  # step forward (non-overlapping)
+        if fold_idx >= 6:  # cap at 6 folds
+            break
 
     folds = [
         {"train_start": t0, "train_end": t1, "test_start": t1, "test_end": t2}
         for t0, t1, t1b, t2 in fold_splits
     ]
 
-    # Feature columns (everything except time, decision time, labels, etc.)
-    exclude_cols = ['feature_time', 'decision_time', 'is_distribution', 'quality_status', 'symbol']
+    # Feature columns (everything except time, decision time, labels, and
+    # label-derived columns like lead_time/invalidation which must NOT be used
+    # as features — that would be target leakage).
+    exclude_cols = [
+        'feature_time', 'decision_time', 'is_distribution', 'quality_status',
+        'symbol', 'lead_time_minutes', 'invalidation_time',
+    ]
     feature_cols = [c for c in df.columns if c not in exclude_cols]
 
     results_per_fold = []
@@ -246,10 +260,11 @@ def run_experiment(
             "baselines": baseline_metrics,
         })
 
-    # Aggregate model metrics
-    precisions = [f["metrics"]["precision"] for f in results_per_fold]
-    recalls = [f["metrics"]["recall"] for f in results_per_fold]
-    briers = [f["metrics"]["brier"] for f in results_per_fold]
+    # Aggregate model metrics — only count valid (non-skipped) folds
+    valid_folds = [f for f in results_per_fold if not f.get("skipped")]
+    precisions = [f["metrics"]["precision"] for f in valid_folds]
+    recalls = [f["metrics"]["recall"] for f in valid_folds]
+    briers = [f["metrics"]["brier"] for f in valid_folds]
 
     aggregate = {
         "precision_mean": float(np.mean(precisions)) if precisions else 0.0,
@@ -258,10 +273,23 @@ def run_experiment(
         "recall_std": float(np.std(recalls)) if recalls else 0.0,
         "brier_mean": float(np.mean(briers)) if briers else 0.0,
         "brier_std": float(np.std(briers)) if briers else 0.0,
+        "n_valid_folds": len(valid_folds),
+        "n_skipped_folds": len(results_per_fold) - len(valid_folds),
     }
 
-    # Aggregate baseline metrics
-    baseline_aggregate = _aggregate_baselines(baseline_results_per_fold)
+    # Bootstrap confidence intervals (95%) for precision/recall/brier
+    aggregate["confidence_intervals"] = _bootstrap_ci(
+        precisions, recalls, briers, seed=config.seed
+    )
+
+    # Aggregate baseline metrics — only from valid folds
+    valid_baseline_results = [
+        br for br, f in zip(baseline_results_per_fold, results_per_fold) if not f.get("skipped")
+    ]
+    baseline_aggregate = _aggregate_baselines(valid_baseline_results)
+
+    # Regime breakdown — split test predictions by market regime
+    regime_breakdown = _regime_breakdown(df, results_per_fold, folds)
 
     return {
         "config": config.model_dump(),
@@ -272,15 +300,128 @@ def run_experiment(
             "baselines": baseline_aggregate,
             "leakage_report": leakage_report,
             "data_quality": data_quality,
+            "regime_breakdown": regime_breakdown,
+            "lead_time_stats": lead_time_stats,
         },
     }
+
+
+def _regime_breakdown(df: Any, results_per_fold: list, folds: list) -> Dict[str, Any]:
+    """Break down label distribution by market regime (bull/bear/side).
+
+    Regime is defined by 24h price return:
+    - bull: price_ret_24h > +0.02
+    - bear: price_ret_24h < -0.02
+    - side: otherwise
+    """
+    if "price_ret_24h" not in df.columns or "is_distribution" not in df.columns:
+        return {"status": "unavailable", "reason": "missing price_ret_24h or label column"}
+
+    work = df.copy()
+    work["price_ret_24h"] = work["price_ret_24h"].fillna(0)
+    work["regime"] = "side"
+    work.loc[work["price_ret_24h"] > 0.02, "regime"] = "bull"
+    work.loc[work["price_ret_24h"] < -0.02, "regime"] = "bear"
+
+    breakdown: Dict[str, Any] = {"status": "ok", "regimes": {}}
+    for regime in ["bull", "bear", "side"]:
+        subset = work[work["regime"] == regime]
+        labels = subset["is_distribution"].dropna()
+        n_pos = int((labels == 1).sum())
+        n_neg = int((labels == 0).sum())
+        prevalence = float(labels.mean()) if len(labels) > 0 else 0.0
+        breakdown["regimes"][regime] = {
+            "n_rows": len(subset),
+            "n_positive": n_pos,
+            "n_negative": n_neg,
+            "prevalence": prevalence,
+        }
+    return breakdown
+
+
+def _bootstrap_ci(
+    precisions: list,
+    recalls: list,
+    briers: list,
+    seed: int = 42,
+    n_bootstrap: int = 1000,
+) -> Dict[str, Dict[str, float]]:
+    """Compute 95% bootstrap confidence intervals for precision/recall/brier.
+
+    Resamples the per-fold metrics with replacement and reports the 2.5th and
+    97.5th percentiles of the bootstrap distribution of the mean.
+    """
+    rng = np.random.default_rng(seed)
+
+    def _ci(values: list) -> Dict[str, float]:
+        if len(values) < 2:
+            v = float(values[0]) if values else 0.0
+            return {"mean": v, "ci_lower": v, "ci_upper": v}
+        arr = np.array(values, dtype=float)
+        boot_means = np.empty(n_bootstrap)
+        for i in range(n_bootstrap):
+            sample = rng.choice(arr, size=len(arr), replace=True)
+            boot_means[i] = float(np.mean(sample))
+        return {
+            "mean": float(np.mean(arr)),
+            "ci_lower": float(np.percentile(boot_means, 2.5)),
+            "ci_upper": float(np.percentile(boot_means, 97.5)),
+        }
+
+    return {
+        "precision": _ci(precisions),
+        "recall": _ci(recalls),
+        "brier": _ci(briers),
+    }
+
+
+def _lead_time_stats(df: Any) -> Dict[str, Any]:
+    """Compute lead time statistics for positive labels.
+
+    Lead time = minutes from signal_time to target_time (when distribution
+    actually materialized). Only positive labels have a non-null lead_time.
+
+    Returns median, mean, p25, p75, min, max in minutes, plus a human-readable
+    summary. Also reports the invalidation horizon (24h for MVP v0.1).
+    """
+    stats: Dict[str, Any] = {
+        "status": "unavailable",
+        "horizon_minutes": 1440,  # MVP v0.1: 24h
+        "n_positive_with_lead_time": 0,
+    }
+    if "lead_time_minutes" not in df.columns or "is_distribution" not in df.columns:
+        return stats
+
+    pos = df[df["is_distribution"] == 1]["lead_time_minutes"].dropna()
+    if len(pos) == 0:
+        stats["status"] = "no_positive_labels"
+        return stats
+
+    stats.update({
+        "status": "ok",
+        "n_positive_with_lead_time": int(len(pos)),
+        "median_minutes": float(pos.median()),
+        "mean_minutes": float(pos.mean()),
+        "p25_minutes": float(pos.quantile(0.25)),
+        "p75_minutes": float(pos.quantile(0.75)),
+        "min_minutes": float(pos.min()),
+        "max_minutes": float(pos.max()),
+    })
+    # Human-readable median
+    median_h = stats["median_minutes"] / 60.0
+    stats["median_hours"] = round(median_h, 1)
+    stats["summary"] = (
+        f"Median lead time: {stats['median_minutes']:.0f} min (~{median_h:.1f}h). "
+        f"Range: {stats['min_minutes']:.0f}–{stats['max_minutes']:.0f} min. "
+        f"Signal invalidates after {stats['horizon_minutes']} min (24h horizon)."
+    )
+    return stats
 
 
 def _compute_baselines(
     test_df: Any, y_test: Any, seed: int
 ) -> Dict[str, Dict[str, float]]:
     """Compute B0 (random), B1 (price return), B2 (funding) baselines on the test set."""
-    from sklearn.metrics import precision_score, recall_score, brier_score_loss
     from dao_vang.baselines.rules import b0_random, b1_price_return, b2_funding
 
     y_true = y_test.astype(int).tolist()

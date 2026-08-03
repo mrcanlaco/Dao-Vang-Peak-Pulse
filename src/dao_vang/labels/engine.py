@@ -36,7 +36,6 @@ class DistributionLabelEngine:
         With 5m candles, 24h horizon = ~288 rows. We use a frame of 290 FOLLOWING.
         """
         target_dd = float(self.target_drawdown)
-        max_ae = float(self.max_ae)
         horizon = self.max_horizon_minutes
         gap_threshold = 15  # minutes
         # 5m candles → 288 candles per 24h. Add buffer for edge cases.
@@ -142,7 +141,7 @@ class DistributionLabelEngine:
         """)
 
         # Step 3: Join wide + target + ae and build results
-        all_rows = db.execute(f"""
+        all_rows = db.execute("""
             SELECT
                 w.symbol,
                 w.signal_time,
@@ -250,7 +249,6 @@ class DistributionLabelEngine:
         """)
 
         # Step 3: Build labels table directly in SQL
-        horizon_end_expr = f"signal_time + INTERVAL '{horizon}' MINUTES"
         db.execute(f"""
             CREATE TABLE {output_table} AS
             SELECT
@@ -276,7 +274,18 @@ class DistributionLabelEngine:
                         AND COALESCE(ae.prior_max_ae, 0) <= {max_ae} THEN 1
                     -- Negative: everything else
                     ELSE 0
-                END AS label_value
+                END AS label_value,
+                t.target_time,
+                CASE
+                    WHEN t.target_time IS NOT NULL
+                        THEN CAST(
+                            EXTRACT(EPOCH FROM (t.target_time - w.signal_time)) / 60 AS INTEGER
+                        )
+                    ELSE NULL
+                END AS lead_time_minutes,
+                -- Invalidation time: signal expires at end of horizon.
+                -- After this, an un-materialized positive signal is invalidated.
+                w.signal_time + INTERVAL '{horizon}' MINUTE AS invalidation_time
             FROM _dl_wide w
             LEFT JOIN _dl_target t ON w.symbol = t.symbol AND w.signal_time = t.signal_time
             LEFT JOIN _dl_ae ae ON w.symbol = ae.symbol AND w.signal_time = ae.signal_time
@@ -410,7 +419,7 @@ class DistributionLabelEngine:
         return results
 
     def _process_row(self, rows: List[RowType], i: int) -> DistributionLabelResult:
-        symbol, signal_time, o, h, l, c, qs = rows[i]
+        symbol, signal_time, o, h, lo, c, qs = rows[i]
         P0 = Decimal(str(c)) if c is not None else None
 
         def null_result(reason: str) -> DistributionLabelResult:
