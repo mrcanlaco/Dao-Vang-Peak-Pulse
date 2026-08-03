@@ -379,37 +379,21 @@ if _tickers:
                     st.line_chart(_chart_data, use_container_width=True)
 
                 elif _chart_type == "📊 TradingView":
-                    # Embed TradingView widget
-                    # Use spot symbol (BINANCE:BTCUSDT) — more universally available than .P
-                    # User can switch to perpetual within the widget via allow_symbol_change
+                    # Embed TradingView via iframe (more reliable than JS API in sandboxed iframe)
+                    # Note: not all Binance futures coins are on TradingView (e.g. BLESSUSDT)
+                    # User can switch symbol within widget if default doesn't load
+                    # Studies removed — caused create_study protocol error for unavailable symbols
                     import streamlit.components.v1 as components
-                    _tv_html = f"""
-                    <div class="tradingview-widget-container" style="height:500px;">
-                        <div id="tradingview_chart"></div>
-                        <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-                        <script type="text/javascript">
-                        new TradingView.widget({{
-                            "autosize": true,
-                            "symbol": "BINANCE:{_show_symbol}",
-                            "interval": "{_tf}",
-                            "timezone": "Etc/UTC",
-                            "theme": "dark",
-                            "style": "1",
-                            "locale": "vi_VN",
-                            "toolbar_bg": "#1a1a2e",
-                            "enable_publishing": false,
-                            "allow_symbol_change": true,
-                            "hide_side_toolbar": false,
-                            "details": true,
-                            "hotlist": true,
-                            "calendar": false,
-                            "studies": ["STD;SMA", "STD;RSI", "STD;MACD"],
-                            "container_id": "tradingview_chart"
-                        }});
-                        </script>
-                    </div>
+                    _tv_embed = f"""
+                    <iframe
+                        src="https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=BINANCE%3A{_show_symbol}&interval={_tf}&hidesidetoolbar=false&symboledit=true&saveimage=false&toolbarbg=%231a1a2e&theme=dark&style=1&hideideas=true&locale=vi_VN"
+                        style="width:100%;height:500px;border:0;margin:0;padding:0;"
+                        allowfullscreen
+                        allow="autoplay; clipboard-read; clipboard-write"
+                    ></iframe>
                     """
-                    components.html(_tv_html, height=520)
+                    components.html(_tv_embed, height=520)
+                    st.caption("ℹ️ Nếu chart trắng — coin này chưa có trên TradingView. Bấm vào ô symbol trên chart để đổi sang coin khác (VD: BTCUSDT, ETHUSDT).")
 
                 # Add to watchlist + scan + external links
                 st.markdown("---")
