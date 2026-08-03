@@ -1,7 +1,10 @@
-refactor: remove glossary from scan results tab
+feat: mark historical distribution events on price chart
 
-Glossary is already available in its own tab "📖 Thuật ngữ".
-No need to duplicate it at the bottom of scan results.
+- Add orange diamond markers for actual distribution events (label=1)
+  from training data, shown on candlestick chart
+- Red triangle-down markers = predicted high-risk (already existed)
+- Caption explains both marker types
+- Helps user visually compare: predicted vs actual distribution events
 
 Generated with [Devin](https://devin.ai)
 

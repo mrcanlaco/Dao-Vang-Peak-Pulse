@@ -705,6 +705,10 @@ with _scan_container:
                 df = db.conn.execute(query).df()
                 df = df.dropna(subset=['is_distribution'])
 
+                # Historical distribution events (label=1) for chart markers
+                _hist_dist = df[df['is_distribution'] == 1][['feature_time', 'symbol']].copy()
+                _hist_dist['feature_time'] = pd.to_datetime(_hist_dist['feature_time'])
+
                 exclude_cols = ['feature_time', 'decision_time', 'is_distribution', 'quality_status', 'symbol']
                 feature_cols = [c for c in df.columns if c not in exclude_cols]
 
@@ -817,7 +821,7 @@ with _scan_container:
                                     close=_skdf["close"],
                                     name=symbol,
                                 )])
-                                # Mark high-risk candles on chart
+                                # Mark high-risk candles on chart (predictions)
                                 if high_risk:
                                     _hr_times = [pd.to_datetime(p["feature_time"]) for p in high_risk]
                                     _hr_probs = [p["probability"] for p in high_risk]
@@ -826,8 +830,21 @@ with _scan_container:
                                         y=[_skdf.loc[_skdf["time"] == t, "high"].values[0] if len(_skdf.loc[_skdf["time"] == t, "high"]) > 0 else None for t in _hr_times],
                                         mode="markers",
                                         marker=dict(symbol="triangle-down", size=14, color="red"),
-                                        name="🚨 Tín hiệu CAO",
+                                        name="🚨 Dự đoán CAO",
                                         text=[f"Prob: {p:.1%}" for p in _hr_probs],
+                                        hovertemplate="%{text}<br>%{x}<extra></extra>",
+                                    ))
+                                # Mark historical distribution events (actual labels)
+                                if not _hist_dist.empty:
+                                    _hd_times = [t for t in _hist_dist['feature_time'] if t in set(_skdf['time'])]
+                                    _hd_y = [_skdf.loc[_skdf['time'] == t, 'low'].values[0] * 0.995 if len(_skdf.loc[_skdf['time'] == t, 'low']) > 0 else None for t in _hd_times]
+                                    _sfig.add_trace(go.Scatter(
+                                        x=_hd_times,
+                                        y=_hd_y,
+                                        mode="markers",
+                                        marker=dict(symbol="diamond", size=10, color="orange", line=dict(width=1, color="white")),
+                                        name="📉 Phân phối lịch sử",
+                                        text=["Label: 1 (đã xả)"] * len(_hd_times),
                                         hovertemplate="%{text}<br>%{x}<extra></extra>",
                                     ))
                                 _sfig.update_layout(
@@ -838,6 +855,7 @@ with _scan_container:
                                     yaxis_title="Giá",
                                 )
                                 st.plotly_chart(_sfig, use_container_width=True, config={"displayModeBar": False})
+                                st.caption("🔻 Tam giác đỏ = dự đoán CAO (sắp xả) | ◆ Cam = phân phối lịch sử (đã xả)")
                             else:  # Line
                                 _sline_data = _skdf.set_index("time")[["close"]]
                                 st.line_chart(_sline_data, use_container_width=True)
