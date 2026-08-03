@@ -380,17 +380,17 @@ if _tickers:
 
                 elif _chart_type == "📊 TradingView":
                     # Embed TradingView widget
-                    # Symbol format: BINANCE:BTCUSDT.P (perpetual futures)
+                    # Use spot symbol (BINANCE:BTCUSDT) — more universally available than .P
+                    # User can switch to perpetual within the widget via allow_symbol_change
                     import streamlit.components.v1 as components
-                    _tv_sym = _show_symbol  # keep USDT suffix
                     _tv_html = f"""
-                    <div class="tradingview-widget-container" style="height:450px;">
+                    <div class="tradingview-widget-container" style="height:500px;">
                         <div id="tradingview_chart"></div>
                         <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
                         <script type="text/javascript">
                         new TradingView.widget({{
                             "autosize": true,
-                            "symbol": "BINANCE:{_tv_sym}.P",
+                            "symbol": "BINANCE:{_show_symbol}",
                             "interval": "{_tf}",
                             "timezone": "Etc/UTC",
                             "theme": "dark",
@@ -403,12 +403,13 @@ if _tickers:
                             "details": true,
                             "hotlist": true,
                             "calendar": false,
+                            "studies": ["STD;SMA", "STD;RSI", "STD;MACD"],
                             "container_id": "tradingview_chart"
                         }});
                         </script>
                     </div>
                     """
-                    components.html(_tv_html, height=470)
+                    components.html(_tv_html, height=520)
 
                 # Add to watchlist + scan + external links
                 st.markdown("---")

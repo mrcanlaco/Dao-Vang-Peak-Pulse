@@ -1,10 +1,10 @@
-fix: TradingView symbol format — BINANCE:BTCUSDT.P (not BTCUSDPERP)
+fix: TradingView use spot symbol + add default indicators (SMA, RSI, MACD)
 
-- Fix symbol: BINANCE:{SYMBOL}.P for perpetual futures
-  Old: BINANCE:BTCUSDPERP → invalid, caused "Infinite extent" + "invalid parameters"
-  New: BINANCE:BTCUSDT.P → correct TradingView format
-- Add toolbar_bg dark, hide_side_toolbar=false, details=true, hotlist=true
-- Increase height to 450px
+- Change symbol from BINANCE:BTCUSDT.P (perpetual) to BINANCE:BTCUSDT (spot)
+  Spot is universally available on TradingView; .P fails for some coins
+  User can switch to perpetual within widget (allow_symbol_change=true)
+- Add default studies: SMA, RSI, MACD
+- Increase height to 500px
 
 Generated with [Devin](https://devin.ai)
 
