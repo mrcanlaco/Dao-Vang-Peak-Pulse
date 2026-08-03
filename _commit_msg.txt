@@ -1,14 +1,14 @@
-feat: add price chart to Watchlist scan results
+refactor: reorganize GUI into 4 tabs for cleaner UX
 
-- After scanning a coin, show price chart below prediction table
-- 3 chart types: 🕯️ Candlestick (plotly), 📈 Line, 📊 TradingView
-- Timeframe selector: 5m, 15m, 1h, 4h, 1d (default 1h)
-- Candlestick: 200 candles, dark theme
-  + Mark high-risk candles with red triangle-down markers
-  + Hover shows probability %
-- TradingView: embed iframe, allow symbol change
-- Line: simple close price chart
-- Data from Binance API (fapi/v1/klines)
+- Tab 1 "🔥 Thị trường": ticker marquee + top gainers/losers + coin detail
+  + chart (candlestick/line/TradingView) + watchlist management
+- Tab 2 "🔍 Quét tín hiệu": scan results + prediction table + probability
+  chart + price chart with high-risk candle markers
+- Tab 3 "🧪 Backtest": full backtest results with metrics/baselines/labels
+- Tab 4 "📖 Thuật ngữ": glossary always available
+- Sidebar: mode selector + symbol + date range + advanced config + button
+- Tickers cached in session_state (no refetch on every rerun)
+- Idle state shows instructions per mode in respective tab
 
 Generated with [Devin](https://devin.ai)
 
