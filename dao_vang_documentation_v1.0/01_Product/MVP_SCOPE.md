@@ -1,7 +1,7 @@
 ---
 document_id: DAO_VANG_MVP_SCOPE
-version: 1.0.0
-status: approved
+version: 1.1.0
+status: draft
 ---
 
 # PHẠM VI MVP ĐẢO VÀNG
@@ -36,7 +36,7 @@ prediction_horizon: 24h
 5. Global Long/Short Account Ratio.
 6. Top Trader Long/Short Account Ratio.
 
-Top Trader Position Ratio chưa nằm trong MVP v1, trừ khi ADR mới phê duyệt.
+Top Trader Position Ratio được tích hợp trong bản v1.1.0.
 
 ## 5. Đầu ra bắt buộc
 
@@ -108,9 +108,9 @@ Top Trader Position Ratio chưa nằm trong MVP v1, trừ khi ADR mới phê duy
 
 ## 7. Ngoài phạm vi
 
-- real-time signals;
-- dashboard production;
-- Telegram/Discord alerts;
+~~- real-time signals;~~ (Moved to Post-MVP / v1.1 scope)
+~~- dashboard production;~~ (Moved to Post-MVP / v1.1 scope)
+~~- Telegram/Discord alerts;~~ (Moved to Post-MVP / v1.1 scope)
 - auto trading;
 - TP/SL;
 - account or API key trading permissions;
