@@ -157,6 +157,15 @@ class NormalizedGlobalRatio(NormalizedBase):
     long_short_ratio: Decimal
 
 
+
+class NormalizedTopPositionRatio(NormalizedBase):
+    period_start: datetime
+    period_end: datetime
+    long_position: Decimal | None
+    short_position: Decimal | None
+    long_short_ratio: Decimal
+    population: str = "top_trader_positions"
+
 class NormalizedTopRatio(NormalizedBase):
     period_start: datetime
     period_end: datetime

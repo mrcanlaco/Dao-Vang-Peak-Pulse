@@ -13,6 +13,7 @@ from dao_vang.data.schemas import (
     NormalizedOpenInterest,
     NormalizedTakerVolume,
     NormalizedTopRatio,
+    NormalizedTopPositionRatio,
     OpenInterestData,
     QualityStatus,
     TakerRatioData,
@@ -267,6 +268,26 @@ def normalize_top_ratio(
             long_account=Decimal(str(raw.long_account)),
             short_account=Decimal(str(raw.short_account)),
             long_short_ratio=Decimal(str(raw.long_short_ratio)),
+        )
+        results.append(norm)
+    return results
+
+
+def normalize_top_position_ratio(
+    raw_payloads: list[dict[str, Any]], run_id: str
+) -> list[NormalizedTopPositionRatio]:
+    results: list[NormalizedTopPositionRatio] = []
+    for payload in raw_payloads:
+        ts = int(payload["timestamp"])
+        dt = timestamp_to_utc_datetime(ts)
+        norm = NormalizedTopPositionRatio(
+            collection_run_id=run_id,
+            available_time=dt,
+            period_start=dt,
+            period_end=dt,
+            long_position=Decimal(payload["longPosition"]) if payload.get("longPosition") else None,
+            short_position=Decimal(payload["shortPosition"]) if payload.get("shortPosition") else None,
+            long_short_ratio=Decimal(payload["longShortRatio"])
         )
         results.append(norm)
     return results

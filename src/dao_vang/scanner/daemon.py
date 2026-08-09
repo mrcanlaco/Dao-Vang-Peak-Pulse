@@ -43,6 +43,7 @@ from dao_vang.data.collectors.funding import FundingCollector
 from dao_vang.data.collectors.klines import KlinesCollector
 from dao_vang.data.collectors.open_interest import OpenInterestCollector
 from dao_vang.data.collectors.ratios import GlobalRatioCollector, TopRatioCollector
+from dao_vang.data.collectors.top_position_ratio import TopPositionRatioCollector
 from dao_vang.data.collectors.taker import TakerRatioCollector
 from dao_vang.data.pipeline import (
     build_raw_timeline,
