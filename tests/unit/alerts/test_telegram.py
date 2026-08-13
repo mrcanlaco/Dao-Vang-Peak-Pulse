@@ -259,3 +259,87 @@ class TestTelegramAlert:
 
         with patch("dao_vang.alerts.telegram.httpx.Client", return_value=mock_client):
             assert configured_notifier.send_test() is True
+
+    def test_send_alert_english(self) -> None:
+        """Verify English alert rendering."""
+        config = TelegramConfig(
+            bot_token="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ",
+            chat_id="987654321",
+            language="en",
+        )
+        notifier = TelegramNotifier(config, web_base_url="https://trade.example.com")
+        captured: dict = {}
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"ok": True}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.side_effect = lambda url, json=None, **kw: (
+            captured.update(json or {}) or mock_response
+        )
+
+        with patch("dao_vang.alerts.telegram.httpx.Client", return_value=mock_client):
+            notifier.send_alert(
+                symbol="SOLUSDT",
+                risk_level="CAO",
+                probability=0.88,
+                threshold=0.70,
+                close_price=180.5,
+                feature_time="2026-08-03T12:00:00+00:00",
+                invalidation_time="2026-08-04T12:00:00+00:00",
+                model_id="frozen_model_v1",
+                operating_mode="production",
+            )
+
+        text = captured.get("text", "")
+        assert "DISTRIBUTION ALERT" in text
+        assert "Risk Level:* HIGH" in text
+        assert "Auto-Trading:* `OFF`" in text
+        assert "Model Probability:* 88.0%" in text
+        assert "https://trade.example.com/#coin=SOLUSDT" in text
+
+    def test_scored_alert_english(self) -> None:
+        """Verify English scored alert rendering."""
+        config = TelegramConfig(
+            bot_token="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ",
+            chat_id="987654321",
+            language="en",
+        )
+        notifier = TelegramNotifier(config, web_base_url="https://trade.example.com")
+        captured: dict = {}
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"ok": True}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.side_effect = lambda url, json=None, **kw: (
+            captured.update(json or {}) or mock_response
+        )
+
+        with patch("dao_vang.alerts.telegram.httpx.Client", return_value=mock_client):
+            notifier.send_scored_alert(
+                symbol="BNBUSDT",
+                total_score=85.0,
+                recommendation="SHORT_CANDIDATE",
+                pump_pct=0.45,
+                pump_days=4,
+                top_signals=[("price_volume_divergence", 80.0, 0.2, "Volume diverging")],
+                btc_regime="FOMO",
+                btc_explanation="BTC heating up",
+                close_price=580.0,
+                feature_time="2026-08-03T12:00:00+00:00",
+                invalidation_time="2026-08-04T12:00:00+00:00",
+                operating_mode="production_alerting",
+            )
+
+        text = captured.get("text", "")
+        assert "SIGNAL REPORT" in text
+        assert "Recommendation:* `SHORT CANDIDATE`" in text
+        assert "Price-Volume Divergence" in text
+        assert "BTC Context:* BULLISH HEAT (FOMO)" in text

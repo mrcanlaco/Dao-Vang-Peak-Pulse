@@ -4,6 +4,7 @@ Reads bot_token + chat_id from TelegramConfig (env var or YAML).
 Uses httpx (already a dependency via collectors) for HTTP calls.
 Retries with tenacity on transient failures.
 
+Supports bilingual formatting (Vietnamese 'vi' and English 'en').
 Security: never logs the full bot token — only first 4 chars + ***.
 """
 
@@ -27,26 +28,50 @@ from dao_vang.logging import get_logger
 logger = get_logger(__name__)
 
 
-def _display_time(value: str) -> str:
-    """Format an ISO/DB timestamp for Telegram in Vietnam time."""
+def _display_time(value: str, lang: str = "vi") -> str:
+    """Format an ISO/DB timestamp for Telegram. UTC+7 for VI, UTC for EN."""
+    if lang == "en":
+        raw = str(value).replace("T", " ")[:19]
+        return f"{raw} UTC"
     converted = system_iso(value)
-    return converted[:19].replace("T", " ") if converted else str(value)[:19]
+    formatted = converted[:19].replace("T", " ") if converted else str(value)[:19]
+    return f"{formatted} UTC+7"
+
 
 _RISK_EMOJI = {
     "CAO": "🚨",
+    "HIGH": "🚨",
     "TRUNG BÌNH": "⚠️",
+    "MEDIUM": "⚠️",
     "THẤP": "🟡",
+    "LOW": "🟡",
     "RẤT THẤP": "⚪",
+    "VERY LOW": "⚪",
 }
 
-_RISK_LABELS = {
+_RISK_LABELS_VI = {
     "CAO": "CAO",
+    "HIGH": "CAO",
     "TRUNG BÌNH": "TRUNG BÌNH",
+    "MEDIUM": "TRUNG BÌNH",
     "THẤP": "THẤP",
+    "LOW": "THẤP",
     "RẤT THẤP": "RẤT THẤP",
+    "VERY LOW": "RẤT THẤP",
 }
 
-_MODE_LABELS = {
+_RISK_LABELS_EN = {
+    "CAO": "HIGH",
+    "HIGH": "HIGH",
+    "TRUNG BÌNH": "MEDIUM",
+    "MEDIUM": "MEDIUM",
+    "THẤP": "LOW",
+    "LOW": "LOW",
+    "RẤT THẤP": "VERY LOW",
+    "VERY LOW": "VERY LOW",
+}
+
+_MODE_LABELS_VI = {
     "research": "NGHIÊN CỨU",
     "shadow": "QUAN SÁT (SHADOW)",
     "canary": "CANARY / THỬ NGHIỆM",
@@ -54,20 +79,41 @@ _MODE_LABELS = {
     "production_alerting": "BÁO CÁO THAM KHẢO",
 }
 
-_RECOMMENDATION_LABELS = {
+_MODE_LABELS_EN = {
+    "research": "RESEARCH",
+    "shadow": "SHADOW OBSERVATION",
+    "canary": "CANARY / PILOT",
+    "production": "PRODUCTION",
+    "production_alerting": "REFERENCE REPORT",
+}
+
+_RECOMMENDATION_LABELS_VI = {
     "SHORT_CANDIDATE": "ỨNG VIÊN SHORT",
     "HIGH_CONFIDENCE": "TÍN HIỆU MẠNH",
     "WATCH": "THEO DÕI",
     "WAIT": "CHỜ THÊM",
 }
 
-_BTC_REGIME_LABELS = {
+_RECOMMENDATION_LABELS_EN = {
+    "SHORT_CANDIDATE": "SHORT CANDIDATE",
+    "HIGH_CONFIDENCE": "HIGH CONFIDENCE SIGNAL",
+    "WATCH": "WATCHLIST",
+    "WAIT": "WAIT / STANDBY",
+}
+
+_BTC_REGIME_LABELS_VI = {
     "FOMO": "TĂNG NÓNG (FOMO)",
     "NEUTRAL": "TRUNG TÍNH",
     "WEAK": "YẾU",
 }
 
-_SIGNAL_LABELS = {
+_BTC_REGIME_LABELS_EN = {
+    "FOMO": "BULLISH HEAT (FOMO)",
+    "NEUTRAL": "NEUTRAL",
+    "WEAK": "WEAK",
+}
+
+_SIGNAL_LABELS_VI = {
     "price_volume_divergence": "Phân kỳ giá - khối lượng",
     "funding_spike": "Funding tăng đột biến",
     "momentum_exhaustion": "Đà tăng suy yếu",
@@ -78,37 +124,53 @@ _SIGNAL_LABELS = {
     "fake_breakout": "Có dấu hiệu phá vỡ giả",
 }
 
+_SIGNAL_LABELS_EN = {
+    "price_volume_divergence": "Price-Volume Divergence",
+    "funding_spike": "Funding Rate Spike",
+    "momentum_exhaustion": "Momentum Exhaustion",
+    "distance_from_high": "Distance from Recent High",
+    "taker_sell_pressure": "Taker Sell Pressure",
+    "btc_context": "BTC Market Regime",
+    "oi_divergence": "Open Interest Divergence",
+    "fake_breakout": "Suspected Fake Breakout",
+}
 
-def _mode_label(mode: str) -> str:
+
+def _mode_label(mode: str, lang: str = "vi") -> str:
     """Return a stable, human-readable serving-mode label for Telegram."""
-
     normalized = str(mode).strip().lower()
-    return _MODE_LABELS.get(normalized, normalized.upper() or "UNKNOWN")
+    table = _MODE_LABELS_EN if lang == "en" else _MODE_LABELS_VI
+    return table.get(normalized, normalized.upper() or "UNKNOWN")
 
 
-def _recommendation_label(recommendation: str) -> str:
+def _recommendation_label(recommendation: str, lang: str = "vi") -> str:
     normalized = str(recommendation).strip().upper()
-    return _RECOMMENDATION_LABELS.get(normalized, normalized.replace("_", " "))
+    table = _RECOMMENDATION_LABELS_EN if lang == "en" else _RECOMMENDATION_LABELS_VI
+    return table.get(normalized, normalized.replace("_", " "))
 
 
-def _risk_label(risk_level: str) -> str:
+def _risk_label(risk_level: str, lang: str = "vi") -> str:
     normalized = str(risk_level).strip().upper()
-    return _RISK_LABELS.get(normalized, normalized or "KHÔNG XÁC ĐỊNH")
+    table = _RISK_LABELS_EN if lang == "en" else _RISK_LABELS_VI
+    default = "UNKNOWN" if lang == "en" else "KHÔNG XÁC ĐỊNH"
+    return table.get(normalized, normalized or default)
 
 
-def _btc_regime_label(regime: str) -> str:
+def _btc_regime_label(regime: str, lang: str = "vi") -> str:
     normalized = str(regime).strip().upper()
-    return _BTC_REGIME_LABELS.get(normalized, normalized or "KHÔNG XÁC ĐỊNH")
+    table = _BTC_REGIME_LABELS_EN if lang == "en" else _BTC_REGIME_LABELS_VI
+    default = "UNKNOWN" if lang == "en" else "KHÔNG XÁC ĐỊNH"
+    return table.get(normalized, normalized or default)
 
 
-def _signal_label(name: str) -> str:
+def _signal_label(name: str, lang: str = "vi") -> str:
     normalized = str(name).strip().lower()
-    return _SIGNAL_LABELS.get(normalized, normalized.replace("_", " ").title())
+    table = _SIGNAL_LABELS_EN if lang == "en" else _SIGNAL_LABELS_VI
+    return table.get(normalized, normalized.replace("_", " ").title())
 
 
 def _coin_url(base_url: str | None, symbol: str) -> str | None:
     """Build the frontend hash link that opens the selected coin directly."""
-
     base = str(base_url or "").strip().rstrip("/")
     normalized_symbol = str(symbol).strip().upper()
     if not base or not normalized_symbol:
@@ -120,15 +182,16 @@ class TelegramNotifier:
     """Send alerts via Telegram Bot API.
 
     Args:
-        config: TelegramConfig with bot_token + chat_id.
+        config: TelegramConfig with bot_token + chat_id + language.
     """
 
     def __init__(self, config: TelegramConfig, web_base_url: str | None = None) -> None:
         self._config = config
         self._web_base_url = web_base_url
         self._base_url = f"{config.api_base}/bot{config.bot_token}"
+        self._lang = getattr(config, "language", "vi") or "vi"
         token_display = f"{config.bot_token[:4]}***" if config.bot_token else "NOT_SET"
-        logger.info("telegram_notifier_init", token=token_display)
+        logger.info("telegram_notifier_init", token=token_display, language=self._lang)
 
     @property
     def is_configured(self) -> bool:
@@ -189,7 +252,7 @@ class TelegramNotifier:
 
         Args:
             symbol: Coin symbol (e.g. "BTCUSDT").
-            risk_level: One of CAO / TRUNG BÌNH / THẤP / RẤT THẤP.
+            risk_level: One of CAO / TRUNG BÌNH / THẤP / RẤT THẤP / HIGH / MEDIUM / LOW.
             probability: Model probability (0.0–1.0).
             threshold: Decision threshold from frozen model.
             close_price: Close price at signal time, if available.
@@ -197,31 +260,54 @@ class TelegramNotifier:
             invalidation_time: ISO timestamp when alert expires (24h).
             model_id: Frozen model ID used for prediction.
             web_url: Optional URL to web app for deep-dive.
+            operating_mode: Operating mode (e.g. production / shadow).
 
         Returns True on success.
         """
-        emoji = _RISK_EMOJI.get(risk_level, "🔔")
+        emoji = _RISK_EMOJI.get(risk_level.upper(), "🔔")
         price_str = f"${close_price:,.4f}" if close_price else "N/A"
-        mode_label = _mode_label(operating_mode)
+        mode_label = _mode_label(operating_mode, self._lang)
         detail_url = web_url or _coin_url(self._web_base_url, symbol)
-        lines = [
-            f"{emoji} *CẢNH BÁO PHÂN PHỐI* — `{symbol}`",
-            f"*Chế độ:* `{mode_label}`",
-            "*Mục đích:* `THAM KHẢO / ĐÁNH GIÁ`",
-            "*Tự động đặt lệnh:* `TẮT`",
-            "",
-            f"*Mức cảnh báo:* {_risk_label(risk_level)}",
-            f"*Xác suất mô hình:* {probability:.1%}",
-            f"*Ngưỡng quyết định:* {threshold:.2f}",
-            f"*Giá đóng cửa:* {price_str}",
-            f"*Thời điểm tín hiệu:* {_display_time(feature_time)} UTC+7",
-            f"*Hết hiệu lực:* {_display_time(invalidation_time)} UTC+7",
-            f"*Mô hình:* `{model_id}`",
-        ]
-        if detail_url:
-            lines.append("")
-            lines.append(f"[🔗 Mở trang phân tích {symbol}]({detail_url})")
-        lines.extend(["", "_Báo cáo tham khảo; hãy tự kiểm tra trước khi quyết định._"])
+
+        if self._lang == "en":
+            lines = [
+                f"{emoji} *DISTRIBUTION ALERT* — `{symbol}`",
+                f"*Mode:* `{mode_label}`",
+                "*Purpose:* `REFERENCE / EVALUATION`",
+                "*Auto-Trading:* `OFF`",
+                "",
+                f"*Risk Level:* {_risk_label(risk_level, 'en')}",
+                f"*Model Probability:* {probability:.1%}",
+                f"*Decision Threshold:* {threshold:.2f}",
+                f"*Close Price:* {price_str}",
+                f"*Signal Time:* {_display_time(feature_time, 'en')}",
+                f"*Expiration:* {_display_time(invalidation_time, 'en')}",
+                f"*Model ID:* `{model_id}`",
+            ]
+            if detail_url:
+                lines.append("")
+                lines.append(f"[🔗 Open {symbol} Analysis Dashboard]({detail_url})")
+            lines.extend(["", "_Reference only. Please DYOR before making any trading decisions._"])
+        else:
+            lines = [
+                f"{emoji} *CẢNH BÁO PHÂN PHỐI* — `{symbol}`",
+                f"*Chế độ:* `{mode_label}`",
+                "*Mục đích:* `THAM KHẢO / ĐÁNH GIÁ`",
+                "*Tự động đặt lệnh:* `TẮT`",
+                "",
+                f"*Mức cảnh báo:* {_risk_label(risk_level, 'vi')}",
+                f"*Xác suất mô hình:* {probability:.1%}",
+                f"*Ngưỡng quyết định:* {threshold:.2f}",
+                f"*Giá đóng cửa:* {price_str}",
+                f"*Thời điểm tín hiệu:* {_display_time(feature_time, 'vi')}",
+                f"*Hết hiệu lực:* {_display_time(invalidation_time, 'vi')}",
+                f"*Mô hình:* `{model_id}`",
+            ]
+            if detail_url:
+                lines.append("")
+                lines.append(f"[🔗 Mở trang phân tích {symbol}]({detail_url})")
+            lines.extend(["", "_Báo cáo tham khảo; hãy tự kiểm tra trước khi quyết định._"])
+
         text = "\n".join(lines)
         return self.send_message(text)
 
@@ -248,93 +334,137 @@ class TelegramNotifier:
         label_version: str | None = None,
         operating_mode: str = "production",
     ) -> bool:
-        """Send a composite-score distribution alert.
-
-        Args:
-            symbol: Coin symbol (e.g. "EULUSDT").
-            total_score: Composite score 0-100.
-            recommendation: "SHORT_CANDIDATE" | "WATCH" | "WAIT".
-            pump_pct: Pump magnitude (e.g. 1.8 = +180%).
-            pump_days: Days to reach peak.
-            top_signals: List of (name, score, weight, explanation) tuples.
-            btc_regime: "FOMO" | "NEUTRAL" | "WEAK".
-            btc_explanation: BTC context explanation string.
-            close_price: Close price at signal time.
-            feature_time: ISO timestamp of signal.
-            invalidation_time: ISO timestamp when alert expires.
-            evidence_precision: Empirical historical precision for this risk
-                level, computed from resolved alert outcomes (self-learning
-                feedback — None if not enough judged alerts yet).
-            evidence_n_judged: Number of past alerts this precision is based on.
-            web_url: Optional URL to web app.
-
-        Returns True on success.
-        """
+        """Send a composite-score distribution alert."""
         normalized_recommendation = str(recommendation).strip().upper()
         emoji = "🚨" if normalized_recommendation in {"SHORT_CANDIDATE", "HIGH_CONFIDENCE"} else "⚠️"
         price_str = f"${close_price:,.4f}" if close_price else "N/A"
-        mode_label = _mode_label(operating_mode)
+        mode_label = _mode_label(operating_mode, self._lang)
         detail_url = web_url or _coin_url(self._web_base_url, symbol)
-        lines = [
-            f"{emoji} *BÁO CÁO TÍN HIỆU* — `{symbol}`",
-            f"*Kết luận:* `{_recommendation_label(normalized_recommendation)}`",
-            f"*Chế độ:* `{mode_label}`",
-            "*Mục đích:* `THAM KHẢO / ĐÁNH GIÁ`",
-            "*Tự động đặt lệnh:* `TẮT`",
-            "",
-            f"*Điểm tín hiệu:* {total_score:.0f}/100",
-            f"*Mức tăng trước đó:* +{pump_pct:.0%} trong {pump_days} ngày",
-            f"*Giá đóng cửa:* {price_str}",
-        ]
-        if model_probability is not None:
-            lines.append(f"*Xác suất mô hình:* {model_probability:.1%}")
-        if horizon_hours is not None:
-            lines.append(f"*Khung đánh giá:* {horizon_hours} giờ")
-        if data_quality_score is not None:
-            lines.append(f"*Chất lượng dữ liệu:* {data_quality_score:.0%}")
-        lines.extend([
-            "",
-            "*Các tín hiệu chính:*",
-        ])
-        for name, score, weight, explanation in top_signals:
-            label = _signal_label(name)
-            lines.append(f"  • {label}: {score:.0f}/100 (trọng số {weight:.0%})")
-            lines.append(f"    _{explanation}_")
-        lines.extend(
-            [
+
+        if self._lang == "en":
+            lines = [
+                f"{emoji} *SIGNAL REPORT* — `{symbol}`",
+                f"*Recommendation:* `{_recommendation_label(normalized_recommendation, 'en')}`",
+                f"*Mode:* `{mode_label}`",
+                "*Purpose:* `REFERENCE / EVALUATION`",
+                "*Auto-Trading:* `OFF`",
                 "",
-                f"*Bối cảnh BTC:* {_btc_regime_label(btc_regime)} — {btc_explanation}",
+                f"*Signal Score:* {total_score:.0f}/100",
+                f"*Prior Pump:* +{pump_pct:.0%} in {pump_days} days",
+                f"*Close Price:* {price_str}",
             ]
-        )
-        if evidence_precision is not None and evidence_n_judged >= 5:
-            lines.append(
-                f"*Độ chính xác lịch sử:* {evidence_precision:.0%} "
-                f"trên {evidence_n_judged} tín hiệu đã kiểm chứng gần đây"
+            if model_probability is not None:
+                lines.append(f"*Model Probability:* {model_probability:.1%}")
+            if horizon_hours is not None:
+                lines.append(f"*Horizon:* {horizon_hours} hours")
+            if data_quality_score is not None:
+                lines.append(f"*Data Quality:* {data_quality_score:.0%}")
+            lines.extend([
+                "",
+                "*Key Signals:*",
+            ])
+            for name, score, weight, explanation in top_signals:
+                label = _signal_label(name, "en")
+                lines.append(f"  • {label}: {score:.0f}/100 (weight {weight:.0%})")
+                lines.append(f"    _{explanation}_")
+            lines.extend(
+                [
+                    "",
+                    f"*BTC Context:* {_btc_regime_label(btc_regime, 'en')} — {btc_explanation}",
+                ]
             )
+            if evidence_precision is not None and evidence_n_judged >= 5:
+                lines.append(
+                    f"*Historical Precision:* {evidence_precision:.0%} "
+                    f"over {evidence_n_judged} recent verified signals"
+                )
+            else:
+                lines.append(
+                    "*Historical Precision:* insufficient verified samples "
+                    f"(requires ≥5 evaluated signals, currently {evidence_n_judged})"
+                )
+            lines.extend(
+                [
+                    f"*Signal Time:* {_display_time(feature_time, 'en')}",
+                    f"*Expiration:* {_display_time(invalidation_time, 'en')}",
+                ]
+            )
+            if model_id:
+                lines.append(f"*Model ID:* `{model_id}`")
+            if label_version:
+                lines.append(f"*Label Version:* `{label_version}`")
+            if detail_url:
+                lines.append("")
+                lines.append(f"[🔗 Open {symbol} Analysis Dashboard]({detail_url})")
+            lines.extend(["", "_Reference report; no automated orders._"])
         else:
-            lines.append(
-                "*Độ chính xác lịch sử:* chưa đủ dữ liệu kiểm chứng "
-                f"(cần ≥5 tín hiệu đã chấm kết quả, hiện có {evidence_n_judged})"
-            )
-        lines.extend(
-            [
-                f"*Thời điểm tín hiệu:* {_display_time(feature_time)} UTC+7",
-                f"*Hết hiệu lực:* {_display_time(invalidation_time)} UTC+7",
+            lines = [
+                f"{emoji} *BÁO CÁO TÍN HIỆU* — `{symbol}`",
+                f"*Kết luận:* `{_recommendation_label(normalized_recommendation, 'vi')}`",
+                f"*Chế độ:* `{mode_label}`",
+                "*Mục đích:* `THAM KHẢO / ĐÁNH GIÁ`",
+                "*Tự động đặt lệnh:* `TẮT`",
+                "",
+                f"*Điểm tín hiệu:* {total_score:.0f}/100",
+                f"*Mức tăng trước đó:* +{pump_pct:.0%} trong {pump_days} ngày",
+                f"*Giá đóng cửa:* {price_str}",
             ]
-        )
-        if model_id:
-            lines.append(f"*Mô hình:* `{model_id}`")
-        if label_version:
-            lines.append(f"*Phiên bản nhãn:* `{label_version}`")
-        if detail_url:
-            lines.append("")
-            lines.append(f"[🔗 Mở trang phân tích {symbol}]({detail_url})")
-        lines.extend(["", "_Báo cáo tham khảo; không tự động đặt lệnh._"])
+            if model_probability is not None:
+                lines.append(f"*Xác suất mô hình:* {model_probability:.1%}")
+            if horizon_hours is not None:
+                lines.append(f"*Khung đánh giá:* {horizon_hours} giờ")
+            if data_quality_score is not None:
+                lines.append(f"*Chất lượng dữ liệu:* {data_quality_score:.0%}")
+            lines.extend([
+                "",
+                "*Các tín hiệu chính:*",
+            ])
+            for name, score, weight, explanation in top_signals:
+                label = _signal_label(name, "vi")
+                lines.append(f"  • {label}: {score:.0f}/100 (trọng số {weight:.0%})")
+                lines.append(f"    _{explanation}_")
+            lines.extend(
+                [
+                    "",
+                    f"*Bối cảnh BTC:* {_btc_regime_label(btc_regime, 'vi')} — {btc_explanation}",
+                ]
+            )
+            if evidence_precision is not None and evidence_n_judged >= 5:
+                lines.append(
+                    f"*Độ chính xác lịch sử:* {evidence_precision:.0%} "
+                    f"trên {evidence_n_judged} tín hiệu đã kiểm chứng gần đây"
+                )
+            else:
+                lines.append(
+                    "*Độ chính xác lịch sử:* chưa đủ dữ liệu kiểm chứng "
+                    f"(cần ≥5 tín hiệu đã chấm kết quả, hiện có {evidence_n_judged})"
+                )
+            lines.extend(
+                [
+                    f"*Thời điểm tín hiệu:* {_display_time(feature_time, 'vi')}",
+                    f"*Hết hiệu lực:* {_display_time(invalidation_time, 'vi')}",
+                ]
+            )
+            if model_id:
+                lines.append(f"*Mô hình:* `{model_id}`")
+            if label_version:
+                lines.append(f"*Phiên bản nhãn:* `{label_version}`")
+            if detail_url:
+                lines.append("")
+                lines.append(f"[🔗 Mở trang phân tích {symbol}]({detail_url})")
+            lines.extend(["", "_Báo cáo tham khảo; không tự động đặt lệnh._"])
+
         text = "\n".join(lines)
         return self.send_message(text)
 
     def send_test(self) -> bool:
         """Send a test message to verify configuration."""
+        if self._lang == "en":
+            return self.send_message(
+                "🧪 *DAO VANG — Test Alert*\n\n"
+                "Telegram bot connected successfully. "
+                "You will receive alerts when the scanner detects Distribution signals."
+            )
         return self.send_message(
             "🧪 *Đảo Vàng — Test*\n\n"
             "Telegram bot đã kết nối thành công. "

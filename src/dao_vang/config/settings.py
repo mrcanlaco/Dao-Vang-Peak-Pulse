@@ -32,6 +32,10 @@ class TelegramConfig(BaseModel):
     api_base: str = "https://api.telegram.org"
     timeout_seconds: int = Field(default=10, gt=0)
     max_retries: int = Field(default=3, ge=0)
+    language: Literal["vi", "en"] = Field(
+        default="vi",
+        description="Language for Telegram alerts ('vi' for Vietnamese, 'en' for English)",
+    )
 
 
 class ScannerConfig(BaseModel):
