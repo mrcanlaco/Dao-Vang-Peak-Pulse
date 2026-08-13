@@ -1,5 +1,11 @@
 # 🪙 DAO VANG — PeakPulse AI
 
+[![Languages](https://img.shields.io/badge/Language-English%20%7C%20Ti%E1%BA%BFng%20Vi%E1%BB%87t-blue)](#)
+
+[🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md)
+
+---
+
 > **Đảo Vàng — Machine Learning Distribution Radar**  
 > *Hệ thống cảnh báo sớm và dự báo giai đoạn Phân phối (Distribution / Top Formation) trên thị trường Tiền mã hóa Phái sinh (Binance USD-M Futures) bằng Máy học.*
 
