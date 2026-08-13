@@ -1,6 +1,7 @@
-# 🪙 ĐẢO VÀNG — Crypto Distribution Radar & Machine Learning System
+# 🪙 DAO VANG — PeakPulse AI
 
-> **Hệ thống cảnh báo sớm và dự báo giai đoạn Phân phối (Distribution / Top Formation) trên thị trường Tiền mã hóa Phái sinh (Binance USD-M Futures) bằng Máy học.**
+> **Đảo Vàng — Machine Learning Distribution Radar**  
+> *Hệ thống cảnh báo sớm và dự báo giai đoạn Phân phối (Distribution / Top Formation) trên thị trường Tiền mã hóa Phái sinh (Binance USD-M Futures) bằng Máy học.*
 
 ---
 
