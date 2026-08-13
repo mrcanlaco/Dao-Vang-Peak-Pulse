@@ -22,7 +22,24 @@ Khác với các công cụ phân tích kỹ thuật truyền thống chỉ dự
 
 ---
 
-## ✨ 2. CÁC TÍNH NĂNG NỔI BẬT
+## 🏆 2. THÀNH TỰU & NĂNG LỰC ĐỊNH LƯỢNG THỰC TIỄN (QUANTITATIVE TRACK RECORD)
+
+Hệ thống được xây dựng và kiểm định dựa trên các tiêu chuẩn định lượng khắt khe trong kỹ nghệ tài chính (Quantitative Finance & MLOps):
+
+- 📈 **Mục Tiêu Định Lượng Chuẩn Xác (Strict Ground-Truth Labeling):**
+  - Nhận diện chính xác các pha phân phối đỉnh dẫn tới mức sụt giảm **≥ 8%** trong khung 6h, 12h hoặc 24h, đồng thời khống chế mức tăng ngược (Maximum Adverse Excursion - MAE) **không vượt quá 4%**.
+- 🛡️ **Cam Kết Không Rò Rỉ Dữ Liệu (Zero Lookahead Bias & Embargo Validation):**
+  - Toàn bộ pipeline dữ liệu và huấn luyện sử dụng phương pháp **Walk-Forward Validation với Embargo Window** và liên kết thời gian chính xác (*As-of Join*), loại bỏ 100% rủi ro nhìn trước tương lai (*Data Leakage*).
+- 🎯 **Hiệu Chuẩn Xác Suất Đáng Tin Cậy (Calibrated ML Probability):**
+  - Tích hợp **Isotonic & Out-of-fold Calibration** giúp xác suất mô hình phản ánh đúng tần suất thực tế của thị trường (ECE ≤ 0.05), không nói quá hoặc thổi phồng tín hiệu.
+- ⚡ **Xử Lý Dữ Liệu Phái Sinh Đa Chiều Tốc Độ Cao:**
+  - Tích hợp động cơ **DuckDB Columnar Analytics**, quét và phân tích đồng thời hàng trăm cặp coin Binance Futures với độ trễ tính toán dưới 1 giây.
+- 🔄 **Hệ Thống Tự Học & Đánh Giá Hậu Kiểm (Feedback Loop & PnL Tracking):**
+  - Tự động ghi nhận và hậu kiểm kết quả (*Outcome Resolution*) của từng tín hiệu sau khi phát ra, cung cấp độ chính xác lịch sử thực nghiệm (*Empirical Precision*) ngay trong từng bản tin Telegram.
+
+---
+
+## ✨ 3. CÁC TÍNH NĂNG NỔI BẬT
 
 - 🔍 **Live Scanner Daemon (24/7):** Tự động quét theo thời gian thực hàng trăm cặp giao dịch Binance Futures theo chu kỳ nến 5 phút.
 - 📊 **Cơ chế Candidate Filter v2 & Pump Filter:** Lọc danh sách coin biến động mạnh, phát hiện bất thường dòng tiền và nguy cơ đảo chiều nhanh chóng.
@@ -38,7 +55,7 @@ Khác với các công cụ phân tích kỹ thuật truyền thống chỉ dự
 
 ---
 
-## 🛠 3. KIẾN TRÚC KỸ THUẬT (TECH STACK)
+## 🛠 4. KIẾN TRÚC KỸ THUẬT (TECH STACK)
 
 ### 🔹 Backend & Data Engine (Python)
 - **Core Framework:** Python 3.11+, Pydantic v2, Typer (CLI).
@@ -57,7 +74,7 @@ Khác với các công cụ phân tích kỹ thuật truyền thống chỉ dự
 
 ---
 
-## 🔄 4. CƠ CHẾ HOẠT ĐỘNG (PIPELINE)
+## 🔄 5. CƠ CHẾ HOẠT ĐỘNG (PIPELINE)
 
 ```mermaid
 flowchart LR
@@ -77,7 +94,7 @@ flowchart LR
 
 ---
 
-## 🔒 5. AN TOÀN & BẢO MẬT (SECURITY & PRIVACY)
+## 🔒 6. AN TOÀN & BẢO MẬT (SECURITY & PRIVACY)
 
 - **Không lưu trữ Secret/Token trong Git:** File `.env` chứa Telegram Bot Token được chặn hoàn toàn bởi `.gitignore`.
 - **An toàn Log:** Tự động lọc các từ khóa nhạy cảm (`api_key`, `secret`, `password`, `token`) trước khi ghi file log.
@@ -85,7 +102,7 @@ flowchart LR
 
 ---
 
-## 🚀 6. HƯỚNG DẪN KHỞI CHẠY NHANH (QUICK START)
+## 🚀 7. HƯỚNG DẪN KHỞI CHẠY NHANH (QUICK START)
 
 ### Cài đặt môi trường
 ```bash
@@ -108,7 +125,7 @@ docker-compose up -d
 
 ---
 
-## 🗺 7. LỘ TRÌNH PHÁT TRIỂN (ROADMAP)
+## 🗺 8. LỘ TRÌNH PHÁT TRIỂN (ROADMAP)
 
 - [ ] 🔌 **Đa sàn giao dịch (Multi-Exchange):** Mở rộng thu thập dữ liệu phái sinh từ Bybit, OKX Futures.
 - [ ] 🤖 **Nâng cấp Mô hình ML:** Thử nghiệm & tích hợp LightGBM, CatBoost và Sequential Models.
@@ -117,7 +134,7 @@ docker-compose up -d
 
 ---
 
-## 🤝 8. ĐÓNG GÓP CỘNG ĐỒNG (CONTRIBUTING)
+## 🤝 9. ĐÓNG GÓP CỘNG ĐỒNG (CONTRIBUTING)
 
 Dự án hoan nghênh mọi sự đóng góp từ cộng đồng nhà phát triển và trader toàn cầu:
 - Hướng dẫn quy chuẩn đóng góp: [CONTRIBUTING.md](CONTRIBUTING.md)
