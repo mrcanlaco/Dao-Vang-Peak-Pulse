@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { X, Target, Check, Plus, Trash2, Zap, BarChart3, TrendingUp, TrendingDown, Star, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import type { WatchlistPreset } from '../types';
 import { CoinLink } from './CoinLink';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface WatchlistFeedback {
   type: 'success' | 'error';
@@ -37,8 +38,10 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
   pendingAction = null,
   feedback = null,
 }) => {
+  const { language } = useTranslation();
   const [newSymbolInput, setNewSymbolInput] = useState('');
-  const scanModeLabels: Record<string, string> = {
+  
+  const scanModeLabelsVi: Record<string, string> = {
     volatile: 'Biến động',
     gainers: 'Tăng mạnh',
     losers: 'Giảm mạnh',
@@ -46,6 +49,17 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
     all: 'Tất cả',
     manual: 'Cá nhân',
   };
+
+  const scanModeLabelsEn: Record<string, string> = {
+    volatile: 'Volatile',
+    gainers: 'Top Gainers',
+    losers: 'Top Losers',
+    volume: 'Top Volume',
+    all: 'All Pairs',
+    manual: 'Custom Watchlist',
+  };
+
+  const scanModeLabels = language === 'en' ? scanModeLabelsEn : scanModeLabelsVi;
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -64,6 +78,8 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
   }, [isOpen, onClose, pendingAction]);
 
   if (!isOpen) return null;
+
+  const isEn = language === 'en';
 
   const handleAdd = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -117,9 +133,11 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
             </div>
             <div className="min-w-0">
               <h2 id="watchlist-modal-title" className="truncate text-sm font-bold text-slate-100 sm:text-base">
-                Chọn danh sách coin để AI quét
+                {isEn ? 'Select Coins for AI Scanner' : 'Chọn danh sách coin để AI quét'}
               </h2>
-              <p className="mt-0.5 text-[11px] text-slate-500">Bộ quét 24/7 · thay đổi sẽ áp dụng ở chu kỳ kế tiếp</p>
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                {isEn ? '24/7 Scanner · Changes apply in the next cycle' : 'Bộ quét 24/7 · thay đổi sẽ áp dụng ở chu kỳ kế tiếp'}
+              </p>
             </div>
           </div>
           <button
@@ -127,7 +145,7 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
             onClick={onClose}
             disabled={Boolean(pendingAction)}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Đóng danh sách theo dõi"
+            aria-label={isEn ? 'Close Watchlist Modal' : 'Đóng danh sách theo dõi'}
           >
             <X className="h-5 w-5" />
           </button>
@@ -149,17 +167,19 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
           )}
 
           <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-            Chế độ quét tự động
+            {isEn ? 'Automated Scan Modes' : 'Chế độ quét tự động'}
           </div>
 
           <p className="mb-3 text-[11px] leading-relaxed text-slate-400">
-            Chọn một hoặc nhiều nhóm. Coin trùng giữa các nhóm sẽ được gộp lại và chỉ quét một lần.
+            {isEn 
+              ? 'Select one or more scan pools. Overlapping coins are merged and scanned only once per cycle.'
+              : 'Chọn một hoặc nhiều nhóm. Coin trùng giữa các nhóm sẽ được gộp lại và chỉ quét một lần.'}
           </p>
 
           <div className="space-y-2">
             {presets.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/50 px-3 py-4 text-center text-xs text-slate-500">
-                Chưa tải được các chế độ quét. Bạn vẫn có thể quản lý danh sách cá nhân bên dưới.
+                {isEn ? 'Could not load presets. You can still manage your custom watchlist below.' : 'Chưa tải được các chế độ quét. Bạn vẫn có thể quản lý danh sách cá nhân bên dưới.'}
               </div>
             ) : presets.map((preset) => {
               const isSelected = activeScanModes.includes(preset.id);
@@ -184,7 +204,7 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
                     <div className="flex flex-wrap items-center gap-1.5 text-xs font-bold text-slate-100">
                       <span>{preset.name}</span>
                       <span className={`rounded border px-1.5 py-0.5 text-[10px] font-mono ${preset.id === 'manual' ? 'border-yellow-800 bg-yellow-950 text-yellow-400' : 'border-slate-700 bg-slate-800 text-slate-400'}`}>
-                        {preset.id === 'manual' ? `${manualWatchlist.length} coin` : `${preset.count} coin`}
+                        {preset.id === 'manual' ? `${manualWatchlist.length} coins` : `${preset.count} coins`}
                       </span>
                     </div>
                     <div className="mt-1 text-[11px] leading-relaxed text-slate-400">{preset.description}</div>
@@ -202,8 +222,8 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
           <div className="mt-6 border-t border-slate-800 pt-4">
             <div className="mb-2 flex items-center gap-1.5 text-xs font-bold text-slate-300">
               <Star className="h-4 w-4 text-yellow-400" />
-              Danh sách theo dõi cá nhân
-              <span className="ml-auto font-mono text-[11px] text-amber-400">{manualWatchlist.length} coin</span>
+              {isEn ? 'Custom Watchlist' : 'Danh sách theo dõi cá nhân'}
+              <span className="ml-auto font-mono text-[11px] text-amber-400">{manualWatchlist.length} coins</span>
             </div>
 
             <form onSubmit={handleAdd} className="mb-3 flex flex-col gap-2 sm:flex-row">
@@ -213,7 +233,7 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
                 enterKeyHint="done"
                 autoCapitalize="characters"
                 autoComplete="off"
-                placeholder="Nhập ticker, ví dụ SUI hoặc INJ"
+                placeholder={isEn ? 'Enter ticker, e.g. SUI or INJ' : 'Nhập ticker, ví dụ SUI hoặc INJ'}
                 value={newSymbolInput}
                 onChange={(event) => setNewSymbolInput(event.target.value)}
                 disabled={Boolean(pendingAction)}
@@ -225,13 +245,13 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
                 className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 text-xs font-bold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3"
               >
                 {pendingAction?.startsWith('add:') ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Thêm coin
+                {isEn ? 'Add Coin' : 'Thêm coin'}
               </button>
             </form>
 
             {manualWatchlist.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-800 px-3 py-4 text-center text-xs italic text-slate-500">
-                Chưa có coin nào. Thêm coin để bộ quét luôn ưu tiên theo dõi chúng.
+                {isEn ? 'No coins added yet. Add tickers to prioritize scanning.' : 'Chưa có coin nào. Thêm coin để bộ quét luôn ưu tiên theo dõi chúng.'}
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -247,8 +267,8 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
                         onClick={() => void onRemoveManualCoin(symbol)}
                         disabled={Boolean(pendingAction)}
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-red-950/60 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Xóa coin khỏi danh sách theo dõi"
-                        aria-label={`Xóa ${symbol} khỏi danh sách theo dõi`}
+                        title={isEn ? 'Remove coin from custom watchlist' : 'Xóa coin khỏi danh sách theo dõi'}
+                        aria-label={`Remove ${symbol}`}
                       >
                         {isRemoving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                       </button>
@@ -262,7 +282,10 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
 
         <footer className="flex shrink-0 flex-col gap-2 border-t border-slate-800 bg-slate-950 px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <span className="text-[11px] text-slate-400">
-            Đang chọn: <strong className="font-mono text-amber-400">{activeScanMode.split(' + ').map((mode) => scanModeLabels[mode] || mode).join(' + ')}</strong>
+            {isEn ? 'Active Selection: ' : 'Đang chọn: '}
+            <strong className="font-mono text-amber-400">
+              {activeScanMode.split(' + ').map((mode) => scanModeLabels[mode] || mode).join(' + ')}
+            </strong>
           </span>
           <button
             type="button"
@@ -270,7 +293,7 @@ export const WatchlistModal: React.FC<WatchlistModalProps> = ({
             disabled={Boolean(pendingAction)}
             className="h-11 rounded-xl bg-amber-500 px-4 text-xs font-bold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9"
           >
-            Xong
+            {isEn ? 'Done' : 'Xong'}
           </button>
         </footer>
       </section>

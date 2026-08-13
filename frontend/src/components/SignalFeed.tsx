@@ -3,6 +3,7 @@ import type { FilterTag, SignalItem, RiskLevel, SignalSort, TelegramFilter } fro
 import { parseSystemDate } from '../utils/time';
 import { Clock, TrendingDown, Send, Copy, Check, Volume2, AlertOctagon, X, ChevronDown, ChevronUp, Flame, Zap, Eye } from 'lucide-react';
 import { CoinLink } from './CoinLink';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface SignalFeedProps {
   signals: SignalItem[];
@@ -41,6 +42,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
   isCollapsed = false,
   onToggleCollapse
 }) => {
+  const { language } = useTranslation();
   const [, setTicks] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -123,25 +125,25 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
       case 'CRITICAL':
         return (
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/90 border border-red-600/90 text-red-400 animate-pulse">
-            🔴 CỰC CAO
+            🔴 {language === 'en' ? 'CRITICAL' : 'CỰC CAO'}
           </span>
         );
       case 'HIGH':
         return (
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 border border-amber-500/80 text-amber-400">
-            🟠 CAO
+            🟠 {language === 'en' ? 'HIGH' : 'CAO'}
           </span>
         );
       case 'MEDIUM':
         return (
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-950/80 border border-yellow-500/60 text-yellow-300">
-            🟡 VỪA
+            🟡 {language === 'en' ? 'MEDIUM' : 'VỪA'}
           </span>
         );
       case 'SAFE':
         return (
           <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/80 border border-emerald-500/60 text-emerald-400">
-            🟢 AN TOÀN
+            🟢 {language === 'en' ? 'SAFE' : 'AN TOÀN'}
           </span>
         );
     }
@@ -156,6 +158,10 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
+    if (language === 'en') {
+      if (days > 0) return `${days}d ${hours}h`;
+      return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
+    }
     if (days > 0) return `${days} ngày ${hours} giờ`;
     return `${hours} giờ ${minutes.toString().padStart(2, '0')} phút`;
   };
@@ -187,7 +193,10 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
 
   // Copy formatted alert text to clipboard
   const handleCopyAlertText = (sig: SignalItem) => {
-    const text = `🚨 [CẢNH BÁO ĐẢO VÀNG AI]\n🪙 Coin: ${sig.symbol}\n📊 Điểm rủi ro: ${(sig.probability * 100).toFixed(1)}% (${sig.risk_level})\n🎯 Mục tiêu giảm: ${sig.target_drawdown}% ($${sig.target_price})\n📈 Thay đổi OI 24 giờ: ${sig.oi_change_24h}\n💸 Tỷ lệ funding: ${sig.funding_rate}\n⏱️ Hiệu lực còn: ${sig.validity_hours_left} giờ\n⚡ Lý do AI: ${sig.drivers.map(d => d.name).join(', ')}`;
+    const isEn = language === 'en';
+    const text = isEn
+      ? `🚨 [DAO VANG AI ALERT]\n🪙 Coin: ${sig.symbol}\n📊 Probability: ${(sig.probability * 100).toFixed(1)}% (${sig.risk_level})\n🎯 Target Drawdown: ${sig.target_drawdown}% ($${sig.target_price})\n📈 OI Delta 24h: ${sig.oi_change_24h}\n💸 Funding Rate: ${sig.funding_rate}\n⏱️ Validity Left: ${sig.validity_hours_left} hours\n⚡ Key Drivers: ${sig.drivers.map(d => d.name).join(', ')}`
+      : `🚨 [CẢNH BÁO ĐẢO VÀNG AI]\n🪙 Coin: ${sig.symbol}\n📊 Điểm rủi ro: ${(sig.probability * 100).toFixed(1)}% (${sig.risk_level})\n🎯 Mục tiêu giảm: ${sig.target_drawdown}% ($${sig.target_price})\n📈 Thay đổi OI 24 giờ: ${sig.oi_change_24h}\n💸 Tỷ lệ funding: ${sig.funding_rate}\n⏱️ Hiệu lực còn: ${sig.validity_hours_left} giờ\n⚡ Lý do AI: ${sig.drivers.map(d => d.name).join(', ')}`;
     navigator.clipboard.writeText(text);
     setCopiedId(sig.id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -202,7 +211,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
           <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
           <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
             <AlertOctagon className="w-3.5 h-3.5 text-red-500" />
-            RADAR CẢNH BÁO TỨC THỜI
+            {language === 'en' ? 'LIVE RADAR FEED' : 'RADAR CẢNH BÁO TỨC THỜI'}
           </h2>
         </div>
         <div className="flex items-center gap-1.5">
@@ -210,13 +219,13 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
             <button
               onClick={playAlertSound}
               className="p-1 text-amber-400 hover:bg-slate-800 rounded"
-              title="Phát âm thanh cảnh báo thử nghiệm"
+              title={language === 'en' ? 'Play test sound' : 'Phát âm thanh cảnh báo thử nghiệm'}
             >
               <Volume2 className="w-3.5 h-3.5" />
             </button>
           )}
           <span className="px-2 py-0.5 bg-slate-800 text-slate-400 text-[10px] rounded-full font-mono font-bold">
-            {signals.length} tín hiệu
+            {signals.length} {language === 'en' ? 'signals' : 'tín hiệu'}
           </span>
           {onToggleCollapse && (
             <button
@@ -225,8 +234,8 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
               className="lg:hidden min-h-8 min-w-8 inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 text-slate-300 transition hover:border-amber-500/60 hover:text-amber-300 active:scale-95"
               aria-expanded={!isCollapsed}
               aria-controls="radar-signal-list"
-              aria-label={isCollapsed ? 'Mở Radar cảnh báo' : 'Đóng Radar cảnh báo'}
-              title={isCollapsed ? 'Mở Radar cảnh báo' : 'Đóng Radar cảnh báo'}
+              aria-label={isCollapsed ? (language === 'en' ? 'Expand Radar' : 'Mở Radar cảnh báo') : (language === 'en' ? 'Collapse Radar' : 'Đóng Radar cảnh báo')}
+              title={isCollapsed ? (language === 'en' ? 'Expand Radar' : 'Mở Radar cảnh báo') : (language === 'en' ? 'Collapse Radar' : 'Đóng Radar cảnh báo')}
             >
               {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
             </button>
@@ -237,37 +246,41 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
       {!isCollapsed && (
         <div className="mb-2.5 rounded-lg border border-slate-800/80 bg-slate-950/70 p-1.5">
           <div className="flex items-center justify-between gap-2 mb-1.5 px-0.5">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Bộ lọc nhanh trong Radar</span>
-            <span className="text-[9px] font-mono text-slate-500">{signals.length} kết quả</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
+              {language === 'en' ? 'Radar Quick Filters' : 'Bộ lọc nhanh trong Radar'}
+            </span>
+            <span className="text-[9px] font-mono text-slate-500">
+              {signals.length} {language === 'en' ? 'results' : 'kết quả'}
+            </span>
           </div>
           <div className="grid grid-cols-2 gap-1.5 mb-1.5">
             <label className="flex items-center gap-1.5 rounded-md border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] text-slate-400">
-              <span className="shrink-0 text-slate-500">Sắp xếp</span>
+              <span className="shrink-0 text-slate-500">{language === 'en' ? 'Sort' : 'Sắp xếp'}</span>
               <select
                 value={signalSort}
                 onChange={event => setSignalSort(event.target.value as SignalSort)}
                 className="min-w-0 flex-1 rounded bg-slate-900 px-1 text-[10px] font-semibold text-slate-200 outline-none [color-scheme:dark]"
                 style={{ colorScheme: 'dark' }}
-                aria-label="Sắp xếp cảnh báo"
+                aria-label={language === 'en' ? 'Sort alerts' : 'Sắp xếp cảnh báo'}
               >
-                <option className="bg-slate-900 text-slate-200" value="NEWEST">Mới nhất</option>
-                <option className="bg-slate-900 text-slate-200" value="HIGHEST_PROBABILITY">Xác suất cao</option>
-                <option className="bg-slate-900 text-slate-200" value="HIGHEST_RISK">Rủi ro cao</option>
-                <option className="bg-slate-900 text-slate-200" value="EXPIRING_SOON">Sắp hết hạn</option>
+                <option className="bg-slate-900 text-slate-200" value="NEWEST">{language === 'en' ? 'Newest' : 'Mới nhất'}</option>
+                <option className="bg-slate-900 text-slate-200" value="HIGHEST_PROBABILITY">{language === 'en' ? 'Highest Prob' : 'Xác suất cao'}</option>
+                <option className="bg-slate-900 text-slate-200" value="HIGHEST_RISK">{language === 'en' ? 'Highest Risk' : 'Rủi ro cao'}</option>
+                <option className="bg-slate-900 text-slate-200" value="EXPIRING_SOON">{language === 'en' ? 'Expiring Soon' : 'Sắp hết hạn'}</option>
               </select>
             </label>
             <label className="flex items-center gap-1.5 rounded-md border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] text-slate-400">
-              <span className="shrink-0 text-slate-500">Trạng thái gửi</span>
+              <span className="shrink-0 text-slate-500">{language === 'en' ? 'Status' : 'Trạng thái gửi'}</span>
               <select
                 value={telegramFilter}
                 onChange={event => setTelegramFilter(event.target.value as TelegramFilter)}
                 className="min-w-0 flex-1 rounded bg-slate-900 px-1 text-[10px] font-semibold text-slate-200 outline-none [color-scheme:dark]"
                 style={{ colorScheme: 'dark' }}
-                aria-label="Lọc trạng thái Telegram"
+                aria-label={language === 'en' ? 'Telegram filter' : 'Lọc trạng thái Telegram'}
               >
-                <option className="bg-slate-900 text-slate-200" value="ALL">Tất cả</option>
-                <option className="bg-slate-900 text-slate-200" value="SENT">Đã gửi</option>
-                <option className="bg-slate-900 text-slate-200" value="UNSENT">Chưa gửi</option>
+                <option className="bg-slate-900 text-slate-200" value="ALL">{language === 'en' ? 'All' : 'Tất cả'}</option>
+                <option className="bg-slate-900 text-slate-200" value="SENT">{language === 'en' ? 'Sent' : 'Đã gửi'}</option>
+                <option className="bg-slate-900 text-slate-200" value="UNSENT">{language === 'en' ? 'Unsent' : 'Chưa gửi'}</option>
               </select>
             </label>
           </div>
@@ -281,7 +294,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200'
               }`}
             >
-              Tất cả
+              {language === 'en' ? 'All' : 'Tất cả'}
             </button>
             <button
               type="button"
@@ -292,7 +305,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-red-900/70 hover:text-red-300'
               }`}
             >
-              <Flame className="w-3 h-3" /> Cao ≥75%
+              <Flame className="w-3 h-3" /> {language === 'en' ? 'High ≥75%' : 'Cao ≥75%'}
             </button>
             <button
               type="button"
@@ -303,7 +316,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-amber-900/70 hover:text-amber-300'
               }`}
             >
-              <Clock className="w-3 h-3" /> Sắp hết hạn
+              <Clock className="w-3 h-3" /> {language === 'en' ? 'Expiring Soon' : 'Sắp hết hạn'}
             </button>
             <button
               type="button"
@@ -314,7 +327,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-sky-900/70 hover:text-sky-300'
               }`}
             >
-              <Zap className="w-3 h-3" /> Tăng đột biến khối lượng
+              <Zap className="w-3 h-3" /> {language === 'en' ? 'Volume Spike' : 'Tăng đột biến KL'}
             </button>
             <button
               type="button"
@@ -325,7 +338,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-emerald-900/70 hover:text-emerald-300'
               }`}
             >
-              Đang hiệu lực
+              {language === 'en' ? 'Active' : 'Đang hiệu lực'}
             </button>
             <button
               type="button"
@@ -336,7 +349,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200'
               }`}
             >
-              Đã hết hạn
+              {language === 'en' ? 'Expired' : 'Đã hết hạn'}
             </button>
           </div>
         </div>
@@ -346,7 +359,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
       {!isCollapsed && <div id="radar-signal-list" className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
         {groupedSignals.length === 0 ? (
           <div className="p-8 text-center text-slate-500 text-xs">
-            Không có tín hiệu phù hợp với điều kiện lọc hiện tại.
+            {language === 'en' ? 'No signals match the current filter criteria.' : 'Không có tín hiệu phù hợp với điều kiện lọc hiện tại.'}
           </div>
         ) : (
           groupedSignals.map(({ signal: sig, count }) => {
@@ -380,13 +393,17 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 {/* Middle Row: Probability Gauge Bar & Price */}
                 <div className="grid grid-cols-2 gap-2 mb-2 bg-slate-900/70 p-2 rounded-lg border border-slate-800/60">
                   <div>
-                    <div className="text-[9px] text-slate-400 uppercase font-medium">Xác suất xả (AI)</div>
+                    <div className="text-[9px] text-slate-400 uppercase font-medium">
+                      {language === 'en' ? 'Distribution Prob (AI)' : 'Xác suất xả (AI)'}
+                    </div>
                     <div className="text-base font-extrabold text-amber-400 font-mono">
                       {probPct}%
                     </div>
                   </div>
                   <div>
-                    <div className="text-[9px] text-slate-400 uppercase font-medium">Mục tiêu giảm</div>
+                    <div className="text-[9px] text-slate-400 uppercase font-medium">
+                      {language === 'en' ? 'Target Drawdown' : 'Mục tiêu giảm'}
+                    </div>
                     <div className="text-xs font-bold text-red-400 font-mono flex items-center gap-1">
                       <TrendingDown className="w-3.5 h-3.5" />
                       {sig.target_drawdown}% (${sig.target_price})
@@ -416,17 +433,17 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                       <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
                         <div className="flex items-center gap-1 text-slate-400">
                           <Clock className="w-3 h-3 text-sky-400" />
-                          <span>Đã báo:</span>
+                          <span>{language === 'en' ? 'Reported:' : 'Đã báo:'}</span>
                           <span className="text-sky-300 font-semibold">{timing.elapsedLabel}</span>
                         </div>
                         <div className={`flex items-center justify-end gap-1 ${timing.isExpired ? 'text-red-400' : 'text-slate-400'}`}>
-                          <span>Còn:</span>
+                          <span>{language === 'en' ? 'Left:' : 'Còn:'}</span>
                           <span className={`font-semibold ${timing.isExpired ? 'text-red-400' : timing.remainingSeconds <= 7200 ? 'text-red-300' : 'text-amber-300'}`}>
-                            {timing.isExpired ? 'Hết hạn' : timing.remainingLabel}
+                            {timing.isExpired ? (language === 'en' ? 'Expired' : 'Hết hạn') : timing.remainingLabel}
                           </span>
                         </div>
                       </div>
-                      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-800" title={`${timing.progress.toFixed(0)}% thời gian hiệu lực đã trôi qua`}>
+                      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-800" title={`${timing.progress.toFixed(0)}% ${language === 'en' ? 'elapsed validity' : 'thời gian hiệu lực đã trôi qua'}`}>
                         <div
                           className={`h-full rounded-full transition-all ${timing.isExpired ? 'bg-red-500' : timing.remainingSeconds <= 7200 ? 'bg-gradient-to-r from-amber-500 to-red-500' : 'bg-sky-500'}`}
                           style={{ width: `${timing.progress}%` }}
@@ -446,7 +463,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                         handleCopyAlertText(sig);
                       }}
                       className="p-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded text-[10px] flex items-center gap-1 transition"
-                      title="Sao chép tin nhắn cảnh báo dạng văn bản"
+                      title={language === 'en' ? 'Copy formatted alert message' : 'Sao chép tin nhắn cảnh báo dạng văn bản'}
                     >
                       {copiedId === sig.id ? (
                         <Check className="w-3 h-3 text-emerald-400" />
@@ -465,10 +482,10 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                         className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition border ${isSignalTracked?.(sig)
                           ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
                           : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-sky-800 hover:bg-sky-950 hover:text-sky-300'}`}
-                        title={isSignalTracked?.(sig) ? 'Đang có trong danh sách theo dõi' : 'Theo dõi tiến trình coin này'}
+                        title={isSignalTracked?.(sig) ? (language === 'en' ? 'Already in tracking list' : 'Đang có trong danh sách theo dõi') : (language === 'en' ? 'Track this coin performance' : 'Theo dõi tiến trình coin này')}
                       >
                         <Eye className="w-2.5 h-2.5" />
-                        {isSignalTracked?.(sig) ? 'Đang theo dõi' : 'Theo dõi'}
+                        {isSignalTracked?.(sig) ? (language === 'en' ? 'Tracked' : 'Đang theo dõi') : (language === 'en' ? 'Track' : 'Theo dõi')}
                       </button>
                     )}
 
@@ -478,7 +495,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                         onPushTelegram(sig);
                       }}
                       className="px-2 py-0.5 bg-sky-950 hover:bg-sky-900 border border-sky-800 text-sky-400 rounded text-[10px] font-semibold flex items-center gap-1 transition"
-                      title="Bắn cảnh báo sang Telegram"
+                      title={language === 'en' ? 'Push alert to Telegram' : 'Bắn cảnh báo sang Telegram'}
                     >
                       <Send className="w-2.5 h-2.5" />
                       Telegram
@@ -491,7 +508,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                           onDismissSignal(sig);
                         }}
                         className="p-1 bg-slate-900 hover:bg-red-950 border border-slate-800 hover:border-red-800 text-slate-400 hover:text-red-400 rounded text-[10px] transition"
-                        title="Ẩn tín hiệu này"
+                        title={language === 'en' ? 'Dismiss this signal' : 'Ẩn tín hiệu này'}
                       >
                         <X className="w-3 h-3" />
                       </button>

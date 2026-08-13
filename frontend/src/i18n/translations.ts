@@ -12,7 +12,7 @@ export const translations = {
     threshold: 'Ngưỡng lọc',
     auto_telegram: 'Auto Telegram',
     watchlist: 'Watchlist',
-    tracking: 'Tracking',
+    tracking: 'Tracking PnL',
     glossary: 'Thuật ngữ',
     guide: 'Hướng dẫn',
     refresh: 'Làm mới',
@@ -37,11 +37,15 @@ export const translations = {
     risk_low: 'Thấp',
     risk_very_low: 'Rất thấp',
 
-    // Recommendations
+    // Recommendations & Signal Statuses
     rec_short_candidate: 'Ứng viên SHORT',
     rec_high_confidence: 'Tín hiệu mạnh',
     rec_watch: 'Theo dõi thêm',
     rec_wait: 'Chờ thêm',
+    status_confirmed: 'XÁC NHẬN PHÂN PHỐI',
+    status_early_watch: 'THEO DÕI SỚM',
+    status_invalidated: 'ĐÃ BỊ HỦY',
+    status_resolved: 'ĐÃ CHẠM TARGET',
 
     // Main Tabs
     tab_radar: 'Radar Tín hiệu',
@@ -50,6 +54,9 @@ export const translations = {
     tab_experiments: 'Thực nghiệm Backtest',
     tab_forward_test: 'Forward Test Live',
     tab_multi_scan: 'Quét Đa Khung Giờ',
+    tab_audit: 'Kiểm định Mô hình',
+    tab_market: 'Bối cảnh Thị trường',
+    tab_telemetry: 'Telemetry Hệ thống',
 
     // Signal Feed & Table Columns
     col_coin: 'Cặp Coin',
@@ -66,18 +73,73 @@ export const translations = {
     btn_track: 'Theo dõi',
     btn_telegram: 'Gửi Telegram',
     btn_deep_dive: 'Phân tích sâu',
+    sort_newest: 'Mới nhất',
+    sort_score_desc: 'Điểm cao nhất',
+    sort_prob_desc: 'Xác suất cao nhất',
+    sort_price_change: 'Biến động 24h',
 
-    // Action Drawer & Modals
+    // Main Workspace & Candlestick Chart
+    chart_candlestick: 'BIỂU ĐỒ NẾN',
+    chart_toggle_oi_funding: 'Hiện/Ẩn OI & Funding',
+    chart_timeframe_5m: '5m',
+    chart_timeframe_15m: '15m',
+    chart_timeframe_1h: '1h',
+    chart_timeframe_4h: '4h',
+    metric_oi_24h: 'OI 24h',
+    metric_funding: 'Funding Rate',
+    metric_taker_sell: 'Taker Sell',
+    metric_rsi_15m: 'RSI 15m',
+    metric_target_drawdown: 'Target -8%',
+    metric_distance_from_high: 'Cách đỉnh 24h',
+    metric_volume_24h: 'Volume 24h',
+    metric_top_ls_ratio: 'Top Long/Short',
+    metric_global_ls_ratio: 'Global Long/Short',
+
+    // Workspace Deep Dive Tabs
+    ws_tab_decision: 'Nhận định & Khuyến nghị',
+    ws_tab_market_context: 'Bối cảnh Thị trường',
+    ws_tab_order_flow: 'Dòng tiền & Phái sinh',
+    ws_tab_ml_model: 'Mô hình ML & Giải thích',
+    ws_tab_indicators: 'Chỉ báo Kỹ thuật',
+
+    // Decision Breakdown
+    decision_verdict_title: 'Đánh Giá Tổng Quan Tín Hiệu',
+    decision_verdict_short: 'Có dấu hiệu phân phối đỉnh rõ ràng. Ưu tiên canh nhịp hồi để mở vị thế SHORT.',
+    decision_verdict_watch: 'Dấu hiệu phân phối mới bắt đầu nhen nhóm. Cần theo dõi thêm diễn biến nến tiếp theo.',
+    decision_verdict_wait: 'Chưa đủ điều kiện xác nhận phân phối. Giữ trạng thái quan sát.',
+    decision_invalidation_rule: 'Mức hủy tín hiệu (Stoploss tham khảo): Vượt đỉnh gần nhất +4%.',
+    decision_target_rule: 'Mục tiêu sụt giảm kỳ vọng: -8% so với giá đóng nến tín hiệu.',
+    decision_lead_time_est: 'Thời gian phản ứng dự kiến (Median Lead Time): ~4 - 12 giờ.',
+
+    // Action Drawer & Settings
     drawer_title: 'Trung Tâm Điều Khiển & Cài Đặt',
     drawer_quick_actions: 'Thao tác nhanh',
     drawer_auto_telegram: 'Tự động gửi Telegram khi đạt ngưỡng',
     drawer_audio_alert: 'Âm thanh cảnh báo khi có tín hiệu mới',
-    modal_glossary_title: 'Từ Điển Thuật Ngữ & Chỉ Số',
+    drawer_min_prob_threshold: 'Ngưỡng xác suất tối thiểu',
+    drawer_scan_frequency: 'Tần suất quét tự động (5 phút/chu kỳ)',
+    drawer_test_telegram: 'Gửi tin nhắn thử nghiệm Telegram',
+    drawer_test_telegram_sending: 'Đang gửi...',
+    drawer_test_telegram_sent: 'Đã gửi thành công!',
+    drawer_reset_defaults: 'Khôi phục mặc định',
+
+    // Modals
+    modal_glossary_title: 'Từ Điển Thuật Ngữ & Chỉ Số Định Lượng',
     modal_watchlist_title: 'Quản Lý Danh Sách Theo Dõi (Watchlist)',
     modal_tracking_title: 'Theo Dõi Diễn Biến & Hiệu Quả Tín Hiệu (Tracking PnL)',
-    
+    watchlist_add_placeholder: 'Nhập mã coin để thêm (VD: SOLUSDT)...',
+    watchlist_add_btn: 'Thêm vào Watchlist',
+    watchlist_empty: 'Chưa có coin nào trong Watchlist cá nhân.',
+    tracking_empty: 'Chưa có tín hiệu nào đang được theo dõi.',
+    tracking_col_symbol: 'Cặp Coin',
+    tracking_col_entry: 'Giá vào (Signal Price)',
+    tracking_col_current: 'Giá hiện tại',
+    tracking_col_pnl: 'Hiệu suất (PnL %)',
+    tracking_col_status: 'Trạng thái',
+    tracking_col_time: 'Thời gian trôi qua',
+
     // Status & System health
-    sys_healthy: 'Bình thường',
+    sys_healthy: 'Hoạt động tốt',
     sys_degraded: 'Cảnh báo',
     sys_down: 'Mất kết nối',
     sys_last_scan: 'Lần quét gần nhất',
@@ -98,7 +160,7 @@ export const translations = {
     threshold: 'Threshold',
     auto_telegram: 'Auto Telegram',
     watchlist: 'Watchlist',
-    tracking: 'Tracking',
+    tracking: 'Tracking PnL',
     glossary: 'Glossary',
     guide: 'Guide',
     refresh: 'Refresh',
@@ -123,11 +185,15 @@ export const translations = {
     risk_low: 'Low',
     risk_very_low: 'Very Low',
 
-    // Recommendations
+    // Recommendations & Signal Statuses
     rec_short_candidate: 'SHORT Candidate',
     rec_high_confidence: 'High Confidence',
     rec_watch: 'Watchlist',
     rec_wait: 'Standby / Wait',
+    status_confirmed: 'CONFIRMED DISTRIBUTION',
+    status_early_watch: 'EARLY WATCH',
+    status_invalidated: 'INVALIDATED',
+    status_resolved: 'TARGET HIT (-8%)',
 
     // Main Tabs
     tab_radar: 'Live Radar Feed',
@@ -136,6 +202,9 @@ export const translations = {
     tab_experiments: 'Backtest Experiments',
     tab_forward_test: 'Forward Testing Live',
     tab_multi_scan: 'Multi-Timeframe Scan',
+    tab_audit: 'Model Audit',
+    tab_market: 'Market Context',
+    tab_telemetry: 'System Telemetry',
 
     // Signal Feed & Table Columns
     col_coin: 'Pair',
@@ -152,16 +221,71 @@ export const translations = {
     btn_track: 'Track',
     btn_telegram: 'Send Telegram',
     btn_deep_dive: 'Deep Dive',
+    sort_newest: 'Newest First',
+    sort_score_desc: 'Highest Score',
+    sort_prob_desc: 'Highest Probability',
+    sort_price_change: '24h Price Change',
 
-    // Action Drawer & Modals
+    // Main Workspace & Candlestick Chart
+    chart_candlestick: 'CANDLESTICK CHART',
+    chart_toggle_oi_funding: 'Toggle OI & Funding',
+    chart_timeframe_5m: '5m',
+    chart_timeframe_15m: '15m',
+    chart_timeframe_1h: '1h',
+    chart_timeframe_4h: '4h',
+    metric_oi_24h: 'OI 24h',
+    metric_funding: 'Funding Rate',
+    metric_taker_sell: 'Taker Sell',
+    metric_rsi_15m: 'RSI 15m',
+    metric_target_drawdown: 'Target -8%',
+    metric_distance_from_high: 'From 24h High',
+    metric_volume_24h: 'Volume 24h',
+    metric_top_ls_ratio: 'Top Long/Short',
+    metric_global_ls_ratio: 'Global Long/Short',
+
+    // Workspace Deep Dive Tabs
+    ws_tab_decision: 'Verdict & Strategy',
+    ws_tab_market_context: 'Market Context',
+    ws_tab_order_flow: 'Order Flow & Derivatives',
+    ws_tab_ml_model: 'ML Model & Explainability',
+    ws_tab_indicators: 'Technical Indicators',
+
+    // Decision Breakdown
+    decision_verdict_title: 'Signal Synthesis & Verdict',
+    decision_verdict_short: 'Distinct top distribution signals detected. Favor seeking pullback retests to initiate SHORT positions.',
+    decision_verdict_watch: 'Early-stage distribution footprints emerging. Observe upcoming candle confirmations.',
+    decision_verdict_wait: 'Insufficient confluence for distribution confirmation. Maintain neutral standby.',
+    decision_invalidation_rule: 'Signal Invalidation Rule: Price exceeds recent peak by +4% (Stoploss anchor).',
+    decision_target_rule: 'Target Drawdown: -8% from signal close price.',
+    decision_lead_time_est: 'Estimated Median Lead Time: ~4 - 12 hours.',
+
+    // Action Drawer & Settings
     drawer_title: 'Control Center & Settings',
     drawer_quick_actions: 'Quick Actions',
     drawer_auto_telegram: 'Auto-push alerts to Telegram on threshold match',
     drawer_audio_alert: 'Play audio notification on new signals',
-    modal_glossary_title: 'Terminology & Indicator Glossary',
+    drawer_min_prob_threshold: 'Minimum Probability Threshold',
+    drawer_scan_frequency: 'Scan Frequency (5-minute candle cycles)',
+    drawer_test_telegram: 'Send Test Telegram Alert',
+    drawer_test_telegram_sending: 'Sending...',
+    drawer_test_telegram_sent: 'Test alert sent successfully!',
+    drawer_reset_defaults: 'Reset to Defaults',
+
+    // Modals
+    modal_glossary_title: 'Quantitative Terminology & Indicator Glossary',
     modal_watchlist_title: 'Watchlist Management',
     modal_tracking_title: 'Signal Outcome & PnL Performance Tracking',
-    
+    watchlist_add_placeholder: 'Enter symbol to add (e.g. SOLUSDT)...',
+    watchlist_add_btn: 'Add to Watchlist',
+    watchlist_empty: 'No symbols currently in custom watchlist.',
+    tracking_empty: 'No signals currently being tracked.',
+    tracking_col_symbol: 'Pair',
+    tracking_col_entry: 'Signal Entry Price',
+    tracking_col_current: 'Current Price',
+    tracking_col_pnl: 'Performance (PnL %)',
+    tracking_col_status: 'Status',
+    tracking_col_time: 'Elapsed Time',
+
     // Status & System health
     sys_healthy: 'Healthy',
     sys_degraded: 'Degraded',

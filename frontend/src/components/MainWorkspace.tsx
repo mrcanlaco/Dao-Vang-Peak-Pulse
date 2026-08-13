@@ -17,6 +17,7 @@ import { CandlestickChart } from './CandlestickChart';
 import type { CandlestickSignalMarker } from './CandlestickChart';
 import { CoinLink } from './CoinLink';
 import { formatSystemTime, parseSystemDate } from '../utils/time';
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface MainWorkspaceProps {
   signals: SignalItem[];
@@ -89,16 +90,19 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   activeTab,
   setActiveTab
 }) => {
+  const { language } = useTranslation();
+  const isEn = language === 'en';
+
   const riskLabels: Record<string, string> = {
-    CRITICAL: 'CỰC CAO',
-    HIGH: 'CAO',
-    MEDIUM: 'VỪA',
-    SAFE: 'AN TOÀN',
+    CRITICAL: isEn ? 'CRITICAL' : 'CỰC CAO',
+    HIGH: isEn ? 'HIGH' : 'CAO',
+    MEDIUM: isEn ? 'MEDIUM' : 'VỪA',
+    SAFE: isEn ? 'SAFE' : 'AN TOÀN',
   };
   const btcRegimeLabels: Record<string, string> = {
-    FOMO: 'MUA ĐUỔI',
-    WEAK: 'YẾU',
-    NEUTRAL: 'TRUNG TÍNH',
+    FOMO: isEn ? 'FOMO' : 'MUA ĐUỔI',
+    WEAK: isEn ? 'WEAK' : 'YẾU',
+    NEUTRAL: isEn ? 'NEUTRAL' : 'TRUNG TÍNH',
   };
   const comparisonReport = candidateComparison?.comparison;
   const championVersion = candidateComparison?.champion_version || comparisonReport?.champion_version;
@@ -110,38 +114,38 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     ? comparisonReport?.metrics?.[challengerVersion]
     : undefined;
   const metricPercent = (value: number | null | undefined) => (
-    value == null ? 'Chưa đủ dữ liệu' : `${(value * 100).toFixed(1)}%`
+    value == null ? (isEn ? 'Insufficient data' : 'Chưa đủ dữ liệu') : `${(value * 100).toFixed(1)}%`
   );
   const deltaWithCi = (value: { point: number | null; ci_lower: number | null; ci_upper: number | null } | undefined) => (
     value?.point == null || value.ci_lower == null || value.ci_upper == null
-      ? 'Chưa đủ dữ liệu'
-      : `${value.point >= 0 ? '+' : ''}${(value.point * 100).toFixed(1)}đ% (CI95% ${(value.ci_lower * 100).toFixed(1)} → ${(value.ci_upper * 100).toFixed(1)})`
+      ? (isEn ? 'Insufficient data' : 'Chưa đủ dữ liệu')
+      : `${value.point >= 0 ? '+' : ''}${(value.point * 100).toFixed(1)}pp (CI95% ${(value.ci_lower * 100).toFixed(1)} → ${(value.ci_upper * 100).toFixed(1)})`
   );
   const auditStatusLabels: Record<string, string> = {
-    PASS: 'ĐẠT',
-    PASSED: 'ĐẠT',
-    FAIL: 'KHÔNG ĐẠT',
-    FAILED: 'KHÔNG ĐẠT',
-    WARN: 'CẢNH BÁO',
+    PASS: isEn ? 'PASS' : 'ĐẠT',
+    PASSED: isEn ? 'PASS' : 'ĐẠT',
+    FAIL: isEn ? 'FAIL' : 'KHÔNG ĐẠT',
+    FAILED: isEn ? 'FAIL' : 'KHÔNG ĐẠT',
+    WARN: isEn ? 'WARN' : 'CẢNH BÁO',
   };
   const executionStatusLabels: Record<string, string> = {
-    'ALERT FIRED': 'ĐÃ PHÁT CẢNH BÁO',
-    COMPLETED: 'ĐÃ HOÀN TẤT',
-    RUNNING: 'ĐANG CHẠY',
-    SENT: 'ĐÃ GỬI',
-    FAILED: 'THẤT BẠI',
+    'ALERT FIRED': isEn ? 'ALERT FIRED' : 'ĐÃ PHÁT CẢNH BÁO',
+    COMPLETED: isEn ? 'COMPLETED' : 'ĐÃ HOÀN TẤT',
+    RUNNING: isEn ? 'RUNNING' : 'ĐANG CHẠY',
+    SENT: isEn ? 'SENT' : 'ĐÃ GỬI',
+    FAILED: isEn ? 'FAILED' : 'THẤT BẠI',
   };
   const scannerStatusLabels: Record<string, string> = {
-    ONLINE: 'ĐANG CHẠY',
-    OFFLINE: 'ĐÃ DỪNG',
+    ONLINE: isEn ? 'ONLINE' : 'ĐANG CHẠY',
+    OFFLINE: isEn ? 'OFFLINE' : 'ĐÃ DỪNG',
   };
   const scanModeLabels: Record<string, string> = {
-    volatile: 'BIẾN ĐỘNG',
-    gainers: 'TĂNG MẠNH',
-    losers: 'GIẢM MẠNH',
-    volume: 'KHỐI LƯỢNG',
-    all: 'TẤT CẢ',
-    manual: 'CÁ NHÂN',
+    volatile: isEn ? 'VOLATILE' : 'BIẾN ĐỘNG',
+    gainers: isEn ? 'TOP GAINERS' : 'TĂNG MẠNH',
+    losers: isEn ? 'TOP LOSERS' : 'GIẢM MẠNH',
+    volume: isEn ? 'VOLUME LEADERS' : 'KHỐI LƯỢNG',
+    all: isEn ? 'ALL COINS' : 'TẤT CẢ',
+    manual: isEn ? 'CUSTOM' : 'CÁ NHÂN',
   };
   const [scanProgress, setScanProgress] = useState<number>(0);
   const [scanStepText, setScanStepText] = useState<string>('');
@@ -169,10 +173,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     ? comparisonSelections[expandedComparisonGroup]
     : [];
   const expandedComparisonLabel = expandedComparisonGroup === 'champion'
-    ? 'V1 chọn'
+    ? (isEn ? 'V1 Selected' : 'V1 chọn')
     : expandedComparisonGroup === 'challenger'
-      ? 'V2 chọn'
-      : 'Cả hai chọn';
+      ? (isEn ? 'V2 Selected' : 'V2 chọn')
+      : (isEn ? 'Both Selected' : 'Cả hai chọn');
 
   // Reset interval to default 15m when coin changes.
   useEffect(() => {
@@ -330,21 +334,21 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     if (isTriggeringScan) {
       setActiveTab('TELEMETRY');
       setScanProgress(15);
-      setScanStepText('Bước 1/4: Đang đồng bộ 48/48 mã từ hợp đồng tương lai Binance USD-M...');
+      setScanStepText(isEn ? 'Step 1/4: Syncing 48 symbols from Binance USD-M futures...' : 'Bước 1/4: Đang đồng bộ 48/48 mã từ hợp đồng tương lai Binance USD-M...');
 
       const t1 = setTimeout(() => {
         setScanProgress(50);
-        setScanStepText('Bước 2/4: Đang tính toán thay đổi OI và tỷ lệ bán chủ động...');
+        setScanStepText(isEn ? 'Step 2/4: Computing Open Interest deltas & taker sell ratios...' : 'Bước 2/4: Đang tính toán thay đổi OI và tỷ lệ bán chủ động...');
       }, 500);
 
       const t2 = setTimeout(() => {
         setScanProgress(85);
-        setScanStepText('Bước 3/4: Đang chạy suy luận mô hình AI kết hợp (XGBoost + LightGBM)...');
+        setScanStepText(isEn ? 'Step 3/4: Running XGBoost + LightGBM ensemble inference...' : 'Bước 3/4: Đang chạy suy luận mô hình AI kết hợp (XGBoost + LightGBM)...');
       }, 1000);
 
       const t3 = setTimeout(() => {
         setScanProgress(100);
-        setScanStepText('Bước 4/4: Đã cập nhật tín hiệu rủi ro và bật cảnh báo!');
+        setScanStepText(isEn ? 'Step 4/4: Signals updated & real-time alerts armed!' : 'Bước 4/4: Đã cập nhật tín hiệu rủi ro và bật cảnh báo!');
       }, 1400);
 
       return () => {
@@ -353,7 +357,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         clearTimeout(t3);
       };
     }
-  }, [isTriggeringScan, setActiveTab]);
+  }, [isTriggeringScan, setActiveTab, isEn]);
 
   const deepProbabilityPct = deepAnalysis?.calibrated_probability != null
     ? deepAnalysis.calibrated_probability * 100
@@ -375,7 +379,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             <Loader2 className="w-7 h-7 animate-spin" />
           </div>
           <h3 className="text-base font-bold text-slate-100 uppercase tracking-wider mb-1">
-            ⚡ ĐANG KÍCH HOẠT LƯỢT QUÉT NGAY (CHẾ ĐỘ: {scanModeLabels[telemetryData?.active_scan_mode || ''] ?? telemetryData?.active_scan_mode?.toUpperCase()})
+            ⚡ {isEn ? 'TRIGGERING REAL-TIME SCAN (MODE:' : 'ĐANG KÍCH HOẠT LƯỢT QUÉT NGAY (CHẾ ĐỘ:'} {scanModeLabels[telemetryData?.active_scan_mode || ''] ?? telemetryData?.active_scan_mode?.toUpperCase()})
           </h3>
           <p className="text-xs text-amber-400 font-mono mb-4">{scanStepText}</p>
 
@@ -385,7 +389,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               style={{ width: `${scanProgress}%` }}
             />
           </div>
-          <span className="text-[11px] font-mono font-bold text-slate-400 mt-2">{scanProgress}% hoàn tất</span>
+          <span className="text-[11px] font-mono font-bold text-slate-400 mt-2">{scanProgress}% {isEn ? 'complete' : 'hoàn tất'}</span>
         </div>
       )}
 
@@ -393,7 +397,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       <div className="flex items-center gap-3 border-b border-slate-800 pb-2.5 mb-3 min-w-0">
         {selectedSignal && (
           <div className="hidden sm:flex items-center gap-2 text-xs font-mono shrink-0">
-            <span className="text-slate-400">Đang xem:</span>
+            <span className="text-slate-400">{isEn ? 'Viewing:' : 'Đang xem:'}</span>
             <CoinLink
               symbol={selectedSignal.symbol}
               onClick={() => onSelectCandidate(selectedSignal.symbol)}
@@ -412,7 +416,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            Trung tâm quyết định
+            {isEn ? 'Decision Center' : 'Trung tâm quyết định'}
           </button>
 
           <button
@@ -424,7 +428,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Target className="w-3.5 h-3.5" />
-            Theo dõi ({trackingItems.filter(item => item.status !== 'CLOSED').length})
+            {isEn ? 'Tracking' : 'Theo dõi'} ({trackingItems.filter(item => item.status !== 'CLOSED').length})
           </button>
 
           <button
@@ -436,7 +440,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            Bảng Ứng Viên ({candidates.length})
+            {isEn ? 'Candidate Ranking' : 'Bảng Ứng Viên'} ({candidates.length})
           </button>
 
           <button
@@ -448,13 +452,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            Thị Trường
+            {isEn ? 'Market Context' : 'Thị Trường'}
           </button>
 
           <span
             aria-hidden="true"
             className="mx-1 h-5 w-px shrink-0 bg-slate-700"
-            title="Khu vực dev và nghiên cứu"
+            title={isEn ? 'Research and development suite' : 'Khu vực dev và nghiên cứu'}
           />
 
           <button
@@ -466,7 +470,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <FlaskConical className="w-3.5 h-3.5" />
-            Quét Multi-Coin
+            {isEn ? 'Multi-Coin Scan' : 'Quét Multi-Coin'}
           </button>
 
           <button
@@ -478,7 +482,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            Kiểm thử lịch sử
+            {isEn ? 'Backtest Validation' : 'Kiểm thử lịch sử'}
           </button>
 
           <button
@@ -490,7 +494,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Lock className="w-3.5 h-3.5" />
-            Kiểm thử dữ liệu mới
+            {isEn ? 'Forward Testing' : 'Kiểm thử dữ liệu mới'}
           </button>
 
           <button
@@ -502,7 +506,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            Kiểm Định AI
+            {isEn ? 'Model Audit' : 'Kiểm Định AI'}
           </button>
 
           <button
@@ -514,7 +518,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            📡 Nhật Ký & Trạng Thái Quét
+            {isEn ? '📡 Telemetry & Logs' : '📡 Nhật Ký & Trạng Thái Quét'}
           </button>
 
           <button
@@ -526,7 +530,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            Lịch sử & dữ liệu
+            {isEn ? 'System Telemetry' : 'Lịch sử & dữ liệu'}
           </button>
         </div>
       </div>
@@ -563,13 +567,19 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         <CoinLink symbol={displayDetail.symbol} onClick={() => onSelectCandidate(displayDetail.symbol)} />
                         <span className="text-xs font-normal text-slate-400">({displayDetail.name})</span>
                         {selectedSignal?.hit === true && (
-                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 rounded">✓ TRÚNG</span>
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 rounded">
+                            {isEn ? '✓ HIT' : '✓ TRÚNG'}
+                          </span>
                         )}
                         {selectedSignal?.hit === false && (
-                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-950 text-red-400 border border-red-800 rounded">✗ TRƯỢT</span>
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-red-950 text-red-400 border border-red-800 rounded">
+                            {isEn ? '✗ MISSED' : '✗ TRƯỢT'}
+                          </span>
                         )}
                         {selectedSignal?.hit === null && (
-                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-slate-900 text-slate-400 border border-slate-700 rounded">⏳ CHỜ</span>
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-slate-900 text-slate-400 border border-slate-700 rounded">
+                            {isEn ? '⏳ PENDING' : '⏳ CHỜ'}
+                          </span>
                         )}
                         {selectedSignal?.telegram_sent && (
                           <span className="px-1.5 py-0.5 text-[9px] font-bold bg-sky-950 text-sky-400 border border-sky-800 rounded">📲 Telegram</span>
@@ -585,11 +595,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <div className="col-span-1 lg:col-span-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 min-w-0">
                     <div className="text-left sm:text-center">
                       <div className="flex items-center justify-start sm:justify-center gap-1 text-[10px] text-slate-400 uppercase leading-tight group/tooltip relative">
-                        XÁC SUẤT XẢ (AI)
+                        {isEn ? 'AI DUMP PROBABILITY' : 'XÁC SUẤT XẢ (AI)'}
                         <Info className="w-3 h-3 text-slate-500 cursor-help" />
                         <span className="hidden group-hover/tooltip:block absolute left-0 sm:left-1/2 sm:-translate-x-1/2 top-full mt-1 w-56 p-2 bg-slate-800 border border-slate-700 rounded-lg text-[10px] normal-case text-slate-300 z-20 shadow-xl">
-                          Xác suất dự đoán giá giảm ≥8% trong vòng 24h kể từ thời điểm tín hiệu.
-                          <br /><span className="text-amber-400">Nguồn: {displayDetail.score_source === 'alert' ? 'cảnh báo đã gửi' : displayDetail.score_source === 'scan' ? 'quét gần nhất' : displayDetail.score_source === 'signal' ? 'tín hiệu RADAR' : '—'}</span>
+                          {isEn ? 'Predicted probability of price dropping ≥8% within 24h of signal.' : 'Xác suất dự đoán giá giảm ≥8% trong vòng 24h kể từ thời điểm tín hiệu.'}
+                          <br /><span className="text-amber-400">{isEn ? 'Source: ' : 'Nguồn: '}{displayDetail.score_source === 'alert' ? (isEn ? 'dispatched alert' : 'cảnh báo đã gửi') : displayDetail.score_source === 'scan' ? (isEn ? 'latest scan' : 'quét gần nhất') : displayDetail.score_source === 'signal' ? (isEn ? 'RADAR signal' : 'tín hiệu RADAR') : '—'}</span>
                         </span>
                       </div>
                       {displayDetail.probability != null ? (
@@ -601,11 +611,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       )}
                       {deepAnalysis && !isDeepAnalyzing && (
                         <div className="text-[10px] text-slate-400">
-                          Chạy lại: <span className={`font-bold font-mono ${
+                          {isEn ? 'Re-run: ' : 'Chạy lại: '}<span className={`font-bold font-mono ${
                             deepProbabilityPct == null ? 'text-slate-500' :
                             deepProbabilityPct >= (deepProbabilityThresholdPct ?? 60) ? 'text-red-400' :
                             deepProbabilityPct >= ((deepProbabilityThresholdPct ?? 60) * 0.75) ? 'text-amber-400' : 'text-emerald-400'
-                          }`}>{deepProbabilityPct != null ? `${deepProbabilityPct.toFixed(1)}/100` : 'Chưa có'}</span>
+                          }`}>{deepProbabilityPct != null ? `${deepProbabilityPct.toFixed(1)}/100` : (isEn ? 'N/A' : 'Chưa có')}</span>
                           {probabilityDelta != null && (
                             <span className={`ml-1 font-mono ${
                               probabilityDelta < -10 ? 'text-emerald-400' :
@@ -614,11 +624,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                               ({probabilityDelta > 0 ? '+' : ''}{probabilityDelta.toFixed(1)})
                             </span>
                           )}
-                          <span className="ml-1 text-slate-500">(cùng xác suất Radar)</span>
+                          <span className="ml-1 text-slate-500">{isEn ? '(radar parity)' : '(cùng xác suất Radar)'}</span>
                         </div>
                       )}
                       {isDeepAnalyzing && (
-                        <div className="text-[10px] text-slate-500 animate-pulse">Đang tính...</div>
+                        <div className="text-[10px] text-slate-500 animate-pulse">{isEn ? 'Computing...' : 'Đang tính...'}</div>
                       )}
                     </div>
                     <div className="flex flex-col items-start gap-1.5">
@@ -629,7 +639,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         displayDetail.risk_level === 'SAFE' ? 'bg-emerald-950 text-emerald-400 border-emerald-800' :
                         'bg-slate-800 text-slate-400 border-slate-700'
                       }`}>
-                        {displayDetail.risk_level ? (riskLabels[displayDetail.risk_level] ?? displayDetail.risk_level) : 'CHƯA CÓ DỮ LIỆU'}
+                        {displayDetail.risk_level ? (riskLabels[displayDetail.risk_level] ?? displayDetail.risk_level) : (isEn ? 'NO DATA' : 'CHƯA CÓ DỮ LIỆU')}
                       </span>
                       <button
                         onClick={() => onRunDeepAnalysis(displayDetail.symbol)}
@@ -637,9 +647,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded-lg text-[10px] flex items-center gap-1 transition shadow-md shadow-amber-500/20"
                       >
                         {isDeepAnalyzing ? (
-                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Đang chạy...</>
+                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {isEn ? 'Running...' : 'Đang chạy...'}</>
                         ) : (
-                          <><Zap className="w-3.5 h-3.5" /> Chạy lại chấm điểm</>
+                          <><Zap className="w-3.5 h-3.5" /> {isEn ? 'Re-score Analysis' : 'Chạy lại chấm điểm'}</>
                         )}
                       </button>
                     </div>
@@ -653,7 +663,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           onClick={() => onPushTelegram(selectedSignal)}
                           className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 transition shadow-lg shadow-sky-500/20"
                         >
-                          <Send className="w-3.5 h-3.5" /> Gửi Telegram
+                          <Send className="w-3.5 h-3.5" /> {isEn ? 'Send Telegram' : 'Gửi Telegram'}
                         </button>
                       )}
                       {selectedSignal && onDismissSignal && (
@@ -661,7 +671,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           onClick={() => onDismissSignal(selectedSignal)}
                           className="px-3 py-1.5 bg-slate-800 hover:bg-red-950 text-slate-300 hover:text-red-400 border border-slate-700 hover:border-red-800 font-bold rounded-lg text-xs flex items-center gap-1.5 transition"
                         >
-                          <XCircle className="w-3.5 h-3.5" /> Ẩn
+                          <XCircle className="w-3.5 h-3.5" /> {isEn ? 'Dismiss' : 'Ẩn'}
                         </button>
                       )}
                       {onAddWatchlist && (
@@ -675,7 +685,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           }`}
                         >
                           {isWatchlistUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSymbolInWatchlist ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          {isSymbolInWatchlist ? 'Đã trong phạm vi quét' : 'Thêm vào phạm vi quét'}
+                          {isSymbolInWatchlist ? (isEn ? 'In Scan Universe' : 'Đã trong phạm vi quét') : (isEn ? 'Add to Scan Universe' : 'Thêm vào phạm vi quét')}
                         </button>
                       )}
                       {onAddTracking && (
@@ -689,12 +699,12 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           }`}
                         >
                           {isWatchlistUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSymbolTracked ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          {isSymbolTracked ? 'Đang theo dõi' : 'Theo dõi diễn biến'}
+                          {isSymbolTracked ? (isEn ? 'Tracking' : 'Đang theo dõi') : (isEn ? 'Track Position' : 'Theo dõi diễn biến')}
                         </button>
                       )}
                     </div>
                     <div className="text-[10px] text-slate-500 font-mono">
-                      Tín hiệu: {displayDetail.signal_timestamp || '—'}
+                      {isEn ? 'Signal:' : 'Tín hiệu:'} {displayDetail.signal_timestamp || '—'}
                     </div>
                   </div>
                 </div>
@@ -706,11 +716,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     <div className="font-mono font-bold text-xs sm:text-sm text-red-400 truncate" title={displayDetail.metrics.oi_change_24h}>{displayDetail.metrics.oi_change_24h}</div>
                   </div>
                   <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                    <div className="text-[9px] text-slate-400 uppercase">Tỷ lệ funding</div>
+                    <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Funding Rate' : 'Tỷ lệ funding'}</div>
                     <div className="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate" title={displayDetail.metrics.funding_rate}>{displayDetail.metrics.funding_rate}</div>
                   </div>
                   <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="text-[9px] text-slate-400 uppercase">Bán chủ động</div>
+                    <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Taker Sell' : 'Bán chủ động'}</div>
                     <div className="font-mono font-bold text-xs sm:text-sm text-slate-200 truncate">{(displayDetail.metrics.taker_sell_ratio * 100).toFixed(1)}%</div>
                   </div>
                   <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
@@ -720,15 +730,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       displayDetail.metrics.rsi_15m > 70 ? 'text-red-400' :
                       displayDetail.metrics.rsi_15m < 30 ? 'text-emerald-400' : 'text-amber-300'
                     }`}>
-                          {displayDetail.metrics.rsi_15m != null ? displayDetail.metrics.rsi_15m.toFixed(1) : 'Chưa có'}
+                      {displayDetail.metrics.rsi_15m != null ? displayDetail.metrics.rsi_15m.toFixed(1) : (isEn ? 'N/A' : 'Chưa có')}
                     </div>
                   </div>
                   <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                    <div className="text-[9px] text-slate-400 uppercase">Biến động khối lượng 24 giờ</div>
+                    <div className="text-[9px] text-slate-400 uppercase">{isEn ? '24h Volume Delta' : 'Biến động khối lượng 24 giờ'}</div>
                     <div className="font-mono font-bold text-xs sm:text-sm text-sky-400 truncate" title={displayDetail.metrics.volume_delta_24h}>{displayDetail.metrics.volume_delta_24h}</div>
                   </div>
                   <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                    <div className="text-[9px] text-slate-400 uppercase">Mục tiêu -8%</div>
+                    <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Target -8%' : 'Mục tiêu -8%'}</div>
                     <div className="font-mono font-bold text-xs sm:text-sm text-red-400 truncate">${displayDetail.target_price.toFixed(6)}</div>
                   </div>
                 </div>
@@ -739,7 +749,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     <div className="bg-slate-900/60 p-2 rounded border border-slate-800 flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-amber-400" />
                       <div>
-                        <div className="text-slate-500 text-[9px] uppercase">Hiệu lực còn</div>
+                        <div className="text-slate-500 text-[9px] uppercase">{isEn ? 'Validity Left' : 'Hiệu lực còn'}</div>
                         <div className="text-amber-300 font-mono font-bold">
                           {Math.floor(selectedSignal.validity_hours_left)}h {Math.floor((selectedSignal.validity_hours_left % 1) * 60)}m
                         </div>
@@ -748,7 +758,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     <div className="bg-slate-900/60 p-2 rounded border border-slate-800 flex items-center gap-2">
                       <Activity className="w-3.5 h-3.5 text-sky-400" />
                       <div>
-                        <div className="text-slate-500 text-[9px] uppercase">Thời gian báo trước TB</div>
+                        <div className="text-slate-500 text-[9px] uppercase">{isEn ? 'Mean Lead Time' : 'Thời gian báo trước TB'}</div>
                         <div className="text-sky-300 font-mono font-bold">
                           {selectedSignal.lead_time_avg_hours > 0 ? `${selectedSignal.lead_time_avg_hours.toFixed(1)}h` : '—'}
                         </div>
@@ -757,11 +767,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     <div className="bg-slate-900/60 p-2 rounded border border-slate-800 flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                       <div>
-                        <div className="text-slate-500 text-[9px] uppercase">Bằng chứng</div>
+                        <div className="text-slate-500 text-[9px] uppercase">{isEn ? 'Track Record' : 'Bằng chứng'}</div>
                         <div className="text-emerald-300 font-mono font-bold">
                           {selectedSignal.evidence_precision != null
                             ? `${(selectedSignal.evidence_precision * 100).toFixed(0)}% (${selectedSignal.evidence_n_judged})`
-                            : 'chưa có'}
+                            : (isEn ? 'N/A' : 'chưa có')}
                         </div>
                       </div>
                     </div>
@@ -775,17 +785,21 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <div className="min-w-0">
                     <h3 className="text-[11px] sm:text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5 min-w-0">
                       <Zap className="w-3.5 h-3.5 text-amber-400" />
-                      BIỂU ĐỒ NẾN {candleInterval} ({displayDetail.symbol})
+                      {isEn ? `CANDLESTICK CHART ${candleInterval} (${displayDetail.symbol})` : `BIỂU ĐỒ NẾN ${candleInterval} (${displayDetail.symbol})`}
                       {displayDetail.chart_source === 'api' && (
                         <span className="ml-2 px-1.5 py-0.5 text-[9px] font-normal normal-case bg-sky-950 text-sky-400 border border-sky-800 rounded">
-                          Dữ liệu trực tiếp
+                          {isEn ? 'Live API' : 'Dữ liệu trực tiếp'}
                         </span>
                       )}
                     </h3>
-                    <p className="text-[11px] text-slate-400">🟢 Xanh: nến tăng | 🔴 Đỏ: nến giảm | Đỏ nét đứt: mục tiêu -8% | Xám: khối lượng</p>
+                    <p className="text-[11px] text-slate-400">
+                      {isEn
+                        ? '🟢 Green: Bullish | 🔴 Red: Bearish | Red dashed: Target -8% | Gray: Volume'
+                        : '🟢 Xanh: nến tăng | 🔴 Đỏ: nến giảm | Đỏ nét đứt: mục tiêu -8% | Xám: khối lượng'}
+                    </p>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    <div className="flex items-center gap-0.5 max-w-full overflow-x-auto rounded-md border border-slate-700/80 bg-slate-900/90 p-0.5 [&::-webkit-scrollbar]:hidden" aria-label="Chọn khung thời gian">
+                    <div className="flex items-center gap-0.5 max-w-full overflow-x-auto rounded-md border border-slate-700/80 bg-slate-900/90 p-0.5 [&::-webkit-scrollbar]:hidden" aria-label={isEn ? 'Select timeframe' : 'Chọn khung thời gian'}>
                       {['1m', '5m', '15m', '1h', '4h', '1d'].map(interval => (
                         <button
                           key={interval}
@@ -804,10 +818,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     </div>
                     <div className="flex items-center gap-2 text-[11px] font-mono">
                       <span className="flex items-center gap-1 text-emerald-400">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Tăng
+                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> {isEn ? 'Up' : 'Tăng'}
                       </span>
                       <span className="flex items-center gap-1 text-red-400">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-red-500" /> Giảm
+                        <span className="w-2.5 h-2.5 rounded-sm bg-red-500" /> {isEn ? 'Down' : 'Giảm'}
                       </span>
                     </div>
                   </div>
@@ -834,7 +848,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   const hasFunding = candleData.some(c => (c.funding || 0) !== 0);
                   return hasOi || hasFunding ? (
                     <div className="mt-3">
-                      <div className="text-[10px] text-slate-400 mb-1 uppercase">Thay đổi OI + tỷ lệ funding</div>
+                      <div className="text-[10px] text-slate-400 mb-1 uppercase">{isEn ? 'OI Delta + Funding Rate' : 'Thay đổi OI + tỷ lệ funding'}</div>
                       <div className="h-24 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart data={candleData}>
@@ -846,15 +860,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                               contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }}
                             />
                             <ReferenceLine yAxisId="funding" y={0} stroke="#334155" strokeDasharray="2 2" />
-                            <Line yAxisId="oi" type="monotone" dataKey="oi" stroke="#06b6d4" strokeWidth={1.5} dot={false} name="Thay đổi OI" />
-                            <Line yAxisId="funding" type="monotone" dataKey="funding" stroke="#f59e0b" strokeWidth={1} dot={false} name="Tỷ lệ funding" />
+                            <Line yAxisId="oi" type="monotone" dataKey="oi" stroke="#06b6d4" strokeWidth={1.5} dot={false} name={isEn ? 'OI Delta' : 'Thay đổi OI'} />
+                            <Line yAxisId="funding" type="monotone" dataKey="funding" stroke="#f59e0b" strokeWidth={1} dot={false} name={isEn ? 'Funding Rate' : 'Tỷ lệ funding'} />
                           </ComposedChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
                   ) : (
                     <div className="mt-3 bg-slate-950 border border-slate-800 rounded-lg p-2 text-[10px] text-slate-500 text-center">
-                      OI / funding chỉ có khi bộ quét đã lưu dữ liệu chuỗi khối cho coin này.
+                      {isEn ? 'OI / funding available once scanner logs on-chain metrics for this symbol.' : 'OI / funding chỉ có khi bộ quét đã lưu dữ liệu chuỗi khối cho coin này.'}
                     </div>
                   );
                 })()}
@@ -863,21 +877,21 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 {candleData.length > 0 && (
                   <div className="mt-2 grid grid-cols-4 gap-2 text-[10px] font-mono">
                     <div className="bg-slate-900 p-1.5 rounded text-center">
-                      <div className="text-slate-500">Cao nhất</div>
+                      <div className="text-slate-500">{isEn ? 'High' : 'Cao nhất'}</div>
                       <div className="text-emerald-400">${Math.max(...candleData.map(c => c.high || c.price)).toFixed(6)}</div>
                     </div>
                     <div className="bg-slate-900 p-1.5 rounded text-center">
-                      <div className="text-slate-500">Thấp nhất</div>
+                      <div className="text-slate-500">{isEn ? 'Low' : 'Thấp nhất'}</div>
                       <div className="text-red-400">${Math.min(...candleData.map(c => c.low || c.price)).toFixed(6)}</div>
                     </div>
                     <div className="bg-slate-900 p-1.5 rounded text-center">
-                      <div className="text-slate-500">Thay đổi</div>
+                      <div className="text-slate-500">{isEn ? 'Change' : 'Thay đổi'}</div>
                       <div className={candleData[candleData.length - 1].close >= candleData[0].close ? 'text-emerald-400' : 'text-red-400'}>
                         {((candleData[candleData.length - 1].close / candleData[0].close - 1) * 100).toFixed(2)}%
                       </div>
                     </div>
                     <div className="bg-slate-900 p-1.5 rounded text-center">
-                      <div className="text-slate-500">Nến</div>
+                      <div className="text-slate-500">{isEn ? 'Candles' : 'Nến'}</div>
                       <div className="text-slate-300">{candleData.length}</div>
                     </div>
                   </div>
@@ -889,13 +903,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="flex items-center justify-between mb-2.5">
                   <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                     <AlertOctagon className="w-3.5 h-3.5 text-amber-400" />
-                    🔮 NGUYÊN NHÂN AI DỰ BÁO XẢ
+                    {isEn ? '🔮 AI RISK DRIVERS (SHAP DECOMPOSITION)' : '🔮 NGUYÊN NHÂN AI DỰ BÁO XẢ'}
                   </h3>
-                  <span className="text-[10px] text-slate-500">{displayDetail.shap_drivers.length} yếu tố</span>
+                  <span className="text-[10px] text-slate-500">{displayDetail.shap_drivers.length} {isEn ? 'factors' : 'yếu tố'}</span>
                 </div>
                 {displayDetail.shap_drivers.length === 0 ? (
                   <p className="text-[11px] text-slate-500 text-center py-3">
-                    Chưa có dữ liệu nguyên nhân. Chạy "Phân tích chuyên sâu" để xem phân rã 8 yếu tố.
+                    {isEn ? 'No risk driver data yet. Run "Re-score Analysis" to see 8-factor decomposition.' : 'Chưa có dữ liệu nguyên nhân. Chạy "Chạy lại chấm điểm" để xem phân rã 8 yếu tố.'}
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -949,8 +963,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="bg-slate-950/90 border border-amber-500/30 rounded-xl p-6 flex items-center justify-center">
                   <div className="flex flex-col items-center gap-3">
                     <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
-                    <p className="text-xs text-amber-400 font-mono">Đang tải dữ liệu và chấm điểm lại theo mô hình của Radar...</p>
-                    <div className="text-[10px] text-slate-500">Đặc trưng mới nhất → mô hình đã đóng băng + bộ hiệu chỉnh → phân rã điểm 8 thành phần → RSI</div>
+                    <p className="text-xs text-amber-400 font-mono">{isEn ? 'Fetching features & re-scoring with Radar frozen model...' : 'Đang tải dữ liệu và chấm điểm lại theo mô hình của Radar...'}</p>
+                    <div className="text-[10px] text-slate-500">{isEn ? 'Fresh features → frozen model + isotonic calibrator → 8-factor score decomposition → RSI' : 'Đặc trưng mới nhất → mô hình đã đóng băng + bộ hiệu chỉnh → phân rã điểm 8 thành phần → RSI'}</div>
                   </div>
                 </div>
               )}
@@ -980,29 +994,29 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           )}
                         </div>
                         <div>
-                          <div className="text-[10px] text-slate-400 uppercase">Khuyến nghị AI</div>
+                          <div className="text-[10px] text-slate-400 uppercase">{isEn ? 'AI Recommendation' : 'Khuyến nghị AI'}</div>
                           <div className={`text-lg font-black ${
                             deepAnalysis.recommendation === 'SHORT_CANDIDATE' ? 'text-red-400' :
                             deepAnalysis.recommendation === 'WATCH' ? 'text-amber-400' : 'text-slate-300'
                           }`}>
-                            {deepAnalysis.recommendation === 'SHORT_CANDIDATE' ? '🟢 ỨNG VIÊN SHORT' :
-                             deepAnalysis.recommendation === 'WATCH' ? '🟡 THEO DÕI' : '⚪ BỎ QUA'}
+                            {deepAnalysis.recommendation === 'SHORT_CANDIDATE' ? (isEn ? '🟢 SHORT CANDIDATE' : '🟢 ỨNG VIÊN SHORT') :
+                             deepAnalysis.recommendation === 'WATCH' ? (isEn ? '🟡 WATCHLIST' : '🟡 THEO DÕI') : (isEn ? '⚪ STANDBY' : '⚪ BỎ QUA')}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-[10px] text-slate-400 uppercase">Xác suất xả (mô hình đã đóng băng)</div>
+                        <div className="text-[10px] text-slate-400 uppercase">{isEn ? 'Dump Probability (Frozen Model)' : 'Xác suất xả (mô hình đã đóng băng)'}</div>
                         <div className="text-3xl font-black text-amber-400 font-mono">
-                          {deepProbabilityPct != null ? deepProbabilityPct.toFixed(1) : 'Chưa có'}
+                          {deepProbabilityPct != null ? deepProbabilityPct.toFixed(1) : (isEn ? 'N/A' : 'Chưa có')}
                           <span className="text-sm text-slate-500">/100</span>
                         </div>
                         <div className="text-[10px] text-slate-500">
                           {deepProbabilityThresholdPct != null
-                            ? `Ngưỡng ${(deepProbabilityThresholdPct).toFixed(1)}`
-                            : 'Không có xác suất từ mô hình đã đóng băng'}
+                            ? (isEn ? `Threshold ${(deepProbabilityThresholdPct).toFixed(1)}` : `Ngưỡng ${(deepProbabilityThresholdPct).toFixed(1)}`)
+                            : (isEn ? 'No probability from frozen model' : 'Không có xác suất từ mô hình đã đóng băng')}
                         </div>
                         <div className="text-[10px] text-slate-500 font-mono">
-                          Quy tắc: {deepAnalysis.heuristic_score.toFixed(1)}/100
+                          {isEn ? 'Heuristic Rule:' : 'Quy tắc:'} {deepAnalysis.heuristic_score.toFixed(1)}/100
                         </div>
                       </div>
                     </div>
@@ -1012,11 +1026,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3.5">
                     <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 mb-2.5">
                       <Activity className="w-3.5 h-3.5 text-amber-400" />
-                      TỔNG QUAN CHỈ SỐ
+                      {isEn ? 'METRIC SUMMARY' : 'TỔNG QUAN CHỈ SỐ'}
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                        <div className="text-[9px] text-slate-400 uppercase">Trạng thái BTC</div>
+                        <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'BTC Regime' : 'Trạng thái BTC'}</div>
                         <div className={`text-sm font-bold ${
                           deepAnalysis.btc_regime === 'FOMO' ? 'text-emerald-400' :
                           deepAnalysis.btc_regime === 'WEAK' ? 'text-red-400' : 'text-slate-300'
@@ -1024,7 +1038,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           {btcRegimeLabels[deepAnalysis.btc_regime] ?? deepAnalysis.btc_regime}
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5">
-                          Điều chỉnh: {deepAnalysis.btc_score_adjustment > 0 ? '+' : ''}{deepAnalysis.btc_score_adjustment}
+                          {isEn ? 'Adjustment:' : 'Điều chỉnh:'} {deepAnalysis.btc_score_adjustment > 0 ? '+' : ''}{deepAnalysis.btc_score_adjustment}
                         </div>
                       </div>
                       <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
@@ -1034,29 +1048,29 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           deepAnalysis.rsi.rsi_14 > 70 ? 'text-red-400' :
                           deepAnalysis.rsi.rsi_14 < 30 ? 'text-emerald-400' : 'text-amber-300'
                         }`}>
-                          {deepAnalysis.rsi.rsi_14 != null ? deepAnalysis.rsi.rsi_14.toFixed(1) : 'Chưa có'}
+                          {deepAnalysis.rsi.rsi_14 != null ? deepAnalysis.rsi.rsi_14.toFixed(1) : (isEn ? 'N/A' : 'Chưa có')}
                         </div>
                         <div className="text-[10px] text-slate-500 mt-0.5">
-                          RSI 7: {deepAnalysis.rsi.rsi_7 != null ? deepAnalysis.rsi.rsi_7.toFixed(1) : 'Chưa có'}
+                          RSI 7: {deepAnalysis.rsi.rsi_7 != null ? deepAnalysis.rsi.rsi_7.toFixed(1) : (isEn ? 'N/A' : 'Chưa có')}
                         </div>
                       </div>
                       <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                        <div className="text-[9px] text-slate-400 uppercase">Đặc trưng</div>
+                        <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Features' : 'Đặc trưng'}</div>
                         <div className={`text-sm font-bold ${deepAnalysis.has_features ? 'text-emerald-400' : 'text-red-400'}`}>
-                          {deepAnalysis.has_features ? '✓ Có sẵn' : '✗ Thiếu'}
+                          {deepAnalysis.has_features ? (isEn ? '✓ Available' : '✓ Có sẵn') : (isEn ? '✗ Missing' : '✗ Thiếu')}
                         </div>
                       </div>
                       <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                        <div className="text-[9px] text-slate-400 uppercase">Mẫu hình tăng nóng</div>
+                        <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Pump Pattern' : 'Mẫu hình tăng nóng'}</div>
                         <div className={`text-sm font-bold ${deepAnalysis.pump_analysis.detected ? 'text-orange-400' : 'text-slate-400'}`}>
-                          {deepAnalysis.pump_analysis.detected ? '🔥 Đã phát hiện' : '— Không có'}
+                          {deepAnalysis.pump_analysis.detected ? (isEn ? '🔥 Detected' : '🔥 Đã phát hiện') : (isEn ? '— None' : '— Không có')}
                         </div>
                       </div>
                     </div>
 
                     {deepAnalysis.btc_explanation && (
                       <div className="mt-2.5 text-[11px] text-slate-300 bg-slate-900/60 p-2.5 rounded border border-slate-800">
-                        <span className="text-amber-400 font-bold">📊 Bối cảnh BTC: </span>
+                        <span className="text-amber-400 font-bold">📊 {isEn ? 'BTC Context: ' : 'Bối cảnh BTC: '}</span>
                         {deepAnalysis.btc_explanation}
                       </div>
                     )}
@@ -1070,25 +1084,25 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       ) : (
                         <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
                       )}
-                      PHÂN TÍCH MẪU HÌNH TĂNG NÓNG
+                      {isEn ? 'PARABOLIC PUMP PATTERN ANALYSIS' : 'PHÂN TÍCH MẪU HÌNH TĂNG NÓNG'}
                     </h3>
                     {deepAnalysis.pump_analysis.detected ? (
                       <>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                           <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                            <div className="text-[9px] text-slate-400 uppercase">Mức tăng nóng</div>
+                            <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Pump Size' : 'Mức tăng nóng'}</div>
                             <div className="text-lg font-black text-orange-400 font-mono">
                               +{deepAnalysis.pump_analysis.pump_pct}%
                             </div>
                           </div>
                           <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                            <div className="text-[9px] text-slate-400 uppercase">Số ngày đến đỉnh</div>
+                            <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Days to Peak' : 'Số ngày đến đỉnh'}</div>
                             <div className="text-lg font-black text-slate-200 font-mono">
-                              {deepAnalysis.pump_analysis.pump_days} ngày
+                              {deepAnalysis.pump_analysis.pump_days} {isEn ? 'days' : 'ngày'}
                             </div>
                           </div>
                           <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                            <div className="text-[9px] text-slate-400 uppercase">Hiện tại so với đỉnh</div>
+                            <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Current vs Peak' : 'Hiện tại so với đỉnh'}</div>
                             <div className={`text-lg font-black font-mono ${
                               deepAnalysis.pump_analysis.current_vs_peak < -20 ? 'text-red-400' : 'text-slate-200'
                             }`}>
@@ -1096,7 +1110,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                             </div>
                           </div>
                           <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                            <div className="text-[9px] text-slate-400 uppercase">Giá đỉnh</div>
+                            <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Peak Price' : 'Giá đỉnh'}</div>
                             <div className="text-sm font-bold text-slate-200 font-mono">
                               ${deepAnalysis.pump_analysis.peak_price.toFixed(4)}
                             </div>
@@ -1104,25 +1118,27 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         </div>
                         {/* Pump visualization bar */}
                         <div className="bg-slate-900 p-3 rounded-lg border border-slate-800">
-                          <div className="text-[10px] text-slate-400 mb-1.5">Vị thế giá hiện tại so với đỉnh tăng nóng</div>
+                          <div className="text-[10px] text-slate-400 mb-1.5">{isEn ? 'Current price position relative to pump peak' : 'Vị thế giá hiện tại so với đỉnh tăng nóng'}</div>
                           <div className="relative h-6 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                             <div
                               className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-600 to-orange-400"
                               style={{ width: `${Math.max(0, Math.min(100, 100 + deepAnalysis.pump_analysis.current_vs_peak))}%` }}
                             />
                             <div className="absolute inset-0 flex items-center justify-center text-[10px] font-mono font-bold text-white">
-                              {deepAnalysis.pump_analysis.current_vs_peak}% từ đỉnh
+                              {deepAnalysis.pump_analysis.current_vs_peak}% {isEn ? 'from peak' : 'từ đỉnh'}
                             </div>
                           </div>
                           <div className="flex justify-between text-[9px] text-slate-500 mt-1">
-                            <span>Đáy (0%)</span>
-                            <span>Đỉnh (+{deepAnalysis.pump_analysis.pump_pct}%)</span>
+                            <span>{isEn ? 'Bottom (0%)' : 'Đáy (0%)'}</span>
+                            <span>{isEn ? 'Peak' : 'Đỉnh'} (+{deepAnalysis.pump_analysis.pump_pct}%)</span>
                           </div>
                         </div>
                       </>
                     ) : (
                       <p className="text-[11px] text-slate-500">
-                        ✓ Không phát hiện mẫu hình tăng nóng (50-300% trong 1-5 ngày) — coin không thuộc nhóm ứng viên bán khống do phân phối.
+                        {isEn
+                          ? '✓ No parabolic pump detected (50-300% in 1-5 days) — symbol not in distribution dump candidate tier.'
+                          : '✓ Không phát hiện mẫu hình tăng nóng (50-300% trong 1-5 ngày) — coin không thuộc nhóm ứng viên bán khống do phân phối.'}
                       </p>
                     )}
                   </div>
@@ -1132,10 +1148,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                         <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
-                        PHÂN RÃ ĐIỂM SỐ 8 THÀNH PHẦN
+                        {isEn ? '8-COMPONENT SCORE DECOMPOSITION' : 'PHÂN RÃ ĐIỂM SỐ 8 THÀNH PHẦN'}
                       </h3>
                       <span className="text-[10px] text-slate-500">
-                        Tổng: {deepAnalysis.components.reduce((sum, c) => sum + c.weighted_score, 0).toFixed(1)} điểm
+                        {isEn ? 'Total:' : 'Tổng:'} {deepAnalysis.components.reduce((sum, c) => sum + c.weighted_score, 0).toFixed(1)} {isEn ? 'pts' : 'điểm'}
                       </span>
                     </div>
                     <div className="space-y-2">
@@ -1155,7 +1171,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                               <div>
                                 <span className="text-xs font-bold text-slate-200">{comp.name}</span>
                                 <span className="text-[9px] text-slate-500 font-mono ml-1.5">
-                                  ({comp.weight}% trọng số)
+                                  ({comp.weight}% {isEn ? 'weight' : 'trọng số'})
                                 </span>
                               </div>
                             </div>
@@ -1188,7 +1204,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             </>
           ) : (
             <div className="p-12 text-center text-slate-500">
-              Vui lòng chọn 1 tín hiệu ở danh sách bên trái để bắt đầu phân tích.
+              {isEn ? 'Please select a signal from the left feed to start analysis.' : 'Vui lòng chọn 1 tín hiệu ở danh sách bên trái để bắt đầu phân tích.'}
             </div>
           )}
         </div>
@@ -1200,19 +1216,19 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           <div className="flex items-center justify-between mb-2.5">
             <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase">
               <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
-              BẢNG XẾP HẠNG ỨNG VIÊN BÁN
+              {isEn ? 'CANDIDATE SELL RANKING' : 'BẢNG XẾP HẠNG ỨNG VIÊN BÁN'}
             </h3>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-400">Sắp xếp theo điểm rủi ro giảm dần</span>
+              <span className="text-[11px] text-slate-400">{isEn ? 'Sorted by risk score descending' : 'Sắp xếp theo điểm rủi ro giảm dần'}</span>
               <button
                 type="button"
                 onClick={() => onRefreshCandidates()}
                 disabled={isRefreshingCandidates}
                 className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-medium text-slate-300 transition hover:border-amber-500/60 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
-                title="Cập nhật bảng theo chỉ số scan mới nhất"
+                title={isEn ? 'Refresh table with latest scan metrics' : 'Cập nhật bảng theo chỉ số scan mới nhất'}
               >
                 <RefreshCw className={`h-3 w-3 ${isRefreshingCandidates ? 'animate-spin' : ''}`} />
-                {isRefreshingCandidates ? 'Đang quét' : 'Cập nhật'}
+                {isRefreshingCandidates ? (isEn ? 'Scanning...' : 'Đang quét') : (isEn ? 'Refresh' : 'Cập nhật')}
               </button>
             </div>
           </div>
@@ -1223,10 +1239,12 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div>
                   <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase text-cyan-300">
                     <FlaskConical className="h-3.5 w-3.5" />
-                    So sánh bộ lọc v1 / v2
+                    {isEn ? 'Filter Comparison v1 / v2' : 'So sánh bộ lọc v1 / v2'}
                   </div>
                   <p className="mt-1 text-[10px] text-slate-400">
-                    V1 vẫn vận hành bảng chính và Telegram. V2 chỉ chạy shadow, ghi nhận kết quả để đánh giá.
+                    {isEn
+                      ? 'V1 powers primary ranking and Telegram alerts. V2 runs shadow mode recording outcomes for statistical validation.'
+                      : 'V1 vẫn vận hành bảng chính và Telegram. V2 chỉ chạy shadow, ghi nhận kết quả để đánh giá.'}
                   </p>
                 </div>
                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
@@ -1234,33 +1252,33 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     ? 'border-amber-700 text-amber-300'
                     : 'border-cyan-800 text-cyan-300'
                 }`}>
-                  {candidateComparison.stale ? 'Dữ liệu cũ' : 'Shadow an toàn'}
+                  {candidateComparison.stale ? (isEn ? 'Stale Data' : 'Dữ liệu cũ') : (isEn ? 'Safe Shadow' : 'Shadow an toàn')}
                 </span>
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
                 <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-2">
-                  <div className="text-[9px] uppercase text-slate-500">Universe chung</div>
+                  <div className="text-[9px] uppercase text-slate-500">{isEn ? 'Shared Universe' : 'Universe chung'}</div>
                   <div className="mt-0.5 text-lg font-bold text-white">{candidateComparison.universe_count ?? 0}</div>
                 </div>
                 {([
                   {
                     group: 'champion' as const,
-                    label: 'V1 chọn',
+                    label: isEn ? 'V1 Selected' : 'V1 chọn',
                     count: candidateComparison.champion_selected ?? 0,
                     border: 'border-amber-900/60',
                     color: 'text-amber-300',
                   },
                   {
                     group: 'challenger' as const,
-                    label: 'V2 chọn',
+                    label: isEn ? 'V2 Selected' : 'V2 chọn',
                     count: candidateComparison.challenger_selected ?? 0,
                     border: 'border-violet-900/60',
                     color: 'text-violet-300',
                   },
                   {
                     group: 'overlap' as const,
-                    label: 'Cả hai chọn',
+                    label: isEn ? 'Both Selected' : 'Cả hai chọn',
                     count: candidateComparison.overlap ?? 0,
                     border: 'border-emerald-900/60',
                     color: 'text-emerald-300',
@@ -1274,7 +1292,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       onClick={() => setExpandedComparisonGroup(isExpanded ? null : card.group)}
                       aria-expanded={isExpanded}
                       className={`rounded-lg border ${card.border} bg-slate-950/70 p-2 text-left transition hover:bg-slate-900 focus:outline-none focus:ring-1 focus:ring-cyan-400 ${isExpanded ? 'ring-1 ring-cyan-400' : ''}`}
-                      title={`Bấm để xem mã coin ${card.label.toLowerCase()}`}
+                      title={isEn ? `Click to view ${card.label.toLowerCase()} symbols` : `Bấm để xem mã coin ${card.label.toLowerCase()}`}
                     >
                       <div className="text-[9px] uppercase text-slate-500">{card.label}</div>
                       <div className={`mt-0.5 text-lg font-bold ${card.color}`}>{card.count}</div>
@@ -1282,7 +1300,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   );
                 })}
                 <div className="rounded-lg border border-slate-800 bg-slate-950/70 p-2">
-                  <div className="text-[9px] uppercase text-slate-500">Cả hai loại</div>
+                  <div className="text-[9px] uppercase text-slate-500">{isEn ? 'Both Excluded' : 'Cả hai loại'}</div>
                   <div className="mt-0.5 text-lg font-bold text-slate-300">{candidateComparison.neither ?? 0}</div>
                 </div>
               </div>
@@ -1291,15 +1309,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="mt-2 rounded-lg border border-cyan-900/70 bg-slate-950/60 px-2.5 py-2">
                   <div className="mb-1.5 flex items-center justify-between gap-2 text-[10px]">
                     <span className="font-semibold text-slate-300">
-                      Mã coin {expandedComparisonLabel} ({expandedComparisonItems.length})
+                      {isEn ? `Symbols in ${expandedComparisonLabel}` : `Mã coin ${expandedComparisonLabel}`} ({expandedComparisonItems.length})
                     </span>
                     <button
                       type="button"
                       onClick={() => setExpandedComparisonGroup(null)}
                       className="text-slate-500 transition hover:text-slate-300"
-                      aria-label="Đóng danh sách mã coin"
+                      aria-label={isEn ? 'Close symbol list' : 'Đóng danh sách mã coin'}
                     >
-                      Đóng
+                      {isEn ? 'Close' : 'Đóng'}
                     </button>
                   </div>
                   {expandedComparisonItems.length > 0 ? (
@@ -1313,38 +1331,40 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       ))}
                     </div>
                   ) : (
-                    <div className="text-[10px] text-slate-500">Chưa có dữ liệu mã coin cho nhóm này.</div>
+                    <div className="text-[10px] text-slate-500">{isEn ? 'No symbol data for this segment.' : 'Chưa có dữ liệu mã coin cho nhóm này.'}</div>
                   )}
                 </div>
               )}
 
               <div className="mt-2 grid gap-2 lg:grid-cols-2">
                 <div className="rounded-lg border border-slate-800 bg-slate-950/50 px-2.5 py-2 text-[10px] text-slate-400">
-                  <div className="mb-1 font-semibold text-slate-300">Kết quả đã đủ 24 giờ</div>
+                  <div className="mb-1 font-semibold text-slate-300">{isEn ? 'Resolved 24h Outcomes' : 'Kết quả đã đủ 24 giờ'}</div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     <span>V1 P@10: <b className="text-amber-300">{metricPercent(championMetrics?.precision_at_10)}</b></span>
                     <span>V2 P@10: <b className="text-violet-300">{metricPercent(challengerMetrics?.precision_at_10)}</b></span>
                     <span>V1 recall: <b className="text-amber-300">{metricPercent(championMetrics?.event_recall)}</b></span>
                     <span>V2 recall: <b className="text-violet-300">{metricPercent(challengerMetrics?.event_recall)}</b></span>
-                    <span>Sự kiện: <b className="text-white">{comparisonReport?.promotion.positive_events ?? 0}</b></span>
+                    <span>{isEn ? 'Events:' : 'Sự kiện:'} <b className="text-white">{comparisonReport?.promotion.positive_events ?? 0}</b></span>
                   </div>
                   <div className="mt-1 text-[9px] text-slate-500">
                     Δ P@10 v2−v1: {deltaWithCi(comparisonReport?.paired_deltas?.precision_at_10)} · Δ recall: {deltaWithCi(comparisonReport?.paired_deltas?.event_recall)}
                   </div>
                 </div>
                 <div className="rounded-lg border border-slate-800 bg-slate-950/50 px-2.5 py-2 text-[10px] text-slate-400">
-                  <div className="mb-1 font-semibold text-slate-300">Quyết định</div>
+                  <div className="mb-1 font-semibold text-slate-300">{isEn ? 'Promotion Gate' : 'Quyết định'}</div>
                   {comparisonReport?.promotion.ready
                     ? (comparisonReport.promotion.passed
-                      ? 'Đạt các gate kỹ thuật, vẫn phải được duyệt thủ công trước khi thay v1.'
-                      : 'Đã đủ mẫu nhưng v2 chưa vượt đầy đủ các gate so với v1.')
-                    : `Tiếp tục shadow: cần ít nhất ${comparisonReport?.promotion.min_resolved ?? 200} kết quả, ${comparisonReport?.promotion.min_positive_events ?? 50} sự kiện dương và ${comparisonReport?.promotion.min_evaluation_days ?? 14} ngày.`}
+                      ? (isEn ? 'Passed technical gates, manual human review required before promoting to V1.' : 'Đạt các gate kỹ thuật, vẫn phải được duyệt thủ công trước khi thay v1.')
+                      : (isEn ? 'Sample size reached but V2 did not surpass all statistical promotion gates over V1.' : 'Đã đủ mẫu nhưng v2 chưa vượt đầy đủ các gate so với v1.'))
+                    : (isEn
+                      ? `Continue shadow: requires at least ${comparisonReport?.promotion.min_resolved ?? 200} resolved outcomes, ${comparisonReport?.promotion.min_positive_events ?? 50} positive events, and ${comparisonReport?.promotion.min_evaluation_days ?? 14} days.`
+                      : `Tiếp tục shadow: cần ít nhất ${comparisonReport?.promotion.min_resolved ?? 200} kết quả, ${comparisonReport?.promotion.min_positive_events ?? 50} sự kiện dương và ${comparisonReport?.promotion.min_evaluation_days ?? 14} ngày.`)}
                 </div>
               </div>
 
               {(candidateComparison.selected?.challenger_only?.length ?? 0) > 0 && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500">
-                  <span>V2 phát hiện thêm:</span>
+                  <span>{isEn ? 'V2 Unique Discoveries:' : 'V2 phát hiện thêm:'}</span>
                   {candidateComparison.selected?.challenger_only?.slice(0, 8).map((item) => (
                     <CoinLink key={item.symbol} symbol={item.symbol} onClick={() => onSelectCandidate(item.symbol)} />
                   ))}
@@ -1355,7 +1375,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
           {candidates.some((candidate) => candidate.is_stale) && (
             <div className="mb-2 rounded-lg border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-[11px] text-amber-300">
-              Đang hiển thị dữ liệu quét gần nhất vì bộ quét chưa phát hành chu kỳ mới. Bấm “Cập nhật” để quét lại; không dùng các dòng này như giá thị trường hiện tại.
+              {isEn
+                ? 'Displaying latest scan cache because scanner has not completed a new cycle yet. Click "Refresh" to re-scan; do not treat these rows as live mark prices.'
+                : 'Đang hiển thị dữ liệu quét gần nhất vì bộ quét chưa phát hành chu kỳ mới. Bấm “Cập nhật” để quét lại; không dùng các dòng này như giá thị trường hiện tại.'}
             </div>
           )}
 
@@ -1363,15 +1385,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             <table className="w-full min-w-[900px] text-left text-xs text-slate-300">
               <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-mono text-[10px] uppercase">
                 <tr>
-                  <th className="p-2.5">Mã coin</th>
-                  <th className="p-2.5">Giá hợp đồng</th>
-                  <th className="p-2.5">Điểm phân phối</th>
-                  <th className="p-2.5">Mức rủi ro</th>
+                  <th className="p-2.5">{isEn ? 'Symbol' : 'Mã coin'}</th>
+                  <th className="p-2.5">{isEn ? 'Mark Price' : 'Giá hợp đồng'}</th>
+                  <th className="p-2.5">{isEn ? 'Risk Score' : 'Điểm phân phối'}</th>
+                  <th className="p-2.5">{isEn ? 'Risk Tier' : 'Mức rủi ro'}</th>
                   <th className="p-2.5">OI 24h</th>
-                  <th className="p-2.5">Tỷ lệ funding</th>
-                  <th className="p-2.5">Bán chủ động</th>
-                  <th className="p-2.5">Khối lượng 24 giờ</th>
-                  <th className="p-2.5 text-right">Thao Tác</th>
+                  <th className="p-2.5">{isEn ? 'Funding Rate' : 'Tỷ lệ funding'}</th>
+                  <th className="p-2.5">{isEn ? 'Taker Sell' : 'Bán chủ động'}</th>
+                  <th className="p-2.5">{isEn ? '24h Volume' : 'Khối lượng 24 giờ'}</th>
+                  <th className="p-2.5 text-right">{isEn ? 'Action' : 'Thao Tác'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
@@ -1379,8 +1401,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <tr>
                     <td colSpan={9} className="p-8 text-center font-sans text-slate-500">
                       {isRefreshingCandidates
-                        ? 'Bộ quét đang xử lý dữ liệu, vui lòng chờ chu kỳ hiện tại hoàn tất.'
-                        : 'Chưa có dữ liệu scan mới. Bấm “Cập nhật” để khởi động một chu kỳ quét.'}
+                        ? (isEn ? 'Scanner is processing data pipeline, please wait for current cycle to complete.' : 'Bộ quét đang xử lý dữ liệu, vui lòng chờ chu kỳ hiện tại hoàn tất.')
+                        : (isEn ? 'No candidate scan data yet. Click "Refresh" to trigger a scan cycle.' : 'Chưa có dữ liệu scan mới. Bấm “Cập nhật” để khởi động một chu kỳ quét.')}
                     </td>
                   </tr>
                 )}
@@ -1395,7 +1417,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     </td>
                     <td className="p-2.5 text-amber-400 font-bold">${c.price}</td>
                     <td className="p-2.5">
-                      <span className="font-bold text-red-400">{c.score.toFixed(1)} điểm</span>
+                      <span className="font-bold text-red-400">{c.score.toFixed(1)} {isEn ? 'pts' : 'điểm'}</span>
                     </td>
                     <td className="p-2.5">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1420,7 +1442,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-[10px] font-sans font-medium flex items-center gap-1 ml-auto transition"
                       >
                         <Eye className="w-3 h-3" />
-                        Xem chi tiết
+                        {isEn ? 'Inspect' : 'Xem chi tiết'}
                       </button>
                     </td>
                   </tr>
@@ -1455,9 +1477,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <div>
                 <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase">
                   <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                  BẢNG ĐIỀU KHIỂN & TRẠNG THÁI BỘ QUÉT 24/7
+                  {isEn ? '24/7 SCANNER CONTROL & TELEMETRY' : 'BẢNG ĐIỀU KHIỂN & TRẠNG THÁI BỘ QUÉT 24/7'}
                 </h3>
-                <p className="text-[11px] text-slate-400">Theo dõi thời gian quét, độ trễ API Binance và nhật ký thực thi ngầm</p>
+                <p className="text-[11px] text-slate-400">
+                  {isEn ? 'Monitor scan cadence, Binance API latency, and background worker logs' : 'Theo dõi thời gian quét, độ trễ API Binance và nhật ký thực thi ngầm'}
+                </p>
               </div>
 
               <button
@@ -1466,7 +1490,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
-                {isTriggeringScan ? 'Đang quét 48 coin...' : '⚡ Chạy quét ngay'}
+                {isTriggeringScan ? (isEn ? 'Scanning 48 pairs...' : 'Đang quét 48 coin...') : (isEn ? '⚡ Run Manual Scan' : '⚡ Chạy quét ngay')}
               </button>
             </div>
 
@@ -1480,59 +1504,67 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             {/* Live Metrics Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">TRẠNG THÁI BỘ MÁY</div>
+                <div className="text-[10px] text-slate-400">{isEn ? 'ENGINE STATUS' : 'TRẠNG THÁI BỘ MÁY'}</div>
                 <div className="text-sm font-bold text-emerald-400 font-mono mt-0.5 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                   {scannerStatusLabels[telemetryData.scanner_engine_status] ?? telemetryData.scanner_engine_status}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Chu kỳ: {telemetryData.poll_interval_minutes} phút/lần</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  {isEn ? `Interval: ${telemetryData.poll_interval_minutes}m/cycle` : `Chu kỳ: ${telemetryData.poll_interval_minutes} phút/lần`}
+                </div>
               </div>
 
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">LẦN QUẾT TIẾP THEO</div>
+                <div className="text-[10px] text-slate-400">{isEn ? 'NEXT SCAN IN' : 'LẦN QUẾT TIẾP THEO'}</div>
                 <div className="text-sm font-bold text-amber-400 font-mono mt-0.5 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
                   {telemetryData.next_scan_in_seconds != null
-                    ? `~${Math.floor(telemetryData.next_scan_in_seconds / 60)} phút ${telemetryData.next_scan_in_seconds % 60} giây`
-                    : 'Chưa có'}
+                    ? (isEn
+                      ? `~${Math.floor(telemetryData.next_scan_in_seconds / 60)}m ${telemetryData.next_scan_in_seconds % 60}s`
+                      : `~${Math.floor(telemetryData.next_scan_in_seconds / 60)} phút ${telemetryData.next_scan_in_seconds % 60} giây`)
+                    : (isEn ? 'N/A' : 'Chưa có')}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Chế độ: {scanModeLabels[telemetryData.active_scan_mode] ?? telemetryData.active_scan_mode.toUpperCase()}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  {isEn ? 'Mode: ' : 'Chế độ: '}{scanModeLabels[telemetryData.active_scan_mode] ?? telemetryData.active_scan_mode.toUpperCase()}
+                </div>
               </div>
 
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">ĐỘ TRỄ API BINANCE</div>
+                <div className="text-[10px] text-slate-400">{isEn ? 'BINANCE API LATENCY' : 'ĐỘ TRỄ API BINANCE'}</div>
                 <div className="text-sm font-bold text-sky-400 font-mono mt-0.5">
                   {telemetryData.average_api_latency_ms} ms
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Hợp đồng tương lai Binance USD-M</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">{isEn ? 'Binance USD-M Futures' : 'Hợp đồng tương lai Binance USD-M'}</div>
               </div>
 
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">COIN ĐÃ QUẾT / CẢNH BÁO</div>
+                <div className="text-[10px] text-slate-400">{isEn ? 'SCANNED PAIRS / ALERTS' : 'COIN ĐÃ QUẾT / CẢNH BÁO'}</div>
                 <div className="text-sm font-bold text-slate-100 font-mono mt-0.5">
-                  {telemetryData.scanned_pairs_count} cặp / <span className="text-red-400">{telemetryData.signals_triggered_count} cảnh báo</span>
+                  {telemetryData.scanned_pairs_count} {isEn ? 'pairs' : 'cặp'} / <span className="text-red-400">{telemetryData.signals_triggered_count} {isEn ? 'alerts' : 'cảnh báo'}</span>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Bỏ qua: {telemetryData.stablecoins_excluded_count ?? 'Chưa có'} đồng ổn định</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  {isEn ? `Excluded: ${telemetryData.stablecoins_excluded_count ?? 'N/A'} stablecoins` : `Bỏ qua: ${telemetryData.stablecoins_excluded_count ?? 'Chưa có'} đồng ổn định`}
+                </div>
               </div>
             </div>
 
             {/* Model + Runtime Info */}
             <div className="mt-2.5 grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
               <div className="bg-slate-900/60 px-2 py-1.5 rounded border border-slate-800">
-                <span className="text-slate-500">Mô hình: </span>
-                <span className="text-cyan-400">{telemetryData.model_id || 'Chưa có'}</span>
+                <span className="text-slate-500">{isEn ? 'Model: ' : 'Mô hình: '}</span>
+                <span className="text-cyan-400">{telemetryData.model_id || (isEn ? 'N/A' : 'Chưa có')}</span>
               </div>
               <div className="bg-slate-900/60 px-2 py-1.5 rounded border border-slate-800">
-                <span className="text-slate-500">Chu kỳ: </span>
-                <span className="text-amber-400">{telemetryData.cycle ?? 'Chưa có'}</span>
+                <span className="text-slate-500">{isEn ? 'Cycle: ' : 'Chu kỳ: '}</span>
+                <span className="text-amber-400">{telemetryData.cycle ?? (isEn ? 'N/A' : 'Chưa có')}</span>
               </div>
               <div className="bg-slate-900/60 px-2 py-1.5 rounded border border-slate-800">
-                <span className="text-slate-500">Số coin tối đa: </span>
-                <span className="text-slate-300">{telemetryData.max_coins ?? 'Chưa có'}</span>
+                <span className="text-slate-500">{isEn ? 'Max Coins: ' : 'Số coin tối đa: '}</span>
+                <span className="text-slate-300">{telemetryData.max_coins ?? (isEn ? 'N/A' : 'Chưa có')}</span>
               </div>
               <div className="bg-slate-900/60 px-2 py-1.5 rounded border border-slate-800">
-                <span className="text-slate-500">Lần quét cuối: </span>
-                <span className="text-slate-300">{telemetryData.last_scan_timestamp ? formatSystemTime(telemetryData.last_scan_timestamp) : 'Chưa có'}</span>
+                <span className="text-slate-500">{isEn ? 'Last Scan: ' : 'Lần quét cuối: '}</span>
+                <span className="text-slate-300">{telemetryData.last_scan_timestamp ? formatSystemTime(telemetryData.last_scan_timestamp) : (isEn ? 'N/A' : 'Chưa có')}</span>
               </div>
             </div>
           </div>
@@ -1541,19 +1573,19 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
             <h4 className="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5 uppercase font-mono">
               <Terminal className="w-3.5 h-3.5 text-amber-400" />
-              NHẬT KÝ THỰC THI THỜI GIAN THỰC — {telemetryData.logs.length} bản ghi
+              {isEn ? `REAL-TIME EXECUTION LOGS — ${telemetryData.logs.length} records` : `NHẬT KÝ THỰC THI THỜI GIAN THỰC — ${telemetryData.logs.length} bản ghi`}
             </h4>
 
             <div className="overflow-x-auto border border-slate-800 rounded-lg max-h-72 overflow-y-auto">
               <table className="w-full text-left text-xs font-mono">
                 <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 text-[10px] uppercase sticky top-0">
                   <tr>
-                    <th className="p-2">Thời Gian</th>
-                    <th className="p-2">Mã coin</th>
-                    <th className="p-2">Bước xử lý</th>
-                    <th className="p-2">Trạng thái</th>
-                    <th className="p-2">Thời lượng (ms)</th>
-                    <th className="p-2">Chi Tiết</th>
+                    <th className="p-2">{isEn ? 'Timestamp' : 'Thời Gian'}</th>
+                    <th className="p-2">{isEn ? 'Symbol' : 'Mã coin'}</th>
+                    <th className="p-2">{isEn ? 'Pipeline Step' : 'Bước xử lý'}</th>
+                    <th className="p-2">{isEn ? 'Status' : 'Trạng thái'}</th>
+                    <th className="p-2">{isEn ? 'Duration (ms)' : 'Thời lượng (ms)'}</th>
+                    <th className="p-2">{isEn ? 'Details' : 'Chi Tiết'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-[11px]">
@@ -1579,9 +1611,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   {telemetryData.logs.length === 0 && (
                     <tr>
                       <td colSpan={6} className="p-6 text-center text-slate-500 text-[11px]">
-                        Chưa có nhật ký nào. Bộ quét đang chạy — nhật ký sẽ xuất hiện sau lần quét tiếp theo.
+                        {isEn
+                          ? 'No logs recorded yet. Scanner is running — logs will appear after next scan cycle.'
+                          : 'Chưa có nhật ký nào. Bộ quét đang chạy — nhật ký sẽ xuất hiện sau lần quét tiếp theo.'}
                         <br />
-                    <span className="text-[10px]">Lần quét cuối: {telemetryData.last_scan_timestamp || 'Chưa có'}</span>
+                        <span className="text-[10px]">{isEn ? 'Last scan: ' : 'Lần quét cuối: '}{telemetryData.last_scan_timestamp || (isEn ? 'N/A' : 'Chưa có')}</span>
                       </td>
                     </tr>
                   )}
@@ -1594,18 +1628,18 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
             <h4 className="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5 uppercase font-mono">
               <Send className="w-3.5 h-3.5 text-sky-400" />
-              LỊCH SỬ GỬI CẢNH BÁO TELEGRAM
+              {isEn ? 'TELEGRAM DISPATCH AUDIT LOGS' : 'LỊCH SỬ GỬI CẢNH BÁO TELEGRAM'}
             </h4>
 
             <div className="overflow-x-auto border border-slate-800 rounded-lg">
               <table className="w-full text-left text-xs font-mono">
                 <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 text-[10px] uppercase">
                   <tr>
-                    <th className="p-2">Thời Gian</th>
-                    <th className="p-2">Mã coin</th>
-                    <th className="p-2">Điểm rủi ro</th>
-                    <th className="p-2">Kênh nhận Telegram</th>
-                    <th className="p-2">Kết quả</th>
+                    <th className="p-2">{isEn ? 'Timestamp' : 'Thời Gian'}</th>
+                    <th className="p-2">{isEn ? 'Symbol' : 'Mã coin'}</th>
+                    <th className="p-2">{isEn ? 'Risk Score' : 'Điểm rủi ro'}</th>
+                    <th className="p-2">{isEn ? 'Telegram Channel' : 'Kênh nhận Telegram'}</th>
+                    <th className="p-2">{isEn ? 'Outcome' : 'Kết quả'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-[11px]">
@@ -1631,55 +1665,56 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
             <h3 className="text-xs font-bold text-slate-200 mb-2.5 flex items-center gap-1.5 uppercase">
               <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-              KẾT QUẢ KIỂM ĐỊNH MÔ HÌNH AI & MA TRẬN KIỂM THỬ LỊCH SỬ
+              {isEn ? 'AI MODEL AUDIT REPORT & EMPIRICAL VALIDATION MATRIX' : 'KẾT QUẢ KIỂM ĐỊNH MÔ HÌNH AI & MA TRẬN KIỂM THỬ LỊCH SỬ'}
             </h3>
 
             {!auditData.has_enough_data && (
               <div className="mb-3 px-3 py-2 rounded-lg bg-amber-950/50 border border-amber-800 text-[11px] text-amber-300">
-                ⚠️ Chưa đủ dữ liệu kiểm chứng ({auditData.sample_size} tín hiệu đã chấm kết quả, cần tối thiểu 10).
-                Các chỉ số dưới đây sẽ dần chính xác hơn khi bộ quét tự động chấm kết quả mỗi chu kỳ.
+                {isEn
+                  ? `⚠️ Insufficient verification data (${auditData.sample_size} signals judged, minimum 10 required). Metrics will become progressively calibrated as the daemon grades outcomes automatically.`
+                  : `⚠️ Chưa đủ dữ liệu kiểm chứng (${auditData.sample_size} tín hiệu đã chấm kết quả, cần tối thiểu 10). Các chỉ số dưới đây sẽ dần chính xác hơn khi bộ quét tự động chấm kết quả mỗi chu kỳ.`}
               </div>
             )}
 
             {/* Metrics KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-3">
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">ĐỘ CHÍNH XÁC THỰC TẾ</div>
+                <div className="text-[10px] text-slate-400">{isEn ? 'EMPIRICAL PRECISION' : 'ĐỘ CHÍNH XÁC THỰC TẾ'}</div>
                 <div className="text-xl font-black text-emerald-400 font-mono mt-0.5">
-                  {auditData.metrics.precision !== null ? `${(auditData.metrics.precision * 100).toFixed(1)}%` : 'Chưa có'}
+                  {auditData.metrics.precision !== null ? `${(auditData.metrics.precision * 100).toFixed(1)}%` : (isEn ? 'N/A' : 'Chưa có')}
                 </div>
                 <div className="text-[10px] text-emerald-400 font-bold mt-0.5">
-                  {auditData.metrics.precision_uplift ?? `dựa trên ${auditData.sample_size} tín hiệu đã kiểm chứng`}
+                  {auditData.metrics.precision_uplift ?? (isEn ? `based on ${auditData.sample_size} evaluated signals` : `dựa trên ${auditData.sample_size} tín hiệu đã kiểm chứng`)}
                 </div>
               </div>
 
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">TỶ LỆ BẮT</div>
+                <div className="text-[10px] text-slate-400">{isEn ? 'EVENT RECALL' : 'TỶ LỆ BẮT'}</div>
                 <div className="text-xl font-black text-amber-400 font-mono mt-0.5">
-                  {auditData.metrics.recall !== null ? `${(auditData.metrics.recall * 100).toFixed(1)}%` : 'Chưa có'}
+                  {auditData.metrics.recall !== null ? `${(auditData.metrics.recall * 100).toFixed(1)}%` : (isEn ? 'N/A' : 'Chưa có')}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  Cần gán nhãn toàn bộ coin đã quét (chưa triển khai)
+                  {isEn ? 'Requires full universe continuous labeling' : 'Cần gán nhãn toàn bộ coin đã quét (chưa triển khai)'}
                 </div>
               </div>
 
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">ĐIỂM BRIER (ĐỘ TIN CẬY)</div>
+                <div className="text-[10px] text-slate-400">{isEn ? 'BRIER SCORE (CALIBRATION)' : 'ĐIỂM BRIER (ĐỘ TIN CẬY)'}</div>
                 <div className="text-xl font-black text-sky-400 font-mono mt-0.5">
-                  {auditData.metrics.brier_score ?? 'Chưa có'}
+                  {auditData.metrics.brier_score ?? (isEn ? 'N/A' : 'Chưa có')}
                 </div>
                 <div className="text-[10px] text-sky-400 mt-0.5">
-                  Số càng thấp càng tốt
+                  {isEn ? 'Lower is better (0.0 = perfect)' : 'Số càng thấp càng tốt'}
                 </div>
               </div>
 
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">THỜI GIAN BÁO TRƯỚC TRUNG BÌNH</div>
+                <div className="text-[10px] text-slate-400">{isEn ? 'MEAN LEAD TIME' : 'THỜI GIAN BÁO TRƯỚC TRUNG BÌNH'}</div>
                 <div className="text-xl font-black text-amber-300 font-mono mt-0.5">
-                  {auditData.lead_time.mean_hours !== null ? `~${auditData.lead_time.mean_hours} giờ` : 'Chưa có'}
+                  {auditData.lead_time.mean_hours !== null ? `~${auditData.lead_time.mean_hours} ${isEn ? 'hours' : 'giờ'}` : (isEn ? 'N/A' : 'Chưa có')}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  Cảnh báo trước khi xả
+                  {isEn ? 'Advance notice before dump' : 'Cảnh báo trước khi xả'}
                 </div>
               </div>
             </div>
@@ -1687,14 +1722,14 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             {/* Precision by risk level */}
             {Object.keys(auditData.precision_by_risk_level).length > 0 && (
               <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 mb-3 text-xs">
-                <h4 className="font-bold text-slate-200 mb-2">ĐỘ CHÍNH XÁC THEO MỨC RỦI RO (30 NGÀY GẦN NHẤT)</h4>
+                <h4 className="font-bold text-slate-200 mb-2">{isEn ? 'PRECISION BY RISK TIER (LAST 30 DAYS)' : 'ĐỘ CHÍNH XÁC THEO MỨC RỦI RO (30 NGÀY GẦN NHẤT)'}</h4>
                 <div className="space-y-1.5">
                   {Object.entries(auditData.precision_by_risk_level).map(([level, s]) => (
                     <div key={level} className="flex items-center justify-between">
                       <span className="text-slate-300">{riskLabels[level] ?? level}</span>
                       <span className="font-mono text-slate-200">
-                        {s.precision !== null ? `${(s.precision * 100).toFixed(1)}%` : 'Chưa có'}
-                        <span className="text-slate-500"> ({s.n_hit}/{s.n_judged} đã đánh giá)</span>
+                        {s.precision !== null ? `${(s.precision * 100).toFixed(1)}%` : (isEn ? 'N/A' : 'Chưa có')}
+                        <span className="text-slate-500"> ({s.n_hit}/{s.n_judged} {isEn ? 'judged' : 'đã đánh giá'})</span>
                       </span>
                     </div>
                   ))}
@@ -1704,27 +1739,27 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
             {/* Validation Integrity Checks */}
             <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 space-y-2 text-xs">
-              <h4 className="font-bold text-slate-200 mb-1">TIÊU CHUẨN KIỂM ĐỊNH TOÁN HỌC & CHỐNG RÒ RỈ DỮ LIỆU</h4>
+              <h4 className="font-bold text-slate-200 mb-1">{isEn ? 'MATHEMATICAL VALIDATION & ANTI-LEAKAGE CERTIFICATION' : 'TIÊU CHUẨN KIỂM ĐỊNH TOÁN HỌC & CHỐNG RÒ RỈ DỮ LIỆU'}</h4>
               <div className="flex items-center justify-between border-b border-slate-800/60 pb-1.5">
-                <span className="text-slate-300">Trạng thái kiểm định theo thời gian:</span>
+                <span className="text-slate-300">{isEn ? 'Walk-forward temporal validation:' : 'Trạng thái kiểm định theo thời gian:'}</span>
                 <span className="px-2 py-0.5 bg-emerald-950 border border-emerald-800 text-emerald-400 font-bold rounded">
                   {auditStatusLabels[String(auditData.validation_checks.walk_forward_status).toUpperCase()] ?? auditData.validation_checks.walk_forward_status}
                 </span>
               </div>
               <div className="flex items-center justify-between border-b border-slate-800/60 pb-1.5">
-                <span className="text-slate-300">Kiểm tra rò rỉ dữ liệu (nhìn trước):</span>
+                <span className="text-slate-300">{isEn ? 'Lookahead leakage verification:' : 'Kiểm tra rò rỉ dữ liệu (nhìn trước):'}</span>
                 <span className="px-2 py-0.5 bg-emerald-950 border border-emerald-800 text-emerald-400 font-bold rounded">
                   {auditStatusLabels[String(auditData.validation_checks.leakage_test).toUpperCase()] ?? auditData.validation_checks.leakage_test}
                 </span>
               </div>
               <div className="flex items-center justify-between border-b border-slate-800/60 pb-1.5">
-                <span className="text-slate-300">Thời gian cách ly (chống chồng lấp):</span>
+                <span className="text-slate-300">{isEn ? 'Embargo / purging window:' : 'Thời gian cách ly (chống chồng lấp):'}</span>
                 <span className="font-mono text-amber-400 font-bold">{auditData.validation_checks.embargo_period}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-300">Xác minh đúng thời điểm:</span>
+                <span className="text-slate-300">{isEn ? 'Point-in-time causality verification:' : 'Xác minh đúng thời điểm:'}</span>
                 <span className="text-emerald-400 font-bold flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> ĐÃ XÁC MINH (100% hợp lệ)
+                  <CheckCircle2 className="w-3.5 h-3.5" /> {isEn ? 'VERIFIED (100% causal)' : 'ĐÃ XÁC MINH (100% hợp lệ)'}
                 </span>
               </div>
             </div>
@@ -1741,60 +1776,62 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                   <BarChart3 className="w-3.5 h-3.5 text-amber-400" />
-                  TỔNG QUAN NIÊM YẾT TRÊN BINANCE
+                  {isEn ? 'BINANCE LISTING OVERVIEW' : 'TỔNG QUAN NIÊM YẾT TRÊN BINANCE'}
                 </h4>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-slate-400">
-                    {marketData.binance_listing.date ? `Cập nhật: ${marketData.binance_listing.date}` : '—'}
+                    {marketData.binance_listing.date ? `${isEn ? 'Updated: ' : 'Cập nhật: '}${marketData.binance_listing.date}` : '—'}
                   </span>
                   <button
                     onClick={handleRefreshListing}
                     disabled={listingRefreshing}
                     className="px-2 py-0.5 text-[10px] text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/10 disabled:opacity-50"
                   >
-                    {listingRefreshing ? '⏳ Đang quét...' : '🔄 Quét lại'}
+                    {listingRefreshing ? (isEn ? '⏳ Scanning...' : '⏳ Đang quét...') : (isEn ? '🔄 Re-scan' : '🔄 Quét lại')}
                   </button>
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 mb-2.5">
-                Giao ngay: api.binance.com · USD-M: fapi · COIN-M: dapi. Quét 1 lần/ngày (Hà Nội, UTC+7).
+                {isEn
+                  ? 'Spot: api.binance.com · USD-M: fapi · COIN-M: dapi. Scanned once daily (UTC+7).'
+                  : 'Giao ngay: api.binance.com · USD-M: fapi · COIN-M: dapi. Quét 1 lần/ngày (Hà Nội, UTC+7).'}
               </p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                 <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                  <div className="text-[9px] text-slate-400 uppercase">Giao ngay</div>
+                  <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Spot' : 'Giao ngay'}</div>
                   <div className="text-lg font-black text-amber-400 font-mono">{marketData.binance_listing.spot_coins.toLocaleString()}</div>
-                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.spot_usdt_pairs} cặp USDT</div>
+                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.spot_usdt_pairs} {isEn ? 'USDT pairs' : 'cặp USDT'}</div>
                 </div>
                 <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
                   <div className="text-[9px] text-slate-400 uppercase">USD-M</div>
                   <div className="text-lg font-black text-sky-400 font-mono">{marketData.binance_listing.usdm_coins.toLocaleString()}</div>
-                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.usdm_usdt_pairs} cặp USDT</div>
+                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.usdm_usdt_pairs} {isEn ? 'USDT pairs' : 'cặp USDT'}</div>
                 </div>
                 <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
                   <div className="text-[9px] text-slate-400 uppercase">COIN-M</div>
                   <div className="text-lg font-black text-purple-400 font-mono">{marketData.binance_listing.coinm_coins.toLocaleString()}</div>
-                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.coinm_symbols} mã</div>
+                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.coinm_symbols} {isEn ? 'symbols' : 'mã'}</div>
                 </div>
                 <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                  <div className="text-[9px] text-slate-400 uppercase">Tổng hợp đồng</div>
+                  <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Total Futures' : 'Tổng hợp đồng'}</div>
                   <div className="text-lg font-black text-emerald-400 font-mono">{marketData.binance_listing.futures_coins.toLocaleString()}</div>
-                  <div className="text-[9px] text-slate-500">≥1 thị trường hợp đồng</div>
+                  <div className="text-[9px] text-slate-500">{isEn ? '≥1 futures market' : '≥1 thị trường hợp đồng'}</div>
                 </div>
                 <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
-                  <div className="text-[9px] text-slate-400 uppercase">Tổng Binance</div>
+                  <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Total Binance' : 'Tổng Binance'}</div>
                   <div className="text-lg font-black text-white font-mono">{marketData.binance_listing.all_coins.toLocaleString()}</div>
-                  <div className="text-[9px] text-slate-500">Giao ngay ∪ hợp đồng</div>
+                  <div className="text-[9px] text-slate-500">{isEn ? 'Spot ∪ Futures' : 'Giao ngay ∪ hợp đồng'}</div>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2 mt-2">
                 <div className="text-[10px] text-slate-400 text-center bg-slate-900/60 p-1.5 rounded">
-                  Chỉ giao ngay: <span className="text-amber-400 font-bold">{marketData.binance_listing.spot_only}</span>
+                  {isEn ? 'Spot only: ' : 'Chỉ giao ngay: '}<span className="text-amber-400 font-bold">{marketData.binance_listing.spot_only}</span>
                 </div>
                 <div className="text-[10px] text-slate-400 text-center bg-slate-900/60 p-1.5 rounded">
-                  Chỉ hợp đồng: <span className="text-sky-400 font-bold">{marketData.binance_listing.futures_only}</span>
+                  {isEn ? 'Futures only: ' : 'Chỉ hợp đồng: '}<span className="text-sky-400 font-bold">{marketData.binance_listing.futures_only}</span>
                 </div>
                 <div className="text-[10px] text-slate-400 text-center bg-slate-900/60 p-1.5 rounded">
-                  Cả hai: <span className="text-emerald-400 font-bold">{marketData.binance_listing.both}</span>
+                  {isEn ? 'Both: ' : 'Cả hai: '}<span className="text-emerald-400 font-bold">{marketData.binance_listing.both}</span>
                 </div>
               </div>
             </div>
@@ -1805,7 +1842,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
               <h4 className="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5">
                 <LineChartIcon className="w-3.5 h-3.5 text-amber-400" />
-                LỊCH SỬ SỐ LƯỢNG COIN THEO NGÀY ({marketData.binance_listing_history.length} ngày)
+                {isEn ? `DAILY LISTING COUNT HISTORY (${marketData.binance_listing_history.length} days)` : `LỊCH SỬ SỐ LƯỢNG COIN THEO NGÀY (${marketData.binance_listing_history.length} ngày)`}
               </h4>
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={marketData.binance_listing_history}>
@@ -1816,23 +1853,23 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 11 }}
                     labelStyle={{ color: '#94a3b8' }}
                   />
-                  <Line type="monotone" dataKey="spot_coins" stroke="#f59e0b" strokeWidth={2} dot={false} name="Giao ngay" />
+                  <Line type="monotone" dataKey="spot_coins" stroke="#f59e0b" strokeWidth={2} dot={false} name={isEn ? 'Spot' : 'Giao ngay'} />
                   <Line type="monotone" dataKey="usdm_coins" stroke="#0ea5e9" strokeWidth={2} dot={false} name="USD-M" />
                   <Line type="monotone" dataKey="coinm_coins" stroke="#a855f7" strokeWidth={2} dot={false} name="COIN-M" />
-                  <Line type="monotone" dataKey="futures_coins" stroke="#10b981" strokeWidth={2} dot={false} name="Tổng hợp đồng" />
-                  <Line type="monotone" dataKey="all_coins" stroke="#e2e8f0" strokeWidth={2} dot={false} name="Tổng Binance" />
+                  <Line type="monotone" dataKey="futures_coins" stroke="#10b981" strokeWidth={2} dot={false} name={isEn ? 'Total Futures' : 'Tổng hợp đồng'} />
+                  <Line type="monotone" dataKey="all_coins" stroke="#e2e8f0" strokeWidth={2} dot={false} name={isEn ? 'Total Binance' : 'Tổng Binance'} />
                 </LineChart>
               </ResponsiveContainer>
               <div className="overflow-x-auto mt-2 max-h-[200px] overflow-y-auto">
                 <table className="w-full text-left text-[10px] text-slate-300 font-mono">
                   <thead className="text-slate-400 uppercase border-b border-slate-800 sticky top-0 bg-slate-950">
                     <tr>
-                      <th className="p-1.5">Ngày</th>
-                      <th className="p-1.5">Giao ngay</th>
+                      <th className="p-1.5">{isEn ? 'Date' : 'Ngày'}</th>
+                      <th className="p-1.5">{isEn ? 'Spot' : 'Giao ngay'}</th>
                       <th className="p-1.5">USD-M</th>
                       <th className="p-1.5">COIN-M</th>
-                      <th className="p-1.5">Hợp đồng</th>
-                      <th className="p-1.5">Tổng</th>
+                      <th className="p-1.5">{isEn ? 'Futures' : 'Hợp đồng'}</th>
+                      <th className="p-1.5">{isEn ? 'Total' : 'Tổng'}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
@@ -1855,27 +1892,27 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           {/* Market Index Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
-              <div className="text-[10px] text-slate-400">CẶP ĐƯỢC NIÊM YẾT TRÊN BINANCE</div>
+              <div className="text-[10px] text-slate-400">{isEn ? 'BINANCE LISTED FUTURES PAIRS' : 'CẶP ĐƯỢC NIÊM YẾT TRÊN BINANCE'}</div>
               <div className="text-2xl font-black text-amber-400 font-mono mt-0.5">
                 {marketData.binance_listing_total}
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Tổng số coin hợp đồng theo dõi</p>
+              <p className="text-[11px] text-slate-400 mt-1">{isEn ? 'Total tracked futures instruments' : 'Tổng số coin hợp đồng theo dõi'}</p>
             </div>
 
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
-              <div className="text-[10px] text-slate-400">CẶP BIẾN ĐỘNG CAO ĐƯỢC QUÉT</div>
+              <div className="text-[10px] text-slate-400">{isEn ? 'HIGH VOLATILITY SCAN UNIVERSE' : 'CẶP BIẾN ĐỘNG CAO ĐƯỢC QUÉT'}</div>
               <div className="text-2xl font-black text-sky-400 font-mono mt-0.5">
                 {marketData.scanned_volatile_top}
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Top coin có biến động lớn được AI quét 24/7</p>
+              <p className="text-[11px] text-slate-400 mt-1">{isEn ? 'Top high-volatility pairs monitored 24/7' : 'Top coin có biến động lớn được AI quét 24/7'}</p>
             </div>
 
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
-              <div className="text-[10px] text-slate-400">CHỈ SỐ PHÂN PHỐI THỊ TRƯỜNG</div>
+              <div className="text-[10px] text-slate-400">{isEn ? 'MARKET DISTRIBUTION INDEX' : 'CHỈ SỐ PHÂN PHỐI THỊ TRƯỜNG'}</div>
               <div className="text-2xl font-black text-red-400 font-mono mt-0.5">
                 {marketData.distribution_index} / 100
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Áp lực xả chung toàn thị trường</p>
+              <p className="text-[11px] text-slate-400 mt-1">{isEn ? 'Aggregate market-wide dump pressure' : 'Áp lực xả chung toàn thị trường'}</p>
             </div>
           </div>
 
@@ -1883,7 +1920,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             {/* Top Gainers */}
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
               <h4 className="text-xs font-bold text-emerald-400 mb-2 flex items-center gap-1">
-                <ArrowUpRight className="w-3.5 h-3.5" /> TOP TĂNG GIÁ MẠNH NHẤT ({marketData.top_gainers.length})
+                <ArrowUpRight className="w-3.5 h-3.5" /> {isEn ? `TOP GAINERS (${marketData.top_gainers.length})` : `TOP TĂNG GIÁ MẠNH NHẤT (${marketData.top_gainers.length})`}
               </h4>
               <div className="space-y-1 text-xs max-h-[420px] overflow-y-auto pr-1">
                 {marketData.top_gainers.map((g, i) => (
@@ -1907,7 +1944,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             {/* Top Losers */}
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
               <h4 className="text-xs font-bold text-red-400 mb-2 flex items-center gap-1">
-                <ArrowDownRight className="w-3.5 h-3.5" /> TOP GIẢM GIÁ MẠNH NHẤT ({marketData.top_losers.length})
+                <ArrowDownRight className="w-3.5 h-3.5" /> {isEn ? `TOP LOSERS (${marketData.top_losers.length})` : `TOP GIẢM GIÁ MẠNH NHẤT (${marketData.top_losers.length})`}
               </h4>
               <div className="space-y-1 text-xs max-h-[420px] overflow-y-auto pr-1">
                 {marketData.top_losers.map((l, i) => (
@@ -1938,19 +1975,19 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
                 <LineChartIcon className="w-4 h-4 text-amber-400" />
-                Biểu đồ giá 72h — {chartCoin}
+                {isEn ? `72h Price Chart — ${chartCoin}` : `Biểu đồ giá 72h — ${chartCoin}`}
               </h3>
               <button onClick={() => setChartCoin(null)} className="p-1 text-slate-400 hover:text-slate-200 text-xs">
-                ✕ Đóng
+                {isEn ? '✕ Close' : '✕ Đóng'}
               </button>
             </div>
             {chartLoading ? (
               <div className="h-[300px] flex items-center justify-center text-xs text-slate-400">
-                Đang tải nến từ Binance...
+                {isEn ? 'Loading candles from Binance...' : 'Đang tải nến từ Binance...'}
               </div>
             ) : chartData.length === 0 ? (
               <div className="h-[300px] flex items-center justify-center text-xs text-slate-500">
-                Không tải được dữ liệu biểu đồ.
+                {isEn ? 'Could not load chart data.' : 'Không tải được dữ liệu biểu đồ.'}
               </div>
             ) : (
               <>
@@ -1968,26 +2005,26 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     <Tooltip
                       contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 11 }}
                       labelStyle={{ color: '#94a3b8' }}
-                      formatter={(v: any) => [`$${Number(v).toFixed(6)}`, 'Giá đóng cửa']}
+                      formatter={(v: any) => [`$${Number(v).toFixed(6)}`, isEn ? 'Close Price' : 'Giá đóng cửa']}
                     />
                     <Area type="monotone" dataKey="close" stroke="#f59e0b" strokeWidth={2} fill="url(#priceGradient)" />
                   </AreaChart>
                 </ResponsiveContainer>
                 <div className="mt-2 grid grid-cols-4 gap-2 text-[10px]">
                   <div className="bg-slate-950 p-1.5 rounded text-center">
-                    <div className="text-slate-500">Giá hiện tại</div>
+                    <div className="text-slate-500">{isEn ? 'Current Price' : 'Giá hiện tại'}</div>
                     <div className="text-amber-400 font-mono font-bold">${chartData[chartData.length - 1]?.close.toFixed(6)}</div>
                   </div>
                   <div className="bg-slate-950 p-1.5 rounded text-center">
-                    <div className="text-slate-500">Cao nhất 72 giờ</div>
+                    <div className="text-slate-500">{isEn ? '72h High' : 'Cao nhất 72 giờ'}</div>
                     <div className="text-emerald-400 font-mono">${Math.max(...chartData.map(k => k.high)).toFixed(6)}</div>
                   </div>
                   <div className="bg-slate-950 p-1.5 rounded text-center">
-                    <div className="text-slate-500">Thấp nhất 72 giờ</div>
+                    <div className="text-slate-500">{isEn ? '72h Low' : 'Thấp nhất 72 giờ'}</div>
                     <div className="text-red-400 font-mono">${Math.min(...chartData.map(k => k.low)).toFixed(6)}</div>
                   </div>
                   <div className="bg-slate-950 p-1.5 rounded text-center">
-                    <div className="text-slate-500">Thay đổi</div>
+                    <div className="text-slate-500">{isEn ? 'Change' : 'Thay đổi'}</div>
                     <div className={`font-mono font-bold ${chartData[chartData.length - 1]?.close >= chartData[0]?.close ? 'text-emerald-400' : 'text-red-400'}`}>
                       {((chartData[chartData.length - 1]?.close / chartData[0]?.close - 1) * 100).toFixed(2)}%
                     </div>

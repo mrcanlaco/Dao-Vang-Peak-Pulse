@@ -9,8 +9,12 @@ import type {
   SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, SystemStatus, FilterTag, SignalSort, TelegramFilter, AutomationSettings, ScannerTelemetry, WatchlistPreset, DeepAnalysis, ModelChoice, ModelsData, TrackingWatchlistItem
 } from './types';
 import { parseSystemDate } from './utils/time';
+import { useTranslation } from './i18n/LanguageContext';
 
 export function App() {
+  const { language } = useTranslation();
+  const isEn = language === 'en';
+
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [signals, setSignals] = useState<SignalItem[]>([]);
   const [candidates, setCandidates] = useState<CandidateCoin[]>([]);
@@ -84,8 +88,6 @@ export function App() {
     }
   };
 
-  // Keep the existing feed on screen when the live API is briefly busy with
-  // DuckDB writes. A transient 503 must not look like "no signals".
   const loadSignals = async (): Promise<SignalItem[] | null> => {
     try {
       const res = await fetch('/api/signals', { cache: 'no-store' });
@@ -98,83 +100,44 @@ export function App() {
   };
 
   const loadTrackingWatchlist = async (): Promise<TrackingWatchlistItem[]> => {
-    const res = await fetch(`/api/tracking-watchlist?_=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Tải danh sách theo dõi thất bại (HTTP ${res.status})`);
-    const payload = await res.json() as unknown;
-    return Array.isArray(payload) ? payload as TrackingWatchlistItem[] : [];
+    try {
+      const res = await fetch('/api/tracking-watchlist', { cache: 'no-store' });
+      if (!res.ok) return [];
+      const payload = await res.json() as unknown;
+      return Array.isArray(payload) ? payload as TrackingWatchlistItem[] : [];
+    } catch {
+      return [];
+    }
   };
 
   const refreshTrackingWatchlist = async () => {
     setIsTrackingLoading(true);
     try {
       setTrackingItems(await loadTrackingWatchlist());
-    } catch (err) {
-      console.error('Tracking watchlist load error:', err);
     } finally {
       setIsTrackingLoading(false);
     }
   };
 
   const loadCandidates = async (): Promise<CandidateCoin[]> => {
-    const res = await fetch(`/api/candidates?_=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`Tải danh sách ứng viên thất bại (HTTP ${res.status})`);
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    const payload = await fetchJsonOr<{ candidates?: CandidateCoin[] } | null>('/api/candidates', null);
+    return Array.isArray(payload?.candidates) ? payload!.candidates! : [];
   };
 
   const loadCandidateComparison = async (): Promise<CandidateFilterComparison | null> => {
-    return fetchJsonOr<CandidateFilterComparison | null>(
-      `/api/candidate-filter-comparison?_=${Date.now()}`,
-      null,
-    );
+    return await fetchJsonOr<CandidateFilterComparison | null>('/api/candidates/comparison', null);
   };
 
   const handleRefreshCandidates = async () => {
-    if (isRefreshingCandidates) return;
     setIsRefreshingCandidates(true);
-
-    const previousLatestScan = candidates.reduce((latest, candidate) => {
-      const scanTime = parseSystemDate(candidate.scan_time)?.getTime() ?? 0;
-      return Math.max(latest, Number.isFinite(scanTime) ? scanTime : 0);
-    }, 0);
-
     try {
-      const triggerRes = await fetch('/api/scanner/trigger', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!triggerRes.ok) throw new Error(`Không thể kích hoạt bộ quét (HTTP ${triggerRes.status})`);
-      const triggerPayload = await triggerRes.json().catch(() => ({})) as {
-        status?: string;
-        started_at?: string | null;
-      };
-      const coalescedCycleStartedAt = triggerPayload.status === 'in_progress'
-        ? (parseSystemDate(triggerPayload.started_at)?.getTime() ?? 0)
-        : 0;
-
-      let latestCandidates = await loadCandidates();
-      // The trigger is asynchronous: wait for the daemon to finish writing a
-      // newer cycle before replacing the ranking values in the table.
-      // A real live cycle currently takes roughly 1-2 minutes. Keep the
-      // button in its honest pending state long enough to observe the atomic
-      // candidate snapshot instead of declaring success after only 12s.
-      for (let attempt = 0; attempt < 90; attempt += 1) {
-        const latestScan = latestCandidates.reduce((latest, candidate) => {
-          const scanTime = parseSystemDate(candidate.scan_time)?.getTime() ?? 0;
-          return Math.max(latest, Number.isFinite(scanTime) ? scanTime : 0);
-        }, 0);
-        // When the API coalesces this click into a cycle already in progress,
-        // a candidate snapshot written after that cycle started is the honest
-        // completion condition even if the tab already held the same rows.
-        if (
-          latestScan > previousLatestScan
-          || (coalescedCycleStartedAt > 0 && latestScan >= coalescedCycleStartedAt)
-        ) break;
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        latestCandidates = await loadCandidates();
+      const res = await fetch('/api/candidates/refresh', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (Array.isArray(data?.candidates)) {
+        setCandidates(data.candidates);
+      } else {
+        setCandidates(await loadCandidates());
       }
-
-      setCandidates(latestCandidates);
       setCandidateComparison(await loadCandidateComparison());
     } catch (err) {
       console.error('Candidate ranking refresh error:', err);
@@ -186,25 +149,25 @@ export function App() {
   // Fetch initial data & telemetry with progress tracking
   const fetchData = async () => {
     setIsRefreshing(true);
-    setLoadingStep('Đang khởi tạo kết nối máy chủ...');
+    setLoadingStep(isEn ? 'Initializing server connection...' : 'Đang khởi tạo kết nối máy chủ...');
     try {
-      setLoadingStep('1/8: Tải trạng thái hệ thống...');
+      setLoadingStep(isEn ? '1/8: Loading system status...' : '1/8: Tải trạng thái hệ thống...');
       const statusRes = await fetchJsonOr<SystemStatus | null>('/api/status', null);
 
-      setLoadingStep('2/8: Tải tín hiệu cảnh báo Radar...');
+      setLoadingStep(isEn ? '2/8: Loading Radar alert signals...' : '2/8: Tải tín hiệu cảnh báo Radar...');
       const sigRes = await loadSignals();
 
-      setLoadingStep('3/8: Tải danh sách ứng viên xả...');
+      setLoadingStep(isEn ? '3/8: Loading dump candidates...' : '3/8: Tải danh sách ứng viên xả...');
       const candRes = await loadCandidates().catch(() => []);
       const comparisonRes = await loadCandidateComparison();
 
-      setLoadingStep('4/8: Tải dữ liệu kiểm định mô hình...');
+      setLoadingStep(isEn ? '4/8: Loading model audit & validation...' : '4/8: Tải dữ liệu kiểm định mô hình...');
       const auditRes = await fetchJsonOr<ModelAudit | null>('/api/audit', null);
 
-      setLoadingStep('5/8: Tải thông tin thị trường...');
+      setLoadingStep(isEn ? '5/8: Loading market context...' : '5/8: Tải thông tin thị trường...');
       const mktRes = await fetchJsonOr<MarketOverviewData | null>('/api/market', null);
 
-      setLoadingStep('6/8: Tải danh sách theo dõi và giá Binance 24 giờ...');
+      setLoadingStep(isEn ? '6/8: Loading watchlist & tracking items...' : '6/8: Tải danh sách theo dõi và giá Binance 24 giờ...');
       const wlRes = await fetchJsonOr<{
         active_scan_mode?: string;
         active_scan_modes?: string[];
@@ -214,10 +177,10 @@ export function App() {
 
       const trackingRes = await fetchJsonOr<TrackingWatchlistItem[]>('/api/tracking-watchlist', []);
 
-      setLoadingStep('7/8: Tải thông số giám sát bộ quét...');
+      setLoadingStep(isEn ? '7/8: Loading scanner telemetry...' : '7/8: Tải thông số giám sát bộ quét...');
       const telemRes = await fetchJsonOr<ScannerTelemetry | null>('/api/scanner/telemetry', null);
 
-      setLoadingStep('8/8: Tải danh sách mô hình...');
+      setLoadingStep(isEn ? '8/8: Loading AI models...' : '8/8: Tải danh sách mô hình...');
       const modelsRes = await fetchJsonOr<ModelsData | null>('/api/models', null);
 
       setStatus(statusRes);
@@ -345,7 +308,7 @@ export function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: sig.symbol, probability: sig.probability })
       });
-      setTelegramSentSuccess(`Đã gửi cảnh báo ${sig.symbol} sang Telegram!`);
+      setTelegramSentSuccess(isEn ? `Dispatched ${sig.symbol} alert to Telegram!` : `Đã gửi cảnh báo ${sig.symbol} sang Telegram!`);
       setTimeout(() => setTelegramSentSuccess(null), 4000);
     } catch (err) {
       console.error("Telegram push error:", err);
@@ -374,7 +337,7 @@ export function App() {
         headers: { 'Content-Type': 'application/json' }
       });
       const data = await res.json();
-      setScanTriggeredSuccess(data.message || "Đã kích hoạt lượt quét tức thời!");
+      setScanTriggeredSuccess(data.message || (isEn ? 'Manual scan triggered!' : 'Đã kích hoạt lượt quét tức thời!'));
       fetchData();
       setTimeout(() => setScanTriggeredSuccess(null), 5000);
     } catch (err) {
@@ -399,19 +362,19 @@ export function App() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `Watchlist HTTP ${res.status}`);
       if (!Array.isArray(data.manual_watchlist)) {
-        throw new Error('Máy chủ trả về danh sách theo dõi không hợp lệ');
+        throw new Error(isEn ? 'Server returned invalid watchlist' : 'Máy chủ trả về danh sách theo dõi không hợp lệ');
       }
 
       setManualWatchlist(data.manual_watchlist);
       setWatchlistFeedback({
         type: 'success',
         message: action === 'add'
-          ? `${normalizedSymbol} đã được thêm vào danh sách theo dõi.`
-          : `${normalizedSymbol} đã được xóa khỏi danh sách theo dõi.`,
+          ? (isEn ? `${normalizedSymbol} added to scan universe.` : `${normalizedSymbol} đã được thêm vào danh sách theo dõi.`)
+          : (isEn ? `${normalizedSymbol} removed from scan universe.` : `${normalizedSymbol} đã được xóa khỏi danh sách theo dõi.`),
       });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không thể cập nhật danh sách theo dõi.';
+      const message = err instanceof Error ? err.message : (isEn ? 'Failed to update scan universe.' : 'Không thể cập nhật danh sách theo dõi.');
       setWatchlistFeedback({ type: 'error', message });
       console.error(`Error ${action}ing coin:`, err);
       return false;
@@ -443,12 +406,12 @@ export function App() {
       });
       setWatchlistFeedback({
         type: 'success',
-        message: `${symbol} đã được thêm vào danh sách theo dõi tiến trình.`,
+        message: isEn ? `${symbol} added to position tracking.` : `${symbol} đã được thêm vào danh sách theo dõi tiến trình.`,
       });
       setActiveTab('WATCHLIST');
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không thể thêm coin vào danh sách theo dõi.';
+      const message = err instanceof Error ? err.message : (isEn ? 'Failed to add symbol to tracking.' : 'Không thể thêm coin vào danh sách theo dõi.');
       setWatchlistFeedback({ type: 'error', message });
       console.error('Tracking watchlist add error:', err);
       return false;
@@ -493,10 +456,10 @@ export function App() {
       const data = await res.json().catch(() => ({})) as { item?: TrackingWatchlistItem; error?: string };
       if (!res.ok || !data.item) throw new Error(data.error || `Tracking HTTP ${res.status}`);
       setTrackingItems(prev => prev.map(item => item.id === id ? data.item! : item));
-      setWatchlistFeedback({ type: 'success', message: 'Đã cập nhật trạng thái theo dõi.' });
+      setWatchlistFeedback({ type: 'success', message: isEn ? 'Tracking status updated.' : 'Đã cập nhật trạng thái theo dõi.' });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không thể cập nhật theo dõi.';
+      const message = err instanceof Error ? err.message : (isEn ? 'Failed to update tracking.' : 'Không thể cập nhật theo dõi.');
       setWatchlistFeedback({ type: 'error', message });
       console.error('Tracking watchlist update error:', err);
       return false;
@@ -511,10 +474,10 @@ export function App() {
       const res = await fetch(`/api/tracking-watchlist/${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`Tracking HTTP ${res.status}`);
       setTrackingItems(prev => prev.filter(item => item.id !== id));
-      setWatchlistFeedback({ type: 'success', message: 'Đã xóa mục theo dõi.' });
+      setWatchlistFeedback({ type: 'success', message: isEn ? 'Tracking item removed.' : 'Đã xóa mục theo dõi.' });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không thể xóa mục theo dõi.';
+      const message = err instanceof Error ? err.message : (isEn ? 'Failed to remove tracking item.' : 'Không thể xóa mục theo dõi.');
       setWatchlistFeedback({ type: 'error', message });
       console.error('Tracking watchlist remove error:', err);
       return false;
@@ -538,7 +501,7 @@ export function App() {
         body: JSON.stringify({ modes: normalizedModes })
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `Không thể đổi chế độ quét (HTTP ${res.status})`);
+      if (!res.ok) throw new Error(data.error || (isEn ? `Failed to change scan mode (HTTP ${res.status})` : `Không thể đổi chế độ quét (HTTP ${res.status})`));
       const confirmedModes = Array.isArray(data.active_scan_modes) && data.active_scan_modes.length > 0
         ? data.active_scan_modes
         : normalizedModes;
@@ -546,12 +509,14 @@ export function App() {
       const mode = confirmedModes.join(' + ');
       setWatchlistFeedback({
         type: 'success',
-        message: `Đã chọn chế độ ${String(data.active_scan_mode || mode).toUpperCase()}. Bộ quét sẽ áp dụng ở chu kỳ kế tiếp.`,
+        message: isEn
+          ? `Selected mode ${String(data.active_scan_mode || mode).toUpperCase()}. Scanner will apply in next cycle.`
+          : `Đã chọn chế độ ${String(data.active_scan_mode || mode).toUpperCase()}. Bộ quét sẽ áp dụng ở chu kỳ kế tiếp.`,
       });
       return true;
     } catch (err) {
       setActiveScanModes(previousModes);
-      const message = err instanceof Error ? err.message : 'Không thể đổi chế độ quét.';
+      const message = err instanceof Error ? err.message : (isEn ? 'Failed to change scan mode.' : 'Không thể đổi chế độ quét.');
       setWatchlistFeedback({ type: 'error', message });
       console.error("Error updating scan mode:", err);
       return false;
@@ -629,7 +594,7 @@ export function App() {
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
             <span className="font-semibold">{loadingStep}</span>
           </div>
-          <span className="text-slate-400">Đang tải dữ liệu thời gian thực từ hệ thống...</span>
+          <span className="text-slate-400">{isEn ? 'Loading real-time system telemetry...' : 'Đang tải dữ liệu thời gian thực từ hệ thống...'}</span>
         </div>
       )}
 

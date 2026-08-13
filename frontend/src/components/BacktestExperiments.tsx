@@ -3,31 +3,35 @@ import type { ExperimentsData, ExperimentSummary } from '../types';
 import { Search, FlaskConical, CheckCircle2, AlertTriangle, XCircle, Eye, X } from 'lucide-react';
 import { CoinLink } from './CoinLink';
 import { formatSystemDateTime } from '../utils/time';
-
-const STATUS_META: Record<ExperimentSummary['status'], { label: string; color: string; icon: React.ReactNode }> = {
-  edge: { label: 'AI tốt hơn mốc', color: 'text-emerald-400 bg-emerald-950 border-emerald-800', icon: <CheckCircle2 className="w-3 h-3" /> },
-  promising: { label: 'Có triển vọng', color: 'text-amber-400 bg-amber-950 border-amber-800', icon: <AlertTriangle className="w-3 h-3" /> },
-  no_edge: { label: 'Chưa tốt hơn mốc', color: 'text-yellow-400 bg-yellow-950 border-yellow-800', icon: <AlertTriangle className="w-3 h-3" /> },
-  leak: { label: 'Rò rỉ dữ liệu', color: 'text-red-400 bg-red-950 border-red-800', icon: <XCircle className="w-3 h-3" /> },
-  no_data: { label: 'Thiếu dữ liệu', color: 'text-slate-400 bg-slate-900 border-slate-700', icon: <AlertTriangle className="w-3 h-3" /> },
-  failed: { label: 'AI thất bại', color: 'text-red-500 bg-red-950 border-red-900', icon: <XCircle className="w-3 h-3" /> },
-};
-
-const resultStatusLabel = (status?: string) => {
-  const labels: Record<string, string> = {
-    passed: 'ĐẠT',
-    failed: 'KHÔNG ĐẠT',
-    success: 'THÀNH CÔNG',
-    error: 'LỖI',
-  };
-  return status ? (labels[status.toLowerCase()] || status) : 'CHƯA CÓ';
-};
+import { useTranslation } from '../i18n/LanguageContext';
 
 interface BacktestExperimentsProps {
   onSelectCoin?: (symbol: string) => void;
 }
 
 export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSelectCoin }) => {
+  const { language } = useTranslation();
+  const isEn = language === 'en';
+
+  const STATUS_META: Record<ExperimentSummary['status'], { label: string; color: string; icon: React.ReactNode }> = {
+    edge: { label: isEn ? 'AI Edge Verified' : 'AI tốt hơn mốc', color: 'text-emerald-400 bg-emerald-950 border-emerald-800', icon: <CheckCircle2 className="w-3 h-3" /> },
+    promising: { label: isEn ? 'Promising' : 'Có triển vọng', color: 'text-amber-400 bg-amber-950 border-amber-800', icon: <AlertTriangle className="w-3 h-3" /> },
+    no_edge: { label: isEn ? 'No AI Edge' : 'Chưa tốt hơn mốc', color: 'text-yellow-400 bg-yellow-950 border-yellow-800', icon: <AlertTriangle className="w-3 h-3" /> },
+    leak: { label: isEn ? 'Data Leakage' : 'Rò rỉ dữ liệu', color: 'text-red-400 bg-red-950 border-red-800', icon: <XCircle className="w-3 h-3" /> },
+    no_data: { label: isEn ? 'Insufficient Data' : 'Thiếu dữ liệu', color: 'text-slate-400 bg-slate-900 border-slate-700', icon: <AlertTriangle className="w-3 h-3" /> },
+    failed: { label: isEn ? 'AI Failed' : 'AI thất bại', color: 'text-red-500 bg-red-950 border-red-900', icon: <XCircle className="w-3 h-3" /> },
+  };
+
+  const resultStatusLabel = (status?: string) => {
+    if (!status) return isEn ? 'PENDING' : 'CHƯA CÓ';
+    const lower = status.toLowerCase();
+    if (lower === 'passed') return isEn ? 'PASSED' : 'ĐẠT';
+    if (lower === 'failed') return isEn ? 'FAILED' : 'KHÔNG ĐẠT';
+    if (lower === 'success') return isEn ? 'SUCCESS' : 'THÀNH CÔNG';
+    if (lower === 'error') return isEn ? 'ERROR' : 'LỖI';
+    return status.toUpperCase();
+  };
+
   const [data, setData] = useState<ExperimentsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +50,7 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
       const json = await res.json();
       setData(json);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Lỗi tải dữ liệu');
+      setError(err instanceof Error ? err.message : (isEn ? 'Failed to load experiments' : 'Lỗi tải dữ liệu'));
     } finally {
       setLoading(false);
     }
@@ -61,7 +65,7 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
       const json = await res.json();
       setDetail(json);
     } catch (err) {
-      setDetail({ error: err instanceof Error ? err.message : 'Lỗi' });
+      setDetail({ error: err instanceof Error ? err.message : (isEn ? 'Error' : 'Lỗi') });
     } finally {
       setDetailLoading(false);
     }
@@ -74,7 +78,9 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
-        <div className="text-xs text-slate-400 font-mono">Đang tải các thử nghiệm...</div>
+        <div className="text-xs text-slate-400 font-mono">
+          {isEn ? 'Loading backtest experiment runs...' : 'Đang tải các thử nghiệm...'}
+        </div>
       </div>
     );
   }
@@ -85,7 +91,7 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
         <XCircle className="w-8 h-8 text-red-400" />
         <p className="text-xs text-red-400">{error}</p>
         <button onClick={fetchExperiments} className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-xs">
-          Thử lại
+          {isEn ? 'Retry' : 'Thử lại'}
         </button>
       </div>
     );
@@ -109,17 +115,16 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase">
           <FlaskConical className="w-3.5 h-3.5 text-amber-400" />
-          KIỂM THỬ LỊCH SỬ — KẾT QUẢ THỬ NGHIỆM AI
+          {isEn ? 'HISTORICAL BACKTEST EXPERIMENTS — WALK-FORWARD BENCHMARKS' : 'KIỂM THỬ LỊCH SỬ — KẾT QUẢ THỬ NGHIỆM AI'}
         </h3>
         <button onClick={fetchExperiments} className="px-2 py-0.5 text-[10px] text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/10">
-          🔄 Tải lại
+          🔄 {isEn ? 'Reload' : 'Tải lại'}
         </button>
       </div>
       <p className="text-[11px] text-slate-400 -mt-2">
-        Đánh giá AI trên dữ liệu lịch sử: chia theo thời gian, kiểm tra rò rỉ, so sánh mốc chuẩn.
-        Tổng cộng <strong className="text-slate-200">{data.total}</strong> thử nghiệm ·
-        {' '}<span className="text-emerald-400">{edgeCount} AI tốt hơn mốc chuẩn</span> ·
-        {' '}<span className="text-red-400">{leakCount} rò rỉ</span>
+        {isEn 
+          ? `Out-of-sample walk-forward validation: embargo time splits, leakage audit, baseline comparisons. Total: ${data.total} experiments · ${edgeCount} edge verified · ${leakCount} leakage.`
+          : `Đánh giá AI trên dữ liệu lịch sử: chia theo thời gian, kiểm tra rò rỉ, so sánh mốc chuẩn. Tổng cộng ${data.total} thử nghiệm · ${edgeCount} AI tốt hơn mốc chuẩn · ${leakCount} rò rỉ.`}
       </p>
 
       {/* Filters */}
@@ -128,7 +133,7 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
           <Search className="w-3 h-3 text-slate-500 absolute left-2 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Tìm coin/giả thuyết..."
+            placeholder={isEn ? 'Search symbol/hypothesis...' : 'Tìm coin/giả thuyết...'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-7 pr-2 py-1 w-full bg-slate-900 border border-slate-800 rounded text-[11px] text-slate-200 focus:outline-none focus:border-amber-500/50"
@@ -139,13 +144,13 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
           onChange={(e) => setStatusFilter(e.target.value)}
           className="px-2 py-1 bg-slate-900 border border-slate-800 rounded text-[11px] text-slate-200 focus:outline-none focus:border-amber-500/50"
         >
-          <option value="ALL">Tất cả trạng thái</option>
-          <option value="edge">AI tốt hơn mốc</option>
-          <option value="promising">Có triển vọng</option>
-          <option value="no_edge">Chưa tốt hơn</option>
-          <option value="leak">Rò rỉ</option>
-          <option value="no_data">Thiếu dữ liệu</option>
-          <option value="failed">Thất bại</option>
+          <option value="ALL">{isEn ? 'All Statuses' : 'Tất cả trạng thái'}</option>
+          <option value="edge">{isEn ? 'AI Edge Verified' : 'AI tốt hơn mốc'}</option>
+          <option value="promising">{isEn ? 'Promising' : 'Có triển vọng'}</option>
+          <option value="no_edge">{isEn ? 'No Edge' : 'Chưa tốt hơn'}</option>
+          <option value="leak">{isEn ? 'Leakage' : 'Rò rỉ'}</option>
+          <option value="no_data">{isEn ? 'Insufficient Data' : 'Thiếu dữ liệu'}</option>
+          <option value="failed">{isEn ? 'Failed' : 'Thất bại'}</option>
         </select>
       </div>
 
@@ -155,24 +160,26 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="text-slate-400 font-mono text-[10px] uppercase border-b border-slate-800 sticky top-0 bg-slate-950">
               <tr>
-                <th className="p-2">Gói kết quả</th>
-                <th className="p-2">Coin</th>
-                <th className="p-2">Thời gian</th>
-                <th className="p-2">Trạng thái</th>
-                <th className="p-2">Độ chính xác AI</th>
-                <th className="p-2">Mốc chuẩn</th>
-                <th className="p-2">Tỷ lệ bắt</th>
-                <th className="p-2">Điểm Brier</th>
-                <th className="p-2">Số lượt chia</th>
-                <th className="p-2">Sự kiện xả</th>
-                <th className="p-2">Rò rỉ</th>
-                <th className="p-2 text-right">Chi tiết</th>
+                <th className="p-2">{isEn ? 'Artifact ID' : 'Gói kết quả'}</th>
+                <th className="p-2">{isEn ? 'Coin' : 'Coin'}</th>
+                <th className="p-2">{isEn ? 'Created At' : 'Thời gian'}</th>
+                <th className="p-2">{isEn ? 'Status' : 'Trạng thái'}</th>
+                <th className="p-2">{isEn ? 'AI Precision' : 'Độ chính xác AI'}</th>
+                <th className="p-2">{isEn ? 'Baseline' : 'Mốc chuẩn'}</th>
+                <th className="p-2">{isEn ? 'Recall' : 'Tỷ lệ bắt'}</th>
+                <th className="p-2">{isEn ? 'Brier Score' : 'Điểm Brier'}</th>
+                <th className="p-2">{isEn ? 'Folds' : 'Số lượt chia'}</th>
+                <th className="p-2">{isEn ? 'Dump Events' : 'Sự kiện xả'}</th>
+                <th className="p-2">{isEn ? 'Leakage' : 'Rò rỉ'}</th>
+                <th className="p-2 text-right">{isEn ? 'Action' : 'Chi tiết'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-mono">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="p-4 text-center text-slate-500">Không có thử nghiệm nào khớp.</td>
+                  <td colSpan={12} className="p-4 text-center text-slate-500">
+                    {isEn ? 'No experiments match search criteria.' : 'Không có thử nghiệm nào khớp.'}
+                  </td>
                 </tr>
               ) : filtered.map((e, i) => {
                 const meta = STATUS_META[e.status];
@@ -212,7 +219,7 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
                         className="px-2 py-0.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-[10px] font-sans font-medium inline-flex items-center gap-1"
                       >
                         <Eye className="w-3 h-3" />
-                        Xem
+                        {isEn ? 'View' : 'Xem'}
                       </button>
                     </td>
                   </tr>
@@ -228,57 +235,59 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedId(null)}>
           <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-3xl w-full max-h-[80vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-slate-200">Chi tiết: {selectedId}</h3>
+              <h3 className="text-sm font-bold text-slate-200">
+                {isEn ? 'Experiment Details:' : 'Chi tiết:'} {selectedId}
+              </h3>
               <button onClick={() => setSelectedId(null)} className="p-1 text-slate-400 hover:text-slate-200">
                 <X className="w-4 h-4" />
               </button>
             </div>
             {detailLoading ? (
-              <p className="text-xs text-slate-400">Đang tải...</p>
+              <p className="text-xs text-slate-400">{isEn ? 'Loading details...' : 'Đang tải...'}</p>
             ) : detail?.error ? (
               <p className="text-xs text-red-400">{detail.error}</p>
             ) : detail?.data ? (
               <>
                 {/* Config */}
                 <div className="mb-3 bg-slate-950 p-3 rounded border border-slate-800">
-                  <h4 className="text-xs font-bold text-amber-400 mb-1.5">CẤU HÌNH</h4>
+                  <h4 className="text-xs font-bold text-amber-400 mb-1.5">{isEn ? 'CONFIGURATION' : 'CẤU HÌNH'}</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
-                    <div><span className="text-slate-500">Giả thuyết:</span> <span className="text-slate-200">{detail.data.config?.hypothesis_id}</span></div>
-                    <div><span className="text-slate-500">Mốc chuẩn:</span> <span className="text-slate-200">{detail.data.config?.baseline_model}</span></div>
-                    <div><span className="text-slate-500">Hạt ngẫu nhiên:</span> <span className="text-slate-200">{detail.data.config?.seed}</span></div>
-                    <div><span className="text-slate-500">Trạng thái:</span> <span className="text-slate-200">{resultStatusLabel(detail.data.status)}</span></div>
+                    <div><span className="text-slate-500">{isEn ? 'Hypothesis:' : 'Giả thuyết:'}</span> <span className="text-slate-200">{detail.data.config?.hypothesis_id}</span></div>
+                    <div><span className="text-slate-500">{isEn ? 'Baseline:' : 'Mốc chuẩn:'}</span> <span className="text-slate-200">{detail.data.config?.baseline_model}</span></div>
+                    <div><span className="text-slate-500">{isEn ? 'Random Seed:' : 'Hạt ngẫu nhiên:'}</span> <span className="text-slate-200">{detail.data.config?.seed}</span></div>
+                    <div><span className="text-slate-500">{isEn ? 'Status:' : 'Trạng thái:'}</span> <span className="text-slate-200">{resultStatusLabel(detail.data.status)}</span></div>
                   </div>
                 </div>
 
                 {/* Aggregate metrics */}
                 {detail.data.results?.aggregate && (
                   <div className="mb-3 bg-slate-950 p-3 rounded border border-slate-800">
-                  <h4 className="text-xs font-bold text-amber-400 mb-1.5">CHỈ SỐ TỔNG HỢP</h4>
+                    <h4 className="text-xs font-bold text-amber-400 mb-1.5">{isEn ? 'AGGREGATE METRICS' : 'CHỈ SỐ TỔNG HỢP'}</h4>
                     <div className="grid grid-cols-3 gap-2 mb-2">
                       <div className="bg-slate-900 p-2 rounded">
-                        <div className="text-[9px] text-slate-400 uppercase">Độ chính xác</div>
+                        <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Precision' : 'Độ chính xác'}</div>
                         <div className="text-sm font-bold text-emerald-400 font-mono">{(detail.data.results.aggregate.precision_mean * 100).toFixed(1)}%</div>
                         <div className="text-[9px] text-slate-500">±{(detail.data.results.aggregate.precision_std * 100).toFixed(2)}%</div>
                       </div>
                       <div className="bg-slate-900 p-2 rounded">
-                        <div className="text-[9px] text-slate-400 uppercase">Tỷ lệ bắt</div>
+                        <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Recall' : 'Tỷ lệ bắt'}</div>
                         <div className="text-sm font-bold text-sky-400 font-mono">{(detail.data.results.aggregate.recall_mean * 100).toFixed(1)}%</div>
                         <div className="text-[9px] text-slate-500">±{(detail.data.results.aggregate.recall_std * 100).toFixed(2)}%</div>
                       </div>
                       <div className="bg-slate-900 p-2 rounded">
-                        <div className="text-[9px] text-slate-400 uppercase">Điểm Brier</div>
+                        <div className="text-[9px] text-slate-400 uppercase">{isEn ? 'Brier Score' : 'Điểm Brier'}</div>
                         <div className="text-sm font-bold text-slate-200 font-mono">{detail.data.results.aggregate.brier_mean.toFixed(4)}</div>
                         <div className="text-[9px] text-slate-500">±{detail.data.results.aggregate.brier_std.toFixed(4)}</div>
                       </div>
                     </div>
                     <div className="text-[10px] text-slate-400">
-                      Lượt chia hợp lệ: {detail.data.results.aggregate.n_valid_folds} · Bỏ qua: {detail.data.results.aggregate.n_skipped_folds}
+                      {isEn ? 'Valid Folds:' : 'Lượt chia hợp lệ:'} {detail.data.results.aggregate.n_valid_folds} · {isEn ? 'Skipped:' : 'Bỏ qua:'} {detail.data.results.aggregate.n_skipped_folds}
                     </div>
 
                     {/* Confidence Intervals */}
                     {detail.data.results.aggregate.confidence_intervals && (
                       <div className="mt-2">
-                        <h5 className="text-[10px] font-bold text-slate-300 mb-1">KHOẢNG TIN CẬY 95% (BOOTSTRAP)</h5>
+                        <h5 className="text-[10px] font-bold text-slate-300 mb-1">{isEn ? '95% CONFIDENCE INTERVALS (BOOTSTRAP)' : 'KHOẢNG TIN CẬY 95% (BOOTSTRAP)'}</h5>
                         <div className="grid grid-cols-3 gap-2">
                           {Object.entries(detail.data.results.aggregate.confidence_intervals).map(([metric, ci]: any) => (
                             <div key={metric} className="bg-slate-900 p-1.5 rounded text-[10px] font-mono">
@@ -295,14 +304,14 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
                 {/* Baselines comparison */}
                 {detail.data.results?.baselines && Object.keys(detail.data.results.baselines).length > 0 && (
                   <div className="mb-3 bg-slate-950 p-3 rounded border border-slate-800">
-                    <h4 className="text-xs font-bold text-amber-400 mb-1.5">SO SÁNH MỐC CHUẨN</h4>
+                    <h4 className="text-xs font-bold text-amber-400 mb-1.5">{isEn ? 'BASELINE COMPARISONS' : 'SO SÁNH MỐC CHUẨN'}</h4>
                     <table className="w-full text-[10px] font-mono">
                       <thead className="text-slate-400 uppercase border-b border-slate-800">
                         <tr>
-                          <th className="p-1.5 text-left">Mô hình</th>
-                          <th className="p-1.5 text-right">Độ chính xác</th>
-                          <th className="p-1.5 text-right">Tỷ lệ bắt</th>
-                          <th className="p-1.5 text-right">Điểm Brier</th>
+                          <th className="p-1.5 text-left">{isEn ? 'Model' : 'Mô hình'}</th>
+                          <th className="p-1.5 text-right">{isEn ? 'Precision' : 'Độ chính xác'}</th>
+                          <th className="p-1.5 text-right">{isEn ? 'Recall' : 'Tỷ lệ bắt'}</th>
+                          <th className="p-1.5 text-right">{isEn ? 'Brier Score' : 'Điểm Brier'}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800/60">
@@ -322,22 +331,22 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
                 {/* Data Quality */}
                 {detail.data.results?.data_quality && (
                   <div className="mb-3 bg-slate-950 p-3 rounded border border-slate-800">
-                    <h4 className="text-xs font-bold text-amber-400 mb-1.5">CHẤT LƯỢNG DỮ LIỆU</h4>
+                    <h4 className="text-xs font-bold text-amber-400 mb-1.5">{isEn ? 'DATA QUALITY AUDIT' : 'CHẤT LƯỢNG DỮ LIỆU'}</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
                       <div className="bg-slate-900 p-1.5 rounded">
-                        <div className="text-slate-500">Tổng số dòng</div>
+                        <div className="text-slate-500">{isEn ? 'Total Rows' : 'Tổng số dòng'}</div>
                         <div className="text-slate-200">{detail.data.results.data_quality.n_rows ?? '—'}</div>
                       </div>
                       <div className="bg-slate-900 p-1.5 rounded">
-                        <div className="text-slate-500">Sự kiện xả</div>
+                        <div className="text-slate-500">{isEn ? 'Dump Events' : 'Sự kiện xả'}</div>
                         <div className="text-emerald-400">{detail.data.results.data_quality.label_distribution?.positive ?? '—'}</div>
                       </div>
                       <div className="bg-slate-900 p-1.5 rounded">
-                        <div className="text-slate-500">Không xả</div>
+                        <div className="text-slate-500">{isEn ? 'Non-events' : 'Không xả'}</div>
                         <div className="text-red-400">{detail.data.results.data_quality.label_distribution?.negative ?? '—'}</div>
                       </div>
                       <div className="bg-slate-900 p-1.5 rounded">
-                        <div className="text-slate-500">Tần suất xả</div>
+                        <div className="text-slate-500">{isEn ? 'Prevalence' : 'Tần suất xả'}</div>
                         <div className="text-amber-400">{detail.data.results.data_quality.label_distribution?.positive && detail.data.results.data_quality.n_rows ? ((detail.data.results.data_quality.label_distribution.positive / detail.data.results.data_quality.n_rows) * 100).toFixed(1) : '—'}%</div>
                       </div>
                     </div>
@@ -347,7 +356,7 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
                 {/* Leakage Report */}
                 {detail.data.results?.leakage_report && (
                   <div className="mb-3 bg-slate-950 p-3 rounded border border-slate-800">
-                    <h4 className="text-xs font-bold text-amber-400 mb-1.5">KIỂM TRA RÒ RỈ DỮ LIỆU</h4>
+                    <h4 className="text-xs font-bold text-amber-400 mb-1.5">{isEn ? 'LOOKAHEAD DATA LEAKAGE AUDIT' : 'KIỂM TRA RÒ RỈ DỮ LIỆU'}</h4>
                     <div className={`text-[11px] p-2 rounded ${detail.data.results.leakage_report.status === 'passed' ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-800/50' : 'bg-red-950/40 text-red-300 border border-red-800/50'}`}>
                       {detail.data.results.leakage_report.status === 'passed' ? '✅' : '❌'} {resultStatusLabel(detail.data.results.leakage_report.status)}
                       {detail.data.results.leakage_report.message && <br />}
@@ -365,7 +374,9 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
 
                 {/* Raw JSON expander */}
                 <details className="mt-2">
-                  <summary className="text-[10px] text-slate-500 cursor-pointer hover:text-slate-300">📋 Xem JSON gốc</summary>
+                  <summary className="text-[10px] text-slate-500 cursor-pointer hover:text-slate-300">
+                    📋 {isEn ? 'View Raw JSON' : 'Xem JSON gốc'}
+                  </summary>
                   <pre className="text-[10px] text-slate-300 font-mono overflow-x-auto bg-slate-950 p-3 rounded border border-slate-800 mt-1">
                     {JSON.stringify(detail, null, 2)}
                   </pre>

@@ -8,15 +8,9 @@ import {
 } from 'lightweight-charts';
 import { Camera, ChevronDown, Crosshair, Filter, Grid3X3, Maximize2, Minimize2, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 import { formatSystemDateTime, parseSystemDate, SYSTEM_TIME_ZONE } from '../utils/time';
+import { useTranslation } from '../i18n/LanguageContext';
 
 type AlertVisibilityMode = 'hidden' | 'latest' | 'all' | 'valid';
-
-const alertVisibilityOptions: Array<{ value: AlertVisibilityMode; label: string; hint: string }> = [
-  { value: 'hidden', label: 'Ẩn cảnh báo', hint: 'Không vẽ điểm đánh dấu trên biểu đồ' },
-  { value: 'latest', label: 'Chỉ gần nhất', hint: 'Chỉ cảnh báo mới nhất' },
-  { value: 'all', label: 'Hiển thị tất cả', hint: 'Toàn bộ lịch sử cảnh báo' },
-  { value: 'valid', label: 'Còn hiệu lực', hint: 'Chưa hết thời gian hiệu lực' },
-];
 
 export interface CandlestickSignalMarker {
   id?: string;
@@ -51,6 +45,9 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   signalTime,
   signalProbability,
 }) => {
+  const { language } = useTranslation();
+  const isEn = language === 'en';
+
   const chartShellRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
@@ -62,14 +59,27 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   const [alertVisibility, setAlertVisibility] = useState<AlertVisibilityMode>('all');
   const [alertMenuOpen, setAlertMenuOpen] = useState(false);
 
+  const alertVisibilityOptions: Array<{ value: AlertVisibilityMode; label: string; hint: string }> = [
+    { value: 'hidden', label: isEn ? 'Hide Alerts' : 'Ẩn cảnh báo', hint: isEn ? 'Do not render markers on chart' : 'Không vẽ điểm đánh dấu trên biểu đồ' },
+    { value: 'latest', label: isEn ? 'Latest Only' : 'Chỉ gần nhất', hint: isEn ? 'Only show newest alert' : 'Chỉ cảnh báo mới nhất' },
+    { value: 'all', label: isEn ? 'Show All' : 'Hiển thị tất cả', hint: isEn ? 'Full alert history' : 'Toàn bộ lịch sử cảnh báo' },
+    { value: 'valid', label: isEn ? 'Active Only' : 'Còn hiệu lực', hint: isEn ? 'Signals within validity window' : 'Chưa hết thời gian hiệu lực' },
+  ];
+
+  const alertVisibilityLabel: Record<AlertVisibilityMode, string> = {
+    hidden: isEn ? 'Hide Alerts' : 'Ẩn cảnh báo',
+    latest: isEn ? 'Latest Only' : 'Gần nhất',
+    all: isEn ? 'All Alerts' : 'Tất cả',
+    valid: isEn ? 'Active Only' : 'Còn hiệu lực',
+  };
+
   const formatSignalTime = (time: string, compact = false): string => {
     if (/^\d{2}:\d{2}$/.test(time)) return time;
 
-    // Always render chart annotations in the application's Vietnam timezone.
     const parsed = parseSystemDate(time);
     if (!parsed) return time;
 
-    return new Intl.DateTimeFormat('vi-VN', compact ? {
+    return new Intl.DateTimeFormat(isEn ? 'en-US' : 'vi-VN', compact ? {
       timeZone: SYSTEM_TIME_ZONE,
       hour: '2-digit',
       minute: '2-digit',
@@ -113,13 +123,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     if (alertVisibility === 'valid') return orderedMarkers.filter(marker => marker.isValid);
     return orderedMarkers;
   }, [alertVisibility, allSignalMarkers]);
-
-  const alertVisibilityLabel: Record<AlertVisibilityMode, string> = {
-    hidden: 'Ẩn cảnh báo',
-    latest: 'Gần nhất',
-    all: 'Tất cả',
-    valid: 'Còn hiệu lực',
-  };
 
   const toolButtonClass = 'inline-flex h-7 shrink-0 items-center gap-1 whitespace-nowrap rounded border border-slate-700/80 bg-slate-900/90 px-2 text-[10px] font-medium text-slate-300 transition hover:border-amber-500/70 hover:bg-slate-800 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-40';
 
@@ -213,10 +216,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   useEffect(() => {
     if (!containerRef.current || data.length === 0) return;
 
-    // Normalize time to UNIX timestamp (seconds). Handles:
-    // - millisecond timestamps from Binance API
-    // - ISO strings from local DB
-    // - HH:MM fallback as a relative index
     const parseTime = (time: number | string, fallbackIndex?: number): number => {
       if (typeof time === 'string') {
         if (time.match(/^\d{2}:\d{2}$/)) {
@@ -225,7 +224,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         const parsed = parseSystemDate(time)?.getTime() ?? Number.NaN;
         return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : Number.NaN;
       }
-      // Binance returns milliseconds; lightweight-charts expects seconds
       return time > 1e10 ? Math.floor(time / 1000) : time;
     };
 
@@ -315,13 +313,10 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         lineWidth: 2,
         lineStyle: 2,
         axisLabelVisible: true,
-        title: 'Target -8%',
+        title: isEn ? 'Target -8%' : 'Mục tiêu -8%',
       });
     }
 
-    // Mark every radar signal on the corresponding candle. Alert time may be
-    // a candle close time while Binance data uses candle open time, so snap
-    // each signal to its nearest candle instead of silently marking "now".
     let signalMarkersApi: ReturnType<typeof createSeriesMarkers> | null = null;
     if (visibleSignalMarkers.length > 0 && normalizedCandles.length > 0) {
       const positiveSteps = normalizedCandles.slice(1).map((candle, index) =>
@@ -349,8 +344,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
                 ? candle
                 : best,
             );
-            // Do not place an old alert on the latest candle when the selected
-            // interval does not contain its timestamp.
             if (!maxMarkerDistance || Math.abs(nearest.time - parsedSignalTime) <= maxMarkerDistance) {
               signalTimestamp = nearest.time;
             }
@@ -361,7 +354,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
         const probabilityText = signal.probability != null && Number.isFinite(signal.probability)
           ? `${formatSignalTime(signal.time, true)} · ${(signal.probability).toFixed(1)}%`
-          : `${formatSignalTime(signal.time, true)} · XẢ`;
+          : `${formatSignalTime(signal.time, true)} · ${isEn ? 'DISTRIB' : 'XẢ'}`;
 
         return [{
           id: signal.id || `${signalTimestamp}-${index}`,
@@ -381,7 +374,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
     chart.timeScale().fitContent();
 
-    // Resize handler
     const handleResize = () => {
       if (containerRef.current && chartRef.current) {
         chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
@@ -397,7 +389,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         chartRef.current = null;
       }
     };
-  }, [data, targetPrice, visibleSignalMarkers, chartHeight]);
+  }, [data, targetPrice, visibleSignalMarkers, chartHeight, isEn]);
 
   return (
     <div
@@ -410,10 +402,10 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         <div ref={alertMenuRef} className="relative">
           <button
             type="button"
-            aria-label="Lọc cảnh báo trên biểu đồ"
+            aria-label={isEn ? 'Filter chart alerts' : 'Lọc cảnh báo trên biểu đồ'}
             aria-expanded={alertMenuOpen}
             className={`${toolButtonClass} ${alertMenuOpen ? 'border-amber-500/80 text-amber-300' : ''}`}
-            title="Chọn cảnh báo hiển thị trên biểu đồ"
+            title={isEn ? 'Select alerts displayed on chart' : 'Chọn cảnh báo hiển thị trên biểu đồ'}
             onClick={() => setAlertMenuOpen(value => !value)}
           >
             <Filter className="h-3.5 w-3.5 text-amber-400" />
@@ -446,25 +438,25 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         <button
           type="button"
           className={`${toolButtonClass} ${crosshairMode === 'magnet' ? 'border-amber-500/80 text-amber-300' : ''}`}
-          title="Con trỏ bám nến (bấm để đổi Tự do / Ẩn)"
+          title={isEn ? 'Magnet crosshair (click to toggle Free / Hidden)' : 'Con trỏ bám nến (bấm để đổi Tự do / Ẩn)'}
           onClick={() => setCrosshairMode(mode => mode === 'magnet' ? 'normal' : mode === 'normal' ? 'hidden' : 'magnet')}
         >
           <Crosshair className="h-3.5 w-3.5" />
-          {crosshairMode === 'magnet' ? 'Bám nến' : crosshairMode === 'normal' ? 'Tự do' : 'Ẩn'}
+          {crosshairMode === 'magnet' ? (isEn ? 'Magnet' : 'Bám nến') : crosshairMode === 'normal' ? (isEn ? 'Normal' : 'Tự do') : (isEn ? 'Hidden' : 'Ẩn')}
         </button>
-        <button type="button" className={toolButtonClass} title="Thu nhỏ khung thời gian" onClick={() => adjustZoom(1.35)}>
+        <button type="button" className={toolButtonClass} title={isEn ? 'Zoom Out' : 'Thu nhỏ khung thời gian'} onClick={() => adjustZoom(1.35)}>
           <ZoomOut className="h-3.5 w-3.5" />
         </button>
-        <button type="button" className={toolButtonClass} title="Phóng to khung thời gian" onClick={() => adjustZoom(0.7)}>
+        <button type="button" className={toolButtonClass} title={isEn ? 'Zoom In' : 'Phóng to khung thời gian'} onClick={() => adjustZoom(0.7)}>
           <ZoomIn className="h-3.5 w-3.5" />
         </button>
-        <button type="button" className={toolButtonClass} title="Vừa toàn bộ dữ liệu và tự co giãn giá" onClick={handleResetView}>
+        <button type="button" className={toolButtonClass} title={isEn ? 'Fit Content & Auto Scale' : 'Vừa toàn bộ dữ liệu và tự co giãn giá'} onClick={handleResetView}>
           <RotateCcw className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
           className={`${toolButtonClass} ${gridVisible ? 'border-slate-500 text-slate-200' : 'text-slate-500'}`}
-          title="Bật/tắt lưới"
+          title={isEn ? 'Toggle Grid' : 'Bật/tắt lưới'}
           onClick={() => setGridVisible(value => !value)}
         >
           <Grid3X3 className="h-3.5 w-3.5" />
@@ -472,29 +464,33 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         <button
           type="button"
           className={`${toolButtonClass} ${priceAutoScale ? 'border-slate-500 text-slate-200' : 'text-slate-500'}`}
-          title="Bật/tắt tự co giãn trục giá"
+          title={isEn ? 'Toggle Auto-Scale' : 'Bật/tắt tự co giãn trục giá'}
           onClick={() => applyPriceScaleMode(!priceAutoScale)}
         >
-          <span className="font-mono text-[9px]">TỰ ĐỘNG</span>
+          <span className="font-mono text-[9px]">{isEn ? 'AUTO' : 'TỰ ĐỘNG'}</span>
         </button>
-        <button type="button" className={toolButtonClass} title="Tải ảnh biểu đồ" onClick={handleScreenshot}>
+        <button type="button" className={toolButtonClass} title={isEn ? 'Take Screenshot' : 'Tải ảnh biểu đồ'} onClick={handleScreenshot}>
           <Camera className="h-3.5 w-3.5" />
         </button>
-        <button type="button" className={toolButtonClass} title="Toàn màn hình" onClick={handleFullscreen}>
+        <button type="button" className={toolButtonClass} title={isEn ? 'Toggle Fullscreen' : 'Toàn màn hình'} onClick={handleFullscreen}>
           {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </button>
       </div>
       {visibleSignalMarkers.length > 0 && (
         <div className="pointer-events-none absolute left-2 top-12 z-10 flex max-w-[calc(100%-1rem)] items-center gap-2 overflow-hidden rounded-md border border-amber-500/40 bg-slate-950/90 px-2 py-1 text-[10px] shadow-lg shadow-black/20 sm:top-2 sm:max-w-[70%]">
-          <span className="font-bold uppercase tracking-wide text-amber-400">↓ Cảnh báo xả</span>
+          <span className="font-bold uppercase tracking-wide text-amber-400">
+            {isEn ? '↓ Distribution Alert' : '↓ Cảnh báo xả'}
+          </span>
           {visibleSignalMarkers.length > 1 && (
-            <span className="font-mono font-bold text-slate-300">{visibleSignalMarkers.length} tín hiệu</span>
+            <span className="font-mono font-bold text-slate-300">
+              {visibleSignalMarkers.length} {isEn ? 'signals' : 'tín hiệu'}
+            </span>
           )}
           {allSignalMarkers.length > visibleSignalMarkers.length && (
             <span className="font-mono text-slate-500">/{allSignalMarkers.length} · {alertVisibilityLabel[alertVisibility]}</span>
           )}
           <span className="font-mono text-slate-300">
-            Gần nhất: {formatSignalTime(visibleSignalMarkers[visibleSignalMarkers.length - 1].time)} (VN)
+            {isEn ? 'Latest:' : 'Gần nhất:'} {formatSignalTime(visibleSignalMarkers[visibleSignalMarkers.length - 1].time)}
           </span>
           {visibleSignalMarkers[visibleSignalMarkers.length - 1].probability != null && Number.isFinite(visibleSignalMarkers[visibleSignalMarkers.length - 1].probability) && (
             <span className="font-mono font-bold text-red-400">
