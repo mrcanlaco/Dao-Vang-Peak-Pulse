@@ -108,4 +108,22 @@ docker-compose up -d
 
 ---
 
+## 🗺 7. LỘ TRÌNH PHÁT TRIỂN (ROADMAP)
+
+- [ ] 🔌 **Đa sàn giao dịch (Multi-Exchange):** Mở rộng thu thập dữ liệu phái sinh từ Bybit, OKX Futures.
+- [ ] 🤖 **Nâng cấp Mô hình ML:** Thử nghiệm & tích hợp LightGBM, CatBoost và Sequential Models.
+- [ ] ⚡ **Real-time WebSocket Streaming:** Nâng cấp kênh thu thập dữ liệu sang WebSocket thời gian thực.
+- [ ] 📱 **Telegram Mini-App:** Tích hợp Web Dashboard trực tiếp trong Telegram bot.
+
+---
+
+## 🤝 8. ĐÓNG GÓP CỘNG ĐỒNG (CONTRIBUTING)
+
+Dự án hoan nghênh mọi sự đóng góp từ cộng đồng nhà phát triển và trader toàn cầu:
+- Hướng dẫn quy chuẩn đóng góp: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Quy tắc ứng xử cộng đồng: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Chính sách báo cáo an toàn: [SECURITY.md](SECURITY.md)
+
+---
+
 *Dự án được thiết kế chuẩn mực theo nguyên tắc kỹ nghệ phần mềm hiện đại: Point-in-time Correctness, Modular Architecture và Strict Data Quality.*

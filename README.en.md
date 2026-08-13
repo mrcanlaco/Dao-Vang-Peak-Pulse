@@ -108,4 +108,22 @@ docker-compose up -d
 
 ---
 
+## 🗺 7. DEVELOPMENT ROADMAP
+
+- [ ] 🔌 **Multi-Exchange Ingestion:** Expand derivatives collectors to Bybit & OKX Futures.
+- [ ] 🤖 **Next-Gen ML Models:** Benchmark and integrate LightGBM, CatBoost & Sequential Transformers.
+- [ ] ⚡ **Real-Time WebSocket Streaming:** Migrate data collectors from REST polling to WebSockets.
+- [ ] 📱 **Telegram Mini-App:** Integrate interactive web dashboard directly into Telegram bot.
+
+---
+
+## 🤝 8. CONTRIBUTING & COMMUNITY
+
+We welcome contributions of all kinds from the global community (Code, ML Models, Docs, Bug Reports)!
+- Contribution Guidelines: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Code of Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- Security Policy: [SECURITY.md](SECURITY.md)
+
+---
+
 *This project is designed following modern software engineering best practices: Point-in-time Correctness, Modular Architecture, and Strict Data Quality.*

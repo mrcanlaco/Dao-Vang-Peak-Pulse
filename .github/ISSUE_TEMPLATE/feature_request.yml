@@ -1,0 +1,44 @@
+name: 💡 Feature Request / Proposal
+description: Suggest a new feature, enhancement, or architectural improvement
+title: "[FEAT]: "
+labels: ["enhancement", "discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        We love ideas! Please describe your proposed feature or improvement.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement / Motivation
+      description: Is your feature request related to a problem or limitation?
+      placeholder: "I'm always frustrated when..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution / Feature Description
+      description: Describe the solution you'd like to see.
+      placeholder: "Add support for OKX derivatives data collection..."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or features you've considered?
+  - type: dropdown
+    id: target_area
+    attributes:
+      label: Target Component
+      options:
+        - Live Scanner & Collectors
+        - Feature Engineering & Normalizer
+        - Machine Learning Models
+        - Web Dashboard UI (React)
+        - Telegram Alerts & Notifications
+        - Docker & Deployment
+        - Documentation & Translations (i18n)
+    validations:
+      required: true
