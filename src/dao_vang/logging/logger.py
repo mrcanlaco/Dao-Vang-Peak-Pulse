@@ -1,11 +1,27 @@
 import logging
 import sys
+from datetime import datetime
 from typing import Any
 
 import structlog
 from structlog.typing import EventDict
 
+from dao_vang.domain.time import SYSTEM_TIMEZONE
+
 SECRET_KEYS = {"api_key", "secret", "password", "token"}
+
+# Windows consoles default to a legacy codepage (e.g. cp1252) that cannot
+# encode Vietnamese text or emoji used in log messages, which raises
+# OSError/UnicodeEncodeError and crashes the process. Force UTF-8 on
+# stdout/stderr at import time (before any logger — structlog's default
+# PrintLogger writes straight to sys.stdout without going through
+# configure_logging) so logging never takes the app down.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        try:
+            _stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+        except (ValueError, OSError):
+            pass
 
 
 def redact_secrets(
@@ -18,12 +34,20 @@ def redact_secrets(
     return event_dict
 
 
+def system_time_stamper(
+    logger: logging.Logger, name: str, event_dict: EventDict
+) -> EventDict:
+    """Stamp logs in the application's fixed Vietnam timezone."""
+    event_dict["timestamp"] = datetime.now(SYSTEM_TIMEZONE).isoformat()
+    return event_dict
+
+
 def configure_logging(json_format: bool = True, log_level: str = "INFO") -> None:
     """Configure structured logging for the application."""
     shared_processors: list[Any] = [
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso", utc=True),
+        system_time_stamper,
         redact_secrets,
         structlog.contextvars.merge_contextvars,
         structlog.processors.CallsiteParameterAdder(

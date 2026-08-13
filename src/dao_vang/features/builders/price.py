@@ -66,6 +66,18 @@ MOMENTUM_DECELERATION_4H = FeatureDefinition(
     missing_policy="fill_zero",
 )
 
+FAKE_BREAKOUT_1H = FeatureDefinition(
+    id="fake_breakout_1h",
+    version="1.0",
+    description=(
+        "False breakout (bull trap) score 0-1 over the last 1h. "
+        "1.0 = candle poked above the prior 12-candle high then closed "
+        "back below it (FOMO bait). 0.0 = no breakout or breakout held."
+    ),
+    lookback_minutes=60,
+    missing_policy="fill_zero",
+)
+
 # Register features
 registry.register_feature(PRICE_RET_5M)
 registry.register_feature(PRICE_RET_1H)
@@ -75,6 +87,7 @@ registry.register_feature(PRICE_VOLATILITY_24H)
 registry.register_feature(DISTANCE_FROM_HIGH_24H)
 registry.register_feature(VOLUME_PERCENTILE_24H)
 registry.register_feature(MOMENTUM_DECELERATION_4H)
+registry.register_feature(FAKE_BREAKOUT_1H)
 
 
 def build_price_features_sql(source_table: str) -> str:
@@ -90,9 +103,12 @@ def build_price_features_sql(source_table: str) -> str:
             close / lag(close, 1) OVER w_all - 1 AS {PRICE_RET_5M.id},
             close / lag(close, 12) OVER w_all - 1 AS {PRICE_RET_1H.id},
             close / lag(close, 48) OVER w_all - 1 AS {PRICE_RET_4H.id},
-            close / lag(close, 288) OVER w_all - 1 AS {PRICE_RET_24H.id}
+            close / lag(close, 288) OVER w_all - 1 AS {PRICE_RET_24H.id},
+            max(high) OVER w_12_prev AS prev_max_high_12
         FROM {source_table}
-        WINDOW w_all AS (PARTITION BY symbol ORDER BY feature_time)
+        WINDOW
+            w_all AS (PARTITION BY symbol ORDER BY feature_time),
+            w_12_prev AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 12 PRECEDING AND 1 PRECEDING)
     ),
     price_features AS (
         SELECT
@@ -111,7 +127,21 @@ def build_price_features_sql(source_table: str) -> str:
             volume_base / NULLIF(max(volume_base) OVER w_288, 0) AS {VOLUME_PERCENTILE_24H.id},
             
             -- Momentum deceleration: current 1h return - 1h return 3 hours ago (lag 36)
-            {PRICE_RET_1H.id} - lag({PRICE_RET_1H.id}, 36) OVER w_all AS {MOMENTUM_DECELERATION_4H.id}
+            {PRICE_RET_1H.id} - lag({PRICE_RET_1H.id}, 36) OVER w_all AS {MOMENTUM_DECELERATION_4H.id},
+
+            -- False breakout (bull trap): high poked above prior 12-candle high
+            -- but close fell back below it. Continuous 0-1 score scaled by
+            -- reclaim depth (2% reclaim = full 1.0).
+            CASE
+                WHEN prev_max_high_12 IS NOT NULL
+                    AND high > prev_max_high_12
+                    AND close < prev_max_high_12
+                THEN LEAST(
+                    1.0,
+                    (prev_max_high_12 - close) / NULLIF(prev_max_high_12, 0) / 0.02
+                )
+                ELSE 0.0
+            END AS {FAKE_BREAKOUT_1H.id}
             
         FROM price_base
         WINDOW 

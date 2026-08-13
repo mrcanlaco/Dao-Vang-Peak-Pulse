@@ -1,0 +1,46 @@
+# Version control
+.git/
+.gitignore
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs/zips (không cần trong image)
+*.zip
+dao_vang_docs_v1/
+dao_vang_documentation_v1.0/
+dao_vang_phase_1_5_codex_execution_pack/
+
+# Data + artifacts sẽ mount qua volume, không copy vào image
+data/
+artifacts/
+
+# Env files (sẽ truyền qua docker-compose env_file)
+.env
+.env.*
+
+# Devin config
+.devin/
+
+# GitHub
+.github/

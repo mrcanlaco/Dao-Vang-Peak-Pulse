@@ -4,10 +4,11 @@ import time
 import duckdb
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-
+                                #
 import pandas as pd
 
 from dao_vang.config.settings import AppSettings
+from dao_vang.domain.time import SYSTEM_TIMEZONE, as_system_timezone, system_now
 from dao_vang.data.binance_listing import (
     DEFAULT_HISTORY_PATH as _LISTING_HISTORY_PATH,
     get_stats_for_today as _get_listing_snapshot,
@@ -19,6 +20,12 @@ from dao_vang.data.collectors.binance_client import BinanceClient
 from dao_vang.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _display_datetime(value: datetime | None, fmt: str) -> str:
+    if value is None:
+        return "—"
+    return as_system_timezone(value).strftime(fmt)
 from dao_vang.data.collectors.klines import KlinesCollector
 from dao_vang.data.collectors.funding import FundingCollector
 from dao_vang.data.collectors.open_interest import OpenInterestCollector
@@ -559,7 +566,7 @@ def _fetch_24h_tickers() -> list[dict]:
 def _get_listing_stats() -> dict:
     """Get today's listing snapshot.
 
-    Logic: only fetch from Binance once per UTC day. If today's snapshot is
+    Logic: only fetch from Binance once per UTC+7 day. If today's snapshot is
     already persisted to ``data/binance_listing_history.json`` → return it
     (no API call). Otherwise fetch, persist, and return. The 🔄 Listing button
     forces a fresh scan for today.
@@ -594,7 +601,9 @@ def _fetch_recent_klines(symbol: str, interval: str = "1h", limit: int = 48) -> 
         # Each kline: [openTime, open, high, low, close, volume, closeTime, ...]
         return [
             {
-                "time": datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc),
+                "time": as_system_timezone(
+                    datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc)
+                ),
                 "open": float(k[1]),
                 "high": float(k[2]),
                 "low": float(k[3]),
@@ -835,7 +844,9 @@ with _alerts_container:
         # --- Alert table ---
         _alert_df = pd.DataFrame(_alert_rows)
         _alert_df["probability"] = _alert_df["probability"].apply(lambda x: f"{x:.1%}")
-        _alert_df["signal_time"] = _alert_df["signal_time"].dt.strftime("%Y-%m-%d %H:%M UTC")
+        _alert_df["signal_time"] = pd.to_datetime(
+            _alert_df["signal_time"], utc=True
+        ).dt.tz_convert(SYSTEM_TIMEZONE).dt.strftime("%Y-%m-%d %H:%M UTC+7")
         _alert_df["close_price"] = _alert_df["close_price"].apply(
             lambda x: f"${x:,.4f}" if x else "—"
         )
@@ -895,7 +906,7 @@ with _alerts_container:
                     st.metric("Giá tại tín hiệu",
                               f"${_latest['close_price']:,.4f}" if _latest["close_price"] else "—")
                     st.metric("Hết hạn",
-                              _latest["invalidation_time"].strftime("%H:%M UTC") if _latest["invalidation_time"] else "—")
+                              _display_datetime(_latest["invalidation_time"], "%H:%M UTC+7"))
 
                     # Dismiss button
                     if not _latest["dismissed"]:
@@ -1492,7 +1503,7 @@ with _scan_container:
                         + ", ".join(d["symbol"] for d in _scan_coins))
 
             # Step 2: Collect klines + funding
-            _now = datetime.now(timezone.utc)
+            _now = system_now()
             _start = _now - timedelta(days=_scan_days)
             _run_id = f"scan_ui_{int(_now.timestamp())}"
 
@@ -1644,7 +1655,7 @@ with _market_container:
     st.caption(
         "Số lượng coin/symbol đang giao dịch trên các sàn Binance (lấy trực tiếp từ exchangeInfo). "
         "Giao ngay (Spot) = api.binance.com · Futures USD-M = fapi.binance.com · Futures COIN-M = dapi.binance.com. "
-        "Tự quét 1 lần/ngày (UTC) và lưu vào `data/binance_listing_history.json`."
+        "Tự quét 1 lần/ngày (UTC+7) và lưu vào `data/binance_listing_history.json`."
     )
 
     _stats = _get_listing_stats()
@@ -1678,7 +1689,7 @@ with _market_container:
             _ov2.metric("Coin chỉ có trên Futures", f"{_stats['futures_only']:,}")
             _ov3.metric("Coin có trên cả Spot & Futures", f"{_stats['both']:,}")
             st.caption(
-                f"Cập nhật lúc: {_stats.get('fetched_at', '?')} · Quét 1 lần/ngày (UTC). "
+                f"Cập nhật lúc: {_stats.get('fetched_at', '?')} · Quét 1 lần/ngày (UTC+7). "
                 f"Lưu ý: app Đảo Vàng dùng dữ liệu USD-M Futures (fapi.binance.com)."
             )
 
@@ -1940,7 +1951,7 @@ with st.sidebar:
         _downloaded = scan_downloaded_data(_data_dir_scan)
         run_bt = False
 
-        now = datetime.now()
+        now = system_now()
         default_start = now - timedelta(days=30)
         start_date = default_start
         end_date = now
@@ -2050,7 +2061,7 @@ with st.sidebar:
             ).strip().upper()
 
         # --- Date range ---
-        now = datetime.now()
+        now = system_now()
         default_start = now - timedelta(days=30)
 
         col_d1, col_d2 = st.columns(2)
@@ -2101,7 +2112,7 @@ with st.sidebar:
             run_bt = st.button("🚀 Chạy Backtest (kiểm tra lịch sử)", type="primary", use_container_width=True)
     else:
         # Defaults for non-symbol modes
-        now = datetime.now()
+        now = system_now()
         default_start = now - timedelta(days=30)
         start_date = default_start
         end_date = now
@@ -2121,7 +2132,7 @@ with st.sidebar:
         try:
             _scan_settings = AppSettings()
             # Detect scanner running via heartbeat file
-            _heartbeat_path = Path("data/scanner_heartbeat.json")
+            _heartbeat_path = Path(_scan_settings.paths.data_dir) / "scanner_heartbeat.json"
             _is_running = False
             _cycle_info = ""
             _hb_scan_mode = ""
@@ -2130,7 +2141,9 @@ with st.sidebar:
                     _hb = _json.loads(_heartbeat_path.read_text(encoding="utf-8"))
                     _hb_time = datetime.fromisoformat(_hb["timestamp"])
                     _max_age = timedelta(minutes=_hb.get("poll_minutes", 5) * 2 + 5)
-                    if _hb.get("status") == "running" and datetime.now(timezone.utc) - _hb_time < _max_age:
+                    if _hb_time.tzinfo is None:
+                        _hb_time = _hb_time.replace(tzinfo=SYSTEM_TIMEZONE)
+                    if _hb.get("status") == "running" and system_now() - _hb_time < _max_age:
                         _is_running = True
                         _cycle_info = f" (chu kỳ #{_hb.get('cycle', '?')})"
                         _hb_scan_mode = _hb.get("scan_mode", "")
@@ -2627,8 +2640,8 @@ with _detect_container:
             )
 
     if run_scan:
-        start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-        end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+        start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=SYSTEM_TIMEZONE)
+        end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=SYSTEM_TIMEZONE)
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
 
         progress = st.progress(0, text="Đang quét...")
@@ -2794,14 +2807,31 @@ with _detect_container:
                             _skdf = pd.DataFrame(_scan_klines)
                             if _scan_chart_type == "🕯️ Nến":
                                 import plotly.graph_objects as go
-                                _sfig = go.Figure(data=[go.Candlestick(
+                                from plotly.subplots import make_subplots
+                                _sfig = make_subplots(specs=[[{"secondary_y": True}]])
+                                _sfig.add_trace(go.Candlestick(
                                     x=_skdf["time"],
                                     open=_skdf["open"],
                                     high=_skdf["high"],
                                     low=_skdf["low"],
                                     close=_skdf["close"],
                                     name=symbol,
-                                )])
+                                ), secondary_y=False)
+
+                                # Overlay probability on secondary y-axis
+                                if predictions:
+                                    _pred_df = pd.DataFrame(predictions)
+                                    _pred_df["feature_time"] = pd.to_datetime(_pred_df["feature_time"])
+                                    _sfig.add_trace(go.Scatter(
+                                        x=_pred_df["feature_time"],
+                                        y=_pred_df["probability"],
+                                        mode="lines+markers",
+                                        name="Xác suất xả",
+                                        line=dict(color="#00ffcc", width=2, dash="dot"),
+                                        marker=dict(size=6),
+                                        hovertemplate="Xác suất: %{y:.1%}<br>Thời gian: %{x}<extra></extra>"
+                                    ), secondary_y=True)
+
                                 # Mark high-risk candles on chart (predictions)
                                 if high_risk:
                                     _hr_times = [pd.to_datetime(p["feature_time"]) for p in high_risk]
@@ -2814,7 +2844,7 @@ with _detect_container:
                                         name="🚨 Dự đoán CAO",
                                         text=[f"Prob: {p:.1%}" for p in _hr_probs],
                                         hovertemplate="%{text}<br>%{x}<extra></extra>",
-                                    ))
+                                    ), secondary_y=False)
                                 # Mark historical distribution events (actual labels)
                                 if not _hist_dist.empty:
                                     _hd_times = [t for t in _hist_dist['feature_time'] if t in set(_skdf['time'])]
@@ -2827,16 +2857,17 @@ with _detect_container:
                                         name="📉 Phân phối lịch sử",
                                         text=["Label: 1 (đã xả)"] * len(_hd_times),
                                         hovertemplate="%{text}<br>%{x}<extra></extra>",
-                                    ))
+                                    ), secondary_y=False)
                                 _sfig.update_layout(
                                     template="plotly_dark",
-                                    height=350,
+                                    height=450,
                                     margin=dict(l=0, r=0, t=30, b=0),
                                     xaxis_rangeslider_visible=False,
-                                    yaxis_title="Giá",
                                 )
+                                _sfig.update_yaxes(title_text="Giá", secondary_y=False)
+                                _sfig.update_yaxes(title_text="Xác suất xả", tickformat=".0%", range=[0, 1.05], secondary_y=True)
                                 st.plotly_chart(_sfig, use_container_width=True, config={"displayModeBar": False})
-                                st.caption("🔻 Tam giác đỏ = dự đoán CAO (sắp xả) | ◆ Cam = phân phối lịch sử (đã xả)")
+                                st.caption("🔻 Tam giác đỏ = dự đoán CAO | ◆ Cam = phân phối lịch sử | 🟢 Đứt nét = Xác suất xả")
                             else:  # Line
                                 _sline_data = _skdf.set_index("time")[["close"]]
                                 st.line_chart(_sline_data, use_container_width=True)
@@ -2915,8 +2946,8 @@ with _backtest_container:
     st.caption("Chạy toàn bộ quy trình: thu thập dữ liệu → gán nhãn → tính đặc trưng → huấn luyện AI → so sánh với mốc → kiểm tra rò rỉ. Kết luận: AI có đáng dùng không?")
 
     if run_bt:
-        start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-        end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=timezone.utc)
+        start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=SYSTEM_TIMEZONE)
+        end_dt = datetime.combine(end_date, datetime.max.time()).replace(tzinfo=SYSTEM_TIMEZONE)
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         Path(artifact_dir).mkdir(parents=True, exist_ok=True)
 

@@ -1,5 +1,5 @@
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 
@@ -127,6 +127,73 @@ def test_align_exact_5m():
             assert res[0][1] == Decimal("110")
             assert res[0][2] is None  # Should NOT be joined because it's too late
 
+        finally:
+            db.close()
+
+
+def test_align_exact_5m_excludes_open_future_candle():
+    """The live timeline must not expose Binance's currently open candle."""
+
+    now = datetime.now(timezone.utc)
+    future_close = now + timedelta(hours=1)
+    future_kline = NormalizedKline(
+        symbol="BTCUSDT",
+        market="USD-M Futures",
+        data_type="kline",
+        interval="5m",
+        event_time=future_close,
+        available_time=future_close + timedelta(seconds=1),
+        collected_at=now,
+        source_version="v1",
+        dataset_version="1.0",
+        quality_status=QualityStatus.VALID,
+        quality_flags=[],
+        open_time=future_close - timedelta(minutes=5),
+        close_time=future_close,
+        open=Decimal("100"),
+        high=Decimal("120"),
+        low=Decimal("90"),
+        close=Decimal("110"),
+        volume_base=Decimal("1000"),
+        volume_quote=Decimal("100000"),
+        trade_count=500,
+        taker_buy_base=Decimal("600"),
+        taker_buy_quote=Decimal("60000"),
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        kline_path = tmp / "future_kline.parquet"
+        write_normalized_to_parquet(kline_path, [future_kline])
+
+        db = DuckDBQueryLayer()
+        try:
+            db.register_parquet_view("kline", kline_path)
+            db.conn.execute(
+                "CREATE OR REPLACE VIEW open_interest AS "
+                "SELECT 'BTCUSDT' AS symbol, NULL AS period_end, "
+                "NULL AS available_time, 'valid' AS quality_status, "
+                "NULL AS open_interest_contracts, NULL AS open_interest_value "
+                "WHERE FALSE"
+            )
+            db.conn.execute(
+                "CREATE OR REPLACE VIEW taker_volume AS "
+                "SELECT 'BTCUSDT' AS symbol, NULL AS period_end, "
+                "NULL AS available_time, 'valid' AS quality_status, "
+                "NULL AS buy_volume, NULL AS sell_volume, NULL AS buy_sell_ratio "
+                "WHERE FALSE"
+            )
+            for view_name in ("global_ratio", "top_ratio"):
+                db.conn.execute(
+                    f"CREATE OR REPLACE VIEW {view_name} AS "
+                    "SELECT 'BTCUSDT' AS symbol, NULL AS period_end, "
+                    "NULL AS available_time, 'valid' AS quality_status, "
+                    "NULL AS long_account, NULL AS short_account, "
+                    "NULL AS long_short_ratio WHERE FALSE"
+                )
+
+            align_exact_5m(db, "aligned_future")
+            assert db.query("SELECT count(*) FROM aligned_future").fetchone()[0] == 0
         finally:
             db.close()
 

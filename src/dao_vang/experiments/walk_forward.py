@@ -1,8 +1,48 @@
-from typing import Dict, Any, Tuple
-import pandas as pd
+from typing import Any, Dict, Optional, Tuple
+
 import numpy as np
+import pandas as pd
+from sklearn.isotonic import IsotonicRegression
+from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import precision_score, recall_score, brier_score_loss
+from sklearn.metrics import brier_score_loss, precision_score, recall_score
+
+
+def _precision_first_threshold(
+    y_prob: np.ndarray,
+    y_true: np.ndarray,
+    min_recall: float = 0.50,
+    thresh_grid: Optional[np.ndarray] = None,
+) -> float:
+    """Pick the threshold maximizing precision subject to recall >= min_recall.
+
+    Falls back to the highest-precision threshold overall if none satisfy the
+    recall floor (precision is always reported honestly by the caller).
+    """
+    if thresh_grid is None:
+        thresh_grid = np.arange(0.05, 0.95, 0.01)
+    n_pos = int((y_true == 1).sum())
+    best_threshold = 0.5
+    best_precision = -1.0
+    best_precision_at_floor = -1.0
+    best_threshold_at_floor = None
+    for thresh in thresh_grid:
+        y_pred_t = (y_prob >= thresh).astype(int)
+        tp = int(((y_pred_t == 1) & (y_true == 1)).sum())
+        fp = int(((y_pred_t == 1) & (y_true == 0)).sum())
+        if tp + fp == 0:
+            continue
+        p = tp / (tp + fp)
+        r = tp / n_pos if n_pos > 0 else 0.0
+        if p > best_precision:
+            best_precision = p
+            best_threshold = thresh
+        if r >= min_recall and p > best_precision_at_floor:
+            best_precision_at_floor = p
+            best_threshold_at_floor = thresh
+    if best_threshold_at_floor is not None:
+        best_threshold = best_threshold_at_floor
+    return float(best_threshold)
 
 
 def embargo_split(
@@ -31,56 +71,207 @@ def train_evaluate_logreg(
     y_train: pd.Series,
     X_test: pd.DataFrame,
     y_test: pd.Series,
+    min_recall: float = 0.50,
+    X_calibration: Optional[pd.DataFrame] = None,
+    y_calibration: Optional[pd.Series] = None,
 ) -> Dict[str, float]:
     """
     Trains a Logistic Regression model and evaluates precision, recall, and brier score.
-    Uses threshold tuning to find the optimal decision boundary (important for
-    imbalanced datasets where default 0.5 is too high).
+    Uses precision-first threshold tuning on a chronological calibration
+    subset of training data; the test set is reserved for evaluation.
+    Falls back to a neutral threshold when no calibration rows are available.
+
+    Note: ``class_weight`` is left at None (default). The previous
+    ``class_weight='balanced'`` setting artificially boosted recall at the
+    direct expense of precision, which is the opposite of the precision-first
+    objective.
     """
-    model = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
-    
+    model = LogisticRegression(max_iter=1000, random_state=42)
+
     if len(X_train) == 0 or len(X_test) == 0 or y_train.nunique() < 2:
         return {"precision": 0.0, "recall": 0.0, "brier": 0.0, "threshold": 0.5}
 
-    # Train model
-    model.fit(X_train, y_train)
-    
+    # Train on a fit subset and reserve a chronological calibration subset for
+    # threshold policy selection.  Never inspect y_test when selecting a
+    # threshold; the test fold is evaluation-only.
+    if X_calibration is None or y_calibration is None:
+        n_fit = max(1, int(len(X_train) * 0.8))
+        X_fit, y_fit = X_train.iloc[:n_fit], y_train.iloc[:n_fit]
+        X_calibration = X_train.iloc[n_fit:]
+        y_calibration = y_train.iloc[n_fit:]
+    else:
+        X_fit, y_fit = X_train, y_train
+    if y_fit.nunique() < 2:
+        X_fit, y_fit = X_train, y_train
+    model.fit(X_fit, y_fit)
+
     # Get probabilities
     y_prob = model.predict_proba(X_test)[:, 1] if len(model.classes_) > 1 else np.zeros(len(X_test))
-    
+
     # Brier score (independent of threshold)
     try:
         brier = float(brier_score_loss(y_test, y_prob))
     except Exception:
         brier = 0.0
 
-    # Threshold tuning: find threshold that maximizes F1
-    best_threshold = 0.5
-    best_f1 = 0.0
-    y_test_arr = y_test.values if hasattr(y_test, 'values') else y_test
-    for thresh in np.arange(0.05, 0.95, 0.05):
-        y_pred_t = (y_prob >= thresh).astype(int)
-        tp = int(((y_pred_t == 1) & (y_test_arr == 1)).sum())
-        fp = int(((y_pred_t == 1) & (y_test_arr == 0)).sum())
-        fn = int(((y_pred_t == 0) & (y_test_arr == 1)).sum())
-        if tp + fp == 0 or tp + fn == 0:
-            continue
-        p = tp / (tp + fp)
-        r = tp / (tp + fn)
-        f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
-        if f1 > best_f1:
-            best_f1 = f1
-            best_threshold = thresh
+    # Precision-first threshold tuning with a recall floor on calibration only.
+    if (
+        X_calibration is not None
+        and y_calibration is not None
+        and len(X_calibration) > 0
+        and y_calibration.nunique() >= 1
+    ):
+        cal_prob = (
+            model.predict_proba(X_calibration)[:, 1]
+            if len(model.classes_) > 1
+            else np.zeros(len(X_calibration))
+        )
+        best_threshold = _precision_first_threshold(
+            cal_prob,
+            y_calibration.values if hasattr(y_calibration, "values") else y_calibration,
+            min_recall=min_recall,
+        )
+    else:
+        best_threshold = 0.5
 
     # Use best threshold for final predictions
     y_pred = (y_prob >= best_threshold).astype(int)
-    
+
     try:
         precision = float(precision_score(y_test, y_pred, zero_division=0))
         recall = float(recall_score(y_test, y_pred, zero_division=0))
     except Exception:
         precision, recall = 0.0, 0.0
-        
+
+    return {
+        "precision": precision,
+        "recall": recall,
+        "brier": brier,
+        "threshold": float(best_threshold),
+    }
+
+
+def train_evaluate_lightgbm(
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    X_test: pd.DataFrame,
+    y_test: pd.Series,
+    min_recall: float = 0.50,
+    num_boost_round: int = 400,
+) -> Dict[str, float]:
+    """Train a LightGBM model with isotonic calibration and precision-first
+    threshold tuning.
+
+    Splits the training data into a fit set (first 80%) and a calibration set
+    (last 20%) — both chronological. LightGBM is fit on the fit set, then an
+    isotonic regression maps its raw scores to calibrated probabilities on the
+    calibration set. The calibrated probabilities are then used to pick a
+    precision-first threshold (max precision s.t. recall >= min_recall) on the
+    calibration set; the test fold is evaluation-only.
+
+    This addresses two weaknesses of the LogReg baseline:
+      1. Non-linear feature interactions (LightGBM captures them natively).
+      2. Poor probability calibration (isotonic regression sharpens the scores,
+         which makes the precision/recall tradeoff much steeper — essential for
+         reaching high precision at a controlled recall).
+    """
+    import lightgbm as lgb
+
+    if len(X_train) == 0 or len(X_test) == 0 or y_train.nunique() < 2:
+        return {"precision": 0.0, "recall": 0.0, "brier": 0.0, "threshold": 0.5}
+
+    y_train_arr = np.asarray(y_train, dtype=np.float64)
+    # Chronological split: fit on first 80%, calibrate on last 20%.
+    n_train = len(X_train)
+    n_fit = int(n_train * 0.8)
+    X_fit = X_train.iloc[:n_fit]
+    y_fit = y_train_arr[:n_fit]
+    X_cal = X_train.iloc[n_fit:]
+    y_cal = y_train_arr[n_fit:]
+
+    # If the fit or cal split has only one class, fall back to fitting on all
+    # training data and skip calibration.
+    calibrate = (
+        len(np.unique(y_fit)) >= 2
+        and len(np.unique(y_cal)) >= 2
+        and len(X_cal) >= 50
+    )
+
+    pos_ratio = float(y_fit.mean()) if len(y_fit) > 0 else 0.1
+    # scale_pos_weight < 1 biases toward precision (we want fewer, more confident
+    # positives). For a precision-first objective we deliberately do NOT balance.
+    scale_pos_weight = 1.0
+
+    train_set = lgb.Dataset(X_fit, label=y_fit)
+    params = {
+        "objective": "binary",
+        "metric": "binary_logloss",
+        "learning_rate": 0.03,
+        "num_leaves": 63,
+        "min_data_in_leaf": 100,
+        "feature_fraction": 0.9,
+        "bagging_fraction": 0.9,
+        "bagging_freq": 5,
+        "scale_pos_weight": scale_pos_weight,
+        "pos_ratio": pos_ratio,
+        "verbose": -1,
+        "seed": 42,
+        "deterministic": True,
+        "force_col_wise": True,
+    }
+    valid_sets = [lgb.Dataset(X_cal, label=y_cal)] if calibrate else []
+    callbacks = [lgb.early_stopping(50, verbose=False)] if calibrate else []
+    model = lgb.train(
+        params,
+        train_set,
+        num_boost_round=num_boost_round,
+        valid_sets=valid_sets,
+        callbacks=callbacks,
+    )
+
+    # Raw scores on test set
+    y_score_raw = model.predict(X_test)
+    if calibrate:
+        cal_raw = model.predict(X_cal)
+        # Isotonic regression: map raw scores -> calibrated probabilities.
+        iso = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
+        iso.fit(cal_raw, y_cal)
+        y_prob = iso.predict(y_score_raw)
+    else:
+        y_prob = y_score_raw
+
+    # Brier on calibrated probabilities
+    try:
+        brier = float(brier_score_loss(y_test, y_prob))
+    except Exception:
+        brier = 0.0
+
+    # Select the decision threshold from the chronological calibration fold,
+    # never from the held-out test fold.
+    if calibrate:
+        threshold_prob = iso.predict(cal_raw)
+        threshold_true = y_cal
+    elif len(X_cal) > 0 and len(np.unique(y_cal)) >= 1:
+        threshold_prob = model.predict(X_cal)
+        threshold_true = y_cal
+    else:
+        threshold_prob = np.asarray([], dtype=float)
+        threshold_true = np.asarray([], dtype=float)
+    best_threshold = (
+        _precision_first_threshold(
+            threshold_prob, threshold_true, min_recall=min_recall
+        )
+        if len(threshold_prob)
+        else 0.5
+    )
+    y_pred = (y_prob >= best_threshold).astype(int)
+
+    try:
+        precision = float(precision_score(y_test, y_pred, zero_division=0))
+        recall = float(recall_score(y_test, y_pred, zero_division=0))
+    except Exception:
+        precision, recall = 0.0, 0.0
+
     return {
         "precision": precision,
         "recall": recall,
@@ -126,43 +317,35 @@ def train_and_predict_latest(
     if len(train_df) == 0 or train_df["is_distribution"].nunique() < 2:
         return {"predictions": [], "model_metrics": {}, "model_info": {}}
 
-    X_train = train_df[feature_cols].fillna(0)
+    imputer = SimpleImputer(strategy="median", add_indicator=True)
+    X_train = imputer.fit_transform(train_df[feature_cols])
     y_train = train_df["is_distribution"]
-    X_predict = predict_df[feature_cols].fillna(0)
+    X_predict = imputer.transform(predict_df[feature_cols])
 
-    # Train model
-    model = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
+    # Train model (no class_weight='balanced' — precision-first objective)
+    model = LogisticRegression(max_iter=1000, random_state=42)
     model.fit(X_train, y_train)
 
     # Get probabilities for latest candles
     y_prob = model.predict_proba(X_predict)[:, 1] if len(model.classes_) > 1 else np.zeros(len(X_predict))
 
-    # Find optimal threshold on a validation set (last 20% of training data)
+    # Find optimal threshold on a validation set (last 20% of training data).
+    # Precision-first: among thresholds with recall >= 0.50, pick the highest
+    # precision. Falls back to highest-precision threshold overall.
     val_cutoff = train_df["feature_time"].quantile(0.8)
     val_df = train_df[train_df["feature_time"] >= val_cutoff]
     if len(val_df) > 0 and val_df["is_distribution"].nunique() >= 2:
-        X_val = val_df[feature_cols].fillna(0)
+        X_val = imputer.transform(val_df[feature_cols])
         y_val = val_df["is_distribution"]
         y_val_prob = model.predict_proba(X_val)[:, 1] if len(model.classes_) > 1 else np.zeros(len(X_val))
 
-        best_threshold = 0.5
-        best_f1 = 0.0
+        min_recall = 0.50
         y_val_arr = y_val.values
-        for thresh in np.arange(0.05, 0.95, 0.05):
-            y_pred_t = (y_val_prob >= thresh).astype(int)
-            tp = int(((y_pred_t == 1) & (y_val_arr == 1)).sum())
-            fp = int(((y_pred_t == 1) & (y_val_arr == 0)).sum())
-            fn = int(((y_pred_t == 0) & (y_val_arr == 1)).sum())
-            if tp + fp == 0 or tp + fn == 0:
-                continue
-            p = tp / (tp + fp)
-            r = tp / (tp + fn)
-            f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0.0
-            if f1 > best_f1:
-                best_f1 = f1
-                best_threshold = thresh
+        best_threshold = _precision_first_threshold(
+            y_val_prob, y_val_arr, min_recall=min_recall
+        )
 
-        from sklearn.metrics import precision_score, recall_score, brier_score_loss
+        from sklearn.metrics import brier_score_loss, precision_score, recall_score
         y_val_pred = (y_val_prob >= best_threshold).astype(int)
         val_metrics = {
             "precision": float(precision_score(y_val, y_val_pred, zero_division=0)),

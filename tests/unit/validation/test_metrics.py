@@ -1,85 +1,29 @@
+import numpy as np
+import pandas as pd
 from datetime import datetime
 
-from dao_vang.validation.metrics import calculate_event_metrics, calculate_row_metrics
+from dao_vang.validation.metrics import compute_row_metrics, compute_event_metrics
 
+def test_compute_row_metrics():
+    y_true = np.array([1, 1, 0, 0])
+    y_prob = np.array([0.9, 0.4, 0.8, 0.1])
+    
+    metrics = compute_row_metrics(y_true, y_prob, threshold=0.5)
+    
+    assert metrics["precision"] == 0.5
+    assert metrics["recall"] == 0.5
+    assert metrics["f1"] == 0.5
 
-def test_row_metrics_happy_path():
-    y_true = [True, True, False, False]
-    y_pred = [True, False, True, False]
-
-    metrics = calculate_row_metrics(y_true, y_pred)
-
-    assert metrics.true_positives == 1
-    assert metrics.false_negatives == 1
-    assert metrics.false_positives == 1
-    assert metrics.true_negatives == 1
-    assert metrics.support_positive == 2
-    assert metrics.support_negative == 2
-
-    assert metrics.precision == 0.5
-    assert metrics.recall == 0.5
-    assert metrics.fpr == 0.5
-    assert metrics.f1_score == 0.5
-
-
-def test_row_metrics_zero_division():
-    y_true = [False, False]
-    y_pred = [False, False]
-
-    metrics = calculate_row_metrics(y_true, y_pred)
-
-    assert metrics.precision == 0.0
-    assert metrics.recall == 0.0
-    assert metrics.fpr == 0.0
-    assert metrics.f1_score == 0.0
-
-
-def test_event_metrics_cooldown():
-    timestamps = [
-        datetime(2023, 1, 1, 0, 0),
-        datetime(2023, 1, 1, 1, 0),  # +1h
-        datetime(2023, 1, 1, 2, 0),  # +2h
-        datetime(2023, 1, 2, 0, 0),  # +24h
-    ]
-
-    y_true = [True, True, True, False]
-    y_pred = [True, True, True, True]
-
-    # Cooldown 24h: only the first and last signals will be registered
-    metrics = calculate_event_metrics(timestamps, y_true, y_pred, cooldown_minutes=1440)
-
-    # Signals:
-    # idx 0: ts=Jan 1 0:00 -> NOT in cooldown. Signal fired. yp=T, yt=T -> True Signal.
-    # idx 1: ts=Jan 1 1:00 -> IN cooldown. Ignored.
-    # idx 2: ts=Jan 1 2:00 -> IN cooldown. Ignored.
-    # idx 3: ts=Jan 2 0:00 -> NOT in cooldown. Signal fired. yp=T, yt=F -> False Signal.
-
-    assert metrics.total_signals == 2
-    assert metrics.false_signals == 1
-    assert metrics.true_events == 1
-    assert metrics.caught_events == 1
-
-    assert metrics.precision == 0.5
-    assert metrics.recall == 1.0
-
-
-def test_event_metrics_multiple_events():
-    timestamps = [
-        datetime(2023, 1, 1, 0, 0),
-        datetime(2023, 1, 2, 0, 0),
-        datetime(2023, 1, 3, 0, 0),
-        datetime(2023, 1, 4, 0, 0),
-    ]
-
-    y_true = [True, False, True, False]
-    y_pred = [False, False, True, False]
-
-    metrics = calculate_event_metrics(timestamps, y_true, y_pred, cooldown_minutes=1440)
-
-    assert metrics.true_events == 2
-    assert metrics.caught_events == 1  # Second event caught
-    assert metrics.total_signals == 1  # Only one signal fired at idx 2
-    assert metrics.false_signals == 0
-
-    assert metrics.precision == 1.0
-    assert metrics.recall == 0.5
+def test_compute_event_metrics():
+    df = pd.DataFrame({
+        "event_id": ["e1", "e1", "e2", "e3", None],
+        "label_value": [1, 1, 1, 0, 0],
+        "pred_value": [0, 1, 0, 1, 0],
+        "signal_time": [datetime(2023,1,1), datetime(2023,1,2), datetime(2023,1,3), datetime(2023,1,4), datetime(2023,1,5)],
+        "target_time": [datetime(2023,1,3), datetime(2023,1,3), datetime(2023,1,4), None, None]
+    })
+    
+    metrics = compute_event_metrics(df)
+    
+    assert metrics["event_recall"] == 0.5  # e1 caught, e2 missed
+    assert metrics["median_lead_time"] == 1440.0  # 1 day (e1 target_time - e1 first_pred_time)

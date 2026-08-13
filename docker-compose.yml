@@ -1,0 +1,68 @@
+# ============================================================
+# Đảo Vàng — Docker Compose
+# 2 services:
+#   scanner: bộ quét 24/7 (poll Binance → score → Telegram alert)
+#   web:     API server + React frontend (api_server.py port 8000)
+# Shared volumes: data (DuckDB) + artifacts (frozen models)
+# ============================================================
+
+services:
+  scanner:
+    build: .
+    container_name: dao_vang_scanner
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - DAO_VANG_SCANNER__POLL_INTERVAL_MINUTES=5
+      - DAO_VANG_SCANNER__MAX_COINS=50
+      - DAO_VANG_SCANNER__SCAN_MODE=gainers
+      - DAO_VANG_SCANNER__MIN_PRICE_CHANGE_PCT=5
+      - DAO_VANG_SCANNER__INCLUDE_BTC=true
+      - DAO_VANG_SCANNER__EXCLUDE_STABLECOINS=true
+      - DAO_VANG_COINGECKO__ENABLED=false
+      - DAO_VANG_SCANNER__DB_PATH=/app/data/scanner.duckdb
+    volumes:
+      - dao_vang_data:/app/data
+      - dao_vang_artifacts:/app/artifacts
+    command: >
+      dao-vang scanner start
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  web:
+    build: .
+    container_name: dao_vang_web
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.docker
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - dao_vang_data:/app/data
+      - dao_vang_artifacts:/app/artifacts
+    depends_on:
+      - scanner
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+volumes:
+  dao_vang_data:
+    # DuckDB databases, raw/normalized parquet, watchlist, heartbeat
+  dao_vang_artifacts:
+    # Frozen models, experiment artifacts

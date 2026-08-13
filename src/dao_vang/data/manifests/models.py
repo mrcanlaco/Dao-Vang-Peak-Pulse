@@ -9,7 +9,9 @@ class CollectionRunManifest(BaseModel):
     """Manifest for a collection run."""
 
     collection_run_id: str = Field(..., description="Unique ID for this run")
-    started_at: datetime = Field(..., description="Start time in UTC")
+    started_at: datetime = Field(
+        ..., description="Start time in Asia/Ho_Chi_Minh (UTC+7)"
+    )
     completed_at: datetime | None = None
     status: RunStatus = Field(..., description="Status of the run")
     data_type: str = Field(..., description="Type of data collected (e.g. klines)")
@@ -27,7 +29,9 @@ class DatasetManifest(BaseModel):
     """Manifest for an aligned dataset."""
 
     dataset_version: str = Field(..., description="Unique dataset version identifier")
-    created_at: datetime = Field(..., description="Creation time in UTC")
+    created_at: datetime = Field(
+        ..., description="Creation time in Asia/Ho_Chi_Minh (UTC+7)"
+    )
     source_versions: dict[str, str] = Field(
         ..., description="data_type to source_version"
     )

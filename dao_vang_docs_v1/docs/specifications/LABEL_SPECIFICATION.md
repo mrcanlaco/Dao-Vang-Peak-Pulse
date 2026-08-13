@@ -2,7 +2,7 @@
 document_id: DISTRIBUTION_LABEL_SPEC
 label_id: distribution_short
 version: 0.1.0
-status: experimental
+status: active_production
 ---
 
 # ĐẶC TẢ NHÃN DISTRIBUTION v0.1

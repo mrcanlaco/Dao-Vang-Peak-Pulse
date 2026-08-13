@@ -5,8 +5,17 @@ import duckdb
 import typer
 
 from dao_vang.config.settings import AppSettings
+from dao_vang.data.binance_listing import (
+    DEFAULT_HISTORY_PATH as _LISTING_HISTORY_PATH,
+)
+from dao_vang.data.binance_listing import (
+    get_latest_snapshot,
+    load_history,
+    run_daily_scan,
+)
 from dao_vang.data.collectors.binance_client import BinanceClient
 from dao_vang.data.collectors.klines import KlinesCollector
+from dao_vang.data.daily_collection import collect_derivatives
 from dao_vang.data.storage.duckdb import DuckDBQueryLayer
 from dao_vang.experiments.artifacts import ArtifactRegistry
 from dao_vang.experiments.forward_test import (
@@ -15,9 +24,12 @@ from dao_vang.experiments.forward_test import (
     list_frozen_models,
 )
 from dao_vang.experiments.runner import ExperimentConfig, run_experiment
+from dao_vang.experiments.self_learning import run_self_learning
 from dao_vang.features.builder import build_features
-from dao_vang.labels.engine import DistributionLabelEngine
+from dao_vang.labels.engine_v1 import DistributionLabelEngineV1
+from dao_vang.labels.specs.distribution_short_v1 import specs as label_specs
 from dao_vang.reports.generator import generate_markdown_report
+from dao_vang.scanner.instance_lock import ScannerAlreadyRunning, ScannerInstanceLock
 
 app = typer.Typer(help="Đảo Vàng CLI")
 
@@ -26,12 +38,14 @@ labels_app = typer.Typer(help="Labeling commands")
 features_app = typer.Typer(help="Feature generation commands")
 experiment_app = typer.Typer(help="Experiment and training commands")
 report_app = typer.Typer(help="Reporting commands")
+scanner_app = typer.Typer(help="24/7 scanner + Telegram alerts (post-MVP, ADR 0001)")
 
 app.add_typer(data_app, name="data")
 app.add_typer(labels_app, name="labels")
 app.add_typer(features_app, name="features")
 app.add_typer(experiment_app, name="experiment")
 app.add_typer(report_app, name="report")
+app.add_typer(scanner_app, name="scanner")
 
 
 @data_app.command("collect")
@@ -58,16 +72,226 @@ def data_normalize() -> None:
     typer.echo("Normalization not fully exposed via CLI yet.")
 
 
+@data_app.command("listing-scan")
+def data_listing_scan(
+    history_path: str = str(_LISTING_HISTORY_PATH),
+    max_days: int = 365,
+) -> None:
+    """Scan Binance Spot/Futures listing counts and append to daily history.
+
+    Fetches exchangeInfo from Spot, USD-M and COIN-M futures, counts coins/
+    symbols currently TRADING, and appends a snapshot to the history JSON
+    (overwriting any same-day entry). Designed to run once per day via cron /
+    Task Scheduler.
+
+    Examples::
+
+        dao-vang data listing-scan
+        dao-vang data listing-scan --history-path data/binance_listing_history.json
+    """
+    path = Path(history_path)
+    snapshot = run_daily_scan(path, max_days=max_days)
+    if not snapshot:
+        typer.echo("Failed to fetch listing stats from Binance.", err=True)
+        raise typer.Exit(code=1)
+
+    typer.echo(f"Listing scan saved -> {path}")
+    typer.echo(f"  Date:        {snapshot['date']}")
+    typer.echo(f"  Fetched at:  {snapshot['fetched_at']}")
+    typer.echo(f"  Spot:        {snapshot['spot_coins']} coins ({snapshot['spot_symbols']} symbols)")
+    typer.echo(f"  USD-M Fut:   {snapshot['usdm_coins']} coins ({snapshot['usdm_symbols']} symbols)")
+    typer.echo(f"  COIN-M Fut:  {snapshot['coinm_coins']} coins ({snapshot['coinm_symbols']} symbols)")
+    typer.echo(f"  Futures all:{snapshot['futures_coins']} coins")
+    typer.echo(f"  Binance all:{snapshot['all_coins']} coins")
+
+    history = load_history(path)
+    typer.echo(f"  History:     {len(history)} days (file: {path})")
+
+
+@data_app.command("listing-history")
+def data_listing_history(
+    history_path: str = str(_LISTING_HISTORY_PATH),
+    n: int = 10,
+) -> None:
+    """Show the most recent N listing snapshots from history."""
+    path = Path(history_path)
+    history = load_history(path)
+    if not history:
+        typer.echo(f"No history found at {path}. Run `dao-vang data listing-scan` first.")
+        raise typer.Exit(code=1)
+
+    latest = get_latest_snapshot(path)
+    typer.echo(f"History: {len(history)} snapshots at {path}")
+    typer.echo(f"Latest:  {latest.get('date', '?')} - Spot={latest.get('spot_coins')} "
+               f"USD-M={latest.get('usdm_coins')} All={latest.get('all_coins')}")
+    typer.echo("")
+    typer.echo(f"Last {n} snapshots (newest first):")
+    typer.echo(f"  {'Date':<12} {'Spot':>6} {'USD-M':>7} {'COIN-M':>7} {'Fut':>6} {'All':>6}")
+    for s in reversed(history[-n:]):
+        typer.echo(
+            f"  {s.get('date', '?'):<12} {s.get('spot_coins', 0):>6} "
+            f"{s.get('usdm_coins', 0):>7} {s.get('coinm_coins', 0):>7} "
+            f"{s.get('futures_coins', 0):>6} {s.get('all_coins', 0):>6}"
+        )
+
+
+@data_app.command("collect-derivatives")
+def data_collect_derivatives(
+    symbols: str = typer.Argument(
+        ..., help="Comma-separated USD-M futures symbols, e.g. BTCUSDT,ETHUSDT"
+    ),
+    hours_back: int = typer.Option(
+        24, "--hours-back", "-h", help="Hours of history to fetch"
+    ),
+    run_id: str = typer.Option("", "--run-id", "-r", help="Optional run ID"),
+) -> None:
+    """Collect funding, OI, taker and ratio data for a list of symbols.
+
+    Designed for daily cron jobs to keep OI/taker/ratio features from being
+    mostly null. Example::
+
+        dao-vang data collect-derivatives BTCUSDT,ETHUSDT,SOLUSDT --hours-back 24
+    """
+    settings = AppSettings()
+    symbol_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    if not symbol_list:
+        typer.echo("No symbols provided.", err=True)
+        raise typer.Exit(code=1)
+
+    summary = collect_derivatives(
+        symbols=symbol_list,
+        settings=settings,
+        hours_back=hours_back,
+        run_id=run_id or None,
+    )
+
+    typer.echo(f"Daily derivatives collection: {summary['run_id']}")
+    typer.echo(f"  Symbols: {', '.join(summary['symbols'])}")
+    typer.echo(f"  Range: {summary['range_start'][:19]} -> {summary['range_end'][:19]}")
+    typer.echo(f"  Total rows raw: {summary['total_rows_raw']}")
+    typer.echo(f"  Failures: {len(summary['failures'])}")
+    for failure in summary["failures"]:
+        typer.echo(
+            f"    FAIL {failure['symbol']}/{failure['data_type']}: {failure['error']}"
+        )
+
+
 @labels_app.command("generate")
 def label_generate(
     db_path: str,
     source_table: str,
+    horizon_hours: int = typer.Option(24, "--horizon-hours", min=6, max=24),
+    output_table: str = typer.Option("labels", "--output"),
 ) -> None:
-    """Generate labels from normalized data."""
+    """Generate one deterministic distribution_short_v1 label horizon."""
     conn = duckdb.connect(db_path)
-    engine = DistributionLabelEngine()
-    results = engine.compute_all(conn, source_table)
-    typer.echo(f"Generated {len(results)} labels.")
+    if horizon_hours not in label_specs:
+        raise typer.BadParameter("horizon-hours must be one of 6, 12 or 24")
+    DistributionLabelEngineV1(label_specs[horizon_hours]).compute_all_to_table(
+        conn, source_table, output_table
+    )
+    count = conn.execute(f"SELECT count(*) FROM {output_table}").fetchone()[0]
+    typer.echo(f"Generated {count} {horizon_hours}h labels in {output_table}.")
+    conn.close()
+
+
+@labels_app.command("materialize")
+def label_materialize(
+    db_path: str = typer.Option(
+        "data/dev.duckdb", "--db", help="Path to DuckDB file"
+    ),
+    source_table: str = typer.Option(
+        "raw_timeline", "--source", help="Input table (raw_timeline or aligned_5m)"
+    ),
+    output_table: str = typer.Option(
+        "labels", "--output", help="Output table name"
+    ),
+    horizons: str = typer.Option(
+        "6,12,24",
+        "--horizons",
+        help="Comma-separated label horizons; supported values: 6,12,24",
+    ),
+) -> None:
+    """Materialize versioned 6h/12h/24h labels into DuckDB.
+
+    Recomputes ALL labels from the source table by dropping and recreating
+    the output table. Designed to run periodically (cron / Task Scheduler)
+    to keep labels fresh — without this, the labels table goes stale and
+    the scanner's self-learning feedback loop breaks.
+
+    Example::
+
+        dao-vang labels materialize
+        dao-vang labels materialize --db data/dev.duckdb --source raw_timeline
+    """
+    import time as _time
+
+    # Label materialization drops/recreates a table and must never overlap the
+    # live scanner writer. Reuse the deployment lock so a scheduled label job
+    # fails closed with a clear instruction instead of invalidating DuckDB.
+    deployment_lock = ScannerInstanceLock(Path(db_path).resolve().parent / "scanner.lock")
+    try:
+        deployment_lock.acquire()
+    except ScannerAlreadyRunning as exc:
+        typer.echo(f"ERROR: {exc}. Stop scanner before materializing labels.", err=True)
+        raise typer.Exit(code=2) from exc
+
+    typer.echo(f"Connecting to {db_path} (read_write)...")
+    try:
+        conn = duckdb.connect(db_path, read_only=False)
+    except Exception as exc:
+        typer.echo(f"ERROR: Cannot open DB for writing: {exc}", err=True)
+        typer.echo("Stop scanner daemon and retry.", err=True)
+        deployment_lock.release()
+        raise typer.Exit(code=1)
+
+    exists = conn.execute(
+        "SELECT count(*) FROM information_schema.tables WHERE table_name = ?",
+        [output_table],
+    ).fetchone()[0]
+    before = conn.execute(
+        f"SELECT max(signal_time), count(*) FROM {output_table}"
+    ).fetchone() if exists else (None, 0)
+    typer.echo(f"Labels BEFORE: max={before[0]}, rows={before[1]}")
+
+    src = conn.execute(
+        f"SELECT max(feature_time), count(*) FROM {source_table}"
+    ).fetchone()
+    typer.echo(f"{source_table}: max={src[0]}, rows={src[1]}")
+
+    typer.echo(f"\nMaterializing labels from {source_table} -> {output_table}...")
+    t0 = _time.time()
+    try:
+        selected_horizons = tuple(
+            sorted({int(value.strip()) for value in horizons.split(",") if value.strip()})
+        )
+    except ValueError as exc:
+        raise typer.BadParameter("horizons must be a comma-separated list of 6, 12, 24") from exc
+    if not selected_horizons or any(value not in label_specs for value in selected_horizons):
+        raise typer.BadParameter("horizons must be a non-empty subset of 6, 12, 24")
+    DistributionLabelEngineV1(label_specs[selected_horizons[0]]).compute_all_horizons_to_table(
+        conn, source_table, output_table, horizons=selected_horizons
+    )
+    elapsed = _time.time() - t0
+
+    typer.echo(f"\nDone in {elapsed:.1f}s")
+    n_total, n_positive, n_excluded = conn.execute(
+        f"SELECT count(*), count(*) FILTER (WHERE label_value = 1), "
+        f"count(*) FILTER (WHERE label_value IS NULL) FROM {output_table}"
+    ).fetchone()
+    typer.echo(f"  horizons:   {','.join(str(value) for value in selected_horizons)}")
+    typer.echo(f"  n_total:    {n_total}")
+    typer.echo(f"  n_positive: {n_positive}")
+    typer.echo(f"  n_excluded: {n_excluded}")
+
+    after = conn.execute(
+        f"SELECT max(signal_time), count(*) FROM {output_table}"
+    ).fetchone()
+    typer.echo(f"\nLabels AFTER: max={after[0]}, rows={after[1]}")
+
+    conn.close()
+    deployment_lock.release()
+    typer.echo("Label materialization complete.")
 
 
 @features_app.command("generate")
@@ -119,9 +343,13 @@ def experiment_freeze(
     artifact_dir: str = "./artifacts",
     hypothesis_id: str = "forward_test",
     dataset_version: str = "v1",
-    label_version: str = "v1",
-    feature_set_version: str = "v1",
+    label_version: str = "distribution_short_v1",
+    feature_set_version: str = "features_v1",
     seed: int = 42,
+    horizon_hours: int = typer.Option(
+        24, "--horizon-hours", min=6, max=24,
+        help="Single materialized V1 horizon to freeze (6, 12 or 24)",
+    ),
 ) -> None:
     """Freeze a trained model for forward testing.
 
@@ -130,7 +358,12 @@ def experiment_freeze(
     The train_cutoff is the latest feature_time in the training data — data
     after this point is forward-test data.
     """
+    from sklearn.impute import SimpleImputer
     from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+
+    if horizon_hours not in {6, 12, 24}:
+        raise typer.BadParameter("horizon-hours must be one of 6, 12 or 24")
 
     conn = duckdb.connect(db_path, read_only=True)
     try:
@@ -140,8 +373,9 @@ def experiment_freeze(
             FROM feature_results f
             INNER JOIN labels l
                 ON f.feature_time = l.signal_time AND f.symbol = l.symbol
+            WHERE l.horizon_hours = ?
             """
-        ).df()
+            , [horizon_hours]).df()
     finally:
         conn.close()
 
@@ -166,13 +400,38 @@ def experiment_freeze(
     train_df = df[df["feature_time"] < val_cutoff]
     val_df = df[df["feature_time"] >= val_cutoff]
 
-    model = LogisticRegression(max_iter=1000, random_state=seed, class_weight="balanced")
-    model.fit(train_df[feature_cols].fillna(0), train_df["is_distribution"])
+    # Serving rejects missing required inputs, so features that were not
+    # materially available in the training window must not enter the frozen
+    # schema.  The selection is fit on train only and recorded in metadata.
+    availability = train_df[feature_cols].notna().mean()
+    dropped_unavailable = [
+        column for column in feature_cols if float(availability[column]) < 0.5
+    ]
+    feature_cols = [column for column in feature_cols if column not in dropped_unavailable]
+    if not feature_cols:
+        typer.echo("No features meet the train-window availability floor (50%).", err=True)
+        raise typer.Exit(code=1)
+
+    def build_estimator() -> Pipeline:
+        return Pipeline(
+            [
+                ("imputer", SimpleImputer(strategy="median", add_indicator=True)),
+                (
+                    "model",
+                    LogisticRegression(
+                        max_iter=1000, random_state=seed, class_weight="balanced"
+                    ),
+                ),
+            ]
+        )
+
+    model = build_estimator()
+    model.fit(train_df[feature_cols], train_df["is_distribution"])
 
     # Threshold tuning on validation
     best_threshold, best_f1 = 0.5, 0.0
     if len(val_df) > 0 and val_df["is_distribution"].nunique() >= 2:
-        y_val_prob = model.predict_proba(val_df[feature_cols].fillna(0))[:, 1]
+        y_val_prob = model.predict_proba(val_df[feature_cols])[:, 1]
         y_val = val_df["is_distribution"].values
         import numpy as np
         for thresh in np.arange(0.05, 0.95, 0.05):
@@ -190,8 +449,8 @@ def experiment_freeze(
                 best_threshold = thresh
 
     # Retrain on ALL data with the tuned threshold
-    final_model = LogisticRegression(max_iter=1000, random_state=seed, class_weight="balanced")
-    final_model.fit(df[feature_cols].fillna(0), df["is_distribution"])
+    final_model = build_estimator()
+    final_model.fit(df[feature_cols], df["is_distribution"])
 
     train_cutoff = df["feature_time"].max()
     config = {
@@ -199,6 +458,7 @@ def experiment_freeze(
         "dataset_version": dataset_version,
         "label_version": label_version,
         "feature_set_version": feature_set_version,
+        "threshold_policy_version": "1.0",
         "seed": seed,
     }
     training_stats = {
@@ -206,6 +466,7 @@ def experiment_freeze(
         "train_positives": int(df["is_distribution"].sum()),
         "threshold": float(best_threshold),
         "n_features": len(feature_cols),
+        "dropped_unavailable_features": dropped_unavailable,
     }
 
     info = freeze_model(
@@ -215,6 +476,15 @@ def experiment_freeze(
         config=config,
         train_cutoff=train_cutoff,
         training_stats=training_stats,
+        label_spec={
+            "version": label_version,
+            "horizon_hours": horizon_hours,
+        },
+        threshold_policy={
+            "version": "1.0",
+            "high_confidence_min_prob": float(best_threshold),
+            "watch_min_prob": float(max(0.0, best_threshold * 0.75)),
+        },
         artifact_dir=Path(artifact_dir),
     )
     typer.echo(f"Frozen model saved: {info.model_id}")
@@ -283,6 +553,81 @@ def experiment_frozen_list(
         typer.echo(f"  {m.model_id}  cutoff={m.train_cutoff[:19]}  thresh={m.threshold:.4f}  features={len(m.feature_cols)}")
 
 
+@experiment_app.command("self-learn")
+def experiment_self_learn(
+    config: str = typer.Option("", "--config", "-c", help="Path to YAML config"),
+    db_path: str = typer.Option("", "--db-path", help="Override self-learning DB path"),
+    artifact_dir: str = typer.Option("", "--artifact-dir", help="Override artifact directory"),
+    champion_model_id: str = typer.Option(
+        "", "--champion-model-id", help="Model to compare against"
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Run when the outcome threshold has not increased (data gates still apply)",
+    ),
+) -> None:
+    """Train and evaluate one guarded challenger from materialized outcomes.
+
+    The command never promotes a model or changes scanner.frozen_model_id.
+    It is safe to run repeatedly; the self-learning state file prevents a
+    duplicate run when no new outcomes have arrived.
+    """
+
+    settings = AppSettings.from_yaml(Path(config)) if config else AppSettings()
+    champion = champion_model_id or settings.scanner.frozen_model_id
+    if not champion:
+        typer.echo(
+            "ERROR: champion model is not set. Pass --champion-model-id or "
+            "configure scanner.frozen_model_id.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    result = run_self_learning(
+        db_path=db_path or settings.scanner.db_path,
+        artifact_dir=artifact_dir or settings.scanner.artifact_dir,
+        champion_model_id=champion,
+        state_path=settings.self_learning.state_path,
+        report_dir=settings.self_learning.report_dir,
+        min_training_outcomes=settings.self_learning.min_training_outcomes,
+        min_new_outcomes=settings.self_learning.min_new_outcomes,
+        min_positive_events=settings.self_learning.min_positive_events,
+        min_precision_improvement=settings.self_learning.min_precision_improvement,
+        max_recall_regression=settings.self_learning.max_recall_regression,
+        max_brier_regression=settings.self_learning.max_brier_regression,
+        recent_window_days=settings.self_learning.recent_window_days,
+        recent_sample_weight=settings.self_learning.recent_sample_weight,
+        historical_max_rows=settings.self_learning.historical_max_rows,
+        seed=settings.self_learning.seed,
+        force=force,
+    )
+    typer.echo(f"Self-learning status: {result.get('status', 'unknown')}")
+    if result.get("reason"):
+        typer.echo(f"  Reason: {result['reason']}")
+    readiness = result.get("readiness")
+    if isinstance(readiness, dict):
+        typer.echo(
+            "  Outcomes: {training_outcomes} "
+            "(new {new_outcomes}), positive events: {positive_events}".format(
+                **readiness
+            )
+        )
+        if "historical_outcomes" in readiness:
+            typer.echo(
+                "  Sources: historical {historical_outcomes}, live {live_outcomes}, "
+                "recent {recent_outcomes}, recent weight x{recent_sample_weight}"
+                .format(**readiness)
+            )
+    if result.get("challenger_model_id"):
+        typer.echo(f"  Challenger: {result['challenger_model_id']}")
+        typer.echo("  Promotion: NOT automatic; review the report before canary.")
+    if result.get("report_path"):
+        typer.echo(f"  Report: {result['report_path']}")
+    elif result.get("last_report_path"):
+        typer.echo(f"  Report: {result['last_report_path']}")
+
+
 @report_app.command("generate")
 def report_generate(
     artifact_id: str,
@@ -310,3 +655,524 @@ def report_generate(
 def main_callback() -> None:
     """Đảo Vàng - Predictive model for crypto distribution phases."""
     pass
+
+
+# ============================================================
+# SCANNER commands (post-MVP, ADR 0001)
+# ============================================================
+
+
+@scanner_app.command("start")
+def scanner_start(
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+) -> None:
+    """Start the 24/7 scanner daemon.
+
+    Polls Binance every poll_interval_minutes, scores with frozen model,
+    sends Telegram alerts on CAO/TRUNG BÌNH signals.
+
+    Requires:
+    - Frozen model (run `dao-vang experiment freeze` first).
+    - Telegram bot token + chat ID (see docs/TELEGRAM_SETUP.md).
+    - scanner.frozen_model_id set in config or env.
+
+    Press Ctrl+C to stop gracefully.
+    """
+    from dao_vang.scanner.daemon import ScannerDaemon
+    from dao_vang.scanner.instance_lock import ScannerAlreadyRunning
+
+    if config:
+        settings = AppSettings.from_yaml(Path(config))
+    else:
+        settings = AppSettings()
+
+    if not settings.scanner.frozen_model_id:
+        typer.echo(
+            "ERROR: scanner.frozen_model_id not set.\n"
+            "Run `dao-vang experiment freeze` first, then set in config or env:\n"
+            "  DAO_VANG_SCANNER__FROZEN_MODEL_ID=frozen_... dao-vang scanner start",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    if not settings.telegram.bot_token or not settings.telegram.chat_id:
+        typer.echo(
+            "WARNING: Telegram not configured. Alerts will be logged but not sent.\n"
+            "See docs/TELEGRAM_SETUP.md for setup instructions.",
+            err=True,
+        )
+
+    typer.echo(f"Starting scanner with model: {settings.scanner.frozen_model_id}")
+    typer.echo(f"Poll interval: {settings.scanner.poll_interval_minutes} min")
+    typer.echo(f"Max coins: {settings.scanner.max_coins}")
+    typer.echo(f"Alert levels: {settings.scanner.alert_levels}")
+    typer.echo("Press Ctrl+C to stop.\n")
+
+    try:
+        daemon = ScannerDaemon(settings)
+    except ScannerAlreadyRunning as exc:
+        typer.echo(f"ERROR: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    daemon.run()
+
+
+@scanner_app.command("materialize-outcomes")
+def scanner_materialize_outcomes(
+    db_path: str = typer.Option(
+        "data_live/live.duckdb", "--db", help="Shadow DuckDB file"
+    ),
+    source_table: str = typer.Option(
+        "raw_timeline", "--source", help="Point-in-time timeline table"
+    ),
+    horizons: str = typer.Option(
+        "6,12,24", "--horizons", help="Comma-separated horizons: 6,12,24"
+    ),
+) -> None:
+    """Materialize expired shadow predictions without inventing outcomes.
+
+    Stop the scanner for this command if DuckDB reports a writer lock.  Rows
+    whose future horizon is incomplete remain pending and are retried later.
+    """
+
+    from dao_vang.scanner.outcomes import materialize_prediction_outcomes
+    from dao_vang.scanner.scan_results_store import ScanResultStore
+
+    try:
+        selected = tuple(sorted({int(item.strip()) for item in horizons.split(",") if item.strip()}))
+    except ValueError as exc:
+        raise typer.BadParameter("horizons must be a comma-separated list of 6, 12, 24") from exc
+    if not selected or any(item not in {6, 12, 24} for item in selected):
+        raise typer.BadParameter("horizons must be a non-empty subset of 6,12,24")
+
+    try:
+        prediction_store = ScanResultStore(db_path)
+        db = DuckDBQueryLayer(db_path)
+        resolved = materialize_prediction_outcomes(
+            prediction_store,
+            db,
+            timeline_table=source_table,
+            horizons=selected,
+        )
+        stats = prediction_store.materialization_stats()
+    except Exception as exc:
+        typer.echo(f"BLOCKED: cannot materialize outcomes: {exc}", err=True)
+        typer.echo("Stop the scanner and retry if the DuckDB file is locked.", err=True)
+        raise typer.Exit(code=2) from exc
+
+    typer.echo(f"Materialized outcomes: {resolved}")
+    typer.echo(f"  predictions: {stats['predictions']}")
+    typer.echo(f"  outcomes:    {stats['outcomes']}")
+    typer.echo(f"  pending:     {stats['pending']}")
+    typer.echo(f"  excluded:    {stats['excluded']}")
+
+
+@scanner_app.command("test-telegram")
+def scanner_test_telegram(
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+) -> None:
+    """Send a test message to verify Telegram configuration."""
+    from dao_vang.alerts.telegram import TelegramNotifier
+
+    if config:
+        settings = AppSettings.from_yaml(Path(config))
+    else:
+        settings = AppSettings()
+
+    notifier = TelegramNotifier(settings.telegram)
+    if not notifier.is_configured:
+        typer.echo(
+            "ERROR: Telegram not configured.\n"
+            "Set env vars:\n"
+            "  DAO_VANG_TELEGRAM__BOT_TOKEN=...\n"
+            "  DAO_VANG_TELEGRAM__CHAT_ID=...\n"
+            "See docs/TELEGRAM_SETUP.md for details.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    typer.echo("Sending test message...")
+    if notifier.send_test():
+        typer.echo("[OK] Test message sent! Check your Telegram.")
+    else:
+        typer.echo("[FAIL] Failed to send. Check bot token + chat ID.", err=True)
+        raise typer.Exit(code=1)
+
+
+@scanner_app.command("status")
+def scanner_status(
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+    days: int = typer.Option(7, "--days", "-d", help="Stats for last N days"),
+) -> None:
+    """Show scanner status + alert history stats."""
+    from dao_vang.alerts.store import AlertStore
+
+    if config:
+        settings = AppSettings.from_yaml(Path(config))
+    else:
+        settings = AppSettings()
+
+    store = AlertStore(str(settings.scanner.db_path))
+    stats = store.stats(days=days)
+
+    typer.echo(f"=== Scanner Status (last {days} days) ===")
+    typer.echo(f"Total alerts:    {stats['total']}")
+    typer.echo(f"Alerts judged:   {stats['n_judged']}")
+    typer.echo(f"Alerts hit:      {stats['n_hit']}")
+    if stats["hit_rate"] is not None:
+        typer.echo(f"Hit rate:        {stats['hit_rate']:.1%}")
+    else:
+        typer.echo("Hit rate:        N/A (no alerts judged yet)")
+    typer.echo("")
+    typer.echo("By risk level:")
+    for level in ["CAO", "TRUNG BÌNH", "THẤP", "RẤT THẤP"]:
+        n = stats["by_risk"].get(level, 0)
+        if n:
+            typer.echo(f"  {level:<15} {n}")
+
+    typer.echo("")
+    typer.echo(f"Frozen model:    {settings.scanner.frozen_model_id or 'NOT SET'}")
+    typer.echo(f"Poll interval:   {settings.scanner.poll_interval_minutes} min")
+    typer.echo(f"Max coins:       {settings.scanner.max_coins}")
+    typer.echo(f"Scan mode:       {settings.scanner.scan_mode}")
+    typer.echo(f"Min change %:    {settings.scanner.min_price_change_pct}%")
+    typer.echo(f"Min volume:      ${settings.scanner.min_volume_usd:,.0f}")
+    typer.echo(f"Include BTC:     {settings.scanner.include_btc}")
+    typer.echo(f"Exclude stable:  {settings.scanner.exclude_stablecoins}")
+    typer.echo(f"Cooldown:        {settings.scanner.cooldown_minutes} min")
+    typer.echo(
+        f"Telegram:        "
+        f"{'configured' if settings.telegram.bot_token else 'NOT SET'}"
+    )
+
+    # Watchlist count
+    from dao_vang.scanner.watchlist import load_manual_watchlist
+    wl = load_manual_watchlist(settings.scanner.watchlist_path)
+    typer.echo(f"Watchlist:       {len(wl)} coin ({settings.scanner.watchlist_path})")
+
+
+@scanner_app.command("resolve-outcomes")
+def scanner_resolve_outcomes(
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+) -> None:
+    """Back-fill hit/miss for alerts whose 24h horizon has completed.
+
+    This is the self-learning feedback loop: the scanner daemon already
+    calls this every cycle, but it can also be run manually (e.g. via cron
+    on a machine where the daemon isn't running, or to force a refresh).
+    """
+    from dao_vang.alerts.store import AlertStore
+    from dao_vang.data.storage.duckdb import DuckDBQueryLayer
+    from dao_vang.scanner.outcomes import resolve_pending_outcomes
+
+    settings = AppSettings.from_yaml(Path(config)) if config else AppSettings()
+
+    store = AlertStore(str(settings.scanner.db_path))
+    db = DuckDBQueryLayer(str(settings.scanner.db_path))
+
+    pending = store.pending_outcomes()
+    typer.echo(f"Pending outcomes: {len(pending)}")
+
+    n_resolved = resolve_pending_outcomes(store, db)
+    typer.echo(f"Resolved: {n_resolved}")
+
+    stats = store.stats(days=30)
+    if stats["hit_rate"] is not None:
+        typer.echo(
+            f"Hit rate (30d):  {stats['hit_rate']:.1%} "
+            f"({stats['n_hit']}/{stats['n_judged']} judged)"
+        )
+    else:
+        typer.echo("Hit rate (30d):  N/A — not enough judged alerts yet")
+
+
+@scanner_app.command("watchdog")
+def scanner_watchdog(
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+    max_staleness_minutes: int = typer.Option(
+        0,
+        "--max-staleness-minutes",
+        help="Alert threshold; defaults to scanner.max_heartbeat_age_minutes",
+    ),
+    heartbeat_path: str = typer.Option(
+        "",
+        "--heartbeat-path",
+        help=(
+            "Path to scanner heartbeat file "
+            "(defaults to the configured data directory)"
+        ),
+    ),
+) -> None:
+    """One-shot check: is the scanner daemon actually alive?
+
+    Intended to be run periodically by an external scheduler (cron / Windows
+    Task Scheduler / a second docker-compose service) — the daemon cannot
+    reliably report its own death, so this is a separate process. Sends a
+    Telegram alert and exits non-zero if the heartbeat is missing or stale.
+    """
+    import json as _json
+
+    from dao_vang.alerts.telegram import TelegramNotifier
+
+    settings = AppSettings.from_yaml(Path(config)) if config else AppSettings()
+    max_staleness_minutes = (
+        max_staleness_minutes or settings.scanner.max_heartbeat_age_minutes
+    )
+    hb_path = (
+        Path(heartbeat_path)
+        if heartbeat_path
+        else Path(settings.paths.data_dir) / "scanner_heartbeat.json"
+    )
+    notifier = TelegramNotifier(settings.telegram)
+
+    if not hb_path.exists():
+        msg = f"🔴 *Scanner Watchdog* — không tìm thấy heartbeat tại `{hb_path}`. Scanner có thể chưa từng chạy hoặc đã crash."
+        typer.echo(msg)
+        notifier.send_message(msg)
+        raise typer.Exit(code=1)
+
+    try:
+        hb = _json.loads(hb_path.read_text(encoding="utf-8"))
+        hb_time = datetime.fromisoformat(hb["timestamp"])
+        if hb_time.tzinfo is None:
+            hb_time = hb_time.replace(tzinfo=timezone.utc)
+    except Exception as exc:
+        msg = f"🔴 *Scanner Watchdog* — heartbeat file lỗi/không đọc được: {exc}"
+        typer.echo(msg)
+        notifier.send_message(msg)
+        raise typer.Exit(code=1)
+
+    age_minutes = (datetime.now(timezone.utc) - hb_time).total_seconds() / 60.0
+    if age_minutes > max_staleness_minutes or hb.get("status") != "running":
+        msg = (
+            f"🔴 *Scanner Watchdog* — scanner có vẻ đã dừng.\n"
+            f"Heartbeat cuối: {age_minutes:.1f} phút trước "
+            f"(ngưỡng {max_staleness_minutes} phút), status={hb.get('status')}."
+        )
+        typer.echo(msg)
+        notifier.send_message(msg)
+        raise typer.Exit(code=1)
+
+    typer.echo(
+        f"[OK] Scanner alive — heartbeat {age_minutes:.1f} phút trước, "
+        f"cycle={hb.get('cycle')}, status={hb.get('status')}."
+    )
+
+
+@scanner_app.command("history")
+def scanner_history(
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+    symbol: str = typer.Option("", "--symbol", "-s", help="Filter by symbol"),
+    days: int = typer.Option(7, "--days", "-d", help="Last N days"),
+    limit: int = typer.Option(50, "--limit", "-n", help="Max rows"),
+) -> None:
+    """Show recent alert history."""
+    from dao_vang.alerts.store import AlertStore
+
+    if config:
+        settings = AppSettings.from_yaml(Path(config))
+    else:
+        settings = AppSettings()
+
+    store = AlertStore(str(settings.scanner.db_path))
+    rows = store.query(
+        symbol=symbol.upper() if symbol else None,
+        days=days,
+        limit=limit,
+    )
+
+    if not rows:
+        typer.echo("No alerts found.")
+        return
+
+    typer.echo(
+        f"{'Time':<20} {'Symbol':<12} {'Risk':<14} "
+        f"{'Prob':>7} {'TG':>3} {'Hit':>5}"
+    )
+    typer.echo("-" * 65)
+    for r in rows:
+        st = r["signal_time"].strftime("%Y-%m-%d %H:%M") if r["signal_time"] else "?"
+        tg = "✅" if r["telegram_sent"] else "—"
+        hit = "✅" if r["hit"] else "❌" if r["hit"] is False else "⏳"
+        typer.echo(
+            f"{st:<20} {r['symbol']:<12} {r['risk_level']:<14} "
+            f"{r['probability']:>6.1%} {tg:>3} {hit:>5}"
+        )
+
+
+# ============================================================
+# SCANNER WATCHLIST commands (post-MVP — quản lý danh sách theo dõi)
+# ============================================================
+
+watchlist_app = typer.Typer(help="Quản lý danh sách theo dõi (watchlist)")
+app.add_typer(watchlist_app, name="watchlist")
+
+
+@watchlist_app.command("list")
+def watchlist_list(
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+) -> None:
+    """Hiển thị danh sách theo dõi hiện tại."""
+    from dao_vang.scanner.watchlist import load_manual_watchlist
+
+    if config:
+        settings = AppSettings.from_yaml(Path(config))
+    else:
+        settings = AppSettings()
+
+    symbols = load_manual_watchlist(settings.scanner.watchlist_path)
+    if not symbols:
+        typer.echo(f"Danh sách theo dõi trống. ({settings.scanner.watchlist_path})")
+        typer.echo("Thêm coin: dao-vang watchlist add BTCUSDT")
+        return
+
+    typer.echo(f"Danh sách theo dõi ({len(symbols)} coin):")
+    typer.echo(f"  File: {settings.scanner.watchlist_path}")
+    for i, sym in enumerate(symbols, 1):
+        typer.echo(f"  {i:>3}. {sym}")
+
+
+@watchlist_app.command("add")
+def watchlist_add(
+    symbol: str = typer.Argument(..., help="Mã coin, VD: BTCUSDT"),
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+) -> None:
+    """Thêm coin vào danh sách theo dõi."""
+    from dao_vang.scanner.watchlist import add_to_watchlist
+
+    if config:
+        settings = AppSettings.from_yaml(Path(config))
+    else:
+        settings = AppSettings()
+
+    symbols = add_to_watchlist(settings.scanner.watchlist_path, symbol)
+    typer.echo(f"✅ Đã thêm {symbol.upper()} vào danh sách theo dõi.")
+    typer.echo(f"   Tổng số coin: {len(symbols)}")
+    typer.echo(f"   File: {settings.scanner.watchlist_path}")
+
+
+@watchlist_app.command("remove")
+def watchlist_remove(
+    symbol: str = typer.Argument(..., help="Mã coin, VD: BTCUSDT"),
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+) -> None:
+    """Xóa coin khỏi danh sách theo dõi."""
+    from dao_vang.scanner.watchlist import remove_from_watchlist
+
+    if config:
+        settings = AppSettings.from_yaml(Path(config))
+    else:
+        settings = AppSettings()
+
+    symbols = remove_from_watchlist(settings.scanner.watchlist_path, symbol)
+    typer.echo(f"✅ Đã xóa {symbol.upper()} khỏi danh sách theo dõi.")
+    typer.echo(f"   Còn lại: {len(symbols)} coin")
+    typer.echo(f"   File: {settings.scanner.watchlist_path}")
+
+
+@watchlist_app.command("clear")
+def watchlist_clear(
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+    confirm: bool = typer.Option(False, "--yes", "-y", help="Bỏ qua xác nhận"),
+) -> None:
+    """Xóa toàn bộ danh sách theo dõi."""
+    from dao_vang.scanner.watchlist import save_manual_watchlist
+
+    if config:
+        settings = AppSettings.from_yaml(Path(config))
+    else:
+        settings = AppSettings()
+
+    if not confirm:
+        typer.echo("⚠️  Sẽ xóa toàn bộ danh sách theo dõi.")
+        typer.echo("   Chạy lại với --yes để xác nhận.")
+        raise typer.Exit(code=1)
+
+    save_manual_watchlist(settings.scanner.watchlist_path, [])
+    typer.echo("✅ Đã xóa toàn bộ danh sách theo dõi.")
+
+
+@scanner_app.command("scan-list")
+def scanner_scan_list(
+    config: str = typer.Option(
+        "", "--config", "-c", help="Path to YAML config (optional)"
+    ),
+    mode: str = typer.Option(
+        "", "--mode", "-m",
+        help="Chế độ quét: gainers/losers/volume/volatile/all (override config)",
+    ),
+) -> None:
+    """Xem trước danh sách coin sẽ quét trong chu kỳ tiếp theo.
+
+    Hữu ích để kiểm tra cấu hình scanner trước khi chạy thật.
+    """
+    from dao_vang.scanner.watchlist import preview_scan_list
+
+    if config:
+        settings = AppSettings.from_yaml(Path(config))
+    else:
+        settings = AppSettings()
+
+    if mode:
+        settings.scanner.scan_mode = mode
+
+    typer.echo("=== Scan List Preview ===")
+    typer.echo(f"Scan mode:        {settings.scanner.scan_mode}")
+    typer.echo(f"Max coins:        {settings.scanner.max_coins}")
+    typer.echo(f"Min volume (USD): ${settings.scanner.min_volume_usd:,.0f}")
+    typer.echo(f"Min change %:     {settings.scanner.min_price_change_pct}%")
+    typer.echo(f"Include BTC:      {settings.scanner.include_btc}")
+    typer.echo(f"Exclude stable:   {settings.scanner.exclude_stablecoins}")
+    typer.echo("")
+
+    try:
+        preview = preview_scan_list(settings.scanner)
+    except Exception as exc:
+        typer.echo(f"❌ Lỗi: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+    # Manual watchlist
+    manual = preview["manual_watchlist"]
+    typer.echo(f"📋 Danh sách theo dõi ({len(manual)} coin):")
+    if manual:
+        for sym in manual:
+            typer.echo(f"  • {sym}")
+    else:
+        typer.echo("  (trống)")
+    typer.echo("")
+
+    # Auto tickers (top 10)
+    auto = preview["auto_tickers_top10"]
+    typer.echo(f"📡 Top {len(auto)} coin tự động (mode={preview['scan_mode']}):")
+    typer.echo(f"  {'Symbol':<14} {'Change%':>10} {'Volume (USD)':>16} {'Price':>12}")
+    for d in auto:
+        typer.echo(
+            f"  {d['symbol']:<14} {d['change_pct']:>+9.2f}% "
+            f"{d['volume_usd']:>15,.0f} {d['last_price']:>12.6f}"
+        )
+    typer.echo("")
+
+    # Final list
+    final = preview["final_list"]
+    typer.echo(f"✅ Danh sách cuối cùng sẽ quét ({len(final)} coin):")
+    for i, sym in enumerate(final, 1):
+        typer.echo(f"  {i:>3}. {sym}")

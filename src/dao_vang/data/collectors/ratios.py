@@ -1,7 +1,7 @@
 import hashlib
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, cast
 
 from dao_vang.config.settings import AppSettings
@@ -10,6 +10,7 @@ from dao_vang.data.manifests.models import CollectionRunManifest
 from dao_vang.data.storage.paths import get_raw_path
 from dao_vang.data.storage.writer import write_jsonl_atomic
 from dao_vang.domain.enums import RunStatus
+from dao_vang.domain.time import system_now
 from dao_vang.logging import get_logger
 
 logger = get_logger(__name__)
@@ -33,7 +34,7 @@ class BaseRatioCollector:
 
         run_manifest = CollectionRunManifest(
             collection_run_id=run_id,
-            started_at=datetime.now(timezone.utc),
+            started_at=system_now(),
             status=RunStatus.RUNNING,
             data_type=self.data_type,
             range_start=start_time,
@@ -57,9 +58,9 @@ class BaseRatioCollector:
                     "limit": limit,
                 }
 
-                req_at = datetime.now(timezone.utc)
+                req_at = system_now()
                 data = self.client.get(self.endpoint, params)
-                rec_at = datetime.now(timezone.utc)
+                rec_at = system_now()
 
                 if not data or not isinstance(data, list):
                     break
@@ -90,6 +91,12 @@ class BaseRatioCollector:
                 envelopes.append(envelope)
                 run_manifest.rows_raw += len(data_list)
 
+                # A short page is the terminal page.  Do not attempt to
+                # advance its cursor: Binance may return the period boundary
+                # immediately before a millisecond-precise startTime.
+                if len(data_list) < limit:
+                    break
+
                 last_item = data_list[-1]
                 last_timestamp = int(last_item["timestamp"])
 
@@ -103,9 +110,6 @@ class BaseRatioCollector:
                     break
 
                 current_start_ms = next_start
-
-                if len(data_list) < limit:
-                    break
 
             if envelopes:
                 dt = start_time.date()
@@ -124,7 +128,7 @@ class BaseRatioCollector:
             run_manifest.error_count += 1
 
         finally:
-            run_manifest.completed_at = datetime.now(timezone.utc)
+            run_manifest.completed_at = system_now()
 
         return run_manifest
 

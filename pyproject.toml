@@ -16,8 +16,11 @@ dependencies = [
     "pytz>=2024.1",
     "streamlit>=1.30.0",
     "scikit-learn>=1.9.0",
+    "lightgbm>=4.0.0",
     "pandas>=3.0.5",
     "plotly>=6.9.0",
+    "httpx>=0.28.1",
+    "tenacity>=9.1.4",
 ]
 
 [project.scripts]

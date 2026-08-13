@@ -3,30 +3,58 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Environments
+# Environments & Sensitive Configs
 .env
+.env.*
+!.env.example
+!.env.docker.example
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+configs/live.yaml
+configs/*.local.yaml
 
 # IDEs and editors
 .vscode/
 .idea/
 *.swp
 *.swo
+.mcp.json
 
-# Testing
+# Testing & Coverage
 .pytest_cache/
+.pytest-*/
+.pytest_tmp*/
+pytest-multi-basetemp/
+pytest-run/
 .coverage
 htmlcov/
 coverage.xml
+reports/
 
-# Data and artifacts
+# Data, Live Databases and Artifacts
 /data/
+data_live/
 artifacts/
+*.duckdb
+*.sqlite
+*.parquet
+
+# Logs & Temporary Files
+*.log
+logs/
+qc
+query
+_commit_msg.txt
+*.zip
+
+# AI Agents & Tools Workspace Meta
+.agentsroom/
+.agents/
+.devin/
 
 # OS generated files
 .DS_Store

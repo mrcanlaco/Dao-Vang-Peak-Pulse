@@ -9,6 +9,7 @@ def align_exact_5m(
     taker_view: str = "taker_volume",
     global_ratio_view: str = "global_ratio",
     top_ratio_view: str = "top_ratio",
+    top_position_view: str | None = None,
     max_lag_seconds: int = 5,
 ):
     """
@@ -32,17 +33,34 @@ def align_exact_5m(
     # while OI/taker/ratio period_end is at xx:xx:00 (start of period).
     # We truncate both to 5-minute boundaries to match them.
     # E.g., kline 07:04:59.999 → 07:00:00, OI 07:00:00 → 07:00:00
+    if top_position_view:
+        top_position_select = (
+            "tpr.long_short_ratio AS top_long_short_position_ratio,"
+        )
+        top_position_join = f"""
+    LEFT JOIN {top_position_view} tpr
+        ON k.symbol = tpr.symbol
+        AND time_bucket(INTERVAL '5 minutes', k.close_time) = time_bucket(INTERVAL '5 minutes', tpr.period_end)
+        AND tpr.available_time <= (k.close_time + INTERVAL {max_lag_seconds} SECONDS)
+        AND tpr.quality_status IN ('valid', 'warning')
+"""
+    else:
+        top_position_select = "CAST(NULL AS DECIMAL(20,8)) AS top_long_short_position_ratio,"
+        top_position_join = ""
+
     sql = f"""
     CREATE OR REPLACE VIEW {output_view} AS
     SELECT
         k.symbol,
         k.close_time AS feature_time,
         k.close_time + INTERVAL {max_lag_seconds} SECONDS AS decision_time,
+        k.available_time AS feature_available_time,
         k.open, k.high, k.low, k.close, k.volume_base, k.volume_quote, k.trade_count,
         oi.open_interest_contracts, oi.open_interest_value,
         tv.buy_volume, tv.sell_volume, tv.buy_sell_ratio,
         gr.long_account AS global_long_account, gr.short_account AS global_short_account, gr.long_short_ratio AS global_long_short_ratio,
         tr.long_account AS top_long_account, tr.short_account AS top_short_account, tr.long_short_ratio AS top_long_short_ratio,
+        {top_position_select}
         k.quality_status
     FROM {kline_view} k
     LEFT JOIN {oi_view} oi
@@ -65,7 +83,13 @@ def align_exact_5m(
         AND time_bucket(INTERVAL '5 minutes', k.close_time) = time_bucket(INTERVAL '5 minutes', tr.period_end)
         AND tr.available_time <= (k.close_time + INTERVAL {max_lag_seconds} SECONDS)
         AND tr.quality_status IN ('valid', 'warning')
+    {top_position_join}
     WHERE k.available_time <= (k.close_time + INTERVAL {max_lag_seconds} SECONDS)
+      -- Binance's kline endpoint also returns the currently open candle. Its
+      -- close_time is in the future until the 5m interval has closed. Never
+      -- expose that candle to features/scoring: doing so makes the live
+      -- freshness gate reject every candidate as feature_time_in_future.
+      AND k.close_time <= CURRENT_TIMESTAMP
       AND k.quality_status IN ('valid', 'warning')
     """
 

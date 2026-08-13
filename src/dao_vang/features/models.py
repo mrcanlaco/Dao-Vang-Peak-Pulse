@@ -20,6 +20,19 @@ class FeatureDefinition(BaseModel):
     missing_policy: Literal[
         "drop", "fill_zero", "fill_mean", "ffill", "bfill", "null"
     ] = Field(default="null", description="Policy for handling missing values")
+    max_age_minutes: int = Field(
+        default=60, description="Max allowed age for forward filling before treating as missing"
+    )
+    data_type: str = Field(
+        default="float", description="Data type (float, int, bool)"
+    )
+    unit: str = Field(
+        default="", description="Unit of measurement (%, USD, etc)"
+    )
+    source: str = Field(
+        default="binance", description="Data source collector name"
+    )
+
     point_in_time: bool = Field(
         default=True, description="Whether the feature is point-in-time safe"
     )

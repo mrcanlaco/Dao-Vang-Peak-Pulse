@@ -1,7 +1,9 @@
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import pandas as pd
 from pydantic import BaseModel
+from sklearn.impute import SimpleImputer
 
 
 class ExperimentConfig(BaseModel):
@@ -74,9 +76,16 @@ def run_experiment(
     Returns a dictionary containing the results and execution metadata.
     """
     import duckdb
-    import pandas as pd
-    import numpy as np
-    from dao_vang.experiments.walk_forward import embargo_split, train_evaluate_logreg
+
+    from dao_vang.experiments.walk_forward import (
+        embargo_split,
+        train_evaluate_lightgbm,
+        train_evaluate_logreg,
+    )
+
+    # Model selection: "lightgbm*" configs use LightGBM + isotonic calibration;
+    # everything else falls back to LogisticRegression.
+    use_lightgbm = config.baseline_model.lower().startswith("lightgbm")
 
     owns_conn = conn is None
     if owns_conn:
@@ -204,7 +213,17 @@ def run_experiment(
         'feature_time', 'decision_time', 'is_distribution', 'quality_status',
         'symbol', 'lead_time_minutes', 'invalidation_time',
     ]
-    feature_cols = [c for c in df.columns if c not in exclude_cols]
+    candidate_cols = [c for c in df.columns if c not in exclude_cols]
+
+    # Drop null-heavy features before fitting a train-only imputer.  Missing
+    # values are not evidence and must never receive a global zero fill.
+    null_threshold = 0.50
+    n_rows = len(df)
+    feature_cols = [
+        c for c in candidate_cols
+        if float(df[c].isna().sum()) / n_rows <= null_threshold
+    ]
+    dropped_null_heavy = sorted(set(candidate_cols) - set(feature_cols))
 
     results_per_fold = []
     baseline_results_per_fold = []
@@ -218,6 +237,24 @@ def run_experiment(
             fold["test_end"]
         )
 
+        crossing_events: set[str] = set()
+        # Event-safe split: a distribution episode may contain many positive
+        # rows.  If its event_id appears in both sides of a fold boundary,
+        # remove the complete event from both datasets instead of allowing
+        # leakage through duplicated candles.  Legacy datasets without an
+        # event_id keep their existing row-wise behavior.
+        if "event_id" in train_df.columns and "event_id" in test_df.columns:
+            train_events = set(train_df["event_id"].dropna().astype(str))
+            test_events = set(test_df["event_id"].dropna().astype(str))
+            crossing_events = train_events & test_events
+            if crossing_events:
+                train_df = train_df[
+                    ~train_df["event_id"].astype(str).isin(crossing_events)
+                ].copy()
+                test_df = test_df[
+                    ~test_df["event_id"].astype(str).isin(crossing_events)
+                ].copy()
+
         # Skip fold if train or test has only one class
         if train_df["is_distribution"].nunique() < 2 or test_df["is_distribution"].nunique() < 2:
             results_per_fold.append({
@@ -227,18 +264,27 @@ def run_experiment(
                 "test_start": str(fold["test_start"]),
                 "test_end": str(fold["test_end"]),
                 "metrics": {"precision": 0.0, "recall": 0.0, "brier": 0.0, "threshold": 0.5},
+                "event_safe": True,
+                "dropped_event_ids": sorted(crossing_events),
                 "skipped": True,
                 "reason": "Insufficient class diversity in train or test",
             })
             continue
 
-        X_train = train_df[feature_cols].fillna(0)
+        imputer = SimpleImputer(strategy="median", add_indicator=True)
+        X_train_array = imputer.fit_transform(train_df[feature_cols])
+        X_test_array = imputer.transform(test_df[feature_cols])
+        X_train = pd.DataFrame(X_train_array, index=train_df.index)
         y_train = train_df['is_distribution']
-        X_test = test_df[feature_cols].fillna(0)
+        X_test = pd.DataFrame(X_test_array, index=test_df.index)
         y_test = test_df['is_distribution']
 
-        # Model metrics (with threshold tuning)
-        metrics = train_evaluate_logreg(X_train, y_train, X_test, y_test)
+        # Model metrics (with precision-first threshold tuning).
+        # LightGBM + isotonic calibration if configured, else LogisticRegression.
+        if use_lightgbm:
+            metrics = train_evaluate_lightgbm(X_train, y_train, X_test, y_test)
+        else:
+            metrics = train_evaluate_logreg(X_train, y_train, X_test, y_test)
 
         results_per_fold.append({
             "fold_idx": i + 1,
@@ -247,6 +293,8 @@ def run_experiment(
             "test_start": str(fold["test_start"]),
             "test_end": str(fold["test_end"]),
             "metrics": metrics,
+            "event_safe": True,
+            "dropped_event_ids": sorted(crossing_events),
             "train_size": len(train_df),
             "train_positives": int(y_train.sum()),
             "test_size": len(test_df),
@@ -302,6 +350,12 @@ def run_experiment(
             "data_quality": data_quality,
             "regime_breakdown": regime_breakdown,
             "lead_time_stats": lead_time_stats,
+            "feature_selection": {
+                "n_candidate_features": len(candidate_cols),
+                "n_selected_features": len(feature_cols),
+                "dropped_null_heavy": dropped_null_heavy,
+                "null_threshold": null_threshold,
+            },
         },
     }
 
@@ -318,13 +372,16 @@ def _regime_breakdown(df: Any, results_per_fold: list, folds: list) -> Dict[str,
         return {"status": "unavailable", "reason": "missing price_ret_24h or label column"}
 
     work = df.copy()
-    work["price_ret_24h"] = work["price_ret_24h"].fillna(0)
-    work["regime"] = "side"
-    work.loc[work["price_ret_24h"] > 0.02, "regime"] = "bull"
-    work.loc[work["price_ret_24h"] < -0.02, "regime"] = "bear"
+    returns = pd.to_numeric(work["price_ret_24h"], errors="coerce")
+    # Missing regime context is not equivalent to a flat market.  Keep it as
+    # an explicit bucket so regime KPIs cannot be improved by zero-filling.
+    work["regime"] = "unknown"
+    work.loc[returns > 0.02, "regime"] = "bull"
+    work.loc[returns < -0.02, "regime"] = "bear"
+    work.loc[returns.notna() & returns.between(-0.02, 0.02), "regime"] = "side"
 
     breakdown: Dict[str, Any] = {"status": "ok", "regimes": {}}
-    for regime in ["bull", "bear", "side"]:
+    for regime in ["bull", "bear", "side", "unknown"]:
         subset = work[work["regime"] == regime]
         labels = subset["is_distribution"].dropna()
         n_pos = int((labels == 1).sum())
@@ -434,26 +491,33 @@ def _compute_baselines(
     b0_pred = b0_random(prevalence, n, seed)
     results["B0_random"] = _calc_baseline_metrics(y_true, b0_pred)
 
-    # B1: price return 24h threshold
+    # B1: price return 24h threshold.  Rows without that baseline input are
+    # excluded explicitly and never coerced to a neutral return.
     if "price_ret_24h" in test_df.columns:
-        pr = test_df["price_ret_24h"].fillna(0).tolist()
+        price_values = pd.to_numeric(test_df["price_ret_24h"], errors="coerce")
+        mask = price_values.notna().to_numpy()
+        pr = price_values.loc[mask].tolist()
+        y_price = np.asarray(y_true)[mask].tolist()
         for thresh in [0.0, 0.02, 0.05]:
             b1_pred = b1_price_return(pr, thresh)
-            results[f"B1_price_ret_{thresh}"] = _calc_baseline_metrics(y_true, b1_pred)
+            results[f"B1_price_ret_{thresh}"] = _calc_baseline_metrics(y_price, b1_pred)
 
     # B2: funding percentile threshold
     if "funding_percentile_30d" in test_df.columns:
-        fp = test_df["funding_percentile_30d"].fillna(0).tolist()
+        funding_values = pd.to_numeric(test_df["funding_percentile_30d"], errors="coerce")
+        mask = funding_values.notna().to_numpy()
+        fp = funding_values.loc[mask].tolist()
+        y_funding = np.asarray(y_true)[mask].tolist()
         for thresh in [0.5, 0.8, 0.9]:
             b2_pred = b2_funding(fp, thresh)
-            results[f"B2_funding_{thresh}"] = _calc_baseline_metrics(y_true, b2_pred)
+            results[f"B2_funding_{thresh}"] = _calc_baseline_metrics(y_funding, b2_pred)
 
     return results
 
 
 def _calc_baseline_metrics(y_true: list, y_pred: list) -> Dict[str, float]:
     """Calculate precision, recall, brier for a baseline."""
-    from sklearn.metrics import precision_score, recall_score, brier_score_loss
+    from sklearn.metrics import brier_score_loss, precision_score, recall_score
 
     yt = [int(v) for v in y_true]
     yp = [int(v) for v in y_pred]

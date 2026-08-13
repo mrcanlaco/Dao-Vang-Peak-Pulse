@@ -1,8 +1,9 @@
 import json
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
+
+from dao_vang.domain.time import system_now
 
 
 class ArtifactRegistry:
@@ -19,8 +20,8 @@ class ArtifactRegistry:
         Saves the experiment result to a JSON file.
         Returns the unique artifact ID.
         """
-        now_utc = datetime.now(timezone.utc)
-        timestamp = now_utc.strftime("%Y%m%d_%H%M%S")
+        now_system = system_now()
+        timestamp = now_system.strftime("%Y%m%d_%H%M%S")
         short_uuid = uuid.uuid4().hex[:8]
         artifact_id = f"exp_{timestamp}_{short_uuid}"
 
@@ -29,7 +30,7 @@ class ArtifactRegistry:
         # Inject provenance metadata
         artifact = {
             "artifact_id": artifact_id,
-            "created_at": now_utc.isoformat(),
+            "created_at": now_system.isoformat(),
             "data": result,
         }
 

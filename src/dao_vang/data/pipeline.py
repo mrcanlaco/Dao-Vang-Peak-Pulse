@@ -1,8 +1,10 @@
 import json
 import logging
+import os
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Dict, Any, Optional
+from typing import Any, Callable, Dict, Optional
 
 from dao_vang.config.settings import AppSettings
 from dao_vang.data.normalization.normalizers import (
@@ -11,8 +13,10 @@ from dao_vang.data.normalization.normalizers import (
     normalize_kline,
     normalize_open_interest,
     normalize_taker_volume,
+    normalize_top_position_ratio,
     normalize_top_ratio,
 )
+from dao_vang.data.quality import compute_data_quality
 from dao_vang.data.storage.duckdb import DuckDBQueryLayer
 from dao_vang.data.storage.parquet import write_normalized_to_parquet
 from dao_vang.data.timeline import align_exact_5m, align_funding_asof
@@ -27,7 +31,103 @@ _TIMESTAMP_SPECS: Dict[str, Any] = {
     "taker_ratio": {"field": "timestamp"},
     "global_ratio": {"field": "timestamp"},
     "top_ratio": {"field": "timestamp"},
+    "top_position_ratio": {"field": "timestamp"},
 }
+
+_LATEST_INDEX_NAME = ".latest_timestamps.json"
+_LATEST_INDEX_LOCK = threading.Lock()
+_LATEST_INDEX_CACHE: Dict[str, Dict[str, int]] = {}
+
+
+def _latest_index_key(data_dir: Path) -> str:
+    return str(data_dir.resolve())
+
+
+def _timestamp_from_envelope(
+    envelope: dict[str, Any], spec: dict[str, Any]
+) -> tuple[str, int] | None:
+    request_params = json.loads(envelope.get("request_params_json", "{}"))
+    symbol = str(request_params.get("symbol", ""))
+    if not symbol:
+        return None
+    payload = json.loads(envelope.get("payload_json", "null"))
+    if not isinstance(payload, list) or not payload:
+        return None
+    last_item = payload[-1]
+    if spec["field"] is None:
+        timestamp = int(last_item[spec["index"]])
+    else:
+        timestamp = int(last_item[spec["field"]])
+    return symbol, timestamp
+
+
+def _write_latest_index(data_dir: Path, index: Dict[str, int]) -> None:
+    index_path = data_dir / "raw" / _LATEST_INDEX_NAME
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = index_path.with_name(f".{index_path.name}.tmp")
+    temporary.write_text(
+        json.dumps(index, sort_keys=True, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    os.replace(temporary, index_path)
+
+
+def _build_latest_index(data_dir: Path) -> Dict[str, int]:
+    """Build the raw timestamp index once instead of rescanning per symbol."""
+
+    latest: Dict[str, int] = {}
+    raw_dir = data_dir / "raw"
+    if not raw_dir.exists():
+        return latest
+
+    for data_type, spec in _TIMESTAMP_SPECS.items():
+        dtype_dir = raw_dir / data_type
+        if not dtype_dir.exists():
+            continue
+        for jsonl_file in dtype_dir.rglob("*.jsonl"):
+            try:
+                with jsonl_file.open("r", encoding="utf-8") as handle:
+                    for line in handle:
+                        if not line.strip():
+                            continue
+                        parsed = _timestamp_from_envelope(json.loads(line), spec)
+                        if parsed is None:
+                            continue
+                        symbol, timestamp = parsed
+                        key = f"{data_type}:{symbol}"
+                        latest[key] = max(timestamp, latest.get(key, 0))
+            except (OSError, json.JSONDecodeError, KeyError, IndexError, TypeError, ValueError):
+                continue
+    return latest
+
+
+def _get_latest_index(data_dir: Path) -> Dict[str, int]:
+    key = _latest_index_key(data_dir)
+    with _LATEST_INDEX_LOCK:
+        cached = _LATEST_INDEX_CACHE.get(key)
+        if cached is not None:
+            return cached
+
+        index_path = data_dir / "raw" / _LATEST_INDEX_NAME
+        loaded: Dict[str, int] = {}
+        try:
+            raw = json.loads(index_path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                loaded = {
+                    str(item_key): int(item_value)
+                    for item_key, item_value in raw.items()
+                    if int(item_value) > 0
+                }
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            loaded = _build_latest_index(data_dir)
+
+        _LATEST_INDEX_CACHE[key] = loaded
+        if loaded and not index_path.exists():
+            try:
+                _write_latest_index(data_dir, loaded)
+            except OSError:
+                pass
+        return loaded
 
 
 def get_latest_data_timestamp(
@@ -39,55 +139,11 @@ def get_latest_data_timestamp(
 
     Returns None if no matching data is found.
     """
-    raw_dir = data_dir / "raw" / data_type
-    if not raw_dir.exists():
-        return None
-
-    date_dirs = sorted(raw_dir.glob("date=*"))
-    if not date_dirs:
-        return None
-
     spec = _TIMESTAMP_SPECS.get(data_type)
     if spec is None:
         return None
 
-    latest_ts_ms = 0
-
-    # Only scan the last few date directories for efficiency
-    for date_dir in reversed(date_dirs[-5:]):
-        jsonl_files = sorted(date_dir.glob("*.jsonl"))
-        if not jsonl_files:
-            continue
-
-        for f in jsonl_files:
-            try:
-                with open(f, "r", encoding="utf-8") as fh:
-                    for line in fh:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        envelope = json.loads(line)
-                        # Check symbol from request params
-                        req_params = json.loads(envelope.get("request_params_json", "{}"))
-                        file_symbol = req_params.get("symbol", "")
-                        if file_symbol != symbol:
-                            continue
-
-                        payload = json.loads(envelope["payload_json"])
-                        if not payload or not isinstance(payload, list):
-                            continue
-
-                        last_item = payload[-1]
-                        if spec["field"] is None:
-                            # klines: timestamp at index
-                            ts = int(last_item[spec["index"]])
-                        else:
-                            ts = int(last_item[spec["field"]])
-
-                        if ts > latest_ts_ms:
-                            latest_ts_ms = ts
-            except (json.JSONDecodeError, KeyError, IndexError, ValueError):
-                continue
+    latest_ts_ms = _get_latest_index(data_dir).get(f"{data_type}:{symbol}", 0)
 
     if latest_ts_ms > 0:
         return datetime.fromtimestamp(latest_ts_ms / 1000.0, tz=timezone.utc)
@@ -187,16 +243,21 @@ NORMALIZER_MAP: Dict[str, Callable[[Dict[str, Any], str], list[Any]]] = {
     "taker_ratio": normalize_taker_volume,
     "global_ratio": normalize_global_ratio,
     "top_ratio": normalize_top_ratio,
+    "top_position_ratio": normalize_top_position_ratio,
 }
 
 
-def process_raw_to_parquet(settings: AppSettings, dataset_version: str = "1.0.0"):
+def process_raw_to_parquet(settings: AppSettings, dataset_version: str = "1.0.0") -> int:
     """
     Reads raw JSONL files from all collectors, normalizes them, and writes to Parquet.
     """
     raw_dir = settings.paths.data_dir / "raw"
     normalized_dir = settings.paths.data_dir / "normalized"
     normalized_dir.mkdir(parents=True, exist_ok=True)
+
+    latest_index = _get_latest_index(settings.paths.data_dir)
+    index_dirty = False
+    created_files = 0
 
     for collector_type, normalizer_func in NORMALIZER_MAP.items():
         collector_raw_dir = raw_dir / collector_type
@@ -226,6 +287,35 @@ def process_raw_to_parquet(settings: AppSettings, dataset_version: str = "1.0.0"
 
             if normalized_items:
                 write_normalized_to_parquet(parquet_file, normalized_items)
+                created_files += 1
+
+            spec = _TIMESTAMP_SPECS.get(collector_type)
+            if spec is not None:
+                try:
+                    with jsonl_file.open("r", encoding="utf-8") as handle:
+                        for line in handle:
+                            if not line.strip():
+                                continue
+                            parsed = _timestamp_from_envelope(json.loads(line), spec)
+                            if parsed is None:
+                                continue
+                            symbol, timestamp = parsed
+                            key = f"{collector_type}:{symbol}"
+                            if timestamp > latest_index.get(key, 0):
+                                latest_index[key] = timestamp
+                                index_dirty = True
+                except (OSError, json.JSONDecodeError, KeyError, IndexError, TypeError, ValueError):
+                    pass
+
+    if index_dirty:
+        with _LATEST_INDEX_LOCK:
+            _LATEST_INDEX_CACHE[_latest_index_key(settings.paths.data_dir)] = latest_index
+            try:
+                _write_latest_index(settings.paths.data_dir, latest_index)
+            except OSError:
+                logger.warning("latest_timestamp_index_write_failed")
+
+    return created_files
 
 
 def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
@@ -241,6 +331,7 @@ def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
         "taker_volume": ("taker_ratio", "period_end"),
         "global_ratio": ("global_ratio", "period_end"),
         "top_ratio": ("top_ratio", "period_end"),
+        "top_position_ratio": ("top_position_ratio", "period_end"),
         "funding": ("funding", "event_time"),
     }
 
@@ -266,7 +357,24 @@ def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
             logger.warning(f"No parquet files found for {view_name} at {path_pattern}")
 
     # Build the intermediate exact 5m alignment
-    align_exact_5m(db, output_view="aligned_5m")
+    # The position-ratio collector is optional for old snapshots.  Pass the
+    # view name only when a parquet-backed view was mounted; ``align_exact_5m``
+    # keeps a NULL column when it is absent.
+    position_view = "top_position_ratio" if list(
+        (normalized_dir / "top_position_ratio").rglob("*.parquet")
+    ) else None
+    align_exact_5m(
+        db,
+        output_view="aligned_5m",
+        top_position_view=position_view,
+    )
 
     # Build the final raw_timeline by adding funding asof
-    align_funding_asof(db, output_view="raw_timeline", aligned_view="aligned_5m")
+    align_funding_asof(db, output_view="raw_timeline_pre_quality", aligned_view="aligned_5m")
+
+    # Compute data quality
+    compute_data_quality(
+        db,
+        input_view="raw_timeline_pre_quality",
+        output_table="raw_timeline",
+    )

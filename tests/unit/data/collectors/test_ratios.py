@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from dao_vang.config.settings import AppSettings
 from dao_vang.data.collectors.ratios import GlobalRatioCollector, TopRatioCollector
@@ -83,11 +83,13 @@ def test_top_ratio_collector_success(tmp_path: Path) -> None:
     start_time = datetime(2020, 9, 13, 12, 26, 40, tzinfo=timezone.utc)
     end_time = datetime(2020, 9, 13, 12, 41, 40, tzinfo=timezone.utc)
 
-    manifest = collector.collect(start_time, end_time, "test-run-id2")
+    with patch("dao_vang.data.collectors.ratios.logger.warning") as warning:
+        manifest = collector.collect(start_time, end_time, "test-run-id2")
 
     assert manifest.status == RunStatus.SUCCEEDED
     assert manifest.rows_raw == 1
     assert manifest.error_count == 0
+    warning.assert_not_called()
 
     # Verify file output
     dt = start_time.date()

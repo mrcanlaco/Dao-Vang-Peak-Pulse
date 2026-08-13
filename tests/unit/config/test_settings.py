@@ -48,3 +48,26 @@ def test_yaml_load(tmp_path: Path) -> None:
     settings = AppSettings.from_yaml(yaml_file)
     assert settings.binance.symbol == "BNBUSDT"
     assert settings.collection.timeout_seconds == 30
+
+
+def test_candidate_comparison_defaults_are_safe() -> None:
+    comparison = AppSettings().candidate_comparison
+    assert comparison.enabled is False
+    assert comparison.champion_version == "pump_filter_v1"
+    assert comparison.challenger_version == "candidate_filter_v2"
+    assert comparison.min_positive_events == 50
+    assert comparison.min_evaluation_days == 14
+
+
+def test_candidate_comparison_rejects_same_version_and_invalid_cap() -> None:
+    with pytest.raises(ValidationError, match="must differ"):
+        AppSettings(
+            candidate_comparison={
+                "champion_version": "same",
+                "challenger_version": "same",
+            }
+        )
+    with pytest.raises(ValidationError, match="must not exceed"):
+        AppSettings(
+            candidate_comparison={"universe_size": 10, "max_candidates": 11}
+        )

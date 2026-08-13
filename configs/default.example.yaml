@@ -13,3 +13,84 @@ paths:
   data_dir: "data"
   raw_dir: "data/raw"
   normalized_dir: "data/normalized"
+
+web:
+  # Địa chỉ người dùng mở được; Telegram sẽ nối thêm /#coin=SYMBOL.
+  public_url: "http://127.0.0.1:8000"
+
+telegram:
+  # bot_token + chat_id từ env var: DAO_VANG_TELEGRAM__BOT_TOKEN / __CHAT_ID
+  api_base: "https://api.telegram.org"
+  timeout_seconds: 10
+  max_retries: 3
+
+scanner:
+  enabled: false
+  # research never sends; shadow Telegram is opt-in and labelled observation.
+  operating_mode: research
+  poll_interval_minutes: 5
+  max_coins: 150
+  min_volume_usd: 1000000
+  cooldown_minutes: 60
+  global_daily_alert_limit: 15
+  coin_daily_alert_limit: 3
+  shadow_telegram_enabled: false
+  telegram_min_probability: 0.70
+  max_feature_age_minutes: 10
+  min_data_quality_score: 0.8
+  alert_levels: ["CAO", "TRUNG BÌNH"]
+  # frozen_model_id: "frozen_20260803_..."  # set sau khi freeze model
+  db_path: "data/dev.duckdb"
+  artifact_dir: "artifacts"
+  watchlist_path: "data/watchlist.json"
+  kill_switch_path: "data/scanner_kill_switch.json"
+  rollback_state_path: "data/scanner_rollback.json"
+  health_report_path: "data/scanner_health.json"
+  # Set explicitly for canary; null accepts the version declared by the bundle.
+  threshold_policy_version: null
+  max_heartbeat_age_minutes: 15
+  drift_min_samples: 30
+  drift_psi_warning: 0.10
+  drift_psi_critical: 0.25
+  history_days: 30
+
+self_learning:
+  # Creates/evaluates challengers; never changes scanner.frozen_model_id.
+  enabled: false
+  check_interval_cycles: 12
+  min_training_outcomes: 200
+  min_new_outcomes: 50
+  min_positive_events: 20
+  min_precision_improvement: 0.01
+  max_recall_regression: 0.05
+  max_brier_regression: 0.01
+  recent_window_days: 14
+  recent_sample_weight: 2.0
+  historical_max_rows: 100000
+  seed: 42
+  state_path: "artifacts/self_learning/state.json"
+  report_dir: "artifacts/self_learning/runs"
+
+# Chạy song song bộ lọc hiện tại (champion) và bộ lọc thử nghiệm
+# (challenger). Challenger chỉ ghi audit/outcome, tuyệt đối không gửi Telegram.
+candidate_comparison:
+  enabled: false
+  champion_version: pump_filter_v1
+  challenger_version: candidate_filter_v2
+  universe_size: 150
+  max_candidates: 30
+  max_workers: 4
+  decision_interval_minutes: 60
+  outcome_check_interval_cycles: 12
+  horizon_hours: 24
+  target_drawdown: 0.08
+  max_adverse_excursion: 0.04
+  gap_tolerance_minutes: 15
+  metrics_window_days: 30
+  min_resolved: 200
+  min_positive_events: 50
+  min_evaluation_days: 14
+  truth_event_gap_minutes: 240
+  min_challenger_event_recall: 0.80
+  precision_at_10_relative_gain: 0.10
+  max_recall_regression: 0.05

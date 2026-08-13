@@ -1,0 +1,11 @@
+[server]
+headless = true
+port = 8501
+address = "0.0.0.0"
+enableCORS = true
+enableXsrfProtection = false
+maxUploadSize = 200
+
+[browser]
+# Giữ WebSocket path chuẩn cho reverse proxy
+gatherUsageStats = false

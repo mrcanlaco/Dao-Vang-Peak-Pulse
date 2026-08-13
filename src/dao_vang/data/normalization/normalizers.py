@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -12,12 +12,13 @@ from dao_vang.data.schemas import (
     NormalizedKline,
     NormalizedOpenInterest,
     NormalizedTakerVolume,
-    NormalizedTopRatio,
     NormalizedTopPositionRatio,
+    NormalizedTopRatio,
     OpenInterestData,
     QualityStatus,
     TakerRatioData,
 )
+from dao_vang.domain.time import system_now
 
 
 def normalize_kline(
@@ -274,20 +275,75 @@ def normalize_top_ratio(
 
 
 def normalize_top_position_ratio(
-    raw_payloads: list[dict[str, Any]], run_id: str
+    envelope_or_payloads: dict[str, Any] | list[dict[str, Any]],
+    dataset_version: str = "1.0.0",
 ) -> list[NormalizedTopPositionRatio]:
+    """Normalize Binance top-trader *position* ratio records.
+
+    The collector writes the same envelope format as the other ratio
+    collectors.  The previous implementation accepted a bare payload list,
+    referenced an undefined timestamp helper and did not populate the
+    required :class:`NormalizedBase` fields, so it could never be used by the
+    pipeline.  Keep support for a bare list for callers doing small replays,
+    while making the envelope form the canonical path.
+    """
+    if isinstance(envelope_or_payloads, dict):
+        envelope = envelope_or_payloads
+        payload = json.loads(envelope["payload_json"])
+        collected_at = datetime.fromisoformat(envelope["received_at"])
+        source_version = str(envelope.get("source_version", "unknown"))
+        params = json.loads(envelope.get("request_params_json", "{}"))
+        symbol_default = params.get("symbol", "BTCUSDT")
+        interval = params.get("period", "5m")
+    else:
+        # Backward-compatible replay API: a list of payload dictionaries.
+        payload = envelope_or_payloads
+        collected_at = system_now()
+        source_version = "unknown"
+        symbol_default = "BTCUSDT"
+        interval = "5m"
+        # The legacy two-argument form used the second argument as a run id,
+        # not a dataset version.  Run ids are not part of NormalizedBase, so
+        # retain the canonical default dataset version for that form.
+        dataset_version = "1.0.0"
+
+    if not isinstance(payload, list):
+        raise ValueError("top position ratio payload must be a list")
+
     results: list[NormalizedTopPositionRatio] = []
-    for payload in raw_payloads:
-        ts = int(payload["timestamp"])
-        dt = timestamp_to_utc_datetime(ts)
+    interval_delta = timedelta(minutes=5)
+    for item in payload:
+        ts_raw = item.get("timestamp")
+        if isinstance(ts_raw, datetime):
+            dt = ts_raw if ts_raw.tzinfo else ts_raw.replace(tzinfo=timezone.utc)
+        else:
+            dt = datetime.fromtimestamp(int(ts_raw) / 1000.0, tz=timezone.utc)
+        period_end = dt + interval_delta
+        long_position = item.get("longPosition")
+        short_position = item.get("shortPosition")
+        ratio = item.get("longShortRatio")
+        if ratio is None and long_position is not None and short_position not in (None, 0, "0"):
+            ratio = Decimal(str(long_position)) / Decimal(str(short_position))
+        if ratio is None:
+            raise ValueError("top position ratio record is missing longShortRatio")
+
         norm = NormalizedTopPositionRatio(
-            collection_run_id=run_id,
-            available_time=dt,
+            symbol=str(item.get("symbol", symbol_default)),
+            market="USD-M Futures",
+            data_type="top_position_ratio",
+            interval=interval,
+            event_time=dt,
+            available_time=period_end + timedelta(milliseconds=1000),
+            collected_at=collected_at,
+            source_version=source_version,
+            dataset_version=dataset_version,
+            quality_status=QualityStatus.VALID,
+            quality_flags=[],
             period_start=dt,
-            period_end=dt,
-            long_position=Decimal(payload["longPosition"]) if payload.get("longPosition") else None,
-            short_position=Decimal(payload["shortPosition"]) if payload.get("shortPosition") else None,
-            long_short_ratio=Decimal(payload["longShortRatio"])
+            period_end=period_end,
+            long_position=Decimal(str(long_position)) if long_position is not None else None,
+            short_position=Decimal(str(short_position)) if short_position is not None else None,
+            long_short_ratio=Decimal(str(ratio)),
         )
         results.append(norm)
     return results

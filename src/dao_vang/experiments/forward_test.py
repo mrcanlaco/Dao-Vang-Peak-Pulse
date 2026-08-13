@@ -21,10 +21,10 @@ Flow:
        â†’ registry operations
 """
 
+import hashlib
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -32,8 +32,15 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from dao_vang.domain.time import system_now
 
 FROZEN_DIR_NAME = "frozen_models"
+
+_DEFAULT_LABEL_SPEC: Dict[str, Any] = {
+    "horizon_minutes": 1440,
+    "target_drawdown": 0.08,
+    "max_ae": 0.04,
+}
 
 
 @dataclass
@@ -46,8 +53,39 @@ class FrozenModelInfo:
     feature_cols: List[str]
     config: Dict[str, Any]
     training_stats: Dict[str, Any]
+    label_spec: Dict[str, Any]
     model_path: Path
     metadata_path: Path
+    schema_version: str = "frozen_bundle_v1"
+    calibrator_id: str = "identity_v1"
+    calibrator_path: Path | None = None
+    checksums: Dict[str, str] | None = None
+    threshold_policy: Dict[str, Any] | None = None
+
+
+class _IdentityCalibrator:
+    """Explicit identity calibrator for bundles without a fitted calibrator.
+
+    Identity is a declared policy, not an implicit placeholder: it is saved,
+    hashed and loaded exactly like an isotonic/logistic calibrator.  Training
+    code can pass a fitted object implementing ``transform`` or ``predict``.
+    """
+
+    version = "identity_v1"
+
+    def transform(self, values: Any) -> np.ndarray:
+        return np.clip(np.asarray(values, dtype=float), 0.0, 1.0)
+
+    def predict(self, values: Any) -> np.ndarray:
+        return self.transform(values)
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _frozen_base_dir(artifact_dir: Path) -> Path:
@@ -64,7 +102,10 @@ def freeze_model(
     config: Dict[str, Any],
     train_cutoff: Any,
     training_stats: Optional[Dict[str, Any]] = None,
+    label_spec: Optional[Dict[str, Any]] = None,
     artifact_dir: Path = Path("artifacts"),
+    calibrator: Any | None = None,
+    threshold_policy: Optional[Dict[str, Any]] = None,
 ) -> FrozenModelInfo:
     """Freeze a trained model for forward testing.
 
@@ -85,8 +126,8 @@ def freeze_model(
     Returns:
         FrozenModelInfo with paths to the saved model and metadata.
     """
-    now_utc = datetime.now(timezone.utc)
-    timestamp = now_utc.strftime("%Y%m%d_%H%M%S")
+    now_system = system_now()
+    timestamp = now_system.strftime("%Y%m%d_%H%M%S")
     short_uuid = uuid.uuid4().hex[:8]
     model_id = f"frozen_{timestamp}_{short_uuid}"
 
@@ -94,28 +135,62 @@ def freeze_model(
     model_dir.mkdir(parents=True, exist_ok=True)
 
     model_path = model_dir / "model.joblib"
+    calibrator_path = model_dir / "calibrator.joblib"
     metadata_path = model_dir / "metadata.json"
 
     joblib.dump(model, model_path)
+    calibrator_obj = calibrator if calibrator is not None else _IdentityCalibrator()
+    joblib.dump(calibrator_obj, calibrator_path)
 
     cutoff_str = (
         train_cutoff.isoformat() if hasattr(train_cutoff, "isoformat")
         else str(train_cutoff)
     )
 
+    label_spec = label_spec or {
+        "horizon_minutes": 1440,
+        "target_drawdown": 0.08,
+        "max_ae": 0.04,
+    }
+    resolved_label_spec = dict(label_spec)
+    resolved_label_spec.setdefault("version", "distribution_short_v1")
+    resolved_label_spec.setdefault(
+        "horizon_hours", int(resolved_label_spec.get("horizon_minutes", 1440)) // 60
+    )
+    resolved_label_spec.setdefault("horizon_minutes", int(resolved_label_spec["horizon_hours"]) * 60)
+    resolved_threshold_policy = dict(threshold_policy or {})
+    resolved_threshold_policy.setdefault("version", config.get("threshold_policy_version", "frozen_threshold_v1"))
+    resolved_threshold_policy.setdefault("threshold", float(threshold))
+    calibrator_id = str(
+        getattr(calibrator_obj, "version", None)
+        or (config.get("calibrator_id") if config else None)
+        or "identity_v1"
+    )
+    checksums = {
+        "model_sha256": _sha256(model_path),
+        "calibrator_sha256": _sha256(calibrator_path),
+    }
     metadata = {
+        "schema_version": "frozen_bundle_v1",
+        "artifact_schema_version": "frozen_bundle_v1",
         "model_id": model_id,
-        "freeze_time": now_utc.isoformat(),
+        "freeze_time": now_system.isoformat(),
         "train_cutoff": cutoff_str,
         "threshold": float(threshold),
         "feature_cols": list(feature_cols),
         "config": config,
         "training_stats": training_stats or {},
-        "label_spec": {
-            "horizon_minutes": 1440,
-            "target_drawdown": 0.08,
-            "max_ae": 0.04,
+        "label_spec": resolved_label_spec,
+        "threshold_policy": resolved_threshold_policy,
+        "thresholds": {"default": float(threshold)},
+        "calibrator_id": calibrator_id,
+        "calibrator": {"id": calibrator_id, "path": calibrator_path.name},
+        "preprocessing": {
+            "feature_cols": list(feature_cols),
+            "missing_policy": "reject_at_serving",
         },
+        "checksums": checksums,
+        "artifact_checksums": checksums,
     }
 
     with open(metadata_path, "w", encoding="utf-8") as f:
@@ -123,14 +198,20 @@ def freeze_model(
 
     return FrozenModelInfo(
         model_id=model_id,
-        freeze_time=metadata["freeze_time"],
+        freeze_time=str(metadata["freeze_time"]),
         train_cutoff=cutoff_str,
         threshold=float(threshold),
         feature_cols=list(feature_cols),
         config=config,
         training_stats=training_stats or {},
+        label_spec=resolved_label_spec,
         model_path=model_path,
         metadata_path=metadata_path,
+        schema_version="frozen_bundle_v1",
+        calibrator_id=calibrator_id,
+        calibrator_path=calibrator_path,
+        checksums=checksums,
+        threshold_policy=resolved_threshold_policy,
     )
 
 
@@ -150,6 +231,9 @@ def load_frozen_model(
         )
     with open(metadata_path, "r", encoding="utf-8") as f:
         metadata = json.load(f)
+    checksums = metadata.get("checksums") or metadata.get("artifact_checksums") or {}
+    calibrator_meta = metadata.get("calibrator") or {}
+    calibrator_path = model_dir / str(calibrator_meta.get("path", "calibrator.joblib"))
     return FrozenModelInfo(
         model_id=metadata["model_id"],
         freeze_time=metadata["freeze_time"],
@@ -158,8 +242,14 @@ def load_frozen_model(
         feature_cols=metadata["feature_cols"],
         config=metadata["config"],
         training_stats=metadata.get("training_stats", {}),
+        label_spec=metadata.get("label_spec", _DEFAULT_LABEL_SPEC),
         model_path=model_dir / "model.joblib",
         metadata_path=metadata_path,
+        schema_version=metadata.get("schema_version", metadata.get("artifact_schema_version", "frozen_bundle_v1")),
+        calibrator_id=str(metadata.get("calibrator_id", calibrator_meta.get("id", "identity_v1"))),
+        calibrator_path=calibrator_path if calibrator_path.exists() else None,
+        checksums=checksums,
+        threshold_policy=metadata.get("threshold_policy") or metadata.get("thresholds"),
     )
 
 
@@ -187,6 +277,9 @@ def list_frozen_models(
         try:
             with open(meta, "r", encoding="utf-8") as f:
                 m = json.load(f)
+            checksums = m.get("checksums") or m.get("artifact_checksums") or {}
+            calibrator_meta = m.get("calibrator") or {}
+            calibrator_path = d / str(calibrator_meta.get("path", "calibrator.joblib"))
             models.append(FrozenModelInfo(
                 model_id=m["model_id"],
                 freeze_time=m["freeze_time"],
@@ -195,8 +288,14 @@ def list_frozen_models(
                 feature_cols=m["feature_cols"],
                 config=m["config"],
                 training_stats=m.get("training_stats", {}),
+                label_spec=m.get("label_spec", _DEFAULT_LABEL_SPEC),
                 model_path=d / "model.joblib",
                 metadata_path=meta,
+                schema_version=m.get("schema_version", m.get("artifact_schema_version", "frozen_bundle_v1")),
+                calibrator_id=str(m.get("calibrator_id", calibrator_meta.get("id", "identity_v1"))),
+                calibrator_path=calibrator_path if calibrator_path.exists() else None,
+                checksums=checksums,
+                threshold_policy=m.get("threshold_policy") or m.get("thresholds"),
             ))
         except (json.JSONDecodeError, KeyError):
             continue
@@ -240,12 +339,21 @@ def score_frozen(
             "threshold", "invalidation_time", "model_id",
         ])
 
-    # Ensure all expected feature columns exist; fill missing with 0
-    for col in info.feature_cols:
-        if col not in work.columns:
-            work[col] = 0.0
-
-    X = work[info.feature_cols].fillna(0)
+    # A frozen bundle must not invent evidence for missing inputs.  Exclude
+    # incomplete rows from replay; the caller can audit them separately.
+    if any(col not in work.columns for col in info.feature_cols):
+        return pd.DataFrame(columns=[
+            "feature_time", "symbol", "probability", "risk_level",
+            "threshold", "invalidation_time", "model_id",
+        ])
+    complete = ~work[info.feature_cols].isna().any(axis=1)
+    work = work.loc[complete].copy()
+    if work.empty:
+        return pd.DataFrame(columns=[
+            "feature_time", "symbol", "probability", "risk_level",
+            "threshold", "invalidation_time", "model_id",
+        ])
+    X = work[info.feature_cols]
 
     # Get probabilities
     if hasattr(model, "predict_proba") and len(getattr(model, "classes_", [])) > 1:
@@ -254,7 +362,7 @@ def score_frozen(
         proba = np.zeros(len(work))
 
     threshold = info.threshold
-    horizon_minutes = 1440
+    horizon_minutes = int(info.label_spec.get("horizon_minutes", 1440))
 
     results = []
     for i in range(len(work)):
@@ -306,7 +414,7 @@ def evaluate_frozen(
     Returns:
         Dict with predictions, metrics, and summary.
     """
-    from sklearn.metrics import precision_score, recall_score, brier_score_loss
+    from sklearn.metrics import brier_score_loss, precision_score, recall_score
 
     info = load_frozen_model(model_id, artifact_dir)
     cutoff = pd.Timestamp(info.train_cutoff)
@@ -327,11 +435,24 @@ def evaluate_frozen(
             "model_id": model_id,
         }
 
-    # Score
-    for col in info.feature_cols:
-        if col not in work.columns:
-            work[col] = 0.0
-    X = work[info.feature_cols].fillna(0)
+    # Score only complete snapshots; a frozen model must not turn missing
+    # evidence into a synthetic zero-valued feature.
+    missing_columns = [col for col in info.feature_cols if col not in work.columns]
+    if missing_columns:
+        return {
+            "status": "quality_failed",
+            "message": f"Missing frozen features: {', '.join(missing_columns)}",
+            "model_id": model_id,
+        }
+    complete = ~work[info.feature_cols].isna().any(axis=1)
+    work = work.loc[complete].copy()
+    if work.empty:
+        return {
+            "status": "quality_failed",
+            "message": "No complete feature rows after missing-data gate",
+            "model_id": model_id,
+        }
+    X = work[info.feature_cols]
 
     if hasattr(info, "model_path"):
         model = joblib.load(info.model_path)

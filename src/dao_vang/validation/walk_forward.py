@@ -1,8 +1,9 @@
+import numpy as np
 from typing import Any, Callable, Dict, List, Tuple
 
 from dao_vang.baselines.logistic import LogisticRegressionSGD, StandardScaler
 from dao_vang.validation.calibration import brier_score, expected_calibration_error
-from dao_vang.validation.metrics import calculate_row_metrics
+from dao_vang.validation.metrics import compute_row_metrics
 from dao_vang.validation.splits import SplitBounds, WalkForwardFold
 
 # fetch_data_fn(bounds) -> X, y
@@ -70,7 +71,9 @@ def run_walk_forward_logistic(
         all_test_pred.extend(y_pred)
 
         # Calculate per-fold metrics
-        fold_row_metrics = calculate_row_metrics(y_true=y_test, y_pred=y_pred)
+        fold_row_metrics = compute_row_metrics(
+            y_true=np.array(y_test), y_prob=np.array(y_prob), threshold=threshold
+        )
         fold_brier = brier_score(y_true=y_test, y_prob=y_prob)
         fold_ece = expected_calibration_error(y_true=y_test, y_prob=y_prob)
 
@@ -78,9 +81,9 @@ def run_walk_forward_logistic(
             {
                 "fold_idx": fold.fold_idx,
                 "metrics": {
-                    "precision": fold_row_metrics.precision,
-                    "recall": fold_row_metrics.recall,
-                    "false_positive_rate": fold_row_metrics.fpr,
+                    "precision": fold_row_metrics["precision"],
+                    "recall": fold_row_metrics["recall"],
+                    "false_positive_rate": fold_row_metrics.get("false_positive_rate", 0.0),
                     "brier_score": fold_brier,
                     "expected_calibration_error": fold_ece,
                 },
@@ -89,14 +92,18 @@ def run_walk_forward_logistic(
 
     aggregate_metrics: Dict[str, float] = {}
     if all_test_true:
-        agg_row = calculate_row_metrics(y_true=all_test_true, y_pred=all_test_pred)
+        agg_row = compute_row_metrics(
+            y_true=np.array(all_test_true),
+            y_prob=np.array(all_test_prob),
+            threshold=threshold,
+        )
         agg_brier = brier_score(y_true=all_test_true, y_prob=all_test_prob)
         agg_ece = expected_calibration_error(y_true=all_test_true, y_prob=all_test_prob)
 
         aggregate_metrics = {
-            "precision": agg_row.precision,
-            "recall": agg_row.recall,
-            "false_positive_rate": agg_row.fpr,
+            "precision": agg_row["precision"],
+            "recall": agg_row["recall"],
+            "false_positive_rate": agg_row.get("false_positive_rate", 0.0),
             "brier_score": agg_brier,
             "expected_calibration_error": agg_ece,
         }

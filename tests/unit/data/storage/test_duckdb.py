@@ -3,8 +3,10 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 
+import duckdb
+
 from dao_vang.data.schemas import NormalizedFunding, QualityStatus
-from dao_vang.data.storage.duckdb import DuckDBQueryLayer
+from dao_vang.data.storage.duckdb import DuckDBQueryLayer, configure_connection
 from dao_vang.data.storage.parquet import write_normalized_to_parquet
 
 
@@ -44,3 +46,25 @@ def test_duckdb_query_layer():
             assert res[0][2] == "valid"
         finally:
             db.close()
+
+
+def test_configure_connection_keeps_limits_when_temp_directory_is_locked():
+    """DuckDB temp-directory conflicts must not break alert persistence."""
+
+    class AlreadyUsedConnection:
+        def __init__(self) -> None:
+            self.statements: list[str] = []
+
+        def execute(self, statement: str):
+            self.statements.append(statement)
+            if statement.startswith("PRAGMA temp_directory="):
+                raise duckdb.NotImplementedException(
+                    "Cannot switch temporary directory after the current one has been used"
+                )
+            return self
+
+    conn = AlreadyUsedConnection()
+    configure_connection(conn, ":memory:")  # type: ignore[arg-type]
+
+    assert any("memory_limit" in statement for statement in conn.statements)
+    assert any("threads" in statement for statement in conn.statements)
