@@ -137,16 +137,17 @@ def evaluate_canary_policy(
     bundle_valid: bool = True,
     allow_shadow_telegram: bool = False,
     telegram_min_probability: float | None = None,
+    allowed_tiers: Sequence[str] | None = None,
+    enforce_shadow_cooldown: bool = False,
 ) -> CanaryDecision:
     """Evaluate the action-alert policy without side effects.
 
     ``research`` always denies alerts.  ``shadow`` may send explicitly
     labelled observational Telegram messages when
     ``allow_shadow_telegram`` is enabled. Shadow still respects the
-    kill switch and serving bundle checks, while its Telegram feed bypasses
-    action-alert cooldown and budget gates. When configured, the Telegram
-    probability gate applies to every mode and is strict (``>``).
-    Quality/tier gates remain enforced for canary and production modes.
+    kill switch, serving bundle checks, probability thresholds, and
+    optionally cooldown & allowed tiers. Quality/tier gates remain
+    enforced for canary and production modes.
     """
 
     normalized_mode = str(mode).lower()
@@ -164,7 +165,13 @@ def evaluate_canary_policy(
             return CanaryDecision(False, "telegram_probability_missing", normalized_mode, normalized_tier, global_count, coin_count)
         if float(calibrated_probability) <= float(telegram_min_probability):
             return CanaryDecision(False, "telegram_probability_below_threshold", normalized_mode, normalized_tier, global_count, coin_count)
+    if allowed_tiers is not None:
+        normalized_allowed = {str(t).upper() for t in allowed_tiers}
+        if normalized_tier not in normalized_allowed:
+            return CanaryDecision(False, "tier_not_allowed", normalized_mode, normalized_tier, global_count, coin_count)
     if normalized_mode == "shadow":
+        if enforce_shadow_cooldown and in_cooldown:
+            return CanaryDecision(False, "cooldown_active", normalized_mode, normalized_tier, global_count, coin_count)
         return CanaryDecision(True, "shadow_observation", normalized_mode, normalized_tier, global_count, coin_count)
     if quality_status.lower() != "valid":
         return CanaryDecision(False, "data_quality_invalid", normalized_mode, normalized_tier, global_count, coin_count)

@@ -130,8 +130,9 @@ class TestTelegramAlert:
         assert "CAO" in text
         assert "85.0%" in text
         assert "65,000.0000" in text
-        assert "frozen_test_001" in text
-        assert "Tự động đặt lệnh:* `TẮT`" in text
+        assert "⭐⭐⭐⭐⭐" in text
+        assert "🔴" in text
+        assert "CỰC MẠNH" in text
         assert "https://trade.comaygiauco.com/#coin=BTCUSDT" in text
 
     def test_send_alert_with_web_url(
@@ -202,7 +203,6 @@ class TestTelegramAlert:
 
         text = captured.get("text", "")
         assert "QUAN SÁT (SHADOW)" in text
-        assert "*Chế độ:* `QUAN SÁT (SHADOW)`" in text
 
     def test_scored_alert_is_vietnamese_and_has_coin_link(
         self, configured_notifier: TelegramNotifier
@@ -241,7 +241,10 @@ class TestTelegramAlert:
             )
 
         text = captured.get("text", "")
-        assert "Kết luận:* `TÍN HIỆU MẠNH`" in text
+        assert "TÍN HIỆU MẠNH" in text
+        assert "⭐⭐⭐⭐" in text
+        assert "🟠" in text
+        assert "RẤT MẠNH" in text
         assert "Funding tăng đột biến" in text
         assert "https://trade.comaygiauco.com/#coin=ETHUSDT" in text
         assert "Báo cáo tham khảo" in text
@@ -297,7 +300,6 @@ class TestTelegramAlert:
         text = captured.get("text", "")
         assert "DISTRIBUTION ALERT" in text
         assert "Risk Level:* HIGH" in text
-        assert "Auto-Trading:* `OFF`" in text
         assert "Model Probability:* 88.0%" in text
         assert "https://trade.example.com/#coin=SOLUSDT" in text
 
@@ -340,6 +342,122 @@ class TestTelegramAlert:
 
         text = captured.get("text", "")
         assert "SIGNAL REPORT" in text
-        assert "Recommendation:* `SHORT CANDIDATE`" in text
+        assert "SHORT CANDIDATE" in text
         assert "Price-Volume Divergence" in text
         assert "BTC Context:* BULLISH HEAT (FOMO)" in text
+
+    def test_send_cycle_digest_vietnamese(self, configured_notifier: TelegramNotifier) -> None:
+        """Verify cycle digest formatting in Vietnamese."""
+        captured: dict = {}
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"ok": True}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.side_effect = lambda url, json=None, **kw: (
+            captured.update(json or {}) or mock_response
+        )
+
+        alerts = [
+            {
+                "symbol": "CRVUSDT",
+                "recommendation": "HIGH_CONFIDENCE",
+                "model_probability": 0.82,
+                "pump_pct": 1.25,
+                "pump_days": 2,
+                "close_price": 0.35,
+                "top_signals": [("oi_divergence", 85.0, 0.2, "OI tăng mạnh")],
+                "web_url": "https://trade.comaygiauco.com/#coin=CRVUSDT",
+            },
+            {
+                "symbol": "DOGEUSDT",
+                "recommendation": "HIGH_CONFIDENCE",
+                "model_probability": 0.78,
+                "pump_pct": 0.90,
+                "pump_days": 1,
+                "close_price": 0.12,
+                "top_signals": [("funding_spike", 80.0, 0.15, "Funding spike")],
+                "web_url": "https://trade.comaygiauco.com/#coin=DOGEUSDT",
+            },
+        ]
+
+        with patch("dao_vang.alerts.telegram.httpx.Client", return_value=mock_client):
+            result = configured_notifier.send_cycle_digest(
+                alerts=alerts,
+                btc_regime="WEAK",
+                operating_mode="shadow",
+            )
+
+        assert result is True
+        text = captured.get("text", "")
+        assert "TỔNG HỢP CẢNH BÁO CHU KỲ" in text
+        assert "2 coin" in text
+        assert "CRVUSDT" in text
+        assert "DOGEUSDT" in text
+        assert "82.0%" in text
+        assert "78.0%" in text
+        assert "⭐⭐⭐⭐" in text
+        assert "🟠" in text
+        assert "BTC:* YẾU" in text
+
+    def test_send_cycle_digest_english(self) -> None:
+        """Verify cycle digest formatting in English for multiple coins."""
+        config = TelegramConfig(
+            bot_token="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ",
+            chat_id="987654321",
+            language="en",
+        )
+        notifier = TelegramNotifier(config, web_base_url="https://trade.example.com")
+        captured: dict = {}
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"ok": True}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.side_effect = lambda url, json=None, **kw: (
+            captured.update(json or {}) or mock_response
+        )
+
+        alerts = [
+            {
+                "symbol": "CRVUSDT",
+                "recommendation": "HIGH_CONFIDENCE",
+                "model_probability": 0.82,
+                "pump_pct": 1.25,
+                "pump_days": 2,
+                "close_price": 0.35,
+                "top_signals": [("oi_divergence", 85.0, 0.2, "OI spike")],
+                "web_url": "https://trade.example.com/#coin=CRVUSDT",
+            },
+            {
+                "symbol": "DOGEUSDT",
+                "recommendation": "HIGH_CONFIDENCE",
+                "model_probability": 0.78,
+                "pump_pct": 0.90,
+                "pump_days": 1,
+                "close_price": 0.12,
+                "top_signals": [("funding_spike", 80.0, 0.15, "Funding spike")],
+                "web_url": "https://trade.example.com/#coin=DOGEUSDT",
+            },
+        ]
+
+        with patch("dao_vang.alerts.telegram.httpx.Client", return_value=mock_client):
+            result = notifier.send_cycle_digest(
+                alerts=alerts,
+                btc_regime="FOMO",
+                operating_mode="production",
+            )
+
+        assert result is True
+        text = captured.get("text", "")
+        assert "RADAR CYCLE DIGEST" in text
+        assert "2 coins" in text
+        assert "CRVUSDT" in text
+        assert "DOGEUSDT" in text
+        assert "82.0%" in text
+        assert "*BTC Context:* BULLISH HEAT (FOMO)" in text

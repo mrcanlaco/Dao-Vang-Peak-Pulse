@@ -31,11 +31,15 @@ scanner:
   poll_interval_minutes: 5
   max_coins: 150
   min_volume_usd: 1000000
-  cooldown_minutes: 60
+  cooldown_minutes: 120
+  telegram_cooldown_minutes: 120
   global_daily_alert_limit: 15
-  coin_daily_alert_limit: 3
+  coin_daily_alert_limit: 2
   shadow_telegram_enabled: false
-  telegram_min_probability: 0.70
+  telegram_min_probability: 0.75
+  telegram_min_volume_usd: 500000
+  telegram_tiers: ["HIGH_CONFIDENCE"]
+  telegram_digest_mode: true
   max_feature_age_minutes: 10
   min_data_quality_score: 0.8
   alert_levels: ["CAO", "TRUNG BÌNH"]

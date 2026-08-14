@@ -516,16 +516,53 @@ class ScannerDaemon:
         # 3b. Compute BTC context for this cycle
         btc_context = self._compute_btc_context(db)
 
-        # 4. Score with composite scorer + alert
+        # 4. Score with composite scorer + alert (with optional cycle digest)
         n_alerts_sent = 0
+        digest_mode = getattr(self._scanner_cfg, "telegram_digest_mode", True)
+        qualifying_alerts: list[dict[str, Any]] = []
+
         for symbol in score_symbols:
             try:
                 pump_cand = pump_map.get(symbol)
-                n_alerts_sent += self._score_and_alert_composite(
-                    symbol, db, btc_context, pump_cand
+                res = self._score_and_alert_composite(
+                    symbol, db, btc_context, pump_cand, collect_for_digest=digest_mode
                 )
+                if isinstance(res, dict):
+                    qualifying_alerts.append(res)
+                elif isinstance(res, int):
+                    n_alerts_sent += res
             except Exception as exc:
                 logger.error("scanner_symbol_error", symbol=symbol, error=str(exc))
+
+        if digest_mode and qualifying_alerts:
+            # Sort by model probability descending so strongest distribution signals are first
+            qualifying_alerts.sort(
+                key=lambda a: (a.get("model_probability") or 0.0, a.get("total_score") or 0.0),
+                reverse=True,
+            )
+            regime = btc_context.get("regime", "NEUTRAL") if isinstance(btc_context, dict) else "NEUTRAL"
+            digest_sent = self._notifier.send_cycle_digest(
+                alerts=qualifying_alerts,
+                btc_regime=regime,
+                scan_time=datetime.now(timezone.utc).isoformat(),
+                operating_mode=self._operating_mode,
+            )
+            if digest_sent:
+                n_alerts_sent = len(qualifying_alerts)
+                for item in qualifying_alerts:
+                    sig_time = item.get("sig_time")
+                    sym = item.get("symbol")
+                    pred_id = item.get("prediction_id")
+                    if sig_time and sym:
+                        self._alert_store.mark_telegram_sent(sig_time, sym)
+                    if pred_id:
+                        self._scan_result_store.mark_prediction_telegram_sent(pred_id)
+                logger.info(
+                    "scanner_cycle_digest_sent",
+                    cycle=self._cycle_count,
+                    n_alerts=len(qualifying_alerts),
+                    symbols=[a["symbol"] for a in qualifying_alerts],
+                )
 
         logger.info(
             "scanner_cycle_summary",
@@ -1114,18 +1151,39 @@ class ScannerDaemon:
         invalidation_time: datetime,
         horizon_hours: int,
         prediction_id: str,
-    ) -> bool:
-        """Send one explicitly labelled Radar observation immediately."""
+        volume_24h_usd: float = 0.0,
+        collect_for_digest: bool = False,
+    ) -> bool | dict[str, Any]:
+        """Evaluate and send (or collect) one Radar observation."""
+        cooldown_key = f"{symbol}:{horizon_hours}h"
+        telegram_cooldown = getattr(
+            self._scanner_cfg, "telegram_cooldown_minutes", self._scanner_cfg.cooldown_minutes
+        )
+        in_cooldown = bool(
+            self._alert_store.is_in_cooldown_key(cooldown_key, telegram_cooldown)
+            or self._alert_store.is_in_cooldown(symbol, telegram_cooldown)
+            or self._scan_result_store.is_prediction_telegram_in_cooldown(
+                cooldown_key, telegram_cooldown
+            )
+        )
+        min_vol = getattr(self._scanner_cfg, "telegram_min_volume_usd", 500_000.0)
+        if min_vol > 0 and volume_24h_usd > 0 and volume_24h_usd < min_vol:
+            logger.info(
+                "scanner_telegram_volume_suppressed",
+                symbol=symbol,
+                volume=volume_24h_usd,
+                min_volume=min_vol,
+            )
+            return False if not collect_for_digest else None
 
+        allowed_tiers = getattr(self._scanner_cfg, "telegram_tiers", ["HIGH_CONFIDENCE"])
         decision = evaluate_canary_policy(
             mode=self._operating_mode,
             tier=result.risk_tier,
             quality_status=result.quality.status,
             calibrated_probability=result.calibrated_probability,
             threshold=result.threshold,
-            # Shadow observations deliberately ignore action-alert cooldown
-            # and daily budgets; these values remain for policy compatibility.
-            in_cooldown=False,
+            in_cooldown=in_cooldown,
             global_count=0,
             coin_count=0,
             global_limit=0,
@@ -1134,6 +1192,8 @@ class ScannerDaemon:
             bundle_valid=self._bundle_valid,
             allow_shadow_telegram=True,
             telegram_min_probability=self._scanner_cfg.telegram_min_probability,
+            allowed_tiers=allowed_tiers,
+            enforce_shadow_cooldown=True,
         )
         if not decision.allowed:
             logger.info(
@@ -1143,7 +1203,40 @@ class ScannerDaemon:
                 tier=result.risk_tier,
                 reason=decision.reason,
             )
-            return False
+            return False if not collect_for_digest else None
+
+        alert_item = {
+            "symbol": symbol,
+            "total_score": score.total_score,
+            "recommendation": result.risk_tier,
+            "pump_pct": pump_pct,
+            "pump_days": pump_days,
+            "top_signals": [
+                (c.name, c.score, c.weight, c.explanation)
+                for c in score.top_signals
+            ],
+            "btc_regime": score.btc_regime,
+            "btc_explanation": score.btc_explanation,
+            "close_price": close_price,
+            "feature_time": str(sig_time),
+            "sig_time": sig_time,
+            "invalidation_time": str(invalidation_time),
+            "model_probability": result.calibrated_probability,
+            "horizon_hours": horizon_hours,
+            "data_quality_score": result.quality.score,
+            "model_id": self._frozen_info.model_id,
+            "label_version": (
+                self._frozen_info.label_spec.get("version", "distribution_short_v1")
+                if isinstance(self._frozen_info.label_spec, dict)
+                else "distribution_short_v1"
+            ),
+            "operating_mode": self._operating_mode,
+            "prediction_id": prediction_id,
+            "web_url": _coin_url(self._web_base_url, symbol),
+        }
+
+        if collect_for_digest:
+            return alert_item
 
         sent = self._notifier.send_scored_alert(
             symbol=symbol,
@@ -1191,10 +1284,11 @@ class ScannerDaemon:
         db: DuckDBQueryLayer,
         btc_context: Any,
         pump_candidate: PumpCandidate | None,
-    ) -> int:
+        collect_for_digest: bool = False,
+    ) -> int | dict[str, Any]:
         """Score one symbol with composite scorer, send Telegram if score >= threshold.
 
-        Returns number of alerts sent (0 or 1).
+        Returns number of alerts sent (0 or 1) or an alert dict if collect_for_digest is True.
         """
         # Get latest features for this symbol — JOIN kline to get close price
         df = db.conn.execute(
@@ -1214,7 +1308,7 @@ class ScannerDaemon:
 
         if df.empty:
             logger.debug("scanner_no_features", symbol=symbol)
-            return 0
+            return 0 if not collect_for_digest else None
 
         latest = df.iloc[0]
         feature_dict: dict[str, Any] = {}
@@ -1371,7 +1465,7 @@ class ScannerDaemon:
         # observational Telegram messages for Radar detections as well.
         if not result.alertable:
             if self._operating_mode == "shadow" and self._scanner_cfg.shadow_telegram_enabled:
-                return int(self._dispatch_shadow_observation(
+                res = self._dispatch_shadow_observation(
                     symbol=symbol,
                     score=score,
                     result=result,
@@ -1384,7 +1478,12 @@ class ScannerDaemon:
                     prediction_id=PredictionRecord.stable_id(
                         symbol, sig_time, self._frozen_info.model_id, horizon_hours
                     ),
-                ))
+                    volume_24h_usd=volume_24h_usd,
+                    collect_for_digest=collect_for_digest,
+                )
+                if collect_for_digest:
+                    return res if isinstance(res, dict) else None
+                return int(res)
             logger.info(
                 "scanner_alert_suppressed",
                 symbol=symbol,
@@ -1392,7 +1491,7 @@ class ScannerDaemon:
                 quality_status=result.quality.status,
                 quality_reasons=list(result.quality.reason_codes),
             )
-            return 0
+            return 0 if not collect_for_digest else None
 
         # Cross-reference with CoinGecko if enabled — flagged explicitly
         # (not just logged) so the alert record + UI can surface it.
@@ -1476,10 +1575,9 @@ class ScannerDaemon:
             (c.name, c.score, c.weight, c.explanation) for c in score.top_signals
         ]
 
-        # Alertable shadow observations use the same immediate delivery path
-        # as all other Radar observations; no cooldown or daily budget applies.
+        # Alertable shadow observations use the same filtered delivery path
         if self._operating_mode == "shadow" and self._scanner_cfg.shadow_telegram_enabled:
-            sent = self._dispatch_shadow_observation(
+            res = self._dispatch_shadow_observation(
                 symbol=symbol,
                 score=score,
                 result=result,
@@ -1492,29 +1590,47 @@ class ScannerDaemon:
                 prediction_id=PredictionRecord.stable_id(
                     symbol, sig_time, self._frozen_info.model_id, horizon_hours
                 ),
+                volume_24h_usd=volume_24h_usd,
+                collect_for_digest=collect_for_digest,
             )
-            if sent:
+            if collect_for_digest:
+                return res if isinstance(res, dict) else None
+            if res:
                 self._alert_store.mark_telegram_sent(sig_time, symbol)
-            return int(sent)
+            return int(res)
 
         # Send Telegram only when the operating-mode and tier policy permit it.
         cooldown_key = f"{symbol}:{horizon_hours}h"
-        # Prefer the event/horizon key, while retaining the symbol fallback
-        # for legacy alert rows that predate the key migration.
-        in_cooldown = self._alert_store.is_in_cooldown_key(
-            cooldown_key, self._scanner_cfg.cooldown_minutes
-        ) or self._alert_store.is_in_cooldown(
-            symbol, self._scanner_cfg.cooldown_minutes
+        telegram_cooldown = getattr(
+            self._scanner_cfg, "telegram_cooldown_minutes", self._scanner_cfg.cooldown_minutes
+        )
+        in_cooldown = bool(
+            self._alert_store.is_in_cooldown_key(cooldown_key, telegram_cooldown)
+            or self._alert_store.is_in_cooldown(symbol, telegram_cooldown)
+            or self._scan_result_store.is_prediction_telegram_in_cooldown(
+                cooldown_key, telegram_cooldown
+            )
         )
         if in_cooldown:
             logger.info(
                 "scanner_cooldown_skip",
                 symbol=symbol,
-                cooldown_minutes=self._scanner_cfg.cooldown_minutes,
+                cooldown_minutes=telegram_cooldown,
             )
 
+        min_vol = getattr(self._scanner_cfg, "telegram_min_volume_usd", 500_000.0)
+        if min_vol > 0 and volume_24h_usd > 0 and volume_24h_usd < min_vol:
+            logger.info(
+                "scanner_telegram_volume_suppressed",
+                symbol=symbol,
+                volume=volume_24h_usd,
+                min_volume=min_vol,
+            )
+            return 0 if not collect_for_digest else None
+
+        allowed_tiers = getattr(self._scanner_cfg, "telegram_tiers", ["HIGH_CONFIDENCE"])
         global_daily_limit = getattr(self._scanner_cfg, "global_daily_alert_limit", 15)
-        coin_daily_limit = getattr(self._scanner_cfg, "coin_daily_alert_limit", 3)
+        coin_daily_limit = getattr(self._scanner_cfg, "coin_daily_alert_limit", 2)
         global_count = self._alert_store.get_daily_alert_count()
         coin_count = self._alert_store.get_daily_alert_count(symbol)
         configured_high = {str(level).upper() for level in self._scanner_cfg.alert_levels}
@@ -1534,6 +1650,8 @@ class ScannerDaemon:
             bundle_valid=self._bundle_valid,
             allow_shadow_telegram=self._scanner_cfg.shadow_telegram_enabled,
             telegram_min_probability=self._scanner_cfg.telegram_min_probability,
+            allowed_tiers=allowed_tiers,
+            enforce_shadow_cooldown=True,
         )
         if not high_enabled and policy_decision.allowed:
             policy_decision = CanaryDecision(
@@ -1552,41 +1670,71 @@ class ScannerDaemon:
                 tier=result.risk_tier,
                 reason=policy_decision.reason,
             )
-            sent = False
-        else:
-            sent = self._notifier.send_scored_alert(
-                symbol=symbol,
-                total_score=score.total_score,
-                recommendation=result.risk_tier,
-                pump_pct=pump_pct,
-                pump_days=pump_days,
-                top_signals=top_signals,
-                btc_regime=score.btc_regime,
-                btc_explanation=score.btc_explanation,
-                close_price=close_price,
-                evidence_precision=evidence_precision,
-                evidence_n_judged=evidence_n_judged,
-                feature_time=str(sig_time),
-                invalidation_time=str(invalidation_time),
-                model_probability=result.calibrated_probability,
-                horizon_hours=horizon_hours,
-                data_quality_score=result.quality.score,
-                model_id=self._frozen_info.model_id,
-                label_version=self._frozen_info.label_spec.get("version", "distribution_short_v1")
+            return 0 if not collect_for_digest else None
+
+        prediction_id = PredictionRecord.stable_id(
+            symbol, sig_time, self._frozen_info.model_id, horizon_hours
+        )
+        alert_item = {
+            "symbol": symbol,
+            "total_score": score.total_score,
+            "recommendation": result.risk_tier,
+            "pump_pct": pump_pct,
+            "pump_days": pump_days,
+            "top_signals": top_signals,
+            "btc_regime": score.btc_regime,
+            "btc_explanation": score.btc_explanation,
+            "close_price": close_price,
+            "evidence_precision": evidence_precision,
+            "evidence_n_judged": evidence_n_judged,
+            "feature_time": str(sig_time),
+            "sig_time": sig_time,
+            "invalidation_time": str(invalidation_time),
+            "model_probability": result.calibrated_probability,
+            "horizon_hours": horizon_hours,
+            "data_quality_score": result.quality.score,
+            "model_id": self._frozen_info.model_id,
+            "label_version": (
+                self._frozen_info.label_spec.get("version", "distribution_short_v1")
                 if isinstance(self._frozen_info.label_spec, dict)
-                else "distribution_short_v1",
-                operating_mode=self._operating_mode,
-            )
+                else "distribution_short_v1"
+            ),
+            "operating_mode": self._operating_mode,
+            "prediction_id": prediction_id,
+            "web_url": _coin_url(self._web_base_url, symbol),
+        }
 
+        if collect_for_digest:
+            return alert_item
 
-
+        sent = self._notifier.send_scored_alert(
+            symbol=symbol,
+            total_score=score.total_score,
+            recommendation=result.risk_tier,
+            pump_pct=pump_pct,
+            pump_days=pump_days,
+            top_signals=top_signals,
+            btc_regime=score.btc_regime,
+            btc_explanation=score.btc_explanation,
+            close_price=close_price,
+            evidence_precision=evidence_precision,
+            evidence_n_judged=evidence_n_judged,
+            feature_time=str(sig_time),
+            invalidation_time=str(invalidation_time),
+            model_probability=result.calibrated_probability,
+            horizon_hours=horizon_hours,
+            data_quality_score=result.quality.score,
+            model_id=self._frozen_info.model_id,
+            label_version=(
+                self._frozen_info.label_spec.get("version", "distribution_short_v1")
+                if isinstance(self._frozen_info.label_spec, dict)
+                else "distribution_short_v1"
+            ),
+            operating_mode=self._operating_mode,
+        )
         if sent:
             self._alert_store.mark_telegram_sent(sig_time, symbol)
-            self._scan_result_store.mark_prediction_telegram_sent(
-                PredictionRecord.stable_id(
-                    symbol, sig_time, self._frozen_info.model_id, horizon_hours
-                )
-            )
+            self._scan_result_store.mark_prediction_telegram_sent(prediction_id)
             logger.info(
                 "scanner_composite_alert_sent",
                 symbol=symbol,

@@ -103,6 +103,35 @@ def test_canary_requires_high_confidence_and_budget():
         **{**telegram_threshold, "calibrated_probability": None}
     ).reason == "telegram_probability_missing"
 
+    # Gated allowed_tiers testing
+    assert evaluate_canary_policy(
+        **{
+            **telegram_threshold,
+            "calibrated_probability": 0.85,
+            "tier": "WATCH",
+            "allowed_tiers": ["HIGH_CONFIDENCE"],
+        }
+    ).reason == "tier_not_allowed"
+
+    assert evaluate_canary_policy(
+        **{
+            **telegram_threshold,
+            "calibrated_probability": 0.85,
+            "tier": "HIGH_CONFIDENCE",
+            "allowed_tiers": ["HIGH_CONFIDENCE"],
+        }
+    ).allowed
+
+    # Shadow cooldown enforcement testing
+    assert evaluate_canary_policy(
+        **{
+            **telegram_threshold,
+            "calibrated_probability": 0.85,
+            "in_cooldown": True,
+            "enforce_shadow_cooldown": True,
+        }
+    ).reason == "cooldown_active"
+
 
 def test_drift_does_not_claim_kpi_with_small_sample():
     result = compute_prediction_drift([0.1, 0.2], [0.8, 0.9], min_samples=3)

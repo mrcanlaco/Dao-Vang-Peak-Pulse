@@ -42,7 +42,7 @@ class ScannerConfig(BaseModel):
     poll_interval_minutes: int = Field(default=5, ge=1)
     max_coins: int = Field(default=150, ge=1, le=500)
     min_volume_usd: float = Field(default=1_000_000, gt=0)
-    cooldown_minutes: int = Field(default=60, ge=0)
+    cooldown_minutes: int = Field(default=120, ge=0)
     alert_levels: list[str] = Field(default_factory=lambda: ["CAO", "TRUNG BÌNH"])
     frozen_model_id: str | None = None
     db_path: Path = Path("data/dev.duckdb")
@@ -69,14 +69,20 @@ class ScannerConfig(BaseModel):
         description="research/shadow/canary/production(_alerting)",
     )
     global_daily_alert_limit: int = Field(default=15, ge=1)
-    coin_daily_alert_limit: int = Field(default=3, ge=1)
+    coin_daily_alert_limit: int = Field(default=2, ge=1)
     # Explicit opt-in for labelled observational Telegram messages for every
-    # Radar detection while the scanner remains in shadow. Shadow delivery
-    # intentionally bypasses action-alert cooldown and daily budgets; those
-    # limits remain available for canary/production modes.
+    # Radar detection while the scanner remains in shadow.
     shadow_telegram_enabled: bool = False
-    # Strict Telegram delivery gate: exactly 70% is not sent.
-    telegram_min_probability: float = Field(default=0.70, gt=0.0, lt=1.0)
+    # Strict Telegram delivery gate: probability must exceed this threshold (e.g. 75%).
+    telegram_min_probability: float = Field(default=0.75, gt=0.0, lt=1.0)
+    # Telegram cooldown in minutes: prevents duplicate alerts for the same coin within this window.
+    telegram_cooldown_minutes: int = Field(default=120, ge=0)
+    # Minimum 24h volume in USD required for a coin to be alerted on Telegram (avoids low liquidity spam).
+    telegram_min_volume_usd: float = Field(default=500_000.0, ge=0.0)
+    # Allowed risk tiers for Telegram alerting (defaults to only HIGH_CONFIDENCE).
+    telegram_tiers: list[str] = Field(default_factory=lambda: ["HIGH_CONFIDENCE"])
+    # Telegram digest mode: if true, multiple qualifying alerts in a cycle are sent as a single clean digest.
+    telegram_digest_mode: bool = True
     # A feature snapshot older than this must never produce an alert.
     max_feature_age_minutes: int = Field(default=10, ge=1, le=24 * 60)
     # Quality score is an explicit gate; missing score is derived from the
