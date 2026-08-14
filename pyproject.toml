@@ -2,7 +2,8 @@
 name = "dao-vang"
 version = "0.1.0"
 description = "Đảo Vàng - Predictive model for crypto distribution phases"
-authors = [{name = "Integrator"}]
+authors = [{name = "DAO VANG Contributors"}]
+license = "MIT"
 requires-python = "==3.12.*"
 dependencies = [
     "pydantic-core==2.46.4",
