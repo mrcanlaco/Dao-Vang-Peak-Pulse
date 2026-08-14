@@ -39,6 +39,9 @@ features_app = typer.Typer(help="Feature generation commands")
 experiment_app = typer.Typer(help="Experiment and training commands")
 report_app = typer.Typer(help="Reporting commands")
 scanner_app = typer.Typer(help="24/7 scanner + Telegram alerts (post-MVP, ADR 0001)")
+alpha_lab_app = typer.Typer(
+    help="Alpha Quality Lab — Signal Intelligence & Meta-Labeling commands"
+)
 
 app.add_typer(data_app, name="data")
 app.add_typer(labels_app, name="labels")
@@ -46,6 +49,7 @@ app.add_typer(features_app, name="features")
 app.add_typer(experiment_app, name="experiment")
 app.add_typer(report_app, name="report")
 app.add_typer(scanner_app, name="scanner")
+app.add_typer(alpha_lab_app, name="alpha-lab")
 
 
 @data_app.command("collect")
@@ -1176,3 +1180,165 @@ def scanner_scan_list(
     typer.echo(f"✅ Danh sách cuối cùng sẽ quét ({len(final)} coin):")
     for i, sym in enumerate(final, 1):
         typer.echo(f"  {i:>3}. {sym}")
+
+
+# ============================================================
+# ALPHA QUALITY LAB commands (Triple-Barrier, Regime & Meta-Labeling)
+# ============================================================
+
+
+@alpha_lab_app.command("regime")
+def alpha_lab_regime(
+    symbol: str = typer.Option("BTCUSDT", "--symbol", "-s", help="Mã coin cần phân tích"),
+    limit: int = typer.Option(100, "--limit", "-n", help="Số nến nạp vào (mặc định 100)"),
+) -> None:
+    """Phân tích và nhận diện trạng thái thị trường (Market Regime) hiện tại."""
+    from dao_vang.alpha_lab.regime_classifier import classify_market_regimes, get_current_regime
+    from dao_vang.data.collectors.binance_client import BinanceClient
+
+    client = BinanceClient()
+    typer.echo(f"🔍 Đang lấy {limit} nến 1h của {symbol} từ Binance Futures...")
+    try:
+        klines = client.get("/fapi/v1/klines", {"symbol": symbol.upper(), "interval": "1h", "limit": limit})
+        import pandas as pd
+
+        df = pd.DataFrame(
+            klines,
+            columns=[
+                "open_time", "open", "high", "low", "close", "volume",
+                "close_time", "quote_volume", "trades", "taker_buy_base",
+                "taker_buy_quote", "ignore",
+            ],
+        )
+        df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
+        df = df.set_index("open_time")
+        for col in ["open", "high", "low", "close"]:
+            df[col] = df[col].astype(float)
+
+        state = get_current_regime(df)
+
+        typer.echo("\n" + "=" * 55)
+        typer.echo(f"  📊 KẾT QUẢ PHÂN TÍCH REGIME: {symbol.upper()}")
+        typer.echo("=" * 55)
+        typer.echo(f"  • Trạng thái thị trường : 🎯 {state.regime.value}")
+        typer.echo(f"  • Chỉ số ADX (Trend)   : {state.adx:.2f}")
+        typer.echo(f"  • BB Width (Vol)       : {state.bb_width:.4f}")
+        typer.echo(f"  • Trend Slope (EMA)    : {state.trend_slope:+.4f}")
+        typer.echo(f"  • Độ biến động ATR     : {state.atr_pct:.2%}")
+        typer.echo(f"  • Cho phép lệnh Short  : {'✅ CÓ' if state.allow_short else '❌ KHÔNG (Chặn ngược trend)'}")
+        typer.echo(f"  • Cho phép lệnh Long   : {'✅ CÓ' if state.allow_long else '❌ KHÔNG'}")
+        typer.echo(f"  • Hệ số Rủi ro (Risk)  : {state.risk_multiplier:.1f}x")
+        typer.echo("=" * 55 + "\n")
+    except Exception as exc:
+        typer.echo(f"❌ Lỗi khi phân tích regime: {exc}", err=True)
+        raise typer.Exit(code=1)
+
+
+@alpha_lab_app.command("backtest")
+def alpha_lab_backtest(
+    pt_mult: float = typer.Option(2.0, "--pt", help="Hệ số Take Profit theo ATR"),
+    sl_mult: float = typer.Option(1.0, "--sl", help="Hệ số Stop Loss theo ATR"),
+    threshold: float = typer.Option(0.60, "--threshold", "-t", help="Ngưỡng Meta-Model"),
+) -> None:
+    """Chạy mô phỏng kiểm định Triple-Barrier & Meta-Labeling Simulator."""
+    import numpy as np
+    import pandas as pd
+    from dao_vang.alpha_lab.alpha_backtester import AlphaBacktester
+
+    typer.echo("🚀 Đang khởi tạo bộ giả lập Walk-Forward & Triple-Barrier Backtest...")
+    np.random.seed(42)
+    n_bars = 1000
+    dates = pd.date_range(start="2026-01-01", periods=n_bars, freq="5min")
+    prices = 100.0 * np.exp(np.cumsum(np.random.normal(0, 0.002, n_bars)))
+
+    price_df = pd.DataFrame(
+        {
+            "open": prices,
+            "high": prices * (1.0 + np.abs(np.random.normal(0, 0.001, n_bars))),
+            "low": prices * (1.0 - np.abs(np.random.normal(0, 0.001, n_bars))),
+            "close": prices,
+        },
+        index=dates,
+    )
+
+    sig_indices = np.sort(np.random.choice(range(50, n_bars - 150), size=60, replace=False))
+    sig_dates = dates[sig_indices]
+    signals_df = pd.DataFrame(
+        {
+            "side": [-1] * len(sig_dates),
+            "primary_probability": np.random.uniform(0.65, 0.90, len(sig_dates)),
+            "taker_buy_ratio": np.random.uniform(0.45, 0.65, len(sig_dates)),
+            "oi_change_pct": np.random.normal(0.01, 0.03, len(sig_dates)),
+        },
+        index=sig_dates,
+    )
+
+    backtester = AlphaBacktester(
+        pt_sl=(pt_mult, sl_mult),
+        min_ret=0.005,
+        fee_bps=8.0,
+        meta_threshold=threshold,
+    )
+
+    res = backtester.run_simulation(prices=price_df, signals_df=signals_df, train_ratio=0.65)
+
+    typer.echo("\n" + "=" * 65)
+    typer.echo("  🔬 KẾT QUẢ SO SÁNH HIỆU SUẤT ALPHA LAB (OUT-OF-SAMPLE TEST)")
+    typer.echo("=" * 65)
+    typer.echo(f"  • Tổng tín hiệu kiểm thử   : {res.total_test_signals}")
+    typer.echo(f"  • Lệnh được Meta-Model DUYỆT: {res.executed_signals} ({res.pass_rate:.1%})")
+    typer.echo(f"  • Lệnh rác bị DROP         : {res.dropped_signals}")
+    typer.echo("-" * 65)
+    typer.echo(f"  • Win Rate Thô (Unfiltered) : {res.unfiltered_summary.win_rate:.1%}")
+    typer.echo(f"  • Win Rate sau Lọc (Filtered): {res.filtered_summary.win_rate:.1%} (Tăng {res.winrate_improvement_pct:+.1f}%)")
+    typer.echo("-" * 65)
+    typer.echo(f"  • Kỳ Vọng EV Thô           : {res.unfiltered_summary.expected_value_bps:+.1f} bps")
+    typer.echo(f"  • Kỳ Vọng EV sau Lọc       : {res.filtered_summary.expected_value_bps:+.1f} bps (Cải thiện {res.ev_improvement_bps:+.1f} bps)")
+    typer.echo(f"  • Profit Factor Cải thiện  : {res.profit_factor_improvement:+.2f}")
+    typer.echo("=" * 65 + "\n")
+
+
+@alpha_lab_app.command("drift")
+def alpha_lab_drift() -> None:
+    """Kiểm tra độ ổn định phân phối (PSI) và giám sát Alpha Decay."""
+    import numpy as np
+    import pandas as pd
+    from dao_vang.alpha_lab.drift_guardian import DriftGuardian
+
+    typer.echo("🛡️  Đang chạy kiểm tra Drift Guardian...")
+    np.random.seed(42)
+    baseline_df = pd.DataFrame(
+        {
+            "atr_pct": np.random.normal(0.02, 0.005, 500),
+            "taker_ratio": np.random.normal(0.50, 0.05, 500),
+            "oi_delta": np.random.normal(0.0, 0.02, 500),
+        }
+    )
+    guardian = DriftGuardian()
+    guardian.set_baseline(baseline_df)
+
+    live_df = pd.DataFrame(
+        {
+            "atr_pct": np.random.normal(0.021, 0.005, 200),
+            "taker_ratio": np.random.normal(0.51, 0.05, 200),
+            "oi_delta": np.random.normal(0.0, 0.02, 200),
+        }
+    )
+
+    y_true = np.array([1, 1, 0, 1, 0, 0, 1, 0] * 20)
+    y_prob = np.array([0.85, 0.80, 0.20, 0.75, 0.30, 0.25, 0.90, 0.15] * 20)
+
+    report = guardian.evaluate_health(live_df, y_true=y_true, y_prob=y_prob)
+
+    typer.echo("\n" + "=" * 55)
+    typer.echo("  🛡️  BÁO CÁO SỨC KHỎE MÔ HÌNH (DRIFT GUARDIAN)")
+    typer.echo("=" * 55)
+    typer.echo(f"  • Trạng thái tổng thể : {'🟢 ' + report.status.value if report.status.value == 'HEALTHY' else '⚠️ ' + report.status.value}")
+    typer.echo(f"  • Độ lệch PSI tối đa  : {report.max_psi:.4f} (Ngưỡng an toàn < 0.10)")
+    for feat, psi in report.feature_psi.items():
+        typer.echo(f"    - Feature '{feat:<12}': PSI = {psi:.4f}")
+    if report.brier_score is not None:
+        typer.echo(f"  • Brier Score (Sai số) : {report.brier_score:.4f}")
+    if report.ece is not None:
+        typer.echo(f"  • ECE (Lỗi hiệu chuẩn) : {report.ece:.4f}")
+    typer.echo("=" * 55 + "\n")
