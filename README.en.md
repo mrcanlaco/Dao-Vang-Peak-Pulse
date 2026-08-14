@@ -113,25 +113,114 @@ flowchart LR
 
 ---
 
-## 🚀 7. QUICK START GUIDE
+## 🚀 7. RUNNING GUIDE (LIVE VS. DEV)
 
-### Environment Setup
+The system enforces strict isolation between **Development Mode (Dev)** and **Production Mode (Live)** to preserve database integrity and ensure optimal latency.
+
+```
+┌─────────────────────────┬──────────────────────────┬─────────────────────────┐
+│ Metric / Feature        │ DEV Environment          │ LIVE Environment        │
+├─────────────────────────┼──────────────────────────┼─────────────────────────┤
+│ Target Purpose          │ Feature dev & UI preview │ 24/7 Market Surveillance│
+│ Default Port            │ Backend 8000 / Vite 5173 │ Web API 8001            │
+│ Data Lake Directory     │ data/ (data/dev.duckdb)  │ data_live/ (live.duckdb)│
+│ Hot-Reload              │ Enabled (Vite & FastAPI) │ Disabled (Low Latency)  │
+└─────────────────────────┴──────────────────────────┴─────────────────────────┘
+```
+
+---
+
+### 💻 A. RUNNING DEVELOPMENT MODE (DEV)
+
+For contributors developing new features, modifying ML models, or customizing the React dashboard.
+
+#### 1. Initial Setup
 ```bash
 # Clone the repository
 git clone https://github.com/mrcanlaco/dao_vang.git
 cd dao_vang
 
-# Install dependencies using uv / pip
+# Create Python virtual environment and install dependencies
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .\.venv\Scripts\activate
 pip install -e .
+
+# Install frontend dependencies
+cd frontend && npm install && cd ..
 ```
 
-### Run Scanner & Web UI with Docker Compose
+#### 2. Launch with Hot-Reload (2 Terminals)
+- **Terminal 1 — Backend Web API & Scanner Daemon:**
+  ```bash
+  python -m dao_vang.web.run --reload --port 8000
+  ```
+- **Terminal 2 — Frontend React + Vite:**
+  ```bash
+  cd frontend
+  npm run dev
+  ```
+  👉 Open browser at: `http://localhost:5173` *(Vite automatically proxies API requests to port 8000)*.
+
+#### 3. 1-Click Launch on Windows (Dev)
+- Double-click `run_dev.bat` to launch the Dev Web Server.
+- (Optional) Double-click `run_scanner_dev.bat` to start the continuous scanner daemon on dev data.
+
+---
+
+### 🌐 B. RUNNING PRODUCTION MODE (LIVE / 24/7 RADAR)
+
+For production deployments on VPS/Cloud servers or continuous background monitoring on local machines.
+
+#### Option 1: 1-Click Deployment with Docker Compose (Recommended for Servers)
 ```bash
-# Create configuration file from template
+# 1. Copy and configure environment variables
 cp .env.docker.example .env.docker
 
-# Launch the full system (Scanner + API Server + Frontend)
-docker-compose up -d
+# 2. Configure Telegram Bot Token and Chat ID (if Telegram alerts are desired)
+# nano .env.docker
+
+# 3. Launch full stack (Scanner Daemon + FastAPI Backend + React Web UI)
+docker compose up -d --build
+
+# 4. Check status and streaming logs
+docker compose ps
+docker compose logs -f scanner
+```
+👉 Access the Live Dashboard at: `http://localhost:8000` *(or via your Nginx reverse proxy)*.
+
+#### Option 2: Run natively on Windows (Self-Healing Supervisor)
+- **Start Web Live Dashboard:**
+  Double-click `run_live.bat`  
+  *(Spawns an auto-restarting supervisor on port `8001` with log rotation at `scripts/logs/web_live.log`)*.
+- **Start Live Scanner Daemon:**
+  Double-click `run_scanner_live.bat`  
+  *(Runs 5-minute continuous scan loops across hundreds of Binance Futures pairs and fires Telegram alerts)*.
+
+#### Option 3: Run natively on Linux / macOS via CLI
+```bash
+# 1. Build optimized frontend production bundle
+cd frontend && npm run build && cd ..
+
+# 2. Start Live Server connected to isolated data_live lake
+export DAO_VANG_WEB__PORT=8001
+export DAO_VANG_PATHS__DATA_DIR=data_live
+export DAO_VANG_SCANNER__DB_PATH=data_live/live.duckdb
+
+python -m dao_vang.web.run 8001
+```
+
+---
+
+### 🧪 C. TESTING & QUALITY ASSURANCE
+
+Ensure all quality gates pass before opening pull requests:
+
+```bash
+# Run 350+ backend unit, integration, and leakage audit tests
+pytest tests/
+
+# Validate frontend type checking and production build
+npm --prefix frontend run build
 ```
 
 ---

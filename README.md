@@ -113,25 +113,114 @@ flowchart LR
 
 ---
 
-## 🚀 7. HƯỚNG DẪN KHỞI CHẠY NHANH (QUICK START)
+## 🚀 7. HƯỚNG DẪN KHỞI CHẠY (RUNNING GUIDE)
 
-### Cài đặt môi trường
+Hệ thống được thiết kế tách biệt hoàn toàn giữa **Môi trường Phát triển (Dev)** và **Môi trường Vận hành Thực tế (Live)** để đảm bảo an toàn dữ liệu và tối ưu hiệu năng.
+
+```
+┌─────────────────────────┬──────────────────────────┬─────────────────────────┐
+│ Tiêu chí                │ Môi trường DEV           │ Môi trường LIVE         │
+├─────────────────────────┼──────────────────────────┼─────────────────────────┤
+│ Mục đích                │ Code tính năng, thử UI   │ Chạy 24/7 quét thị trường│
+│ Cổng mặc định (Port)    │ Backend 8000 / Vite 5173 │ Web API 8001            │
+│ Thư mục dữ liệu (Data)  │ data/ (data/dev.duckdb)  │ data_live/ (live.duckdb)│
+│ Hot-Reload              │ Bật (Frontend & Backend) │ Tắt (Tối ưu hiệu năng)  │
+└─────────────────────────┴──────────────────────────┴─────────────────────────┘
+```
+
+---
+
+### 💻 A. HƯỚNG DẪN CHẠY BẢN DEV (DEVELOPMENT MODE)
+
+Dành cho nhà phát triển muốn đóng góp code, chỉnh sửa mô hình Machine Learning hoặc tùy biến giao diện React.
+
+#### 1. Cài đặt môi trường ban đầu
 ```bash
-# Clone dự án
+# Clone repository
 git clone https://github.com/mrcanlaco/dao_vang.git
 cd dao_vang
 
-# Cài đặt thư viện bằng uv / pip
+# Tạo môi trường ảo Python và cài đặt dependencies
+python -m venv .venv
+source .venv/bin/activate  # Trên Windows: .\.venv\Scripts\activate
 pip install -e .
+
+# Cài đặt dependencies cho Frontend
+cd frontend && npm install && cd ..
 ```
 
-### Chạy Scanner & Web UI bằng Docker Compose
+#### 2. Khởi chạy với Hot-Reload (2 Terminal)
+- **Terminal 1 — Backend Web API & Scanner Daemon:**
+  ```bash
+  python -m dao_vang.web.run --reload --port 8000
+  ```
+- **Terminal 2 — Frontend React + Vite:**
+  ```bash
+  cd frontend
+  npm run dev
+  ```
+  👉 Mở trình duyệt tại: `http://localhost:5173` *(Vite sẽ tự động proxy các request API sang port 8000)*.
+
+#### 3. Khởi chạy nhanh 1-Click trên Windows (Dev)
+- Nhấp đúp file `run_dev.bat` để chạy Web Server Dev.
+- (Tùy chọn) Nhấp đúp `run_scanner_dev.bat` để chạy tiến trình quét liên tục trên môi trường dev.
+
+---
+
+### 🌐 B. HƯỚNG DẪN CHẠY BẢN LIVE (PRODUCTION / 24/7 LIVE RADAR)
+
+Dành cho việc triển khai máy chủ/VPS thực tế hoặc chạy nền ổn định trên máy tính cá nhân.
+
+#### Cách 1: Triển khai 1-Click bằng Docker Compose (Khuyên dùng cho VPS/Linux)
 ```bash
-# Tạo file cấu hình từ template
+# 1. Sao chép và cấu hình file môi trường
 cp .env.docker.example .env.docker
 
-# Khởi chạy toàn bộ hệ thống (Scanner + API Server + Frontend)
-docker-compose up -d
+# 2. Điền thông tin cấu hình Telegram Bot (nếu muốn nhận thông báo)
+# nano .env.docker
+
+# 3. Khởi chạy toàn bộ hệ sinh thái (Scanner Daemon + API + Web Frontend)
+docker compose up -d --build
+
+# 4. Kiểm tra trạng thái và logs
+docker compose ps
+docker compose logs -f scanner
+```
+👉 Truy cập Dashboard tại: `http://localhost:8000` *(hoặc qua reverse proxy Nginx của bạn)*.
+
+#### Cách 2: Chạy trực tiếp trên Windows Server / PC (Tích hợp Supervisor tự phục hồi)
+- **Khởi động Web Live Dashboard:**
+  Nhấp đúp hoặc chạy file `run_live.bat`  
+  *(Tự động kích hoạt supervisor giám sát port `8001`, tự khởi động lại nếu có lỗi và ghi log xoay vòng tại `scripts/logs/web_live.log`)*.
+- **Khởi động Live Scanner Daemon:**
+  Nhấp đúp hoặc chạy file `run_scanner_live.bat`  
+  *(Quét liên tục chu kỳ 5 phút hàng trăm mã Binance Futures, phân tích dòng tiền và đẩy cảnh báo đến Telegram)*.
+
+#### Cách 3: Chạy trực tiếp bằng CLI trên Linux / Mac
+```bash
+# 1. Build bundle Frontend tĩnh
+cd frontend && npm run build && cd ..
+
+# 2. Khởi chạy Server Live với database riêng biệt data_live
+export DAO_VANG_WEB__PORT=8001
+export DAO_VANG_PATHS__DATA_DIR=data_live
+export DAO_VANG_SCANNER__DB_PATH=data_live/live.duckdb
+
+python -m dao_vang.web.run 8001
+```
+
+---
+
+### 🧪 C. KIỂM THỬ VÀ KIỂM TRA CHẤT LƯỢNG MÃ NGUỒN (TESTING & QA)
+
+Trước khi gửi Pull Request, hãy đảm bảo tất cả bài kiểm thử đều vượt qua:
+
+```bash
+# Chạy toàn bộ 350+ bài test backend (Walk-forward, Leakage audit, Quality gates)
+pytest tests/
+
+# Kiểm tra build và type-check frontend
+npm --prefix frontend run build
 ```
 
 ---
