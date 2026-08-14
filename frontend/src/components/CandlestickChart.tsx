@@ -59,18 +59,49 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   const [alertVisibility, setAlertVisibility] = useState<AlertVisibilityMode>('all');
   const [alertMenuOpen, setAlertMenuOpen] = useState(false);
 
-  const alertVisibilityOptions: Array<{ value: AlertVisibilityMode; label: string; hint: string }> = [
-    { value: 'hidden', label: isEn ? 'Hide Alerts' : 'Ẩn cảnh báo', hint: isEn ? 'Do not render markers on chart' : 'Không vẽ điểm đánh dấu trên biểu đồ' },
-    { value: 'latest', label: isEn ? 'Latest Only' : 'Chỉ gần nhất', hint: isEn ? 'Only show newest alert' : 'Chỉ cảnh báo mới nhất' },
-    { value: 'all', label: isEn ? 'Show All' : 'Hiển thị tất cả', hint: isEn ? 'Full alert history' : 'Toàn bộ lịch sử cảnh báo' },
-    { value: 'valid', label: isEn ? 'Active Only' : 'Còn hiệu lực', hint: isEn ? 'Signals within validity window' : 'Chưa hết thời gian hiệu lực' },
-  ];
+  const getAlertVisibilityOptions = (lang: string): Array<{ value: AlertVisibilityMode; label: string; hint: string }> => {
+    if (lang === 'zh') {
+      return [
+        { value: 'hidden', label: '隐藏警报', hint: '不在图表上绘制警报标记' },
+        { value: 'latest', label: '仅最新', hint: '仅显示最新一条警报' },
+        { value: 'all', label: '全部显示', hint: '显示完整历史警报' },
+        { value: 'valid', label: '仅有效', hint: '显示仍在有效期内的信号' },
+      ];
+    }
+    if (lang === 'ko') {
+      return [
+        { value: 'hidden', label: '경보 숨기기', hint: '차트에 마커를 표시하지 않음' },
+        { value: 'latest', label: '최신만', hint: '가장 최근 경보만 표시' },
+        { value: 'all', label: '전체 표시', hint: '전체 경보 이력 표시' },
+        { value: 'valid', label: '유효 신호만', hint: '유효 기간 내의 신호만 표시' },
+      ];
+    }
+    if (lang === 'en') {
+      return [
+        { value: 'hidden', label: 'Hide Alerts', hint: 'Do not render markers on chart' },
+        { value: 'latest', label: 'Latest Only', hint: 'Only show newest alert' },
+        { value: 'all', label: 'Show All', hint: 'Full alert history' },
+        { value: 'valid', label: 'Active Only', hint: 'Signals within validity window' },
+      ];
+    }
+    return [
+      { value: 'hidden', label: 'Ẩn cảnh báo', hint: 'Không vẽ điểm đánh dấu trên biểu đồ' },
+      { value: 'latest', label: 'Chỉ gần nhất', hint: 'Chỉ cảnh báo mới nhất' },
+      { value: 'all', label: 'Hiển thị tất cả', hint: 'Toàn bộ lịch sử cảnh báo' },
+      { value: 'valid', label: 'Còn hiệu lực', hint: 'Chưa hết thời gian hiệu lực' },
+    ];
+  };
 
-  const alertVisibilityLabel: Record<AlertVisibilityMode, string> = {
-    hidden: isEn ? 'Hide Alerts' : 'Ẩn cảnh báo',
-    latest: isEn ? 'Latest Only' : 'Gần nhất',
-    all: isEn ? 'All Alerts' : 'Tất cả',
-    valid: isEn ? 'Active Only' : 'Còn hiệu lực',
+  const alertVisibilityOptions = getAlertVisibilityOptions(language);
+
+  const getAlertVisibilityLabel = (mode: AlertVisibilityMode, lang: string): string => {
+    const map: Record<AlertVisibilityMode, Record<string, string>> = {
+      hidden: { vi: 'Ẩn cảnh báo', en: 'Hide Alerts', zh: '隐藏警报', ko: '경보 숨김' },
+      latest: { vi: 'Gần nhất', en: 'Latest Only', zh: '仅最新', ko: '최신만' },
+      all: { vi: 'Tất cả', en: 'All Alerts', zh: '全部显示', ko: '전체 경보' },
+      valid: { vi: 'Còn hiệu lực', en: 'Active Only', zh: '仅有效', ko: '유효 신호' },
+    };
+    return map[mode]?.[lang] ?? map[mode]?.['en'] ?? mode;
   };
 
   const formatSignalTime = (time: string, compact = false): string => {
@@ -79,7 +110,8 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const parsed = parseSystemDate(time);
     if (!parsed) return time;
 
-    return new Intl.DateTimeFormat(isEn ? 'en-US' : 'vi-VN', compact ? {
+    const locale = language === 'zh' ? 'zh-CN' : language === 'ko' ? 'ko-KR' : language === 'en' ? 'en-US' : 'vi-VN';
+    return new Intl.DateTimeFormat(locale, compact ? {
       timeZone: SYSTEM_TIME_ZONE,
       hour: '2-digit',
       minute: '2-digit',
@@ -402,14 +434,14 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         <div ref={alertMenuRef} className="relative">
           <button
             type="button"
-            aria-label={isEn ? 'Filter chart alerts' : 'Lọc cảnh báo trên biểu đồ'}
+            aria-label={language === 'en' ? 'Filter chart alerts' : language === 'zh' ? '过滤图表警报' : language === 'ko' ? '차트 경보 필터' : 'Lọc cảnh báo trên biểu đồ'}
             aria-expanded={alertMenuOpen}
             className={`${toolButtonClass} ${alertMenuOpen ? 'border-amber-500/80 text-amber-300' : ''}`}
-            title={isEn ? 'Select alerts displayed on chart' : 'Chọn cảnh báo hiển thị trên biểu đồ'}
+            title={language === 'en' ? 'Select alerts displayed on chart' : language === 'zh' ? '选择图表上显示的警报' : language === 'ko' ? '차트에 표시할 경보 선택' : 'Chọn cảnh báo hiển thị trên biểu đồ'}
             onClick={() => setAlertMenuOpen(value => !value)}
           >
             <Filter className="h-3.5 w-3.5 text-amber-400" />
-            <span>{alertVisibilityLabel[alertVisibility]}</span>
+            <span>{getAlertVisibilityLabel(alertVisibility, language)}</span>
             <ChevronDown className={`h-3 w-3 transition-transform ${alertMenuOpen ? 'rotate-180' : ''}`} />
           </button>
           {alertMenuOpen && (
@@ -438,25 +470,29 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         <button
           type="button"
           className={`${toolButtonClass} ${crosshairMode === 'magnet' ? 'border-amber-500/80 text-amber-300' : ''}`}
-          title={isEn ? 'Magnet crosshair (click to toggle Free / Hidden)' : 'Con trỏ bám nến (bấm để đổi Tự do / Ẩn)'}
+          title={language === 'en' ? 'Magnet crosshair' : language === 'zh' ? '十字准星吸附模式' : language === 'ko' ? '자석 십자선 모드' : 'Con trỏ bám nến'}
           onClick={() => setCrosshairMode(mode => mode === 'magnet' ? 'normal' : mode === 'normal' ? 'hidden' : 'magnet')}
         >
           <Crosshair className="h-3.5 w-3.5" />
-          {crosshairMode === 'magnet' ? (isEn ? 'Magnet' : 'Bám nến') : crosshairMode === 'normal' ? (isEn ? 'Normal' : 'Tự do') : (isEn ? 'Hidden' : 'Ẩn')}
+          {crosshairMode === 'magnet' 
+            ? (language === 'en' ? 'Magnet' : language === 'zh' ? '吸附' : language === 'ko' ? '자석' : 'Bám nến') 
+            : crosshairMode === 'normal' 
+            ? (language === 'en' ? 'Normal' : language === 'zh' ? '自由' : language === 'ko' ? '일반' : 'Tự do') 
+            : (language === 'en' ? 'Hidden' : language === 'zh' ? '隐藏' : language === 'ko' ? '숨김' : 'Ẩn')}
         </button>
-        <button type="button" className={toolButtonClass} title={isEn ? 'Zoom Out' : 'Thu nhỏ khung thời gian'} onClick={() => adjustZoom(1.35)}>
+        <button type="button" className={toolButtonClass} title={language === 'en' ? 'Zoom Out' : language === 'zh' ? '缩小' : language === 'ko' ? '축소' : 'Thu nhỏ khung thời gian'} onClick={() => adjustZoom(1.35)}>
           <ZoomOut className="h-3.5 w-3.5" />
         </button>
-        <button type="button" className={toolButtonClass} title={isEn ? 'Zoom In' : 'Phóng to khung thời gian'} onClick={() => adjustZoom(0.7)}>
+        <button type="button" className={toolButtonClass} title={language === 'en' ? 'Zoom In' : language === 'zh' ? '放大' : language === 'ko' ? '확대' : 'Phóng to khung thời gian'} onClick={() => adjustZoom(0.7)}>
           <ZoomIn className="h-3.5 w-3.5" />
         </button>
-        <button type="button" className={toolButtonClass} title={isEn ? 'Fit Content & Auto Scale' : 'Vừa toàn bộ dữ liệu và tự co giãn giá'} onClick={handleResetView}>
+        <button type="button" className={toolButtonClass} title={language === 'en' ? 'Fit Content & Auto Scale' : language === 'zh' ? '自适应缩放' : language === 'ko' ? '화면 맞춤' : 'Vừa toàn bộ dữ liệu và tự co giãn giá'} onClick={handleResetView}>
           <RotateCcw className="h-3.5 w-3.5" />
         </button>
         <button
           type="button"
           className={`${toolButtonClass} ${gridVisible ? 'border-slate-500 text-slate-200' : 'text-slate-500'}`}
-          title={isEn ? 'Toggle Grid' : 'Bật/tắt lưới'}
+          title={language === 'en' ? 'Toggle Grid' : language === 'zh' ? '切换网格' : language === 'ko' ? '그리드 토글' : 'Bật/tắt lưới'}
           onClick={() => setGridVisible(value => !value)}
         >
           <Grid3X3 className="h-3.5 w-3.5" />
@@ -464,33 +500,33 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         <button
           type="button"
           className={`${toolButtonClass} ${priceAutoScale ? 'border-slate-500 text-slate-200' : 'text-slate-500'}`}
-          title={isEn ? 'Toggle Auto-Scale' : 'Bật/tắt tự co giãn trục giá'}
+          title={language === 'en' ? 'Toggle Auto-Scale' : language === 'zh' ? '自动缩放价格' : language === 'ko' ? '가격 자동 비율' : 'Bật/tắt tự co giãn trục giá'}
           onClick={() => applyPriceScaleMode(!priceAutoScale)}
         >
-          <span className="font-mono text-[9px]">{isEn ? 'AUTO' : 'TỰ ĐỘNG'}</span>
+          <span className="font-mono text-[9px]">{language === 'en' ? 'AUTO' : language === 'zh' ? '自适应' : language === 'ko' ? '자동' : 'TỰ ĐỘNG'}</span>
         </button>
-        <button type="button" className={toolButtonClass} title={isEn ? 'Take Screenshot' : 'Tải ảnh biểu đồ'} onClick={handleScreenshot}>
+        <button type="button" className={toolButtonClass} title={language === 'en' ? 'Take Screenshot' : language === 'zh' ? '截图' : language === 'ko' ? '스크린샷' : 'Tải ảnh biểu đồ'} onClick={handleScreenshot}>
           <Camera className="h-3.5 w-3.5" />
         </button>
-        <button type="button" className={toolButtonClass} title={isEn ? 'Toggle Fullscreen' : 'Toàn màn hình'} onClick={handleFullscreen}>
+        <button type="button" className={toolButtonClass} title={language === 'en' ? 'Toggle Fullscreen' : language === 'zh' ? '全屏' : language === 'ko' ? '전체화면' : 'Toàn màn hình'} onClick={handleFullscreen}>
           {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </button>
       </div>
       {visibleSignalMarkers.length > 0 && (
         <div className="pointer-events-none absolute left-2 top-12 z-10 flex max-w-[calc(100%-1rem)] items-center gap-2 overflow-hidden rounded-md border border-amber-500/40 bg-slate-950/90 px-2 py-1 text-[10px] shadow-lg shadow-black/20 sm:top-2 sm:max-w-[70%]">
           <span className="font-bold uppercase tracking-wide text-amber-400">
-            {isEn ? '↓ Distribution Alert' : '↓ Cảnh báo xả'}
+            {language === 'en' ? '↓ Distribution Alert' : language === 'zh' ? '↓ 见顶派发预警' : language === 'ko' ? '↓ 피크 덤프 경보' : '↓ Cảnh báo xả'}
           </span>
           {visibleSignalMarkers.length > 1 && (
             <span className="font-mono font-bold text-slate-300">
-              {visibleSignalMarkers.length} {isEn ? 'signals' : 'tín hiệu'}
+              {visibleSignalMarkers.length} {language === 'en' ? 'signals' : language === 'zh' ? '条信号' : language === 'ko' ? '개 신호' : 'tín hiệu'}
             </span>
           )}
           {allSignalMarkers.length > visibleSignalMarkers.length && (
-            <span className="font-mono text-slate-500">/{allSignalMarkers.length} · {alertVisibilityLabel[alertVisibility]}</span>
+            <span className="font-mono text-slate-500">/{allSignalMarkers.length} · {getAlertVisibilityLabel(alertVisibility, language)}</span>
           )}
           <span className="font-mono text-slate-300">
-            {isEn ? 'Latest:' : 'Gần nhất:'} {formatSignalTime(visibleSignalMarkers[visibleSignalMarkers.length - 1].time)}
+            {language === 'en' ? 'Latest:' : language === 'zh' ? '最新:' : language === 'ko' ? '최신:' : 'Gần nhất:'} {formatSignalTime(visibleSignalMarkers[visibleSignalMarkers.length - 1].time)}
           </span>
           {visibleSignalMarkers[visibleSignalMarkers.length - 1].probability != null && Number.isFinite(visibleSignalMarkers[visibleSignalMarkers.length - 1].probability) && (
             <span className="font-mono font-bold text-red-400">

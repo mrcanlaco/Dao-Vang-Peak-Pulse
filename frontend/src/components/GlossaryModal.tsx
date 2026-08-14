@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, HelpCircle, Search, BookOpen, Terminal, AlertTriangle, Lightbulb, Workflow, Bug } from 'lucide-react';
+import { X, HelpCircle, Search, BookOpen, Lightbulb } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 
 interface GlossaryModalProps {
@@ -33,19 +33,64 @@ const GLOSSARY_ENTRIES_EN = [
   { term: "Target Drawdown (-8%)", desc: "Standard ground-truth benchmark: Price decreases by at least 8% within 24 hours of signal issuance while adverse upside drift stays ≤ 4%." }
 ];
 
+const GLOSSARY_ENTRIES_ZH = [
+  { term: "派发阶段 (Distribution Phase)", desc: "资产主力开始抛售筹码库存——丧失上涨动能，聚集卖方压力并进入大幅回撤。基于 5 分钟衍生品量化数据实时计算。" },
+  { term: "精准率 (Precision)", desc: "在 AI 发出“即将见顶”的 100 次预警中，有多少次实际跌幅 ≥ 8%？刀锋系统在实盘回测中取得了显著优于随机基准的高精准度。" },
+  { term: "捕获率 / 召回率 (Recall)", desc: "在市场上 100 次实际发生的暴跌行情中，AI 成功提前捕捉到了多少次？在 60 万根 K 线样本中，系统捕获率达到约 60.1%。" },
+  { term: "布里尔分数 (Brier Score)", desc: "衡量 AI 概率预测校准准确度的指标。数值越低越好（0 为完美预测，1 为完全相反）。刀锋系统达到约 0.113。" },
+  { term: "提前预警时间 (Median Lead Time)", desc: "从 AI 发出警报到价格真正触及 -8% 目标的时间差。系统平均提前约 9.8 小时（590 分钟）发出预警。" },
+  { term: "推进式前向验证 (Walk-Forward Validation)", desc: "严格的时序验证方法，包含 Embargo 隔离窗口——只在历史数据上训练并在未来数据上测试，100% 杜绝未来函数与数据穿越。" },
+  { term: "未平仓合约量 (Open Interest - OI)", desc: "衍生品未平仓总头寸。持仓量剧烈增加但价格停滞或滞涨，是机构派发抛售的典型特征。" },
+  { term: "资金费率 (Funding Rate)", desc: "永续合约多空双方定期交换的资金费率。费率异常高说明多头情绪过度拥挤，极易引发踩踏连环爆仓。" },
+  { term: "主动卖出/买入比率 (Taker Sell/Buy)", desc: "市场主动吃单方向的成交比。主动卖单占主导地位反映机构正在坚决出货。" },
+  { term: "目标回撤 (Target -8%)", desc: "判定暴跌的标准基准：自信号发出起 24 小时内价格回撤至少 8%，且最大逆向波动 ≤ 4%。" }
+];
+
+const GLOSSARY_ENTRIES_KO = [
+  { term: "분산 국면 (Distribution Phase)", desc: "자산이 물량을 털어내기 시작하는 단계 — 상승 모멘텀 상실, 매도 압력 누적, 급격한 하락 임박. 5분 파생상품 정량 데이터로 실시간 계산." },
+  { term: "정밀도 (Precision)", desc: "AI가 '급락 예고'를 보낸 100번 중 실제로 ≥ 8% 하락한 비율. 다오방(DAO VANG)은 무작위 기준선을 크게 상회하는 실증 정밀도를 달성합니다." },
+  { term: "재현율 / 포착률 (Recall)", desc: "실제 발생한 100번의 덤프 중 AI가 사전에 포착한 비율. 60만 개 이상의 캔들 데이터셋에서 약 60.1%의 포착률을 기록합니다." },
+  { term: "브라이어 점수 (Brier Score)", desc: "AI 확률 예측의 보정 정확도를 측정하는 지표. 낮을수록 우수함 (0 = 완벽, 1 = 완전 오차). 다오방은 약 0.113을 달성." },
+  { term: "사전 경보 리드타임 (Median Lead Time)", desc: "AI 경보 발생 시점부터 -8% 목표 하락에 도달할 때까지의 시간. 평균 약 9.8시간(590분)의 선행 여유를 제공합니다." },
+  { term: "전진 검증 (Walk-Forward Validation)", desc: "엠바고 윈도우를 적용한 시계열 검증 기법 — 과거 데이터만으로 학습하고 미래 데이터로만 테스트하여 100% 데이터 누수(Lookahead Bias)를 방지." },
+  { term: "미결제약정 (Open Interest - OI)", desc: "미결제 파생상품 계약 총량. OI가 급증하는 반면 가격 상승이 둔화되는 것은 전형적인 세력 분산(털기) 징후입니다." },
+  { term: "펀딩비 (Funding Rate)", desc: "무기한 선물 롱/숏 간 지불 비용. 지나치게 높은 양수 펀딩비는 롱 포지션 과열 및 롱스퀴즈 취약성을 나타냅니다." },
+  { term: "테이커 매도 비율 (Taker Sell Ratio)", desc: "시장가 주문 중 매도 주문이 차지하는 비율. 테이커 매도 우위는 기관의 공격적인 물량 출회를 의미합니다." },
+  { term: "목표 하락폭 (Target -8%)", desc: "급락 판정 표준 기준: 신호 발생 후 24시간 이내에 가격이 최소 8% 하락하고, 역방향 상승 오차(MAE)는 4% 이하로 제한." }
+];
+
 export const GlossaryModal: React.FC<GlossaryModalProps> = ({ isOpen, onClose }) => {
   const { language } = useTranslation();
   const [searchTerm, setSearchTerm] = React.useState('');
 
   if (!isOpen) return null;
 
-  const isEn = language === 'en';
-  const entries = isEn ? GLOSSARY_ENTRIES_EN : GLOSSARY_ENTRIES_VI;
+  const entries = language === 'zh'
+    ? GLOSSARY_ENTRIES_ZH
+    : language === 'ko'
+    ? GLOSSARY_ENTRIES_KO
+    : language === 'en'
+    ? GLOSSARY_ENTRIES_EN
+    : GLOSSARY_ENTRIES_VI;
 
   const filtered = entries.filter(item =>
     item.term.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.desc.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getTitle = () => {
+    if (language === 'zh') return '帮助与指标术语词典';
+    if (language === 'ko') return '도움말 및 지표 용어 사전';
+    if (language === 'en') return 'Help & Indicator Glossary';
+    return 'Trợ giúp & Từ điển Thuật ngữ';
+  };
+
+  const getSearchPlaceholder = () => {
+    if (language === 'zh') return '搜索术语 (持仓量 OI, 精准率, 资金费率, 提前预警时间)...';
+    if (language === 'ko') return '용어 검색 (OI, 정밀도, 펀딩비, 리드타임)...';
+    if (language === 'en') return 'Search terms (OI, Precision, Funding, Lead time)...';
+    return 'Tìm kiếm thuật ngữ (OI, độ chính xác, funding, lead time...)';
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -56,7 +101,7 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({ isOpen, onClose })
           <div className="flex items-center gap-2">
             <HelpCircle className="w-5 h-5 text-amber-400" />
             <h2 className="text-base font-bold text-slate-100">
-              {isEn ? 'Help & Indicator Glossary' : 'Trợ giúp & Từ điển Thuật ngữ'}
+              {getTitle()}
             </h2>
           </div>
           <button
@@ -73,7 +118,7 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({ isOpen, onClose })
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
-              placeholder={isEn ? 'Search terms (OI, Precision, Funding, Lead time)...' : 'Tìm kiếm thuật ngữ (OI, độ chính xác, funding, lead time...)'}
+              placeholder={getSearchPlaceholder()}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-amber-500"
@@ -87,134 +132,69 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({ isOpen, onClose })
           {/* Intro */}
           <div className="text-xs text-slate-300 leading-relaxed">
             <p className="mb-1">
-              <strong className="text-amber-400">{isEn ? 'DAO VANG AI Radar' : 'Đảo Vàng AI Radar'}</strong> {isEn 
+              <strong className="text-amber-400">
+                {language === 'en' ? 'DAO VANG AI Radar' : language === 'zh' ? '刀锋 PeakPulse AI 雷达' : language === 'ko' ? '다오방 AI 레이더' : 'Đảo Vàng AI Radar'}
+              </strong>{' '}
+              {language === 'en' 
                 ? 'provides early detection of distribution phases before major crypto price drops. The system continuously scans Binance Futures pairs 24/7 across multi-dimensional derivatives metrics.'
+                : language === 'zh'
+                ? '在加密资产发生暴跌之前提前捕捉派发见顶特征。系统全天候 24/7 监控 Binance 合约交易对的多维度衍生品量化指标。'
+                : language === 'ko'
+                ? '주요 암호화폐 급락이 시작되기 전 세력의 분산 국면을 사전에 포착합니다. 바이낸스 선물 페어를 24/7 지속 모니터링하여 다차원 파생상품 지표를 계산합니다.'
                 : 'giúp phát hiện sớm dấu hiệu phân phối — coin sắp xả giá. Hệ thống quét toàn bộ coin hợp đồng tương lai trên Binance 24/7, tính toán điểm số từ dữ liệu phái sinh đa chiều.'}
             </p>
             <ul className="list-disc list-inside space-y-0.5 text-slate-400">
-              <li><strong>{isEn ? 'Distribution Score / Probability:' : 'Điểm phân phối / Xác suất:'}</strong> {isEn ? 'Higher score indicates stronger confluence of distribution footprints.' : 'Điểm càng cao, xác suất xảy ra pha phân phối càng lớn.'}</li>
-              <li><strong>{isEn ? 'Target Drawdown -8%:' : 'Mức giảm mục tiêu 8%:'}</strong> {isEn ? 'Expected price drop of ≥8% within a 24h horizon.' : 'Giá giảm ít nhất 8% trong vòng 24 giờ kể từ tín hiệu.'}</li>
-              <li><strong>{isEn ? 'Smart Automation:' : 'Tự động thông minh:'}</strong> {isEn ? 'Instant push notifications to Telegram when probability threshold is reached.' : 'Tự động gửi cảnh báo Telegram khi điểm số đạt ngưỡng.'}</li>
+              <li>
+                <strong>{language === 'en' ? 'Distribution Score / Probability:' : language === 'zh' ? '派发得分 / 概率:' : language === 'ko' ? '분산 점수 / 확률:' : 'Điểm phân phối / Xác suất:'}</strong>{' '}
+                {language === 'en' ? 'Higher score indicates stronger confluence of distribution footprints.' : language === 'zh' ? '得分越高，发生剧烈回撤的概率越大。' : language === 'ko' ? '점수가 높을수록 분산 패턴의 합치도가 높습니다.' : 'Điểm càng cao, xác suất xảy ra pha phân phối càng lớn.'}
+              </li>
+              <li>
+                <strong>{language === 'en' ? 'Target Drawdown -8%:' : language === 'zh' ? '目标回撤 8%:' : language === 'ko' ? '목표 하락 8%:' : 'Mức giảm mục tiêu 8%:'}</strong>{' '}
+                {language === 'en' ? 'Expected price drop of ≥8% within a 24h horizon.' : language === 'zh' ? '自信号发出起 24 小时内价格预期下跌 ≥8%。' : language === 'ko' ? '신호 발생 후 24시간 이내 최소 8% 하락 예상.' : 'Giá giảm ít nhất 8% trong vòng 24 giờ kể từ tín hiệu.'}
+              </li>
+              <li>
+                <strong>{language === 'en' ? 'Smart Automation:' : language === 'zh' ? '智能自动化:' : language === 'ko' ? '스마트 자동화:' : 'Tự động thông minh:'}</strong>{' '}
+                {language === 'en' ? 'Instant push notifications to Telegram when probability threshold is reached.' : language === 'zh' ? '当概率达到设定阈值时自动向 Telegram 发送即时推送。' : language === 'ko' ? '확률 임계값 도달 시 텔레그램으로 즉시 알림 발송.' : 'Tự động gửi cảnh báo Telegram khi điểm số đạt ngưỡng.'}
+              </li>
             </ul>
           </div>
 
-          {/* Quick Start */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
-            <h4 className="text-xs font-bold text-amber-400 mb-2 flex items-center gap-1.5">
-              <BookOpen className="w-3.5 h-3.5" /> {isEn ? 'USER WORKFLOW GUIDE' : 'HƯỚNG DẪN SỬ DỤNG NHANH'}
-            </h4>
-            <ol className="text-[11px] text-slate-300 space-y-1.5 list-decimal list-inside">
-              <li><strong className="text-slate-100">{isEn ? 'RADAR FEED' : 'RADAR CẢNH BÁO'}</strong>: {isEn ? 'Real-time alert list from 24/7 scanner. Click any signal card to open detailed charts.' : 'Danh sách tín hiệu xả từ bộ quét 24/7. Bấm vào 1 tín hiệu để xem chi tiết.'}</li>
-              <li><strong className="text-slate-100">{isEn ? 'MAIN WORKSPACE' : 'KHÔNG GIAN LÀM VIỆC'}</strong>: {isEn ? 'Deep dive analysis into 5 key metrics (OI 24h, Funding, Taker Sell, RSI 15m, Target -8%) and Candlestick chart.' : 'Phân tích chuyên sâu 5 chỉ số (OI 24h, Funding, Taker Sell, RSI 15m, Target -8%) và Biểu đồ nến.'}</li>
-              <li><strong className="text-slate-100">{isEn ? 'CANDIDATES' : 'ỨNG VIÊN'}</strong>: {isEn ? 'Ranking of high-volatility coins filtered by distribution risk.' : 'Xếp hạng tất cả coin biến động mạnh theo điểm rủi ro.'}</li>
-              <li><strong className="text-slate-100">{isEn ? 'BACKTEST EXPERIMENTS' : 'THỰC NGHIỆM BACKTEST'}</strong>: {isEn ? 'Historical walk-forward evaluation, precision, recall, and leakage audit verification.' : 'Thử nghiệm AI trên dữ liệu quá khứ — độ chính xác, tỷ lệ bắt được, kiểm tra rò rỉ dữ liệu.'}</li>
-              <li><strong className="text-slate-100">{isEn ? 'FORWARD TEST' : 'FORWARD TEST LIVE'}</strong>: {isEn ? 'Frozen models evaluated on live out-of-sample data.' : 'Đóng băng mô hình → chấm điểm trên dữ liệu mới.'}</li>
-              <li><strong className="text-slate-100">{isEn ? 'SYSTEM AUDITS & TELEMETRY' : 'LỊCH SỬ & GIÁM SÁT'}</strong>: {isEn ? 'Scanner cycle telemetry, heartbeat health, and Telegram delivery audits.' : 'Nhật ký bộ quét 24/7 + các lượt gửi Telegram.'}</li>
-            </ol>
-          </div>
-
-          {/* CLI */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
-            <h4 className="text-xs font-bold text-amber-400 mb-2 flex items-center gap-1.5">
-              <Terminal className="w-3.5 h-3.5" /> {isEn ? 'USEFUL CLI COMMANDS' : 'LỆNH CLI HỮU ÍCH'}
-            </h4>
-            <div className="space-y-1.5 text-[11px] font-mono">
-              <div className="bg-slate-900 p-2 rounded border border-slate-800">
-                <span className="text-emerald-400">dao-vang scanner start</span>
-                <span className="text-slate-400"> — {isEn ? 'Start 24/7 background scanner daemon' : 'Bộ quét 24/7 (thu thập + chấm điểm + gửi Telegram)'}</span>
-              </div>
-              <div className="bg-slate-900 p-2 rounded border border-slate-800">
-                <span className="text-emerald-400">dao-vang scanner stop</span>
-                <span className="text-slate-400"> — {isEn ? 'Stop scanner daemon' : 'Dừng bộ quét'}</span>
-              </div>
-              <div className="bg-slate-900 p-2 rounded border border-slate-800">
-                <span className="text-emerald-400">dao-vang experiment run</span>
-                <span className="text-slate-400"> — {isEn ? 'Execute walk-forward backtest' : 'Chạy kiểm thử lịch sử'}</span>
-              </div>
-              <div className="bg-slate-900 p-2 rounded border border-slate-800">
-                <span className="text-emerald-400">dao-vang data collect</span>
-                <span className="text-slate-400"> — {isEn ? 'Manual data collection' : 'Thu thập dữ liệu thủ công'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Workflow */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
-            <h4 className="text-xs font-bold text-amber-400 mb-2 flex items-center gap-1.5">
-              <Workflow className="w-3.5 h-3.5" /> {isEn ? 'END-TO-END PIPELINE' : 'QUY TRÌNH TỪ ĐẦU ĐẾN CUỐI'}
-            </h4>
-            <div className="text-[11px] text-slate-300 space-y-1.5">
-              <div className="flex gap-2">
-                <span className="text-amber-400 font-bold">1.</span>
-                <span><strong className="text-slate-100">{isEn ? 'Data Ingestion' : 'Thu thập dữ liệu'}</strong>: <code className="text-emerald-400">dao-vang scanner start</code> — {isEn ? '24/7 automated continuous data collection & scoring' : 'bộ quét 24/7 tự thu thập + chấm điểm'}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-amber-400 font-bold">2.</span>
-                <span><strong className="text-slate-100">{isEn ? 'Review Signals' : 'Xem tín hiệu'}</strong>: {isEn ? 'Open Web UI → RADAR → click signal → review Workspace metrics' : 'Vào web → RADAR → bấm tín hiệu → xem chỉ số Workspace'}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-amber-400 font-bold">3.</span>
-                <span><strong className="text-slate-100">{isEn ? 'Validate AI' : 'Kiểm chứng AI'}</strong>: {isEn ? 'Check Backtest tab → evaluate precision vs baselines and verify zero-leakage' : 'Kiểm thử lịch sử → xem độ chính xác so với mốc cơ sở + kiểm tra rò rỉ'}</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="text-amber-400 font-bold">4.</span>
-                <span><strong className="text-slate-100">{isEn ? 'Forward Test' : 'Kiểm thử dữ liệu mới'}</strong>: {isEn ? 'Observe real-time out-of-sample performance and PnL tracking' : 'Quan sát hiệu quả thực tế và theo dõi PnL'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Troubleshooting */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
-            <h4 className="text-xs font-bold text-amber-400 mb-2 flex items-center gap-1.5">
-              <Bug className="w-3.5 h-3.5" /> {isEn ? 'TROUBLESHOOTING & FAQS' : 'XỬ LÝ LỖI THƯỜNG GẶP'}
-            </h4>
-            <div className="space-y-2 text-[11px]">
-              <div className="bg-slate-900 p-2 rounded border border-slate-800">
-                <strong className="text-red-400">{isEn ? 'No signals displaying?' : 'Không có tín hiệu?'}</strong>
-                <p className="text-slate-400 mt-0.5">{isEn ? 'Check System Telemetry to verify scanner daemon is running. Lower threshold slider to 0.25 (top bar).' : 'Kiểm tra GIÁM SÁT — bộ quét có chạy không? Chạy dao-vang scanner start. Hạ ngưỡng xuống 0,25 (thanh trượt ở đầu trang).'}</p>
-              </div>
-              <div className="bg-slate-900 p-2 rounded border border-slate-800">
-                <strong className="text-red-400">{isEn ? 'Probability = 0 or chart missing?' : 'Điểm phân phối = 0 hoặc không có biểu đồ?'}</strong>
-                <p className="text-slate-400 mt-0.5">{isEn ? 'Server automatically fetches fallback candles from Binance API if database is initializing.' : 'Máy chủ sẽ tự lấy dữ liệu dự phòng từ API Binance. Nếu vẫn lỗi, hãy khởi động lại máy chủ.'}</p>
-              </div>
-              <div className="bg-slate-900 p-2 rounded border border-slate-800">
-                <strong className="text-red-400">{isEn ? 'Telegram alerts not sending?' : 'Telegram không gửi?'}</strong>
-                <p className="text-slate-400 mt-0.5">{isEn ? 'Verify bot_token and chat_id in your .env configuration file.' : 'Kiểm tra bot_token và chat_id trong file cấu hình .env.'}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Important note */}
-          <div className="bg-amber-950/20 border border-amber-800/30 rounded-xl p-3 text-[11px] text-amber-300 flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            <div>
-              <strong>{isEn ? 'Important Disclaimer:' : 'Lưu ý quan trọng:'}</strong> {isEn 
-                ? 'This is a quantitative research and decision-support radar (Human-in-the-loop). It is not automated trading and does not constitute financial advice.'
-                : 'Đây là công cụ nghiên cứu và hỗ trợ ra quyết định, không phải lời khuyên đầu tư. AI có thể sai — luôn kết hợp với đánh giá thủ công trước khi vào lệnh.'}
-            </div>
-          </div>
-
-          {/* Glossary */}
-          <div className="space-y-3">
-            <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-              <Lightbulb className="w-3.5 h-3.5" /> {isEn ? 'INDICATOR GLOSSARY' : 'TỪ ĐIỂN THUẬT NGỮ'}
-            </div>
+          {/* Dictionary Entries */}
+          <div className="space-y-2.5">
+            <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5" />
+              {language === 'en' ? 'Detailed Concept Guide' : language === 'zh' ? '核心概念详解' : language === 'ko' ? '상세 개념 가이드' : 'Giải thích chi tiết các thuật ngữ'}
+            </h3>
             {filtered.map((item, idx) => (
-              <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <div className="text-xs font-bold text-amber-400 font-mono mb-1">{item.term}</div>
-                <div className="text-xs text-slate-300 leading-relaxed">{item.desc}</div>
+              <div key={idx} className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1">
+                <h4 className="text-xs font-bold text-slate-100 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  {item.term}
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed pl-3">
+                  {item.desc}
+                </p>
               </div>
             ))}
           </div>
-        </div>
 
-        <div className="p-3 border-t border-slate-800 bg-slate-950 text-right">
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold"
-          >
-            {isEn ? 'Close' : 'Đóng'}
-          </button>
+          {/* Quick FAQ / Note */}
+          <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl p-3 text-xs space-y-1 text-slate-300">
+            <div className="font-bold text-amber-400 flex items-center gap-1">
+              <Lightbulb className="w-3.5 h-3.5" />
+              {language === 'en' ? 'Trading Strategy Notice' : language === 'zh' ? '交易策略提示' : language === 'ko' ? '매매 전략 안내' : 'Lưu ý khi sử dụng'}
+            </div>
+            <p className="text-[11px] text-slate-400">
+              {language === 'en'
+                ? 'DAO VANG AI provides early probabilistic risk indicators. Always practice disciplined risk management, avoid overleveraging on newly listed meme tokens, and observe BTC market regime conditions.'
+                : language === 'zh'
+                ? '刀锋 AI 提供高概率的早期风险预警。请始终执行严格的风控纪律，避免在极高波动的新币上过度杠杆，并密切结合 BTC 宏观环境。'
+                : language === 'ko'
+                ? '다오방 AI는 조기 확률적 위험 지표를 제공합니다. 항상 엄격한 리스크 관리를 준수하고, 신규 상장 밈코인에 과도한 레버리지를 피하며 BTC 시장 상황을 확인하세요.'
+                : 'Đảo Vàng AI cung cấp tín hiệu cảnh báo rủi ro mang tính xác suất. Luôn quản trị vốn cẩn trọng, tránh đòn bẩy quá lớn đối với coin mới lên sàn và theo dõi sát xu hướng của Bitcoin.'}
+            </p>
+          </div>
+
         </div>
 
       </div>

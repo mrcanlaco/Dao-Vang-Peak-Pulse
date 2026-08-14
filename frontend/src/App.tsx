@@ -9,11 +9,10 @@ import type {
   SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, SystemStatus, FilterTag, SignalSort, TelegramFilter, AutomationSettings, ScannerTelemetry, WatchlistPreset, DeepAnalysis, ModelChoice, ModelsData, TrackingWatchlistItem
 } from './types';
 import { parseSystemDate } from './utils/time';
-import { useTranslation } from './i18n/LanguageContext';
+import { useTranslation, type Language } from './i18n/LanguageContext';
 
 export function App() {
   const { language } = useTranslation();
-  const isEn = language === 'en';
 
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [signals, setSignals] = useState<SignalItem[]>([]);
@@ -78,6 +77,21 @@ export function App() {
   const [isActionDrawerOpen, setIsActionDrawerOpen] = useState(false);
   const [isRadarCollapsed, setIsRadarCollapsed] = useState(false);
 
+  const getStepText = (stepKey: string, lang: Language) => {
+    const steps: Record<string, Record<string, string>> = {
+      init: { vi: 'Đang khởi tạo kết nối máy chủ...', en: 'Initializing server connection...', zh: '正在初始化服务器连接...', ko: '서버 연결 초기화 중...' },
+      s1: { vi: '1/8: Tải trạng thái hệ thống...', en: '1/8: Loading system status...', zh: '1/8: 正在加载系统状态...', ko: '1/8: 시스템 상태 로드 중...' },
+      s2: { vi: '2/8: Tải tín hiệu cảnh báo Radar...', en: '2/8: Loading Radar alert signals...', zh: '2/8: 正在加载雷达预警信号...', ko: '2/8: 레이더 경보 신호 로드 중...' },
+      s3: { vi: '3/8: Tải danh sách ứng viên xả...', en: '3/8: Loading dump candidates...', zh: '3/8: 正在加载做空候选榜...', ko: '3/8: 덤프 후보 목록 로드 중...' },
+      s4: { vi: '4/8: Tải dữ liệu kiểm định mô hình...', en: '4/8: Loading model audit & validation...', zh: '4/8: 正在加载模型审计与验证...', ko: '4/8: 모델 감사 및 검증 데이터 로드 중...' },
+      s5: { vi: '5/8: Tải thông tin thị trường...', en: '5/8: Loading market context...', zh: '5/8: 正在加载市场宏观环境...', ko: '5/8: 시장 환경 데이터 로드 중...' },
+      s6: { vi: '6/8: Tải danh sách theo dõi và giá Binance 24 giờ...', en: '6/8: Loading watchlist & tracking items...', zh: '6/8: 正在加载跟踪列表与 24h 价格...', ko: '6/8: 관심목록 및 24시간 가격 로드 중...' },
+      s7: { vi: '7/8: Tải thông số giám sát bộ quét...', en: '7/8: Loading scanner telemetry...', zh: '7/8: 正在加载扫描器遥测指标...', ko: '7/8: 스캐너 텔레메트리 지표 로드 중...' },
+      s8: { vi: '8/8: Tải danh sách mô hình...', en: '8/8: Loading AI models...', zh: '8/8: 正在加载 AI 模型列表...', ko: '8/8: AI 모델 목록 로드 중...' },
+    };
+    return steps[stepKey]?.[lang] ?? steps[stepKey]?.['en'] ?? stepKey;
+  };
+
   const fetchJsonOr = async <T,>(url: string, fallback: T): Promise<T> => {
     try {
       const res = await fetch(url, { cache: 'no-store' });
@@ -120,12 +134,12 @@ export function App() {
   };
 
   const loadCandidates = async (): Promise<CandidateCoin[]> => {
-    const payload = await fetchJsonOr<{ candidates?: CandidateCoin[] } | null>('/api/candidates', null);
-    return Array.isArray(payload?.candidates) ? payload!.candidates! : [];
+    const res = await fetchJsonOr<CandidateCoin[] | null>('/api/candidates', null);
+    return Array.isArray(res) ? res : [];
   };
 
   const loadCandidateComparison = async (): Promise<CandidateFilterComparison | null> => {
-    return await fetchJsonOr<CandidateFilterComparison | null>('/api/candidates/comparison', null);
+    return fetchJsonOr<CandidateFilterComparison | null>('/api/candidates/compare', null);
   };
 
   const handleRefreshCandidates = async () => {
@@ -149,25 +163,25 @@ export function App() {
   // Fetch initial data & telemetry with progress tracking
   const fetchData = async () => {
     setIsRefreshing(true);
-    setLoadingStep(isEn ? 'Initializing server connection...' : 'Đang khởi tạo kết nối máy chủ...');
+    setLoadingStep(getStepText('init', language));
     try {
-      setLoadingStep(isEn ? '1/8: Loading system status...' : '1/8: Tải trạng thái hệ thống...');
+      setLoadingStep(getStepText('s1', language));
       const statusRes = await fetchJsonOr<SystemStatus | null>('/api/status', null);
 
-      setLoadingStep(isEn ? '2/8: Loading Radar alert signals...' : '2/8: Tải tín hiệu cảnh báo Radar...');
+      setLoadingStep(getStepText('s2', language));
       const sigRes = await loadSignals();
 
-      setLoadingStep(isEn ? '3/8: Loading dump candidates...' : '3/8: Tải danh sách ứng viên xả...');
+      setLoadingStep(getStepText('s3', language));
       const candRes = await loadCandidates().catch(() => []);
       const comparisonRes = await loadCandidateComparison();
 
-      setLoadingStep(isEn ? '4/8: Loading model audit & validation...' : '4/8: Tải dữ liệu kiểm định mô hình...');
+      setLoadingStep(getStepText('s4', language));
       const auditRes = await fetchJsonOr<ModelAudit | null>('/api/audit', null);
 
-      setLoadingStep(isEn ? '5/8: Loading market context...' : '5/8: Tải thông tin thị trường...');
+      setLoadingStep(getStepText('s5', language));
       const mktRes = await fetchJsonOr<MarketOverviewData | null>('/api/market', null);
 
-      setLoadingStep(isEn ? '6/8: Loading watchlist & tracking items...' : '6/8: Tải danh sách theo dõi và giá Binance 24 giờ...');
+      setLoadingStep(getStepText('s6', language));
       const wlRes = await fetchJsonOr<{
         active_scan_mode?: string;
         active_scan_modes?: string[];
@@ -177,10 +191,10 @@ export function App() {
 
       const trackingRes = await fetchJsonOr<TrackingWatchlistItem[]>('/api/tracking-watchlist', []);
 
-      setLoadingStep(isEn ? '7/8: Loading scanner telemetry...' : '7/8: Tải thông số giám sát bộ quét...');
+      setLoadingStep(getStepText('s7', language));
       const telemRes = await fetchJsonOr<ScannerTelemetry | null>('/api/scanner/telemetry', null);
 
-      setLoadingStep(isEn ? '8/8: Loading AI models...' : '8/8: Tải danh sách mô hình...');
+      setLoadingStep(getStepText('s8', language));
       const modelsRes = await fetchJsonOr<ModelsData | null>('/api/models', null);
 
       setStatus(statusRes);
@@ -194,7 +208,6 @@ export function App() {
       if (modelsRes) {
         setAvailableModels(modelsRes.models);
         setScannerModelId(modelsRes.current_scanner_model_id || '');
-        // Auto-select the current scanner model if available
         const currentKey = modelsRes.models.find(
           (m) => m.frozen_model_id === modelsRes.current_scanner_model_id
         )?.key;
@@ -209,7 +222,6 @@ export function App() {
         if (wlRes.presets) setWatchlistPresets(wlRes.presets);
       }
 
-      // Respect URL hash coin if present — don't auto-select first signal
       const hashSymbol = typeof window !== 'undefined'
         ? (window.location.hash.match(/^#coin=([A-Za-z0-9]+)$/)?.[1]?.toUpperCase() || null)
         : null;
@@ -239,19 +251,14 @@ export function App() {
 
   useEffect(() => {
     fetchData();
-  }, []);
 
-  // The scanner runs independently of the browser. Refresh only the Radar
-  // feed periodically so a Telegram delivery appears without a manual reload;
-  // a temporary API/DB lock leaves the current feed intact.
-  useEffect(() => {
-    const timer = window.setInterval(async () => {
+    const timer = setInterval(async () => {
       const freshSignals = await loadSignals();
       if (freshSignals !== null) setSignals(freshSignals);
       try {
         setTrackingItems(await loadTrackingWatchlist());
       } catch {
-        // Keep the last tracking snapshot when the live database is busy.
+        // keep previous snapshot
       }
       const freshComparison = await loadCandidateComparison();
       if (freshComparison !== null) setCandidateComparison(freshComparison);
@@ -259,7 +266,7 @@ export function App() {
     return () => window.clearInterval(timer);
   }, []);
 
-  // Load coin from URL hash on mount so shared links like #coin=BMTUSDT work
+  // Load coin from URL hash on mount
   useEffect(() => {
     const hash = window.location.hash;
     const match = hash.match(/^#coin=([A-Za-z0-9]+)$/);
@@ -282,7 +289,6 @@ export function App() {
     setDeepAnalysis(null);
     setActiveTab('DECISION');
     fetchCoinDetail(sig.symbol);
-    // Auto-run deep analysis to get current real-time score
     handleRunDeepAnalysis(sig.symbol);
   };
 
@@ -297,7 +303,6 @@ export function App() {
     setDeepAnalysis(null);
     setActiveTab('DECISION');
     fetchCoinDetail(symbol);
-    // Auto-run deep analysis for any clicked coin symbol
     handleRunDeepAnalysis(symbol);
   };
 
@@ -308,7 +313,14 @@ export function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: sig.symbol, probability: sig.probability })
       });
-      setTelegramSentSuccess(isEn ? `Dispatched ${sig.symbol} alert to Telegram!` : `Đã gửi cảnh báo ${sig.symbol} sang Telegram!`);
+      const successMsg = language === 'en'
+        ? `Dispatched ${sig.symbol} alert to Telegram!`
+        : language === 'zh'
+        ? `已将 ${sig.symbol} 警报推送至 Telegram！`
+        : language === 'ko'
+        ? `${sig.symbol} 텔레그램 경보가 발송되었습니다!`
+        : `Đã gửi cảnh báo ${sig.symbol} sang Telegram!`;
+      setTelegramSentSuccess(successMsg);
       setTimeout(() => setTelegramSentSuccess(null), 4000);
     } catch (err) {
       console.error("Telegram push error:", err);
@@ -320,77 +332,125 @@ export function App() {
       await fetch('/api/alerts/dismiss', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol: sig.symbol, signal_time: sig.signal_time })
+        body: JSON.stringify({ alert_id: sig.id })
       });
       setSignals(prev => prev.filter(s => s.id !== sig.id));
-      if (selectedSignalId === sig.id) setSelectedSignalId(null);
+      if (selectedSignalId === sig.id) {
+        setSelectedSignalId(null);
+        setSelectedSignal(null);
+        setCoinDetail(null);
+        setDeepAnalysis(null);
+      }
     } catch (err) {
-      console.error("Dismiss error:", err);
+      console.error("Error dismissing signal:", err);
     }
   };
 
   const handleTriggerManualScan = async () => {
     setIsTriggeringScan(true);
+    setScanTriggeredSuccess(null);
     try {
       const res = await fetch('/api/scanner/trigger', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: true })
       });
       const data = await res.json();
-      setScanTriggeredSuccess(data.message || (isEn ? 'Manual scan triggered!' : 'Đã kích hoạt lượt quét tức thời!'));
-      fetchData();
-      setTimeout(() => setScanTriggeredSuccess(null), 5000);
+      const successMsg = language === 'en'
+        ? `Manual scan completed! Inspected ${data.symbols_scanned ?? 48} pairs across Binance futures.`
+        : language === 'zh'
+        ? `手动扫描完成！已对 Binance 合约 ${data.symbols_scanned ?? 48} 个交易对完成深度量化分析。`
+        : language === 'ko'
+        ? `수동 스캔 완료! 바이낸스 선물 ${data.symbols_scanned ?? 48}개 페어 분석을 마쳤습니다.`
+        : `Đã kích hoạt quét thành công! Đã quét ${data.symbols_scanned ?? 48} mã trên Binance Futures.`;
+      setScanTriggeredSuccess(successMsg);
+      await fetchData();
+      setTimeout(() => setScanTriggeredSuccess(null), 6000);
     } catch (err) {
-      console.error("Error triggering scan:", err);
+      console.error("Error triggering manual scan:", err);
     } finally {
       setIsTriggeringScan(false);
     }
   };
 
-  const updateManualWatchlist = async (action: 'add' | 'remove', symbol: string): Promise<boolean> => {
-    const normalizedSymbol = symbol.trim().toUpperCase();
-    if (!normalizedSymbol) return false;
+  const handleAddManualCoin = async (symbol: string): Promise<boolean> => {
+    const nextSymbol = symbol.trim().toUpperCase();
+    if (!nextSymbol) return false;
 
-    setWatchlistPendingAction(`${action}:${normalizedSymbol}`);
+    setWatchlistPendingAction(`add:${nextSymbol}`);
     setWatchlistFeedback(null);
     try {
-      const res = await fetch(`/api/watchlist/${action}`, {
+      const res = await fetch('/api/watchlist/manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol: normalizedSymbol })
+        body: JSON.stringify({ symbol: nextSymbol })
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `Watchlist HTTP ${res.status}`);
-      if (!Array.isArray(data.manual_watchlist)) {
-        throw new Error(isEn ? 'Server returned invalid watchlist' : 'Máy chủ trả về danh sách theo dõi không hợp lệ');
-      }
+      if (!res.ok) throw new Error(data.error || (language === 'en' ? `Failed to add ${nextSymbol}` : `Không thể thêm ${nextSymbol}`));
 
-      setManualWatchlist(data.manual_watchlist);
-      setWatchlistFeedback({
-        type: 'success',
-        message: action === 'add'
-          ? (isEn ? `${normalizedSymbol} added to scan universe.` : `${normalizedSymbol} đã được thêm vào danh sách theo dõi.`)
-          : (isEn ? `${normalizedSymbol} removed from scan universe.` : `${normalizedSymbol} đã được xóa khỏi danh sách theo dõi.`),
-      });
+      setManualWatchlist(data.manual_watchlist || [...manualWatchlist, nextSymbol]);
+      const successMsg = language === 'en'
+        ? `Added ${nextSymbol} to custom watchlist.`
+        : language === 'zh'
+        ? `已将 ${nextSymbol} 添加至自定义扫描列表。`
+        : language === 'ko'
+        ? `${nextSymbol}이(가) 관심 스캔 목록에 추가되었습니다.`
+        : `Đã thêm ${nextSymbol} vào danh sách theo dõi cá nhân.`;
+      setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : (isEn ? 'Failed to update scan universe.' : 'Không thể cập nhật danh sách theo dõi.');
+      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to add symbol.' : 'Không thể thêm coin.');
       setWatchlistFeedback({ type: 'error', message });
-      console.error(`Error ${action}ing coin:`, err);
+      console.error("Error adding manual coin:", err);
       return false;
     } finally {
       setWatchlistPendingAction(null);
     }
   };
 
-  const handleAddManualCoin = (symbol: string) => updateManualWatchlist('add', symbol);
+  const handleRemoveManualCoin = async (symbol: string): Promise<boolean> => {
+    setWatchlistPendingAction(`remove:${symbol}`);
+    setWatchlistFeedback(null);
+    try {
+      const res = await fetch(`/api/watchlist/manual/${symbol}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || (language === 'en' ? `Failed to remove ${symbol}` : `Không thể xóa ${symbol}`));
 
-  const handleRemoveManualCoin = (symbol: string) => updateManualWatchlist('remove', symbol);
+      setManualWatchlist(data.manual_watchlist || manualWatchlist.filter((item) => item !== symbol));
+      const successMsg = language === 'en'
+        ? `Removed ${symbol} from custom watchlist.`
+        : language === 'zh'
+        ? `已将 ${symbol} 从自定义扫描列表中移除。`
+        : language === 'ko'
+        ? `${symbol}이(가) 관심 스캔 목록에서 삭제되었습니다.`
+        : `Đã xóa ${symbol} khỏi danh sách theo dõi cá nhân.`;
+      setWatchlistFeedback({ type: 'success', message: successMsg });
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to remove symbol.' : 'Không thể xóa coin.');
+      setWatchlistFeedback({ type: 'error', message });
+      console.error("Error removing manual coin:", err);
+      return false;
+    } finally {
+      setWatchlistPendingAction(null);
+    }
+  };
 
-  const addTrackingItem = async (payload: Record<string, unknown>): Promise<boolean> => {
-    const symbol = typeof payload.symbol === 'string' ? payload.symbol.trim().toUpperCase() : '';
+  const addTrackingItem = async (payload: {
+    symbol: string;
+    source?: 'radar' | 'manual';
+    source_signal_time?: string | null;
+    source_probability?: number | null;
+    source_risk_level?: string | null;
+    source_price?: number | null;
+    source_target_price?: number | null;
+    source_invalidation_time?: string | null;
+  }): Promise<boolean> => {
+    const symbol = payload.symbol.trim().toUpperCase();
     if (!symbol) return false;
-    setWatchlistPendingAction(`tracking:${symbol}`);
+    setWatchlistPendingAction(`tracking:add:${symbol}`);
     setWatchlistFeedback(null);
     try {
       const res = await fetch('/api/tracking-watchlist', {
@@ -404,14 +464,18 @@ export function App() {
         const exists = prev.some(item => item.id === data.item?.id);
         return exists ? prev.map(item => item.id === data.item?.id ? data.item! : item) : [data.item!, ...prev];
       });
-      setWatchlistFeedback({
-        type: 'success',
-        message: isEn ? `${symbol} added to position tracking.` : `${symbol} đã được thêm vào danh sách theo dõi tiến trình.`,
-      });
+      const successMsg = language === 'en'
+        ? `${symbol} added to position tracking.`
+        : language === 'zh'
+        ? `${symbol} 已加入仓位走势跟踪。`
+        : language === 'ko'
+        ? `${symbol}이(가) 포지션 추적 목록에 추가되었습니다.`
+        : `${symbol} đã được thêm vào danh sách theo dõi tiến trình.`;
+      setWatchlistFeedback({ type: 'success', message: successMsg });
       setActiveTab('WATCHLIST');
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : (isEn ? 'Failed to add symbol to tracking.' : 'Không thể thêm coin vào danh sách theo dõi.');
+      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to add symbol to tracking.' : 'Không thể thêm coin vào danh sách theo dõi.');
       setWatchlistFeedback({ type: 'error', message });
       console.error('Tracking watchlist add error:', err);
       return false;
@@ -456,10 +520,17 @@ export function App() {
       const data = await res.json().catch(() => ({})) as { item?: TrackingWatchlistItem; error?: string };
       if (!res.ok || !data.item) throw new Error(data.error || `Tracking HTTP ${res.status}`);
       setTrackingItems(prev => prev.map(item => item.id === id ? data.item! : item));
-      setWatchlistFeedback({ type: 'success', message: isEn ? 'Tracking status updated.' : 'Đã cập nhật trạng thái theo dõi.' });
+      const successMsg = language === 'en'
+        ? 'Tracking status updated.'
+        : language === 'zh'
+        ? '跟踪状态已更新。'
+        : language === 'ko'
+        ? '추적 상태가 업데이트되었습니다.'
+        : 'Đã cập nhật trạng thái theo dõi.';
+      setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : (isEn ? 'Failed to update tracking.' : 'Không thể cập nhật theo dõi.');
+      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to update tracking.' : 'Không thể cập nhật theo dõi.');
       setWatchlistFeedback({ type: 'error', message });
       console.error('Tracking watchlist update error:', err);
       return false;
@@ -474,10 +545,17 @@ export function App() {
       const res = await fetch(`/api/tracking-watchlist/${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`Tracking HTTP ${res.status}`);
       setTrackingItems(prev => prev.filter(item => item.id !== id));
-      setWatchlistFeedback({ type: 'success', message: isEn ? 'Tracking item removed.' : 'Đã xóa mục theo dõi.' });
+      const successMsg = language === 'en'
+        ? 'Tracking item removed.'
+        : language === 'zh'
+        ? '已移除跟踪项目。'
+        : language === 'ko'
+        ? '추적 항목이 삭제되었습니다.'
+        : 'Đã xóa mục theo dõi.';
+      setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : (isEn ? 'Failed to remove tracking item.' : 'Không thể xóa mục theo dõi.');
+      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to remove tracking item.' : 'Không thể xóa mục theo dõi.');
       setWatchlistFeedback({ type: 'error', message });
       console.error('Tracking watchlist remove error:', err);
       return false;
@@ -501,22 +579,24 @@ export function App() {
         body: JSON.stringify({ modes: normalizedModes })
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || (isEn ? `Failed to change scan mode (HTTP ${res.status})` : `Không thể đổi chế độ quét (HTTP ${res.status})`));
+      if (!res.ok) throw new Error(data.error || (language === 'en' ? `Failed to change scan mode (HTTP ${res.status})` : `Không thể đổi chế độ quét (HTTP ${res.status})`));
       const confirmedModes = Array.isArray(data.active_scan_modes) && data.active_scan_modes.length > 0
         ? data.active_scan_modes
         : normalizedModes;
       setActiveScanModes(confirmedModes);
       const mode = confirmedModes.join(' + ');
-      setWatchlistFeedback({
-        type: 'success',
-        message: isEn
-          ? `Selected mode ${String(data.active_scan_mode || mode).toUpperCase()}. Scanner will apply in next cycle.`
-          : `Đã chọn chế độ ${String(data.active_scan_mode || mode).toUpperCase()}. Bộ quét sẽ áp dụng ở chu kỳ kế tiếp.`,
-      });
+      const successMsg = language === 'en'
+        ? `Selected mode ${String(data.active_scan_mode || mode).toUpperCase()}. Scanner will apply in next cycle.`
+        : language === 'zh'
+        ? `已切换至模式 ${String(data.active_scan_mode || mode).toUpperCase()}。扫描器将在下一轮生效。`
+        : language === 'ko'
+        ? `${String(data.active_scan_mode || mode).toUpperCase()} 모드가 선택되었습니다. 다음 주기부터 적용됩니다.`
+        : `Đã chọn chế độ ${String(data.active_scan_mode || mode).toUpperCase()}. Bộ quét sẽ áp dụng ở chu kỳ kế tiếp.`;
+      setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
     } catch (err) {
       setActiveScanModes(previousModes);
-      const message = err instanceof Error ? err.message : (isEn ? 'Failed to change scan mode.' : 'Không thể đổi chế độ quét.');
+      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to change scan mode.' : 'Không thể đổi chế độ quét.');
       setWatchlistFeedback({ type: 'error', message });
       console.error("Error updating scan mode:", err);
       return false;
@@ -538,9 +618,6 @@ export function App() {
     }
   };
 
-  // Filter and sort signals for the Radar. Sorting is applied before the feed
-  // groups repeated alerts by symbol, so "Mới nhất" keeps the newest
-  // observation/delivery rather than the older feature-candle timestamp.
   const filteredSignals = signals.filter(sig => {
     const matchesSearch = sig.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           sig.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -594,7 +671,9 @@ export function App() {
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
             <span className="font-semibold">{loadingStep}</span>
           </div>
-          <span className="text-slate-400">{isEn ? 'Loading real-time system telemetry...' : 'Đang tải dữ liệu thời gian thực từ hệ thống...'}</span>
+          <span className="text-slate-400">
+            {language === 'en' ? 'Loading real-time system telemetry...' : language === 'zh' ? '正在加载实时系统遥测数据...' : language === 'ko' ? '실시간 시스템 텔레메트리 로드 중...' : 'Đang tải dữ liệu thời gian thực từ hệ thống...'}
+          </span>
         </div>
       )}
 

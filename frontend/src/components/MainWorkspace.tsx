@@ -17,7 +17,14 @@ import { CandlestickChart } from './CandlestickChart';
 import type { CandlestickSignalMarker } from './CandlestickChart';
 import { CoinLink } from './CoinLink';
 import { formatSystemTime, parseSystemDate } from '../utils/time';
-import { useTranslation } from '../i18n/LanguageContext';
+import { useTranslation, type Language } from '../i18n/LanguageContext';
+import {
+  getRiskLabel,
+  getScanModeLabel,
+  getAuditStatusLabel,
+  getExecutionStatusLabel,
+  getScannerStatusLabel,
+} from '../i18n/translations';
 
 interface MainWorkspaceProps {
   signals: SignalItem[];
@@ -93,16 +100,25 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const { language } = useTranslation();
   const isEn = language === 'en';
 
+  const getBtcRegimeLabel = (regime: string, lang: Language): string => {
+    const map: Record<string, Record<string, string>> = {
+      FOMO: { vi: 'MUA ĐUỔI', en: 'FOMO', zh: '情绪高涨 (FOMO)', ko: '포모 (과열)' },
+      WEAK: { vi: 'YẾU', en: 'WEAK', zh: '走弱', ko: '약세' },
+      NEUTRAL: { vi: 'TRUNG TÍNH', en: 'NEUTRAL', zh: '中性', ko: '중립' },
+    };
+    return map[regime]?.[lang] ?? map[regime]?.['en'] ?? regime;
+  };
+
   const riskLabels: Record<string, string> = {
-    CRITICAL: isEn ? 'CRITICAL' : 'CỰC CAO',
-    HIGH: isEn ? 'HIGH' : 'CAO',
-    MEDIUM: isEn ? 'MEDIUM' : 'VỪA',
-    SAFE: isEn ? 'SAFE' : 'AN TOÀN',
+    CRITICAL: getRiskLabel('CRITICAL', language),
+    HIGH: getRiskLabel('HIGH', language),
+    MEDIUM: getRiskLabel('MEDIUM', language),
+    SAFE: getRiskLabel('SAFE', language),
   };
   const btcRegimeLabels: Record<string, string> = {
-    FOMO: isEn ? 'FOMO' : 'MUA ĐUỔI',
-    WEAK: isEn ? 'WEAK' : 'YẾU',
-    NEUTRAL: isEn ? 'NEUTRAL' : 'TRUNG TÍNH',
+    FOMO: getBtcRegimeLabel('FOMO', language),
+    WEAK: getBtcRegimeLabel('WEAK', language),
+    NEUTRAL: getBtcRegimeLabel('NEUTRAL', language),
   };
   const comparisonReport = candidateComparison?.comparison;
   const championVersion = candidateComparison?.champion_version || comparisonReport?.champion_version;
@@ -114,38 +130,40 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     ? comparisonReport?.metrics?.[challengerVersion]
     : undefined;
   const metricPercent = (value: number | null | undefined) => (
-    value == null ? (isEn ? 'Insufficient data' : 'Chưa đủ dữ liệu') : `${(value * 100).toFixed(1)}%`
+    value == null 
+      ? (language === 'en' ? 'Insufficient data' : language === 'zh' ? '数据不足' : language === 'ko' ? '데이터 부족' : 'Chưa đủ dữ liệu') 
+      : `${(value * 100).toFixed(1)}%`
   );
   const deltaWithCi = (value: { point: number | null; ci_lower: number | null; ci_upper: number | null } | undefined) => (
     value?.point == null || value.ci_lower == null || value.ci_upper == null
-      ? (isEn ? 'Insufficient data' : 'Chưa đủ dữ liệu')
+      ? (language === 'en' ? 'Insufficient data' : language === 'zh' ? '数据不足' : language === 'ko' ? '데이터 부족' : 'Chưa đủ dữ liệu')
       : `${value.point >= 0 ? '+' : ''}${(value.point * 100).toFixed(1)}pp (CI95% ${(value.ci_lower * 100).toFixed(1)} → ${(value.ci_upper * 100).toFixed(1)})`
   );
   const auditStatusLabels: Record<string, string> = {
-    PASS: isEn ? 'PASS' : 'ĐẠT',
-    PASSED: isEn ? 'PASS' : 'ĐẠT',
-    FAIL: isEn ? 'FAIL' : 'KHÔNG ĐẠT',
-    FAILED: isEn ? 'FAIL' : 'KHÔNG ĐẠT',
-    WARN: isEn ? 'WARN' : 'CẢNH BÁO',
+    PASS: getAuditStatusLabel('PASS', language),
+    PASSED: getAuditStatusLabel('PASSED', language),
+    FAIL: getAuditStatusLabel('FAIL', language),
+    FAILED: getAuditStatusLabel('FAILED', language),
+    WARN: getAuditStatusLabel('WARN', language),
   };
   const executionStatusLabels: Record<string, string> = {
-    'ALERT FIRED': isEn ? 'ALERT FIRED' : 'ĐÃ PHÁT CẢNH BÁO',
-    COMPLETED: isEn ? 'COMPLETED' : 'ĐÃ HOÀN TẤT',
-    RUNNING: isEn ? 'RUNNING' : 'ĐANG CHẠY',
-    SENT: isEn ? 'SENT' : 'ĐÃ GỬI',
-    FAILED: isEn ? 'FAILED' : 'THẤT BẠI',
+    'ALERT FIRED': getExecutionStatusLabel('ALERT FIRED', language),
+    COMPLETED: getExecutionStatusLabel('COMPLETED', language),
+    RUNNING: getExecutionStatusLabel('RUNNING', language),
+    SENT: getExecutionStatusLabel('SENT', language),
+    FAILED: getExecutionStatusLabel('FAILED', language),
   };
   const scannerStatusLabels: Record<string, string> = {
-    ONLINE: isEn ? 'ONLINE' : 'ĐANG CHẠY',
-    OFFLINE: isEn ? 'OFFLINE' : 'ĐÃ DỪNG',
+    ONLINE: getScannerStatusLabel('ONLINE', language),
+    OFFLINE: getScannerStatusLabel('OFFLINE', language),
   };
   const scanModeLabels: Record<string, string> = {
-    volatile: isEn ? 'VOLATILE' : 'BIẾN ĐỘNG',
-    gainers: isEn ? 'TOP GAINERS' : 'TĂNG MẠNH',
-    losers: isEn ? 'TOP LOSERS' : 'GIẢM MẠNH',
-    volume: isEn ? 'VOLUME LEADERS' : 'KHỐI LƯỢNG',
-    all: isEn ? 'ALL COINS' : 'TẤT CẢ',
-    manual: isEn ? 'CUSTOM' : 'CÁ NHÂN',
+    volatile: getScanModeLabel('volatile', language),
+    gainers: getScanModeLabel('gainers', language),
+    losers: getScanModeLabel('losers', language),
+    volume: getScanModeLabel('volume', language),
+    all: getScanModeLabel('all', language),
+    manual: getScanModeLabel('manual', language),
   };
   const [scanProgress, setScanProgress] = useState<number>(0);
   const [scanStepText, setScanStepText] = useState<string>('');
@@ -173,10 +191,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     ? comparisonSelections[expandedComparisonGroup]
     : [];
   const expandedComparisonLabel = expandedComparisonGroup === 'champion'
-    ? (isEn ? 'V1 Selected' : 'V1 chọn')
+    ? (language === 'en' ? 'V1 Selected' : language === 'zh' ? '已选 V1' : language === 'ko' ? 'V1 선택됨' : 'V1 chọn')
     : expandedComparisonGroup === 'challenger'
-      ? (isEn ? 'V2 Selected' : 'V2 chọn')
-      : (isEn ? 'Both Selected' : 'Cả hai chọn');
+      ? (language === 'en' ? 'V2 Selected' : language === 'zh' ? '已选 V2' : language === 'ko' ? 'V2 선택됨' : 'V2 chọn')
+      : (language === 'en' ? 'Both Selected' : language === 'zh' ? '双方均选' : language === 'ko' ? '둘 다 선택됨' : 'Cả hai chọn');
 
   // Reset interval to default 15m when coin changes.
   useEffect(() => {
@@ -334,21 +352,41 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     if (isTriggeringScan) {
       setActiveTab('TELEMETRY');
       setScanProgress(15);
-      setScanStepText(isEn ? 'Step 1/4: Syncing 48 symbols from Binance USD-M futures...' : 'Bước 1/4: Đang đồng bộ 48/48 mã từ hợp đồng tương lai Binance USD-M...');
+      setScanStepText(
+        language === 'en' ? 'Step 1/4: Syncing 48 symbols from Binance USD-M futures...' :
+        language === 'zh' ? '第 1/4 步: 正在从币安 U 本位合约同步 48 个币种...' :
+        language === 'ko' ? '1/4단계: 바이낸스 선물 48개 페어 동기화 중...' :
+        'Bước 1/4: Đang đồng bộ 48/48 mã từ hợp đồng tương lai Binance USD-M...'
+      );
 
       const t1 = setTimeout(() => {
         setScanProgress(50);
-        setScanStepText(isEn ? 'Step 2/4: Computing Open Interest deltas & taker sell ratios...' : 'Bước 2/4: Đang tính toán thay đổi OI và tỷ lệ bán chủ động...');
+        setScanStepText(
+          language === 'en' ? 'Step 2/4: Computing Open Interest deltas & taker sell ratios...' :
+          language === 'zh' ? '第 2/4 步: 正在计算持仓量 OI 变化率与主动卖出比...' :
+          language === 'ko' ? '2/4단계: 미결제약정(OI) 변화 및 테이커 매도 비율 계산 중...' :
+          'Bước 2/4: Đang tính toán thay đổi OI và tỷ lệ bán chủ động...'
+        );
       }, 500);
 
       const t2 = setTimeout(() => {
         setScanProgress(85);
-        setScanStepText(isEn ? 'Step 3/4: Running XGBoost + LightGBM ensemble inference...' : 'Bước 3/4: Đang chạy suy luận mô hình AI kết hợp (XGBoost + LightGBM)...');
+        setScanStepText(
+          language === 'en' ? 'Step 3/4: Running XGBoost + LightGBM ensemble inference...' :
+          language === 'zh' ? '第 3/4 步: 正在运行集成 AI 模型推断 (XGBoost + LightGBM)...' :
+          language === 'ko' ? '3/4단계: 앙상블 AI 모델 추론 실행 중 (XGBoost + LightGBM)...' :
+          'Bước 3/4: Đang chạy suy luận mô hình AI kết hợp (XGBoost + LightGBM)...'
+        );
       }, 1000);
 
       const t3 = setTimeout(() => {
         setScanProgress(100);
-        setScanStepText(isEn ? 'Step 4/4: Signals updated & real-time alerts armed!' : 'Bước 4/4: Đã cập nhật tín hiệu rủi ro và bật cảnh báo!');
+        setScanStepText(
+          language === 'en' ? 'Step 4/4: Signals updated & real-time alerts armed!' :
+          language === 'zh' ? '第 4/4 步: 风险信号已更新，实时警报就绪！' :
+          language === 'ko' ? '4/4단계: 위험 신호 갱신 및 실시간 경보 활성화 완료!' :
+          'Bước 4/4: Đã cập nhật tín hiệu rủi ro và bật cảnh báo!'
+        );
       }, 1400);
 
       return () => {
@@ -357,7 +395,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         clearTimeout(t3);
       };
     }
-  }, [isTriggeringScan, setActiveTab, isEn]);
+  }, [isTriggeringScan, setActiveTab, language]);
 
   const deepProbabilityPct = deepAnalysis?.calibrated_probability != null
     ? deepAnalysis.calibrated_probability * 100
@@ -379,7 +417,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             <Loader2 className="w-7 h-7 animate-spin" />
           </div>
           <h3 className="text-base font-bold text-slate-100 uppercase tracking-wider mb-1">
-            ⚡ {isEn ? 'TRIGGERING REAL-TIME SCAN (MODE:' : 'ĐANG KÍCH HOẠT LƯỢT QUÉT NGAY (CHẾ ĐỘ:'} {scanModeLabels[telemetryData?.active_scan_mode || ''] ?? telemetryData?.active_scan_mode?.toUpperCase()})
+            ⚡ {language === 'en' ? 'TRIGGERING REAL-TIME SCAN (MODE:' : language === 'zh' ? '正在触发实时扫描 (模式:' : language === 'ko' ? '실시간 스캔 실행 중 (모드:' : 'ĐANG KÍCH HOẠT LƯỢT QUÉT NGAY (CHẾ ĐỘ:'} {scanModeLabels[telemetryData?.active_scan_mode || ''] ?? telemetryData?.active_scan_mode?.toUpperCase()})
           </h3>
           <p className="text-xs text-amber-400 font-mono mb-4">{scanStepText}</p>
 
@@ -389,7 +427,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               style={{ width: `${scanProgress}%` }}
             />
           </div>
-          <span className="text-[11px] font-mono font-bold text-slate-400 mt-2">{scanProgress}% {isEn ? 'complete' : 'hoàn tất'}</span>
+          <span className="text-[11px] font-mono font-bold text-slate-400 mt-2">{scanProgress}% {language === 'en' ? 'complete' : language === 'zh' ? '完成' : language === 'ko' ? '완료' : 'hoàn tất'}</span>
         </div>
       )}
 
@@ -397,7 +435,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       <div className="flex items-center gap-3 border-b border-slate-800 pb-2.5 mb-3 min-w-0">
         {selectedSignal && (
           <div className="hidden sm:flex items-center gap-2 text-xs font-mono shrink-0">
-            <span className="text-slate-400">{isEn ? 'Viewing:' : 'Đang xem:'}</span>
+            <span className="text-slate-400">{language === 'en' ? 'Viewing:' : language === 'zh' ? '正在查看:' : language === 'ko' ? '조회 중:' : 'Đang xem:'}</span>
             <CoinLink
               symbol={selectedSignal.symbol}
               onClick={() => onSelectCandidate(selectedSignal.symbol)}
@@ -416,7 +454,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            {isEn ? 'Decision Center' : 'Trung tâm quyết định'}
+            {language === 'en' ? 'Decision Center' : language === 'zh' ? '决策中心' : language === 'ko' ? '의사결정 센터' : 'Trung tâm quyết định'}
           </button>
 
           <button
@@ -428,7 +466,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Target className="w-3.5 h-3.5" />
-            {isEn ? 'Tracking' : 'Theo dõi'} ({trackingItems.filter(item => item.status !== 'CLOSED').length})
+            {language === 'en' ? 'Tracking' : language === 'zh' ? '持仓追踪' : language === 'ko' ? '추적 목록' : 'Theo dõi'} ({trackingItems.filter(item => item.status !== 'CLOSED').length})
           </button>
 
           <button
@@ -440,7 +478,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            {isEn ? 'Candidate Ranking' : 'Bảng Ứng Viên'} ({candidates.length})
+            {language === 'en' ? 'Candidate Ranking' : language === 'zh' ? '候选榜单' : language === 'ko' ? '후보 순위' : 'Bảng Ứng Viên'} ({candidates.length})
           </button>
 
           <button
@@ -452,13 +490,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            {isEn ? 'Market Context' : 'Thị Trường'}
+            {language === 'en' ? 'Market Context' : language === 'zh' ? '宏观行情' : language === 'ko' ? '시장 거시환경' : 'Thị Trường'}
           </button>
 
           <span
             aria-hidden="true"
             className="mx-1 h-5 w-px shrink-0 bg-slate-700"
-            title={isEn ? 'Research and development suite' : 'Khu vực dev và nghiên cứu'}
+            title={language === 'en' ? 'Research and development suite' : language === 'zh' ? '研发与回测套件' : language === 'ko' ? '연구 및 백테스트 도구' : 'Khu vực dev và nghiên cứu'}
           />
 
           <button
@@ -470,7 +508,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <FlaskConical className="w-3.5 h-3.5" />
-            {isEn ? 'Multi-Coin Scan' : 'Quét Multi-Coin'}
+            {language === 'en' ? 'Multi-Coin Scan' : language === 'zh' ? '多币种扫描' : language === 'ko' ? '다중 코인 스캔' : 'Quét Multi-Coin'}
           </button>
 
           <button
@@ -482,7 +520,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            {isEn ? 'Backtest Validation' : 'Kiểm thử lịch sử'}
+            {language === 'en' ? 'Backtest Validation' : language === 'zh' ? '历史回测' : language === 'ko' ? '백테스트 검증' : 'Kiểm thử lịch sử'}
           </button>
 
           <button
@@ -494,7 +532,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Lock className="w-3.5 h-3.5" />
-            {isEn ? 'Forward Testing' : 'Kiểm thử dữ liệu mới'}
+            {language === 'en' ? 'Forward Testing' : language === 'zh' ? '前向测试' : language === 'ko' ? '전진 테스트' : 'Kiểm thử dữ liệu mới'}
           </button>
 
           <button
@@ -506,7 +544,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            {isEn ? 'Model Audit' : 'Kiểm Định AI'}
+            {language === 'en' ? 'Model Audit' : language === 'zh' ? '模型审计' : language === 'ko' ? '모델 감사' : 'Kiểm Định AI'}
           </button>
 
           <button
@@ -518,7 +556,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            {isEn ? '📡 Telemetry & Logs' : '📡 Nhật Ký & Trạng Thái Quét'}
+            {language === 'en' ? '📡 Telemetry & Logs' : language === 'zh' ? '📡 遥测与日志' : language === 'ko' ? '📡 텔레메트리 & 로그' : '📡 Nhật Ký & Trạng Thái Quét'}
           </button>
 
           <button
@@ -530,7 +568,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            {isEn ? 'System Telemetry' : 'Lịch sử & dữ liệu'}
+            {language === 'en' ? 'System Telemetry' : language === 'zh' ? '系统数据湖' : language === 'ko' ? '시스템 데이터' : 'Lịch sử & dữ liệu'}
           </button>
         </div>
       </div>
