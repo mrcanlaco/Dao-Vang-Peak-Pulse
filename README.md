@@ -103,9 +103,45 @@ flowchart LR
 3. **Trích xuất Đặc trưng (Feature Engineering):** Tính toán các chỉ số biến động dòng tiền, tỷ lệ biến động OI vs Price, lực mua/bán Taker chủ động.
 4. **Suy luận & Cảnh báo (Inference & Alert):** Đưa qua mô hình Frozen ML để tính toán xác suất phân phối, kiểm tra Cooldown và đẩy cảnh báo đến Telegram & Dashboard.
 
+📖 *Xem chi tiết tại:* [**Tài liệu Kiến trúc Toàn diện (docs/ARCHITECTURE.md)**](docs/ARCHITECTURE.md)
+
 ---
 
-## 🔒 6. AN TOÀN & BẢO MẬT (SECURITY & PRIVACY)
+## 📂 6. CẤU TRÚC THƯ MỤC DỰ ÁN (PROJECT DIRECTORY MAP)
+
+```
+dao_vang/
+├── configs/            # File cấu hình mẫu (default.example.yaml, live.yaml)
+├── docs/               # Trung tâm tài liệu (Architecture, Developer Guide, ADRs, Setup)
+│   ├── adr/            # Architecture Decision Records (ADR-001 đến ADR-007)
+│   ├── ARCHITECTURE.md # Sơ đồ kiến trúc & luồng dữ liệu chi tiết
+│   ├── DEVELOPER_GUIDE.md # Hướng dẫn viết code, thêm collector, feature, scoring
+│   └── ...
+├── frontend/           # Ứng dụng Web Dashboard (React 18 + Vite + TypeScript)
+│   └── src/components/ # Các component giao diện (MainWorkspace, SignalFeed, AlphaLab...)
+├── scripts/            # Script vận hành, supervisor tự khởi động lại, dev_check.py
+├── src/dao_vang/       # Toàn bộ mã nguồn cốt lõi Backend (Modular Monolith)
+│   ├── alerts/         # Telegram alert engine & định dạng bản tin song ngữ
+│   ├── alpha_lab/      # Nghiên cứu định lượng (Triple barrier, Meta labeling, Regime)
+│   ├── baselines/      # Mô hình đối chuẩn (Rule-based & Logistic regression)
+│   ├── cli/            # Giao diện dòng lệnh Typer (`dao-vang`)
+│   ├── config/         # Quản lý cấu hình Pydantic v2
+│   ├── data/           # Binance collectors, schemas, DuckDB & Parquet storage
+│   ├── domain/         # Domain entities, enums, error models & time helpers
+│   ├── experiments/    # Experiment runner, self-learning feedback & forward test
+│   ├── features/       # Feature registry & point-in-time feature builders
+│   ├── labels/         # Ground truth labeling engine (sụt giảm 8% trong 6-24h)
+│   ├── logging/        # Structured logging với cơ chế tự động ẩn secret
+│   ├── scanner/        # 24/7 Live Scanner Daemon, Pump Filter, Watchlist tracker
+│   ├── scoring/        # Frozen ML inference, BTC context & evidence scoring
+│   ├── validation/     # Walk-forward validation, zero leakage audit & metrics
+│   └── web/            # FastAPI REST & WebSocket server
+└── tests/              # 375+ bài kiểm thử tự động (Unit, Integration, Leakage, QA)
+```
+
+---
+
+## 🔒 7. AN TOÀN & BẢO MẬT (SECURITY & PRIVACY)
 
 - **Không lưu trữ Secret/Token trong Git:** File `.env` chứa Telegram Bot Token được chặn hoàn toàn bởi `.gitignore`.
 - **An toàn Log:** Tự động lọc các từ khóa nhạy cảm (`api_key`, `secret`, `password`, `token`) trước khi ghi file log.
@@ -213,19 +249,25 @@ python -m dao_vang.web.run 8001
 
 ### 🧪 C. KIỂM THỬ VÀ KIỂM TRA CHẤT LƯỢNG MÃ NGUỒN (TESTING & QA)
 
-Trước khi gửi Pull Request, hãy đảm bảo tất cả bài kiểm thử đều vượt qua:
+Để kiểm tra toàn bộ chất lượng mã nguồn trước khi commit hoặc mở Pull Request:
 
 ```bash
-# Chạy toàn bộ 350+ bài test backend (Walk-forward, Leakage audit, Quality gates)
-pytest tests/
+# Chạy 1 lệnh kiểm tra toàn diện (Linter + Typecheck + Backend Tests + Frontend Build + Tự dọn rác)
+python scripts/dev_check.py
 
-# Kiểm tra build và type-check frontend
-npm --prefix frontend run build
+# Hoặc chạy kiểm tra nhanh chỉ unit tests:
+python scripts/dev_check.py --fast
+
+# Hoặc chạy từng công cụ độc lập:
+uv run ruff check .          # Linter & Formatter
+uv run pyright               # Type Checking
+.\.venv\Scripts\pytest.exe   # 375+ bài kiểm thử backend
+cd frontend && npm run build # Frontend TypeScript build
 ```
 
 ---
 
-## 🗺 8. LỘ TRÌNH PHÁT TRIỂN (ROADMAP)
+## 🗺 9. LỘ TRÌNH PHÁT TRIỂN (ROADMAP)
 
 - [ ] 🔌 **Đa sàn giao dịch (Multi-Exchange):** Mở rộng thu thập dữ liệu phái sinh từ Bybit, OKX Futures.
 - [ ] 🤖 **Nâng cấp Mô hình ML:** Thử nghiệm & tích hợp LightGBM, CatBoost và Sequential Models.
@@ -234,12 +276,13 @@ npm --prefix frontend run build
 
 ---
 
-## 🤝 9. ĐÓNG GÓP CỘNG ĐỒNG (CONTRIBUTING)
+## 🤝 10. ĐÓNG GÓP CỘNG ĐỒNG (CONTRIBUTING)
 
 Dự án hoan nghênh mọi sự đóng góp từ cộng đồng nhà phát triển và trader toàn cầu:
-- Hướng dẫn quy chuẩn đóng góp: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Quy tắc ứng xử cộng đồng: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-- Chính sách báo cáo an toàn: [SECURITY.md](SECURITY.md)
+- 📖 Hướng dẫn chi tiết cho Contributor: [**docs/DEVELOPER_GUIDE.md**](docs/DEVELOPER_GUIDE.md)
+- 🤝 Quy chuẩn đóng góp & quy trình PR: [**CONTRIBUTING.md**](CONTRIBUTING.md)
+- 🛡 Quy tắc ứng xử cộng đồng: [**CODE_OF_CONDUCT.md**](CODE_OF_CONDUCT.md)
+- 🔒 Chính sách báo cáo an toàn: [**SECURITY.md**](SECURITY.md)
 
 ---
 

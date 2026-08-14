@@ -21,8 +21,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from dao_vang.alerts.store import AlertStore
-from dao_vang.domain.time import system_now
 from dao_vang.data.storage.duckdb import DuckDBQueryLayer
+from dao_vang.domain.time import system_now
 from dao_vang.labels.engine import DistributionLabelEngine
 from dao_vang.labels.engine_v1 import DistributionLabelEngineV1
 from dao_vang.labels.specs.distribution_short_v1 import specs as label_specs

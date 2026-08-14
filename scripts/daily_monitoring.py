@@ -1,9 +1,12 @@
-import duckdb
-from datetime import timedelta
 import json
+from datetime import timedelta
 from pathlib import Path
-from dao_vang.monitoring.report import collect_operational_metrics
+
+import duckdb
+
 from dao_vang.domain.time import system_now
+from dao_vang.monitoring.report import collect_operational_metrics
+
 
 def generate_daily_monitoring_report(db_path: str, out_dir: Path):
     db = duckdb.connect(db_path, read_only=True)

@@ -37,6 +37,11 @@ from dao_vang.domain.time import (
 from dao_vang.scanner.instance_lock import ScannerAlreadyRunning, ScannerInstanceLock
 from dao_vang.scanner.pump_filter import analyze_pump, fetch_daily_klines
 from dao_vang.scanner.scan_results_store import ScanResultStore
+from dao_vang.scanner.tracking_watchlist import (
+    TrackingWatchlistStore,
+    calculate_position_metrics,
+    normalize_symbol,
+)
 from dao_vang.scanner.watchlist import (
     _filter_tickers,
     add_to_watchlist,
@@ -46,11 +51,6 @@ from dao_vang.scanner.watchlist import (
     load_manual_watchlist,
     normalize_scan_modes,
     remove_from_watchlist,
-)
-from dao_vang.scanner.tracking_watchlist import (
-    TrackingWatchlistStore,
-    calculate_position_metrics,
-    normalize_symbol,
 )
 from dao_vang.scoring import (
     assess_snapshot_quality,
@@ -1927,6 +1927,7 @@ class APIHandler(BaseHTTPRequestHandler):
         the same probability.
         """
         import pandas as pd
+
         from dao_vang.experiments.forward_test import load_frozen_model
 
         now_utc = datetime.now(timezone.utc)
@@ -2414,9 +2415,10 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def get_alpha_lab_regime(self):
         """Get real-time market regime analysis from Binance Futures."""
+        import pandas as pd
+
         from dao_vang.alpha_lab.regime_classifier import get_current_regime
         from dao_vang.data.collectors.binance_client import BinanceClient
-        import pandas as pd
 
         client = BinanceClient()
         try:
@@ -2514,9 +2516,10 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def get_alpha_lab_summary(self):
         """Get consolidated Alpha Lab dashboard overview."""
+        import pandas as pd
+
         from dao_vang.alpha_lab.regime_classifier import get_current_regime
         from dao_vang.data.collectors.binance_client import BinanceClient
-        import pandas as pd
 
         client = BinanceClient()
         regime_dict = {

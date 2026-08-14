@@ -1,8 +1,11 @@
+from datetime import datetime
+
 import duckdb
 import pandas as pd
-from datetime import datetime
-from dao_vang.scanner.candidate_generator import generate_candidates
+
 from dao_vang.config.settings import ScoringConfig
+from dao_vang.scanner.candidate_generator import generate_candidates
+
 
 def test_generate_candidates():
     db = duckdb.connect(':memory:')

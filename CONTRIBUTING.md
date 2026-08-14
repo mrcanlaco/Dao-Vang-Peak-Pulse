@@ -93,9 +93,15 @@ When writing code for DAO VANG, strictly observe these core tenets:
 
 ## 🧪 Testing & Quality Gates
 
-Before opening a PR, ensure all quality checks pass locally:
+Before opening a PR, ensure all quality checks pass locally.
 
-### 1. Backend Checks
+### Fast All-in-One Check
+```bash
+# Runs Linter + Pyright Typecheck + Backend Pytest + Frontend Build + Auto Clean
+python scripts/dev_check.py
+```
+
+### Individual Tool Checks
 ```bash
 # 1. Format and Linting
 uv run ruff check .
@@ -104,15 +110,10 @@ uv run ruff check .
 uv run pyright
 
 # 3. Unit & Integration Tests
-uv run pytest
-```
+.\.venv\Scripts\pytest.exe
 
-### 2. Frontend Checks
-```bash
-cd frontend
-
-# Run TypeScript type check and production build
-npm run build
+# 4. Frontend Checks
+cd frontend && npm run build && cd ..
 ```
 
 ---

@@ -1,9 +1,11 @@
-import duckdb
-import pytest
 from datetime import datetime, timedelta
-import pandas as pd
 
-from dao_vang.labels.events import group_events, create_event_summary_table
+import duckdb
+import pandas as pd
+import pytest
+
+from dao_vang.labels.events import create_event_summary_table, group_events
+
 
 @pytest.fixture
 def db():

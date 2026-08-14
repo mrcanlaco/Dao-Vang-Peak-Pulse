@@ -40,7 +40,7 @@ from typing import Any
 import pandas as pd  # type: ignore[reportMissingTypeStubs]
 
 from dao_vang.alerts.store import AlertRecord, AlertStore
-from dao_vang.alerts.telegram import TelegramNotifier
+from dao_vang.alerts.telegram import TelegramNotifier, _coin_url
 from dao_vang.config.settings import AppSettings
 from dao_vang.data.collectors.binance_client import BinanceClient
 from dao_vang.data.collectors.coingecko import cross_reference
@@ -205,6 +205,7 @@ class ScannerDaemon:
         self._last_cycle_error: str | None = None
         self._last_cycle_n_symbols = 0
         self._last_cycle_n_alerts = 0
+        self._web_base_url = str(getattr(self._settings.web, "public_url", "") or "")
         _data_dir = Path(self._settings.paths.data_dir)
         self._heartbeat_path = _data_dir / "scanner_heartbeat.json"
         # The scanner keeps DuckDB's writer connection for its whole process
@@ -1163,7 +1164,7 @@ class ScannerDaemon:
             self._alert_store.is_in_cooldown_key(cooldown_key, telegram_cooldown)
             or self._alert_store.is_in_cooldown(symbol, telegram_cooldown)
             or self._scan_result_store.is_prediction_telegram_in_cooldown(
-                cooldown_key, telegram_cooldown
+                symbol, horizon_hours, telegram_cooldown
             )
         )
         min_vol = getattr(self._scanner_cfg, "telegram_min_volume_usd", 500_000.0)
@@ -1348,6 +1349,12 @@ class ScannerDaemon:
         if "close" in df.columns and pd.notna(latest.get("close")):
             close_price = float(latest["close"])
 
+        volume_24h_usd: float = float(
+            feature_dict.get("volume_24h", 0.0)
+            or feature_dict.get("volume_base", 0.0)
+            or 0.0
+        )
+
         horizon_hours = _horizon_hours(self._frozen_info)
         sig_raw = pd.Timestamp(latest.get("feature_time"))
         if pd.isna(sig_raw):
@@ -1386,7 +1393,7 @@ class ScannerDaemon:
                         funding_rate=float(feature_dict.get("funding_rate_raw", 0.0) or 0.0),
                         taker_sell_ratio=1.0
                         - float(feature_dict.get("taker_buy_ratio", 0.5) or 0.5),
-                        volume_24h_usd=float(feature_dict.get("volume_24h", 0.0) or feature_dict.get("volume_base", 0.0) or 0.0),
+                        volume_24h_usd=volume_24h_usd,
                         pump_pct=pump_pct,
                         pump_days=pump_days,
                         cycle=self._cycle_count,
@@ -1608,7 +1615,7 @@ class ScannerDaemon:
             self._alert_store.is_in_cooldown_key(cooldown_key, telegram_cooldown)
             or self._alert_store.is_in_cooldown(symbol, telegram_cooldown)
             or self._scan_result_store.is_prediction_telegram_in_cooldown(
-                cooldown_key, telegram_cooldown
+                symbol, horizon_hours, telegram_cooldown
             )
         )
         if in_cooldown:

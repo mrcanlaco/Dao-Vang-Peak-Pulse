@@ -25,8 +25,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from dao_vang.logging import get_logger
 from dao_vang.domain.time import system_now
+from dao_vang.logging import get_logger
 
 logger = get_logger(__name__)
 

@@ -125,8 +125,6 @@ def _make_champion(artifact_dir: Path) -> str:
 
 def _make_historical_only_db(path: Path, n_rows: int = 250) -> None:
     """Create labeled history without any live prediction audit rows."""
-
-    store = ScanResultStore(str(path))
     start = datetime(2026, 1, 1)
     features = []
     labels = []

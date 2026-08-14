@@ -2,8 +2,8 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.isotonic import IsotonicRegression
 from sklearn.impute import SimpleImputer
+from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, precision_score, recall_score
 

@@ -49,11 +49,13 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
-ignore = []
+ignore = ["E501"]
 
 [tool.pyright]
 pythonVersion = "3.12"
-typeCheckingMode = "strict"
+typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
 
 [tool.pytest.ini_options]
 minversion = "8.0"

@@ -1193,7 +1193,9 @@ def alpha_lab_regime(
     limit: int = typer.Option(100, "--limit", "-n", help="Số nến nạp vào (mặc định 100)"),
 ) -> None:
     """Phân tích và nhận diện trạng thái thị trường (Market Regime) hiện tại."""
-    from dao_vang.alpha_lab.regime_classifier import classify_market_regimes, get_current_regime
+    from dao_vang.alpha_lab.regime_classifier import (
+        get_current_regime,
+    )
     from dao_vang.data.collectors.binance_client import BinanceClient
 
     client = BinanceClient()
@@ -1243,6 +1245,7 @@ def alpha_lab_backtest(
     """Chạy mô phỏng kiểm định Triple-Barrier & Meta-Labeling Simulator."""
     import numpy as np
     import pandas as pd
+
     from dao_vang.alpha_lab.alpha_backtester import AlphaBacktester
 
     typer.echo("🚀 Đang khởi tạo bộ giả lập Walk-Forward & Triple-Barrier Backtest...")
@@ -1303,6 +1306,7 @@ def alpha_lab_drift() -> None:
     """Kiểm tra độ ổn định phân phối (PSI) và giám sát Alpha Decay."""
     import numpy as np
     import pandas as pd
+
     from dao_vang.alpha_lab.drift_guardian import DriftGuardian
 
     typer.echo("🛡️  Đang chạy kiểm tra Drift Guardian...")

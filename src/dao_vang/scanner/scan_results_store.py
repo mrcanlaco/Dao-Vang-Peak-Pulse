@@ -318,12 +318,37 @@ class ScanResultStore:
     def is_prediction_telegram_in_cooldown(
         self,
         symbol: str,
-        horizon_hours: int,
-        cooldown_minutes: int,
+        horizon_hours: int | None = None,
+        cooldown_minutes: int | None = None,
     ) -> bool:
         """Return whether this symbol received an observation recently."""
+        if cooldown_minutes is None:
+            # Called as (cooldown_key, cooldown_minutes) where horizon_hours is the cooldown
+            actual_cooldown = int(horizon_hours) if horizon_hours is not None else 120
+            if ":" in symbol:
+                parts = symbol.split(":")
+                actual_symbol = parts[0]
+                try:
+                    actual_horizon = int(parts[1].rstrip("h"))
+                except ValueError:
+                    actual_horizon = 24
+            else:
+                actual_symbol = symbol
+                actual_horizon = 24
+        else:
+            if ":" in symbol and horizon_hours is None:
+                parts = symbol.split(":")
+                actual_symbol = parts[0]
+                try:
+                    actual_horizon = int(parts[1].rstrip("h"))
+                except ValueError:
+                    actual_horizon = 24
+            else:
+                actual_symbol = symbol
+                actual_horizon = int(horizon_hours) if horizon_hours is not None else 24
+            actual_cooldown = int(cooldown_minutes)
 
-        cutoff = system_now() - timedelta(minutes=max(0, int(cooldown_minutes)))
+        cutoff = system_now() - timedelta(minutes=max(0, actual_cooldown))
         with self._conn() as conn:
             return conn.execute(
                 """
@@ -335,7 +360,7 @@ class ScanResultStore:
                   AND created_at >= ?
                 LIMIT 1
                 """,
-                [symbol, horizon_hours, cutoff],
+                [actual_symbol, actual_horizon, cutoff],
             ).fetchone() is not None
 
     def get_prediction_telegram_count(

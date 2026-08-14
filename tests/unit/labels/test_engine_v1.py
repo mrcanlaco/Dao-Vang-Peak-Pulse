@@ -1,23 +1,24 @@
-import duckdb
-import pytest
 from datetime import datetime, timedelta
-import pandas as pd
-from decimal import Decimal
 
-from dao_vang.labels.specs.distribution_short_v1 import DistributionShortV1Spec
+import duckdb
+import pandas as pd
+import pytest
+
 from dao_vang.labels.engine_v1 import DistributionLabelEngineV1
+from dao_vang.labels.specs.distribution_short_v1 import DistributionShortV1Spec
+
 
 @pytest.fixture
 def db():
     return duckdb.connect(':memory:')
 
-def make_candle(symbol, ts, o, h, l, c):
+def make_candle(symbol, ts, o, h, low, c):
     return {
         'symbol': symbol,
         'timestamp': ts,
         'open': o,
         'high': h,
-        'low': l,
+        'low': low,
         'close': c,
         'volume': 100
     }
@@ -46,9 +47,9 @@ def test_label_computation_basic(db):
     assert len(res) == 1
     row = res.iloc[0]
     assert row['label_value'] == 1
-    assert row['target_reached'] == True
+    assert bool(row['target_reached']) is True
     assert row['exclusion_reason'] is None
-    assert row['ambiguous_intrabar'] == False
+    assert bool(row['ambiguous_intrabar']) is False
 
 def test_ambiguous_intrabar(db):
     base_time = datetime(2024, 1, 1, 0, 0)
@@ -71,7 +72,7 @@ def test_ambiguous_intrabar(db):
     res = db.execute("SELECT * FROM labels_out WHERE signal_time = '2024-01-01 00:00:00'").df()
     row = res.iloc[0]
     assert pd.isna(row['label_value'])
-    assert row['ambiguous_intrabar'] == True
+    assert bool(row['ambiguous_intrabar']) is True
 
 def test_missing_future_data(db):
     base_time = datetime(2024, 1, 1, 0, 0)

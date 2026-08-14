@@ -4,7 +4,6 @@ from zoneinfo import ZoneInfo
 
 from dao_vang.domain.errors import SchemaError
 
-
 # The application is operated from Vietnam.  Keep this as the single source
 # of truth for wall-clock dates and user-facing timestamps.  Market exchange
 # timestamps are still normalized to UTC at the data boundary because they

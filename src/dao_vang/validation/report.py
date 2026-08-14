@@ -19,6 +19,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import pandas as pd
 
+from dao_vang.domain.time import system_now
 from dao_vang.validation.bootstrap import calculate_bootstrap_ci
 from dao_vang.validation.metrics import (
     compute_event_metrics,
@@ -26,7 +27,6 @@ from dao_vang.validation.metrics import (
     compute_row_metrics,
     reliability_table,
 )
-from dao_vang.domain.time import system_now
 
 
 class ReleaseReportError(ValueError):

@@ -1,23 +1,48 @@
 import json as _json
-import streamlit as st
 import time
-import duckdb
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-                                #
+
+import duckdb
 import pandas as pd
+import streamlit as st
 
 from dao_vang.config.settings import AppSettings
-from dao_vang.domain.time import SYSTEM_TIMEZONE, as_system_timezone, system_now
 from dao_vang.data.binance_listing import (
     DEFAULT_HISTORY_PATH as _LISTING_HISTORY_PATH,
+)
+from dao_vang.data.binance_listing import (
     get_stats_for_today as _get_listing_snapshot,
+)
+from dao_vang.data.binance_listing import (
     is_today as _listing_is_today,
+)
+from dao_vang.data.binance_listing import (
     load_history as _load_listing_history,
+)
+from dao_vang.data.binance_listing import (
     run_daily_scan as _run_listing_scan,
 )
 from dao_vang.data.collectors.binance_client import BinanceClient
+from dao_vang.data.collectors.funding import FundingCollector
+from dao_vang.data.collectors.klines import KlinesCollector
+from dao_vang.data.collectors.open_interest import OpenInterestCollector
+from dao_vang.data.collectors.ratios import GlobalRatioCollector, TopRatioCollector
+from dao_vang.data.collectors.taker import TakerRatioCollector
+from dao_vang.data.pipeline import (
+    build_raw_timeline,
+    get_incremental_start,
+    process_raw_to_parquet,
+    scan_downloaded_data,
+)
+from dao_vang.data.storage.duckdb import DuckDBQueryLayer
+from dao_vang.domain.time import SYSTEM_TIMEZONE, as_system_timezone, system_now
+from dao_vang.experiments.artifacts import ArtifactRegistry
+from dao_vang.experiments.runner import ExperimentConfig, run_experiment
+from dao_vang.features.builder import build_features
+from dao_vang.labels.engine import DistributionLabelEngine
 from dao_vang.logging import get_logger
+from dao_vang.reports.generator import generate_markdown_report
 
 logger = get_logger(__name__)
 
@@ -26,24 +51,7 @@ def _display_datetime(value: datetime | None, fmt: str) -> str:
     if value is None:
         return "—"
     return as_system_timezone(value).strftime(fmt)
-from dao_vang.data.collectors.klines import KlinesCollector
-from dao_vang.data.collectors.funding import FundingCollector
-from dao_vang.data.collectors.open_interest import OpenInterestCollector
-from dao_vang.data.collectors.ratios import GlobalRatioCollector, TopRatioCollector
-from dao_vang.data.collectors.top_position_ratio import TopPositionRatioCollector
-from dao_vang.data.collectors.taker import TakerRatioCollector
-from dao_vang.data.storage.duckdb import DuckDBQueryLayer
-from dao_vang.experiments.artifacts import ArtifactRegistry
-from dao_vang.experiments.runner import ExperimentConfig, run_experiment
-from dao_vang.features.builder import build_features
-from dao_vang.labels.engine import DistributionLabelEngine
-from dao_vang.reports.generator import generate_markdown_report
-from dao_vang.data.pipeline import (
-    process_raw_to_parquet,
-    build_raw_timeline,
-    get_incremental_start,
-    scan_downloaded_data,
-)
+
 
 st.set_page_config(
     page_title="Đảo Vàng",
@@ -1474,8 +1482,8 @@ with _scan_container:
         if not _tickers:
             st.error("Không lấy được ticker data từ Binance.")
         else:
-            import time as _time
             import logging as _logging
+            import time as _time
             _logging.getLogger("dao_vang").setLevel(_logging.WARNING)
 
             _scan_settings = AppSettings()
@@ -1861,7 +1869,7 @@ with _market_container:
                     if _show_symbol in st.session_state.watchlist:
                         st.caption(f"✅ {_show_symbol} trong watchlist")
                     else:
-                        if st.button(f"➕ Thêm watchlist", key="add_wl", use_container_width=True):
+                        if st.button("➕ Thêm watchlist", key="add_wl", use_container_width=True):
                             st.session_state.watchlist.append(_show_symbol)
                             _save_watchlist(st.session_state.watchlist)
                             st.toast(f"✅ Đã thêm {_show_symbol}!")
@@ -2165,7 +2173,11 @@ with st.sidebar:
             with st.expander("📋 Danh sách theo dõi", expanded=False):
                 from dao_vang.scanner.watchlist import (
                     add_to_watchlist as _wl_add,
+                )
+                from dao_vang.scanner.watchlist import (
                     load_manual_watchlist as _wl_load,
+                )
+                from dao_vang.scanner.watchlist import (
                     remove_from_watchlist as _wl_remove,
                 )
 
@@ -2197,7 +2209,9 @@ with st.sidebar:
 
             # --- Scan list preview ---
             with st.expander("🔍 Xem trước danh sách quét", expanded=False):
-                from dao_vang.scanner.watchlist import preview_scan_list as _preview_scan
+                from dao_vang.scanner.watchlist import (
+                    preview_scan_list as _preview_scan,
+                )
 
                 _scan_mode_vi = {
                     "gainers": "📈 Top tăng mạnh",
@@ -2538,7 +2552,9 @@ with _detect_container:
             with st.expander("🚀 Kiểm tra pump", expanded=False):
                 st.caption("Quét nhanh: coin có tăng 50-500% trong 1-5 ngày không?")
                 try:
-                    from dao_vang.scanner.pump_filter import scan_pumps as _da_scan_pumps
+                    from dao_vang.scanner.pump_filter import (
+                        scan_pumps as _da_scan_pumps,
+                    )
 
                     _da_pump_cfg = _da_settings.pump_filter
                     _da_pumps = _da_scan_pumps(_da_pump_cfg, [symbol])
@@ -2636,7 +2652,7 @@ with _detect_container:
         if not _in_focus:
             st.info(
                 "👉 Muốn chạy AI đầy đủ (thu thập + huấn luyện + dự đoán 12 nến + so sánh với mốc)? "
-                f"Bấm **🔍 Phát hiện xả** ở thanh bên trái."
+                "Bấm **🔍 Phát hiện xả** ở thanh bên trái."
             )
 
     if run_scan:
@@ -3251,7 +3267,11 @@ with _detect_container:
 
     from dao_vang.experiments.forward_test import (
         evaluate_frozen,
+    )
+    from dao_vang.experiments.forward_test import (
         freeze_model as _freeze_model,
+    )
+    from dao_vang.experiments.forward_test import (
         list_frozen_models as _list_frozen,
     )
 
@@ -3259,8 +3279,8 @@ with _detect_container:
     with _ft_c1:
         if st.button("🔒 Đóng băng model hiện tại", help="Huấn luyện AI trên tất cả dữ liệu đã có nhãn, khóa ngưỡng, lưu model + metadata. Data sau mốc cắt = dữ liệu forward test."):
             try:
-                from sklearn.linear_model import LogisticRegression as _LR
                 import numpy as _np
+                from sklearn.linear_model import LogisticRegression as _LR
 
                 _ft_db = DuckDBQueryLayer(db_path)
                 _ft_df = _ft_db.conn.execute(

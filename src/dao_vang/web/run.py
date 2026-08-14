@@ -1,7 +1,8 @@
 import sys
-from pathlib import Path
+
 from dao_vang.config.settings import AppSettings
 from dao_vang.web.api_server import run_server
+
 
 def main() -> None:
     """Run the Đảo Vàng Signal Command Center web application."""

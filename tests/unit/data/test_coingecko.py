@@ -1,5 +1,5 @@
-import pytest
-from dao_vang.data.collectors.coingecko import fetch_market_data, CoinGeckoConfig
+from dao_vang.data.collectors.coingecko import CoinGeckoConfig, fetch_market_data
+
 
 def test_fetch_market_data(monkeypatch):
     class MockResponse:

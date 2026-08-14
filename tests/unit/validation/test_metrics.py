@@ -1,8 +1,10 @@
-import numpy as np
-import pandas as pd
 from datetime import datetime
 
-from dao_vang.validation.metrics import compute_row_metrics, compute_event_metrics
+import numpy as np
+import pandas as pd
+
+from dao_vang.validation.metrics import compute_event_metrics, compute_row_metrics
+
 
 def test_compute_row_metrics():
     y_true = np.array([1, 1, 0, 0])

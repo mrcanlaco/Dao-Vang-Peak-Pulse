@@ -1,5 +1,5 @@
-import pytest
 from dao_vang.data.binance_listing import fetch_listing_stats
+
 
 def test_fetch_listing_stats(monkeypatch):
     def mock_get(url, timeout=20.0):

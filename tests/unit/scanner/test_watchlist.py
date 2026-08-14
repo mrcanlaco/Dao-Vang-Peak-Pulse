@@ -16,13 +16,13 @@ from dao_vang.scanner.watchlist import (
     build_scan_list,
     fetch_top_gainers,
     fetch_top_losers,
-    fetch_top_volume,
     fetch_top_volatile,
+    fetch_top_volume,
     load_manual_watchlist,
     normalize_scan_modes,
     remove_from_watchlist,
-    save_manual_watchlist,
     reset_tickers_cache,
+    save_manual_watchlist,
 )
 
 

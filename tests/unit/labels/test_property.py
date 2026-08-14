@@ -1,24 +1,25 @@
-import duckdb
-import pytest
 from datetime import datetime, timedelta
-import pandas as pd
-import numpy as np
 
-from dao_vang.labels.specs.distribution_short_v1 import DistributionShortV1Spec
+import duckdb
+import numpy as np
+import pandas as pd
+import pytest
+
 from dao_vang.labels.engine_v1 import DistributionLabelEngineV1
-from dao_vang.labels.events import group_events, create_event_summary_table
+from dao_vang.labels.specs.distribution_short_v1 import DistributionShortV1Spec
+
 
 @pytest.fixture
 def db():
     return duckdb.connect(':memory:')
 
-def make_candle(symbol, ts, o, h, l, c):
+def make_candle(symbol, ts, o, h, low, c):
     return {
         'symbol': symbol,
         'timestamp': ts,
         'open': o,
         'high': h,
-        'low': l,
+        'low': low,
         'close': c,
         'volume': 100
     }
@@ -33,9 +34,9 @@ def test_property_deterministic(db):
         ts = base_time + timedelta(minutes=i*5)
         move = np.random.normal(0, 1)
         h = price + abs(np.random.normal(0, 1))
-        l = price - abs(np.random.normal(0, 1))
+        low = price - abs(np.random.normal(0, 1))
         c = price + move
-        data.append(make_candle("BTC", ts, price, max(h, price, c), min(l, price, c), c))
+        data.append(make_candle("BTC", ts, price, max(h, price, c), min(low, price, c), c))
         price = c
         
     df = pd.DataFrame(data)

@@ -1,11 +1,12 @@
 import argparse
 import hashlib
 import json
-import subprocess
 import shutil
+import subprocess
 from pathlib import Path
 
 from dao_vang.domain.time import SYSTEM_TIMEZONE_NAME, system_now
+
 
 def hash_file(path: Path) -> str:
     if not path.exists():

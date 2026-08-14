@@ -160,3 +160,30 @@ def test_latest_cycle_stats_uses_contiguous_tail_after_daemon_restart(tmp_path):
     assert stats["cycle"] == 1
     assert stats["n_symbols"] == 2
     assert stats["n_alerts"] == 1
+
+
+def test_is_prediction_telegram_in_cooldown(tmp_path):
+    store = ScanResultStore(str(tmp_path / "cooldown.duckdb"))
+    now = datetime.now(timezone.utc)
+    record = PredictionRecord(
+        prediction_id="pred-1",
+        symbol="BTCUSDT",
+        signal_time=now,
+        horizon_hours=24,
+        model_id="bundle-1",
+        quality_status="valid",
+        candidate_passed=True,
+        state="early_watch",
+        tier="HIGH_CONFIDENCE",
+        invalidation_time=now + timedelta(hours=24),
+    )
+    store.save_prediction(record)
+    assert not store.is_prediction_telegram_in_cooldown("BTCUSDT", 24, 120)
+    assert not store.is_prediction_telegram_in_cooldown("BTCUSDT:24h", 120)
+
+    store.mark_prediction_telegram_sent("pred-1")
+    assert store.is_prediction_telegram_in_cooldown("BTCUSDT", 24, 120)
+    assert store.is_prediction_telegram_in_cooldown("BTCUSDT:24h", 120)
+    assert not store.is_prediction_telegram_in_cooldown("ETHUSDT", 24, 120)
+    assert not store.is_prediction_telegram_in_cooldown("BTCUSDT", 6, 120)
+

@@ -1,14 +1,24 @@
-# Byte-compiled / optimized / DLL files
+# Python Byte-compiled / cache files
 __pycache__/
 *.py[cod]
 *$py.class
+*.ruff_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+
+# Distribution / Packaging
+build/
+dist/
+*.egg-info/
+*.egg
 
 # Environments & Sensitive Configs
 .env
 .env.*
 !.env.example
 !.env.docker.example
-.venv
+.venv/
 env/
 venv/
 ENV/
@@ -17,41 +27,64 @@ venv.bak/
 configs/live.yaml
 configs/*.local.yaml
 
-# IDEs and editors
+# IDEs & Editor configs
 .vscode/
 .idea/
 *.swp
 *.swo
 .mcp.json
 
-# Testing & Coverage
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.turbo/
+frontend/.next/
+frontend/*.log
+
+# Testing, Coverage & QA artifacts
 .pytest_cache/
 .pytest-*/
 .pytest_tmp*/
 pytest-multi-basetemp/
 pytest-run/
+qaops-tests*/
 .coverage
 htmlcov/
 coverage.xml
 reports/
 
-# Data, Live Databases and Artifacts
+# Data, Live Databases & Artifacts
 /data/
 data_live/
 artifacts/
 *.duckdb
+*.duckdb.wal
 *.sqlite
+*.sqlite3
 *.parquet
 
-# Logs & Temporary Files
+# Logs & Scratch Files
 *.log
 logs/
 qc
 query
 _commit_msg.txt
 *.zip
+*.tmp
+*.bak
 
-# AI Agents & Tools Workspace Meta
+# Root scratch scripts
+/update_*.py
+/format.py
+/run_rebuild.py
+/test_m1.py
+
+# Legacy / Archive doc packs
+dao_vang_documentation*
+dao_vang_phase*
+dao_vang_docs*
+
+# AI Agent & Tools Workspace Meta
 .agentsroom/
 .agents/
 .devin/
@@ -59,3 +92,4 @@ _commit_msg.txt
 # OS generated files
 .DS_Store
 Thumbs.db
+desktop.ini

@@ -1,5 +1,6 @@
-import numpy as np
 from typing import Any, Callable, Dict, List, Tuple
+
+import numpy as np
 
 from dao_vang.baselines.logistic import LogisticRegressionSGD, StandardScaler
 from dao_vang.validation.calibration import brier_score, expected_calibration_error

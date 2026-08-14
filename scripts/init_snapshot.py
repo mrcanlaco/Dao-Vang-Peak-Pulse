@@ -1,6 +1,4 @@
 import time
-import subprocess
-from pathlib import Path
 
 # timestamp 14 days ago to now
 now = int(time.time())

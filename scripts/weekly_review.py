@@ -1,8 +1,14 @@
-import duckdb
 from datetime import timedelta
 from pathlib import Path
+
+import duckdb
+
 from dao_vang.domain.time import system_now
-from dao_vang.validation.metrics import compute_event_metrics, compute_expected_calibration_error
+from dao_vang.validation.metrics import (
+    compute_event_metrics,
+    compute_expected_calibration_error,
+)
+
 
 def generate_weekly_review_report(db_path: str, out_dir: Path):
     db = duckdb.connect(db_path, read_only=True)

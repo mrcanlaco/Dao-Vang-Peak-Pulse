@@ -1,5 +1,6 @@
 import duckdb
 
+
 def group_events(
     db: duckdb.DuckDBPyConnection,
     input_table: str,

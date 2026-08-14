@@ -11,12 +11,12 @@ from datetime import timedelta
 from typing import Any, Dict, List
 
 from dao_vang.config.settings import AppSettings
-from dao_vang.domain.time import system_now
 from dao_vang.data.collectors.binance_client import BinanceClient
 from dao_vang.data.collectors.funding import FundingCollector
 from dao_vang.data.collectors.open_interest import OpenInterestCollector
 from dao_vang.data.collectors.ratios import GlobalRatioCollector, TopRatioCollector
 from dao_vang.data.collectors.taker import TakerRatioCollector
+from dao_vang.domain.time import system_now
 from dao_vang.logging import get_logger
 
 logger = get_logger(__name__)

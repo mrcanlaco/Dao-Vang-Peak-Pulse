@@ -1,5 +1,7 @@
 import duckdb
+
 from dao_vang.experiments.ablation import generate_ablation_queries
+
 
 def test_generate_ablation_queries():
     db = duckdb.connect(':memory:')
