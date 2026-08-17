@@ -37,7 +37,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
   onAddTracking,
 }) => {
   const { language, t } = useTranslation();
-  const isEn = language === 'en';
+  
   
   const riskLabels: Record<string, string> = {
     CRITICAL: getRiskLabel('CRITICAL', language),
@@ -101,7 +101,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
                   displayDetail.risk_level === 'MEDIUM' ? 'bg-yellow-950 text-yellow-300 border-yellow-800' :
                   'bg-slate-800 text-slate-300 border-slate-700'
                 }`}>
-                  {displayDetail.risk_level ? (riskLabels[displayDetail.risk_level] ?? displayDetail.risk_level) : (isEn ? 'NO DATA' : 'CHƯA CÓ DỮ LIỆU')}
+                  {displayDetail.risk_level ? (riskLabels[displayDetail.risk_level] ?? displayDetail.risk_level) : (t('metric_insufficient_data'))}
                 </span>
               </div>
             </div>
@@ -110,7 +110,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
           {/* Probability Gauge */}
           <div className="text-right shrink-0">
             <div className="text-[10px] text-slate-400 uppercase font-mono">
-              {isEn ? 'AI DUMP PROB' : 'XÁC SUẤT XẢ'}
+              {t('ws_dump_prob_title')}
             </div>
             <div className="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-tight">
               {deepProbabilityPct != null
@@ -146,7 +146,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
       {/* Action Buttons Grid */}
       <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 shadow-md space-y-2">
         <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-          {isEn ? 'QUICK ACTIONS' : 'THAO TÁC NHANH'}
+          {language === 'zh' ? '快捷操作' : language === 'ko' ? '빠른 작업' : language === 'en' ? 'QUICK ACTIONS' : 'THAO TÁC NHANH'}
         </div>
         <div className="grid grid-cols-2 gap-2">
           {/* Re-score Button */}
@@ -156,9 +156,9 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
             className="px-3 py-2 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition shadow-md shadow-amber-500/20"
           >
             {isDeepAnalyzing ? (
-              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {isEn ? 'Re-scoring...' : 'Đang tính...'}</>
+              <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {t('refreshing')}</>
             ) : (
-              <><Zap className="w-3.5 h-3.5" /> {isEn ? 'Re-score Analysis' : 'Chạy lại chấm điểm'}</>
+              <><Zap className="w-3.5 h-3.5" /> {t('ws_rescore_btn')}</>
             )}
           </button>
 
@@ -168,11 +168,11 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
               onClick={() => onPushTelegram && onPushTelegram(selectedSignal)}
               className="px-3 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition shadow-md shadow-sky-500/20"
             >
-              <Send className="w-3.5 h-3.5" /> {isEn ? 'Send Telegram' : 'Gửi Telegram'}
+              <Send className="w-3.5 h-3.5" /> {t('ws_send_telegram_btn')}
             </button>
           ) : (
             <div className="px-3 py-2 bg-slate-900 border border-slate-800 text-slate-500 rounded-lg text-xs text-center font-mono">
-              {isEn ? 'No Telegram Signal' : 'Chưa có tín hiệu'}
+              {language === 'zh' ? '暂无信号' : language === 'ko' ? '신호 없음' : language === 'en' ? 'No Telegram Signal' : 'Chưa có tín hiệu'}
             </div>
           )}
 
@@ -188,7 +188,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
               }`}
             >
               {isWatchlistUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSymbolTracked ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {isSymbolTracked ? (isEn ? 'Tracking Position' : 'Đang theo dõi') : (isEn ? 'Track Position' : 'Theo dõi diễn biến')}
+              {isSymbolTracked ? t('ws_tracking_pos') : t('ws_track_position')}
             </button>
           )}
 
@@ -204,7 +204,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
               }`}
             >
               {isWatchlistUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSymbolInWatchlist ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {isSymbolInWatchlist ? (isEn ? 'In Universe' : 'Đã trong DS quét') : (isEn ? 'Add Universe' : 'Thêm DS quét')}
+              {isSymbolInWatchlist ? t('ws_in_scan_universe') : t('ws_add_to_scan_universe')}
             </button>
           )}
         </div>
@@ -214,7 +214,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
             onClick={() => onDismissSignal(selectedSignal)}
             className="w-full mt-1 px-3 py-1.5 bg-slate-900 hover:bg-red-950/80 text-slate-400 hover:text-red-400 border border-slate-800 hover:border-red-800/80 font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition"
           >
-            <XCircle className="w-3.5 h-3.5" /> {isEn ? 'Dismiss Signal' : 'Ẩn tín hiệu này'}
+            <XCircle className="w-3.5 h-3.5" /> {t('ws_dismiss_btn')}
           </button>
         )}
       </div>
@@ -225,7 +225,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5 text-amber-400" />
-              {isEn ? 'MARKET REGIME & PUMP PATTERN' : 'BỐI CẢNH BTC & BƠM XẢ'}
+              {language === 'zh' ? 'BTC 宏观环境与暴涨形态' : language === 'ko' ? 'BTC 시장 환경 및 펌핑 패턴' : language === 'en' ? 'MARKET REGIME & PUMP PATTERN' : 'BỐI CẢNH BTC & BƠM XẢ'}
             </h3>
             <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
               deepAnalysis.btc_regime === 'FOMO' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' :
@@ -245,19 +245,19 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
                 ) : (
                   <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
                 )}
-                {isEn ? 'Parabolic Pump Detection' : 'Mẫu hình Tăng Nóng'}
+                {language === 'zh' ? '抛物线暴涨形态检测' : language === 'ko' ? '포물선 급등 감지' : language === 'en' ? 'Parabolic Pump Detection' : 'Mẫu hình Tăng Nóng'}
               </span>
               <span className={`font-mono font-bold text-xs ${deepAnalysis.pump_analysis.detected ? 'text-orange-400' : 'text-slate-400'}`}>
-                {deepAnalysis.pump_analysis.detected ? `+${deepAnalysis.pump_analysis.pump_pct}% (${deepAnalysis.pump_analysis.pump_days}d)` : isEn ? 'None' : 'Không có'}
+                {deepAnalysis.pump_analysis.detected ? `+${deepAnalysis.pump_analysis.pump_pct}% (${deepAnalysis.pump_analysis.pump_days}d)` : language === 'zh' ? '无' : language === 'ko' ? '없음' : language === 'en' ? 'None' : 'Không có'}
               </span>
             </div>
 
             {deepAnalysis.pump_analysis.detected ? (
               <div className="mt-2 space-y-1.5">
                 <div className="flex justify-between text-[10px] font-mono text-slate-300">
-                  <span>{isEn ? 'Peak:' : 'Đỉnh:'} ${deepAnalysis.pump_analysis.peak_price.toFixed(4)}</span>
+                  <span>{language === 'zh' ? '峰值:' : language === 'ko' ? '고점:' : language === 'en' ? 'Peak:' : 'Đỉnh:'} ${deepAnalysis.pump_analysis.peak_price.toFixed(4)}</span>
                   <span className={deepAnalysis.pump_analysis.current_vs_peak < -20 ? 'text-red-400 font-bold' : 'text-slate-300'}>
-                    {deepAnalysis.pump_analysis.current_vs_peak}% {isEn ? 'from peak' : 'từ đỉnh'}
+                    {deepAnalysis.pump_analysis.current_vs_peak}% {language === 'zh' ? '距峰值' : language === 'ko' ? '고점 대비' : language === 'en' ? 'from peak' : 'từ đỉnh'}
                   </span>
                 </div>
                 {/* Progress bar from peak */}
@@ -270,7 +270,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
               </div>
             ) : (
               <p className="text-[10px] text-slate-500 mt-1">
-                {isEn ? '✓ No parabolic surge detected (50-300% in 1-5d).' : '✓ Không có dấu hiệu tăng quá nóng trong 1-5 ngày gần nhất.'}
+                {language === 'zh' ? '✓ 近 1-5 天内未检测到剧烈异常拉升 (50-300%)。' : language === 'ko' ? '✓ 최근 1-5일 내 비정상 급등(50-300%) 감지되지 않음.' : language === 'en' ? '✓ No parabolic surge detected (50-300% in 1-5d).' : '✓ Không có dấu hiệu tăng quá nóng trong 1-5 ngày gần nhất.'}
               </p>
             )}
           </div>
@@ -281,23 +281,23 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
       {selectedSignal && (
         <div className="grid grid-cols-3 gap-2 text-[10px] bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
           <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800/80">
-            <div className="text-slate-500 uppercase">{isEn ? 'Validity' : 'Hiệu lực'}</div>
+            <div className="text-slate-500 uppercase">{t('ws_validity_left')}</div>
             <div className="text-amber-300 font-mono font-bold mt-0.5">
               {Math.floor(selectedSignal.validity_hours_left)}h {Math.floor((selectedSignal.validity_hours_left % 1) * 60)}m
             </div>
           </div>
           <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800/80">
-            <div className="text-slate-500 uppercase">{isEn ? 'Lead Time' : 'Báo trước'}</div>
+            <div className="text-slate-500 uppercase">{t('ws_mean_lead_time')}</div>
             <div className="text-sky-300 font-mono font-bold mt-0.5">
               {selectedSignal.lead_time_avg_hours > 0 ? `${selectedSignal.lead_time_avg_hours.toFixed(1)}h` : '—'}
             </div>
           </div>
           <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800/80">
-            <div className="text-slate-500 uppercase">{isEn ? 'Precision' : 'Độ chính xác'}</div>
+            <div className="text-slate-500 uppercase">{t('audit_empirical_precision')}</div>
             <div className="text-emerald-300 font-mono font-bold mt-0.5">
               {selectedSignal.evidence_precision != null
                 ? `${(selectedSignal.evidence_precision * 100).toFixed(0)}%`
-                : (isEn ? 'N/A' : '—')}
+                : (t('metric_insufficient_data'))}
             </div>
           </div>
         </div>

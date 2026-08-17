@@ -13,7 +13,7 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
   deepAnalysis,
 }) => {
   const { language } = useTranslation();
-  const isEn = language === 'en';
+  
   const [isExpanded, setIsExpanded] = useState(false);
 
   const sortedDrivers = [...shapDrivers].sort((a, b) => b.impact_score - a.impact_score);
@@ -28,18 +28,18 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
         <div className="flex items-center gap-1.5">
           <AlertOctagon className="w-4 h-4 text-amber-400" />
           <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-            {isEn ? 'AI RISK DRIVERS (SHAP DECOMPOSITION)' : 'NGUYÊN NHÂN AI DỰ BÁO XẢ'}
+            {t('ws_risk_drivers_title')}
           </h3>
         </div>
         <span className="text-[10px] text-slate-400 font-mono">
-          {sortedDrivers.length} {isEn ? 'drivers' : 'nguyên nhân'}
+          {sortedDrivers.length} {t('ws_risk_drivers_factors')}
         </span>
       </div>
 
       {/* Top 3 Drivers View */}
       {sortedDrivers.length === 0 ? (
         <div className="p-3 text-center text-[11px] text-slate-500 bg-slate-900/60 rounded-lg border border-slate-800">
-          {isEn ? 'Run "Re-score Analysis" to generate 8-factor SHAP decomposition.' : 'Bấm "Chạy lại chấm điểm" để tạo phân rã 8 yếu tố SHAP.'}
+          {t('ws_risk_drivers_empty')}
         </div>
       ) : (
         <div className="space-y-2">
@@ -98,8 +98,7 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
             <span className="flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-amber-400" />
               {isExpanded
-                ? (isEn ? 'Collapse 8-Component Score Breakdown' : 'Thu gọn bảng phân rã 8 thành phần')
-                : (isEn ? 'Expand Full 8-Component Decomposition' : 'Xem chi tiết phân rã toàn diện 8 thành phần')}
+                ? (language === 'zh' ? '收起 8 因子得分分解' : language === 'ko' ? '8개 요인 점수 분해 접기' : language === 'en' ? 'Collapse 8-Component Score Breakdown' : 'Thu gọn bảng phân rã 8 thành phần') : (language === 'zh' ? '展开完整 8 因子归因分解' : language === 'ko' ? '전체 8개 요인 분해 펼치기' : language === 'en' ? 'Expand Full 8-Component Decomposition' : 'Xem chi tiết phân rã toàn diện 8 thành phần')}
             </span>
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -108,8 +107,8 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
           {isExpanded && (
             <div className="mt-2.5 space-y-2 animate-fadeIn">
               <div className="flex items-center justify-between px-1 text-[10px] text-slate-400">
-                <span>{isEn ? 'Component / Factor' : 'Thành phần chỉ số'}</span>
-                <span>{isEn ? 'Weight → Contribution' : 'Trọng số → Điểm đóng góp'}</span>
+                <span>{language === 'zh' ? '因子 / 特征分项' : language === 'ko' ? '지표 성분 / 요인' : language === 'en' ? 'Component / Factor' : 'Thành phần chỉ số'}</span>
+                <span>{language === 'zh' ? '权重 → 贡献得分' : language === 'ko' ? '가중치 → 기여 점수' : language === 'en' ? 'Weight → Contribution' : 'Trọng số → Điểm đóng góp'}</span>
               </div>
               {sortedComponents.map((comp, idx) => (
                 <div key={idx} className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800">
@@ -125,7 +124,7 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
                       <div className="min-w-0">
                         <span className="text-xs font-bold text-slate-200">{comp.name}</span>
                         <span className="text-[9px] text-slate-500 font-mono ml-1.5">
-                          ({comp.weight}% {isEn ? 'weight' : 'trọng số'})
+                          ({comp.weight}% {language === 'zh' ? '权重' : language === 'ko' ? '가중치' : language === 'en' ? 'weight' : 'trọng số'})
                         </span>
                       </div>
                     </div>

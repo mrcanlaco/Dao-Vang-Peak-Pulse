@@ -49,7 +49,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   tradeSetup,
 }) => {
   const { language, t } = useTranslation();
-  const isEn = language === 'en';
+  
 
   const chartShellRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -348,7 +348,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           lineWidth: 1,
           lineStyle: 2,
           axisLabelVisible: true,
-          title: isEn ? 'TP1 (-4%)' : 'CHỐT LỜI 1 (-4%)',
+          title: language === 'zh' ? '止盈1 (-4%)' : language === 'ko' ? '익절1 (-4%)' : language === 'en' ? 'TP1 (-4%)' : 'CHỐT LỜI 1 (-4%)',
         });
       }
       // TP2 Line
@@ -359,7 +359,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           lineWidth: 2,
           lineStyle: 0,
           axisLabelVisible: true,
-          title: isEn ? 'TP2 (-8%)' : 'CHỐT LỜI 2 (-8%)',
+          title: language === 'zh' ? '止盈2 (-8%)' : language === 'ko' ? '익절2 (-8%)' : language === 'en' ? 'TP2 (-8%)' : 'CHỐT LỜI 2 (-8%)',
         });
       }
     } else if (targetPrice && targetPrice > 0) {
@@ -369,7 +369,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         lineWidth: 2,
         lineStyle: 2,
         axisLabelVisible: true,
-        title: isEn ? 'Target -8%' : 'Mục tiêu -8%',
+        title: language === 'zh' ? '目标 -8%' : language === 'ko' ? '목표 -8%' : language === 'en' ? 'Target -8%' : 'Mục tiêu -8%',
       });
     }
 
@@ -410,7 +410,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
         const probabilityText = signal.probability != null && Number.isFinite(signal.probability)
           ? `${formatSignalTime(signal.time, true)} · ${(signal.probability).toFixed(1)}%`
-          : `${formatSignalTime(signal.time, true)} · ${isEn ? 'DISTRIB' : 'XẢ'}`;
+          : `${formatSignalTime(signal.time, true)} · ${language === 'zh' ? '派发' : language === 'ko' ? '분산' : language === 'en' ? 'DISTRIB' : 'XẢ'}`;
 
         return [{
           id: signal.id || `${signalTimestamp}-${index}`,
@@ -445,7 +445,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         chartRef.current = null;
       }
     };
-  }, [data, targetPrice, visibleSignalMarkers, chartHeight, isEn]);
+  }, [data, targetPrice, visibleSignalMarkers, chartHeight, language]);
 
   return (
     <div

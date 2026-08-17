@@ -26,7 +26,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
   isDeepAnalyzing,
 }) => {
   const { language } = useTranslation();
-  const isEn = language === 'en';
+  
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -85,7 +85,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
               }}
               onFocus={() => setIsSearchOpen(true)}
               onKeyDown={handleSearchKeyDown}
-              placeholder={isEn ? 'Search coin or symbol (e.g. BTC)...' : 'Tìm coin hoặc mã (ví dụ: SOL)...'}
+              placeholder={t('search_placeholder')}
               className="w-full bg-slate-900/90 border border-slate-700/80 hover:border-amber-500/50 focus:border-amber-500 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition font-mono"
             />
           </div>
@@ -122,7 +122,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
                   }}
                   className="w-full px-3 py-2 text-left text-xs text-amber-400 hover:bg-slate-800 transition"
                 >
-                  {isEn ? `Analyze "${searchQuery.toUpperCase()}"` : `Phân tích "${searchQuery.toUpperCase()}"`}
+                  `${language === 'zh' ? '研判分析' : language === 'ko' ? '분석' : language === 'en' ? 'Analyze' : 'Phân tích'} "${searchQuery.toUpperCase()}"`
                 </button>
               )}
             </div>
@@ -133,7 +133,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
         <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-0.5 [&::-webkit-scrollbar]:hidden">
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1 shrink-0">
             <Flame className="w-3 h-3 text-orange-400" />
-            {isEn ? 'Hot:' : 'Nóng:'}
+            {language === 'zh' ? '热门:' : language === 'ko' ? '인기:' : language === 'en' ? 'Hot:' : 'Nóng:'}
           </span>
           {topCandidates.map((c) => {
             const isSelected = c.symbol === symbol;
@@ -147,7 +147,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
                     ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm shadow-amber-500/30'
                     : 'bg-slate-900/80 text-slate-300 border-slate-700/70 hover:border-amber-500/50 hover:text-amber-300'
                 }`}
-                title={isEn ? `Switch to ${c.symbol}` : `Chuyển sang ${c.symbol}`}
+                title={`${language === 'zh' ? '切换到' : language === 'ko' ? '전환:' : language === 'en' ? 'Switch to' : 'Chuyển sang'} ${c.symbol}`
               >
                 <span>{c.symbol.replace('USDT', '')}</span>
                 <span className={`text-[9px] ${isSelected ? 'text-slate-900 font-extrabold' : 'text-amber-400'}`}>
@@ -176,17 +176,17 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
               {/* Status Badges */}
               {selectedSignal?.hit === true && (
                 <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 rounded-md flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> {isEn ? 'HIT (-8%)' : 'TRÚNG (-8%)'}
+                  <CheckCircle2 className="w-3 h-3" /> {t('ws_hit_status')}
                 </span>
               )}
               {selectedSignal?.hit === false && (
                 <span className="px-2 py-0.5 text-[10px] font-bold bg-red-950 text-red-400 border border-red-800 rounded-md flex items-center gap-1">
-                  <XCircle className="w-3 h-3" /> {isEn ? 'MISSED' : 'TRƯỢT'}
+                  <XCircle className="w-3 h-3" /> {t('ws_missed_status')}
                 </span>
               )}
               {selectedSignal?.hit === null && (
                 <span className="px-2 py-0.5 text-[10px] font-bold bg-slate-900 text-slate-400 border border-slate-700 rounded-md flex items-center gap-1">
-                  <Clock className="w-3 h-3" /> {isEn ? 'PENDING' : 'ĐANG CHỜ'}
+                  <Clock className="w-3 h-3" /> {t('ws_pending_status')}
                 </span>
               )}
               {selectedSignal?.telegram_sent && (
@@ -208,7 +208,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
               </span>
               {isDeepAnalyzing && (
                 <span className="text-[10px] text-amber-400/90 font-mono animate-pulse flex items-center gap-1">
-                  <Activity className="w-3 h-3 animate-spin" /> {isEn ? 'Analyzing...' : 'Đang phân tích...'}
+                  <Activity className="w-3 h-3 animate-spin" /> {t('refreshing')}
                 </span>
               )}
             </div>

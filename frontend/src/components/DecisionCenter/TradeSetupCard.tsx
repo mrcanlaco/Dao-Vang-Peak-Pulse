@@ -18,7 +18,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
   invalidationPrice,
 }) => {
   const { language } = useTranslation();
-  const isEn = language === 'en';
+  
   
   const entry = signalPrice && signalPrice > 0 ? signalPrice : currentPrice;
   if (!entry || entry <= 0) return null;
@@ -52,12 +52,12 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
         <div className="flex items-center gap-1.5">
           <Target className="w-4 h-4 text-amber-400" />
           <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-            {isEn ? 'SHORT TRADE SETUP (PLAN & R:R)' : 'KẾ HOẠCH VÀO LỆNH SHORT (R:R)'}
+            {language === 'zh' ? '做空交易研判计划 (R:R 盈亏比)' : language === 'ko' ? '숏 거래 셋업 계획 (R:R)' : language === 'en' ? 'SHORT TRADE SETUP (PLAN & R:R)' : 'KẾ HOẠCH VÀO LỆNH SHORT (R:R)'}
           </h3>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] text-slate-400 font-mono">
-            {isEn ? 'Risk:Reward' : 'Tỷ lệ Lời/Lỗ'}:
+            {language === 'zh' ? '盈亏比 (Risk:Reward):' : language === 'ko' ? '손익비 (R:R):' : language === 'en' ? 'Risk:Reward:' : 'Tỷ lệ Lời/Lỗ:'}
           </span>
           <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono border ${
             rrRatio >= 2.0
@@ -78,14 +78,14 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
           <div className="flex items-center justify-between text-[10px] text-amber-300 font-semibold mb-1">
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
-              {isEn ? 'ENTRY ZONE' : 'VÙNG VÀO LỆNH'}
+              {language === 'zh' ? '建议入场区间' : language === 'ko' ? '진입 구간' : language === 'en' ? 'ENTRY ZONE' : 'VÙNG VÀO LỆNH'}
             </span>
           </div>
           <div className="text-sm sm:text-base font-black font-mono text-slate-100">
             ${formatPrice(entry)}
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {isEn ? 'Signal / Current' : 'Tín hiệu / Giá hiện tại'}
+            {language === 'zh' ? '信号点 / 现价' : language === 'ko' ? '신호가 / 현재가' : language === 'en' ? 'Signal / Current' : 'Tín hiệu / Giá hiện tại'}
           </div>
         </div>
 
@@ -94,7 +94,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
           <div className="flex items-center justify-between text-[10px] text-red-400 font-semibold mb-1">
             <span className="flex items-center gap-1">
               <ShieldAlert className="w-3 h-3 text-red-400" />
-              {isEn ? 'STOP LOSS (SL)' : 'CẮT LỖ (SL)'}
+              {language === 'zh' ? '止损点 (SL)' : language === 'ko' ? '손절가 (SL)' : language === 'en' ? 'STOP LOSS (SL)' : 'CẮT LỖ (SL)'}
             </span>
             <span className="font-mono text-[9px] text-red-400">+{slPct.toFixed(1)}%</span>
           </div>
@@ -102,7 +102,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
             ${formatPrice(sl)}
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {isEn ? 'Invalidation level' : 'Ngưỡng phá vỡ cấu trúc'}
+            {language === 'zh' ? '结构失效止损线' : language === 'ko' ? '구조 무효화 기준선' : language === 'en' ? 'Invalidation level' : 'Ngưỡng phá vỡ cấu trúc'}
           </div>
         </div>
 
@@ -111,7 +111,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
           <div className="flex items-center justify-between text-[10px] text-emerald-400 font-semibold mb-1">
             <span className="flex items-center gap-1">
               <TrendingDown className="w-3 h-3 text-emerald-400" />
-              {isEn ? 'TARGET 1 (TP1)' : 'CHỐT LỜI 1 (TP1)'}
+              {language === 'zh' ? '第一目标止盈 (TP1)' : language === 'ko' ? '1차 목표가 (TP1)' : language === 'en' ? 'TARGET 1 (TP1)' : 'CHỐT LỜI 1 (TP1)'}
             </span>
             <span className="font-mono text-[9px] text-emerald-400">-{tp1Pct.toFixed(1)}%</span>
           </div>
@@ -119,7 +119,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
             ${formatPrice(tp1)}
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {isEn ? 'Quick drawdown' : 'Mục tiêu nhanh -4%'}
+            {language === 'zh' ? '首轮快速回撤 -4%' : language === 'ko' ? '1차 빠른 하락 -4%' : language === 'en' ? 'Quick drawdown -4%' : 'Mục tiêu nhanh -4%'}
           </div>
         </div>
 
@@ -128,7 +128,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
           <div className="flex items-center justify-between text-[10px] text-emerald-300 font-bold mb-1">
             <span className="flex items-center gap-1">
               <Target className="w-3 h-3 text-emerald-400" />
-              {isEn ? 'TARGET 2 (TP2)' : 'CHỐT LỜI 2 (TP2)'}
+              {language === 'zh' ? '第二目标止盈 (TP2)' : language === 'ko' ? '2차 목표가 (TP2)' : language === 'en' ? 'TARGET 2 (TP2)' : 'CHỐT LỜI 2 (TP2)'}
             </span>
             <span className="font-mono text-[9px] text-emerald-300 font-black">-{tp2Pct.toFixed(1)}%</span>
           </div>
@@ -136,7 +136,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
             ${formatPrice(tp2)}
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {isEn ? 'AI Radar Target -8%' : 'Mục tiêu Radar -8%'}
+            {language === 'zh' ? 'AI 雷达核心目标 -8%' : language === 'ko' ? 'AI 레이더 목표 -8%' : language === 'en' ? 'AI Radar Target -8%' : 'Mục tiêu Radar -8%'}
           </div>
         </div>
       </div>
