@@ -25,7 +25,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
   onSelectCandidate,
   isDeepAnalyzing,
 }) => {
-  const { language } = useTranslation();
+  const { language, t } = useTranslation();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -122,7 +122,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
                   }}
                   className="w-full px-3 py-2 text-left text-xs text-amber-400 hover:bg-slate-800 transition"
                 >
-                  `${language === 'zh' ? '研判分析' : language === 'ko' ? '분석' : language === 'en' ? 'Analyze' : 'Phân tích'} "${searchQuery.toUpperCase()}"`
+                  {`${language === 'zh' ? '研判分析' : language === 'ko' ? '분석' : language === 'en' ? 'Analyze' : 'Phân tích'} "${searchQuery.toUpperCase()}"`}
                 </button>
               )}
             </div>
@@ -147,7 +147,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
                     ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm shadow-amber-500/30'
                     : 'bg-slate-900/80 text-slate-300 border-slate-700/70 hover:border-amber-500/50 hover:text-amber-300'
                 }`}
-                title={`${language === 'zh' ? '切换到' : language === 'ko' ? '전환:' : language === 'en' ? 'Switch to' : 'Chuyển sang'} ${c.symbol}`
+                title={(language === 'zh' ? '切换到 ' : language === 'ko' ? '전환: ' : language === 'en' ? 'Switch to ' : 'Chuyển sang ') + c.symbol}
               >
                 <span>{c.symbol.replace('USDT', '')}</span>
                 <span className={`text-[9px] ${isSelected ? 'text-slate-900 font-extrabold' : 'text-amber-400'}`}>

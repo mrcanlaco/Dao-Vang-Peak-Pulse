@@ -1,5 +1,7 @@
 # ============================================================
 # Đảo Vàng — Docker Compose
+# ============================================================
+# Đảo Vàng — Docker Compose
 # 2 services:
 #   scanner: bộ quét 24/7 (poll Binance → score → Telegram alert)
 #   web:     API server + React frontend (api_server.py port 8000)
@@ -15,19 +17,27 @@ services:
       - .env.docker
     environment:
       - TZ=Asia/Ho_Chi_Minh
+      - DAO_VANG_PATHS__DATA_DIR=/app/data
+      - DAO_VANG_PATHS__RAW_DIR=/app/data/raw
+      - DAO_VANG_PATHS__NORMALIZED_DIR=/app/data/normalized
+      - DAO_VANG_SCANNER__DB_PATH=/app/data/live.duckdb
+      - DAO_VANG_SCANNER__WATCHLIST_PATH=/app/data/watchlist.json
+      - DAO_VANG_SCANNER__KILL_SWITCH_PATH=/app/data/scanner_kill_switch.json
+      - DAO_VANG_SCANNER__ROLLBACK_STATE_PATH=/app/data/scanner_rollback.json
+      - DAO_VANG_SCANNER__HEALTH_REPORT_PATH=/app/data/scanner_health.json
       - DAO_VANG_SCANNER__POLL_INTERVAL_MINUTES=5
-      - DAO_VANG_SCANNER__MAX_COINS=50
+      - DAO_VANG_SCANNER__MAX_COINS=150
       - DAO_VANG_SCANNER__SCAN_MODE=gainers
       - DAO_VANG_SCANNER__MIN_PRICE_CHANGE_PCT=5
       - DAO_VANG_SCANNER__INCLUDE_BTC=true
       - DAO_VANG_SCANNER__EXCLUDE_STABLECOINS=true
       - DAO_VANG_COINGECKO__ENABLED=false
-      - DAO_VANG_SCANNER__DB_PATH=/app/data/scanner.duckdb
     volumes:
-      - dao_vang_data:/app/data
-      - dao_vang_artifacts:/app/artifacts
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+      - ./configs:/app/configs
     command: >
-      dao-vang scanner start
+      dao-vang scanner start --config configs/live.yaml
     logging:
       driver: json-file
       options:
@@ -44,9 +54,15 @@ services:
       - .env.docker
     environment:
       - TZ=Asia/Ho_Chi_Minh
+      - DAO_VANG_WEB__PORT=8000
+      - DAO_VANG_PATHS__DATA_DIR=/app/data
+      - DAO_VANG_PATHS__RAW_DIR=/app/data/raw
+      - DAO_VANG_PATHS__NORMALIZED_DIR=/app/data/normalized
+      - DAO_VANG_SCANNER__DB_PATH=/app/data/live.duckdb
     volumes:
-      - dao_vang_data:/app/data
-      - dao_vang_artifacts:/app/artifacts
+      - ./data:/app/data
+      - ./artifacts:/app/artifacts
+      - ./configs:/app/configs
     depends_on:
       - scanner
     healthcheck:
@@ -60,9 +76,3 @@ services:
       options:
         max-size: "20m"
         max-file: "3"
-
-volumes:
-  dao_vang_data:
-    # DuckDB databases, raw/normalized parquet, watchlist, heartbeat
-  dao_vang_artifacts:
-    # Frozen models, experiment artifacts

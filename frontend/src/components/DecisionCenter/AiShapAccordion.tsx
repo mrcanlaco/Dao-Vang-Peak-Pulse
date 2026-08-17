@@ -12,7 +12,7 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
   shapDrivers,
   deepAnalysis,
 }) => {
-  const { language } = useTranslation();
+  const { language, t } = useTranslation();
   
   const [isExpanded, setIsExpanded] = useState(false);
 
