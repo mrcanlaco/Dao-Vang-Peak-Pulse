@@ -109,7 +109,7 @@ def test_shadow_comparison_persists_paired_rows_without_telegram_lane(tmp_path) 
         == 4
     )
     payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
-    assert payload["telegram_lane"] == "pump_filter_v1"
+    assert payload["telegram_lane"] == "candidate_filter_v2"
     assert payload["challenger_telegram_enabled"] is False
     assert payload["champion_selected"] == 1
     assert payload["challenger_selected"] == 1

@@ -53,8 +53,8 @@ def test_yaml_load(tmp_path: Path) -> None:
 def test_candidate_comparison_defaults_are_safe() -> None:
     comparison = AppSettings().candidate_comparison
     assert comparison.enabled is False
-    assert comparison.champion_version == "pump_filter_v1"
-    assert comparison.challenger_version == "candidate_filter_v2"
+    assert comparison.champion_version == "candidate_filter_v2"
+    assert comparison.challenger_version == "pump_filter_v1"
     assert comparison.min_positive_events == 50
     assert comparison.min_evaluation_days == 14
 

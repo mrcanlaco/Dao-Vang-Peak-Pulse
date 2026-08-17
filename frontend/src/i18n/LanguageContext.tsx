@@ -21,7 +21,7 @@ interface LanguageContextType {
   language: Language;
   setLanguage: (lang: Language) => void;
   toggleLanguage: () => void;
-  t: (key: TranslationKey, fallback?: string) => string;
+  t: (key: TranslationKey | (string & {}), fallback?: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -61,12 +61,12 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     document.documentElement.lang = language;
   }, [language]);
 
-  const t = (key: TranslationKey, fallback?: string): string => {
-    const langDict = translations[language] || translations.vi;
+  const t = (key: TranslationKey | (string & {}), fallback?: string): string => {
+    const langDict = (translations[language] || translations.vi) as Record<string, string>;
     if (key in langDict) {
       return langDict[key];
     }
-    const enDict = translations.en;
+    const enDict = translations.en as Record<string, string>;
     if (key in enDict) {
       return enDict[key];
     }

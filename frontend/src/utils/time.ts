@@ -1,6 +1,13 @@
 export const SYSTEM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 export const SYSTEM_TIME_ZONE_LABEL = 'Hà Nội / Hồ Chí Minh (UTC+7)';
 
+export const getSystemTimeZoneLabel = (lang?: string): string => {
+  if (lang === 'en') return 'Hanoi / HCMC (UTC+7)';
+  if (lang === 'zh') return '河内/胡志明市 (UTC+7)';
+  if (lang === 'ko') return '하노이/호치민 (UTC+7)';
+  return 'Hà Nội / Hồ Chí Minh (UTC+7)';
+};
+
 /**
  * Parse API timestamps without ever falling back to the browser's timezone.
  * Legacy naive values are storage timestamps and therefore represent UTC.

@@ -884,7 +884,7 @@ class ScannerDaemon:
                 str(row[0])
                 for row in conn.execute(
                     "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema='main' ORDER BY table_name"
+                    "WHERE table_schema='main' AND table_type='BASE TABLE' ORDER BY table_name"
                 ).fetchall()
             ]
             ts_candidates = (

@@ -252,8 +252,8 @@ def score_oi_divergence(
         # Scale: OI -5% → 50, OI -10% → 75, OI -20%+ → 100
         score = _clamp_score(50.0 + abs(oi_change_24h) * 250.0)
         explanation = (
-            f"Price +{price_ret_24h:.1%} but OI {oi_change_24h:.1%} — "
-            f"positions unwinding. Pump driven by shorts closing, not new longs."
+            f"Giá tăng +{price_ret_24h:.1%} nhưng OI thay đổi {oi_change_24h:.1%} — "
+            f"các vị thế đang chốt lời. Đà pump đến từ việc short chốt lỗ/thanh lý, không phải dòng tiền long mới."
         )
     return ScoreComponent(
         name="oi_divergence",
@@ -287,21 +287,21 @@ def score_fake_breakout(
     if fake_breakout_1h <= 0.0:
         score = 0.0
         explanation = (
-            "No false breakout in last 1h — no bull trap signal."
+            "Không có tín hiệu phá vỡ giả (bull trap) trong 1h qua."
         )
     else:
         # Scale: feature 0.5 → score 50, feature 1.0 → score 100
         score = _clamp_score(fake_breakout_1h * 100.0)
         if fake_breakout_1h >= 0.5:
             explanation = (
-                f"False breakout detected (strength {fake_breakout_1h:.2f}) — "
-                f"candle poked above prior 1h high then closed back below. "
-                f"Bull trap: FOMO buyers trapped, market makers distributing."
+                f"Phát hiện phá vỡ giả (cường độ {fake_breakout_1h:.2f}) — "
+                f"nến đâm qua đỉnh 1h trước đó rồi tụt xuống đóng cửa bên dưới. "
+                f"Bẫy tăng giá: phe FOMO mắc kẹt, cá mập đang xả hàng."
             )
         else:
             explanation = (
-                f"Minor false breakout (strength {fake_breakout_1h:.2f}) — "
-                f"small reclaim below prior high. Weak bull trap signal."
+                f"Phá vỡ giả nhẹ (cường độ {fake_breakout_1h:.2f}) — "
+                f"chỉ đóng cửa thấp hơn đỉnh cũ một chút. Tín hiệu bẫy tăng giá yếu."
             )
     return ScoreComponent(
         name="fake_breakout",

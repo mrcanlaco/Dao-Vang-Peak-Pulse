@@ -23,7 +23,7 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
   onSelectCoin,
   onCloseDrawer
 }) => {
-  const { language } = useTranslation();
+  const { language, t } = useTranslation();
   const [telegramChatId, setTelegramChatId] = useState('@DaoVangAlerts');
   const [copiedTextSuccess, setCopiedTextSuccess] = useState(false);
 
@@ -45,27 +45,6 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
     setTimeout(() => setCopiedTextSuccess(false), 2000);
   };
 
-  const getTitle = () => {
-    if (language === 'zh') return '研判决策与智能自动化';
-    if (language === 'ko') return '제어 센터 및 스마트 자동화';
-    if (language === 'en') return 'CONTROL CENTER & SMART AUTOMATION';
-    return 'QUYẾT ĐỊNH & TỰ ĐỘNG HÓA THÔNG MINH';
-  };
-
-  const getSubtitle = () => {
-    if (language === 'zh') return '警报推送分发与自动化规则设置';
-    if (language === 'ko') return '경보 발송 및 자동화 설정';
-    if (language === 'en') return 'Alert Dispatch & Automation Settings';
-    return 'Trung tâm phát cảnh báo & Cấu hình tự động';
-  };
-
-  const getTgDispatchTitle = () => {
-    if (language === 'zh') return 'TELEGRAM 警报分发';
-    if (language === 'ko') return '텔레그램 경보 발송';
-    if (language === 'en') return 'TELEGRAM ALERT DISPATCH';
-    return 'CẢNH BÁO QUA TELEGRAM';
-  };
-
   return (
     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 flex flex-col h-full overflow-y-auto space-y-3.5">
       
@@ -74,17 +53,17 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
         <div>
           <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
             <Settings className="w-3.5 h-3.5 text-amber-400" />
-            {getTitle()}
+            {t('drawer_title')}
           </h2>
           <p className="text-[11px] text-slate-400">
-            {getSubtitle()}
+            {t('drawer_subtitle')}
           </p>
         </div>
         {onCloseDrawer && (
           <button
             onClick={onCloseDrawer}
             className="p-1 rounded-md bg-slate-800 hover:bg-red-950 text-slate-400 hover:text-red-400 transition shrink-0"
-            title={language === 'en' ? 'Collapse' : language === 'zh' ? '折叠' : language === 'ko' ? '접기' : 'Thu gọn'}
+            title={t('btn_close')}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -96,7 +75,7 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs font-bold text-sky-400">
             <Send className="w-3.5 h-3.5" />
-            {getTgDispatchTitle()}
+            {t('drawer_tg_dispatch_title')}
           </div>
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
         </div>
@@ -104,7 +83,7 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
         {selectedSignal ? (
           <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800 space-y-1 font-mono text-[11px]">
             <div className="flex justify-between text-slate-300">
-              <span>{language === 'en' ? 'Pair:' : language === 'zh' ? '交易对:' : language === 'ko' ? '페어:' : 'Mã coin:'}</span>
+              <span>{t('col_coin')}:</span>
               {onSelectCoin ? (
                 <CoinLink symbol={selectedSignal.symbol} onClick={onSelectCoin} />
               ) : (
@@ -112,23 +91,23 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
               )}
             </div>
             <div className="flex justify-between text-slate-300">
-              <span>{language === 'en' ? 'Probability:' : language === 'zh' ? '派发概率:' : language === 'ko' ? '분산 확률:' : 'Điểm rủi ro:'}</span>
+              <span>{t('col_prob')}:</span>
               <span className="font-bold text-red-400">{(selectedSignal.probability * 100).toFixed(1)}%</span>
             </div>
             <div className="flex justify-between text-slate-300">
-              <span>{language === 'en' ? 'Target Drawdown:' : language === 'zh' ? '目标回撤:' : language === 'ko' ? '목표 하락:' : 'Mục tiêu giảm:'}</span>
+              <span>{t('metric_target_drawdown')}:</span>
               <span className="font-bold text-red-400">{selectedSignal.target_drawdown}% (${selectedSignal.target_price})</span>
             </div>
           </div>
         ) : (
           <div className="text-xs text-slate-500 italic p-2 text-center">
-            {language === 'en' ? 'Please select a signal to dispatch alert' : language === 'zh' ? '请选择一个信号以分发警报' : language === 'ko' ? '경보를 발송할 신호를 선택하세요' : 'Vui lòng chọn 1 tín hiệu để bắn cảnh báo'}
+            {t('drawer_select_signal_prompt')}
           </div>
         )}
 
         <div>
           <label className="text-[10px] text-slate-400 font-medium">
-            {language === 'en' ? 'Target Channel:' : language === 'zh' ? '目标频道:' : language === 'ko' ? '대상 채널:' : 'Kênh nhận:'}
+            {t('drawer_target_channel')}
           </label>
           <input
             type="text"
@@ -145,7 +124,7 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
             className="py-2 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-slate-950 font-bold rounded-lg text-xs flex items-center justify-center gap-1 transition shadow-md shadow-sky-500/20 disabled:opacity-50"
           >
             <Send className="w-3 h-3" />
-            {language === 'en' ? 'Push Telegram' : language === 'zh' ? '推送 Telegram' : language === 'ko' ? '텔레그램 발송' : 'Bắn Telegram'}
+            {t('drawer_push_telegram')}
           </button>
 
           <button
@@ -154,7 +133,7 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
             className="py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg text-xs flex items-center justify-center gap-1 transition border border-slate-700 disabled:opacity-50"
           >
             {copiedTextSuccess ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-            {language === 'en' ? 'Copy Text' : language === 'zh' ? '复制文本' : language === 'ko' ? '텍스트 복사' : 'Sao chép nội dung'}
+            {copiedTextSuccess ? t('drawer_copied') : t('drawer_copy_text')}
           </button>
         </div>
 
@@ -170,17 +149,17 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
       <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2.5 text-xs">
         <div className="font-bold text-amber-400 flex items-center gap-1.5">
           <Zap className="w-3.5 h-3.5" />
-          {language === 'en' ? 'SMART AUTOMATION RULES' : language === 'zh' ? '智能自动化规则' : language === 'ko' ? '스마트 자동화 규칙' : 'QUY TẮC TỰ ĐỘNG HÓA THÔNG MINH'}
+          {t('drawer_smart_rules_title')}
         </div>
 
         {/* Auto Telegram Toggle */}
         <div className="flex items-center justify-between bg-slate-900 p-2 rounded border border-slate-800">
           <div>
             <div className="font-medium text-slate-200 text-[11px]">
-              {language === 'en' ? 'Auto-push Telegram' : language === 'zh' ? '自动推送 Telegram' : language === 'ko' ? '텔레그램 자동 발송' : 'Tự động bắn Telegram'}
+              {t('drawer_auto_telegram')}
             </div>
             <div className="text-[10px] text-slate-400">
-              {language === 'en' ? 'When probability ≥ 80%' : language === 'zh' ? '当概率 ≥ 80% 时' : language === 'ko' ? '확률 ≥ 80% 일 때' : 'Khi điểm rủi ro ≥ 80%'}
+              {t('drawer_auto_tg_hint')}
             </div>
           </div>
           <input
@@ -195,7 +174,7 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
         <div className="flex items-center justify-between bg-slate-900 p-2 rounded border border-slate-800">
           <div className="flex items-center gap-1.5 text-slate-200">
             <Bell className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[11px]">{language === 'en' ? 'Audio Siren Alert' : language === 'zh' ? '警报音效提示' : language === 'ko' ? '사이렌 사운드 알림' : 'Âm thanh còi báo xả'}</span>
+            <span className="text-[11px]">{t('drawer_audio_alert')}</span>
           </div>
           <input
             type="checkbox"
@@ -208,7 +187,7 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
         {/* Webhook Integration */}
         <div>
           <label className="text-[10px] text-slate-400 font-medium flex items-center gap-1">
-            <Globe className="w-3 h-3 text-sky-400" /> {language === 'en' ? 'Webhook URL (Auto Bot):' : language === 'zh' ? 'Webhook 网址 (自动量化机器人):' : language === 'ko' ? 'Webhook URL (자동 봇):' : 'URL Webhook (bot tự động):'}
+            <Globe className="w-3 h-3 text-sky-400" /> {t('drawer_webhook_label')}
           </label>
           <input
             type="text"
@@ -224,7 +203,7 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
       <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 space-y-2">
         <div className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
           <FileText className="w-3.5 h-3.5 text-amber-400" />
-          {language === 'en' ? 'DATA EXPORT' : language === 'zh' ? '数据导出' : language === 'ko' ? '데이터 내보내기' : 'XUẤT BÁO CÁO'}
+          {t('drawer_export_title')}
         </div>
 
         <button
@@ -239,18 +218,18 @@ export const ActionDrawer: React.FC<ActionDrawerProps> = ({
           }}
           className="w-full py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-amber-400 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition"
         >
-          {language === 'en' ? '📥 Download Signal JSON Config' : language === 'zh' ? '📥 下载信号 JSON 配置' : language === 'ko' ? '📥 신호 JSON 설정 다운로드' : '📥 Tải cấu hình tín hiệu JSON'}
+          {t('drawer_download_json')}
         </button>
       </div>
 
       {/* Spec summary */}
       <div className="p-2.5 bg-amber-950/20 border border-amber-500/20 rounded-xl text-[11px] space-y-1 text-slate-400">
         <div className="font-bold text-amber-400 flex items-center gap-1">
-          <Sparkles className="w-3 h-3" /> {language === 'en' ? 'ENGINE V1.5 SPECIFICATION' : language === 'zh' ? 'V1.5 引擎量化规范' : language === 'ko' ? 'V1.5 엔진 규격' : 'ĐẶC TẢ BỘ MÁY V1.5'}
+          <Sparkles className="w-3 h-3" /> {t('drawer_spec_title')}
         </div>
-        <div>{language === 'en' ? 'Prediction Horizon:' : language === 'zh' ? '预测周期:' : language === 'ko' ? '예측 기간:' : 'Khung dự báo:'} <span className="text-slate-200 font-mono">24h</span></div>
-        <div>{language === 'en' ? 'Target Drawdown:' : language === 'zh' ? '目标回撤:' : language === 'ko' ? '목표 하락폭:' : 'Mục tiêu giảm:'} <span className="text-slate-200 font-mono">≥ 8.0%</span></div>
-        <div>{language === 'en' ? 'Max Adverse Excursion (MAE):' : language === 'zh' ? '最大逆向浮亏 (MAE):' : language === 'ko' ? '최대 역방향 변동 (MAE):' : 'Mức lệch tối đa:'} <span className="text-slate-200 font-mono">≤ 4.0%</span></div>
+        <div>{t('drawer_spec_horizon')} <span className="text-slate-200 font-mono">24h</span></div>
+        <div>{t('drawer_spec_target')} <span className="text-slate-200 font-mono">≥ 8.0%</span></div>
+        <div>{t('drawer_spec_mae')} <span className="text-slate-200 font-mono">≤ 4.0%</span></div>
       </div>
 
     </div>

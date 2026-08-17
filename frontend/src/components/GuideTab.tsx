@@ -142,9 +142,15 @@ export const GuideTab: React.FC = () => {
             </p>
           </div>
           <div className="bg-slate-900 p-2 rounded border border-slate-800">
-            <strong className="text-amber-400">{language === 'en' ? 'Candidate Ranking' : language === 'zh' ? '做空候选榜' : language === 'ko' ? '덤프 후보 순위' : 'Bảng Ứng Viên (Giao dịch)'}</strong>
+            <strong className="text-violet-400">{language === 'en' ? 'Candidate Ranking (V2 Official & V1 A/B Test)' : language === 'zh' ? '做空候选榜 (V2 正式版 & V1 A/B 对照)' : language === 'ko' ? '덤프 후보 순위 (V2 정식 & V1 A/B 대조)' : 'Bảng Ứng Viên (V2 Chính Thức & V1 Đối Soát A/B)'}</strong>
             <p className="text-slate-400 mt-0.5">
-              {language === 'en' ? 'Ranking of coins filtered by distribution risk score.' : language === 'zh' ? '全市场币种按综合派发风险分值排序。点击即可查看深度图表。' : language === 'ko' ? '위험 점수에 따른 전체 코인 랭킹. 클릭하여 상세 분석을 확인하세요.' : 'Bảng xếp hạng tất cả coin theo điểm phân phối tổng hợp. Bấm vào coin để xem phân tích chi tiết.'}
+              {language === 'en'
+                ? 'Ranking coins filtered by V2 Quantitative Multi-stage filter (Official Champion) with parallel V1 A/B testing and extensible V3 AI framework.'
+                : language === 'zh'
+                ? '全市场币种按 V2 多阶段量化过滤器（生产冠军版）排序，支持与 V1 进行 A/B 对照，并预留 V3 AI 扩展。'
+                : language === 'ko'
+                ? 'V2 다단계 정량 필터(실서버 정식)로 전체 코인을 랭킹화하고, V1과 실시간 A/B 대조 및 V3 확장 프레임워크를 제공합니다.'
+                : 'Bảng xếp hạng coin do bộ lọc định lượng đa tầng V2 (Bản Chính Thức) điều phối, hỗ trợ chạy đối soát A/B với V1 và sẵn sàng so sánh với V3.'}
             </p>
           </div>
           <div className="bg-slate-900 p-2 rounded border border-slate-800">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { SignalFeed } from './components/SignalFeed';
 import { MainWorkspace } from './components/MainWorkspace';
@@ -239,10 +239,17 @@ export function App() {
     }
   };
 
+  const coinDetailCache = useRef<Map<string, CoinDetail>>(new Map());
+  const deepAnalysisCache = useRef<Map<string, DeepAnalysis>>(new Map());
+
   const fetchCoinDetail = async (symbol: string) => {
+    if (coinDetailCache.current.has(symbol)) {
+      setCoinDetail(coinDetailCache.current.get(symbol)!);
+    }
     try {
       const res = await fetch(`/api/coin/${symbol}`);
       const data = await res.json();
+      coinDetailCache.current.set(symbol, data);
       setCoinDetail(data);
     } catch (err) {
       console.error(`Error loading detail for ${symbol}:`, err);
@@ -606,10 +613,14 @@ export function App() {
   };
 
   const handleRunDeepAnalysis = async (symbol: string) => {
+    if (deepAnalysisCache.current.has(symbol)) {
+      setDeepAnalysis(deepAnalysisCache.current.get(symbol)!);
+    }
     setIsDeepAnalyzing(true);
     try {
       const res = await fetch(`/api/coin/${symbol}/deep-analysis`);
       const data = await res.json();
+      deepAnalysisCache.current.set(symbol, data);
       setDeepAnalysis(data);
     } catch (err) {
       console.error(`Deep analysis error for ${symbol}:`, err);

@@ -111,17 +111,22 @@ def assemble_candidate_filter_audit(
             )
         )
 
+        volume_24h = float(
+            ticker_by_symbol.get(symbol, {}).get("quoteVolume", 0) or 0
+        )
         pump = pumps.get(symbol)
-        champion_selected = symbol in champion_selected_set
+        v2 = v2_by_symbol.get(symbol)
+
+        # Build V1 Pump Decision
         if pump is not None:
-            champion_stage = "PUMP_CANDIDATE"
-            champion_reasons = (
+            v1_stage = "PUMP_CANDIDATE"
+            v1_reasons = (
                 "daily_pump_threshold_met",
                 "daily_volume_threshold_met",
                 "candidate_selected",
             )
-            champion_rank = pump_ranks.get(symbol)
-            champion_rank_score = float(pump.pump_pct)
+            v1_rank = pump_ranks.get(symbol)
+            v1_rank_score = float(pump.pump_pct)
             peak_price = float(pump.peak_price)
             drawdown = (
                 max(0.0, 1.0 - float(observation.close) / peak_price)
@@ -130,26 +135,26 @@ def assemble_candidate_filter_audit(
             )
             evidence = ("daily_price_pump", "daily_quote_volume")
             pump_score = float(pump.pump_pct)
-            volume_24h = float(pump.quote_volume)
-        elif champion_fallback_all and symbol in production_set:
-            champion_stage = "FALLBACK"
-            champion_reasons = (
+            v1_volume = float(pump.quote_volume)
+            v1_selected = True
+        elif champion_fallback_all and champion_version != "candidate_filter_v2" and symbol in production_set:
+            v1_stage = "FALLBACK"
+            v1_reasons = (
                 "pump_filter_returned_no_candidates",
                 "fallback_all_no_champion_candidates",
                 "candidate_selected",
             )
-            champion_rank = production_ranks.get(symbol)
-            champion_rank_score = None
+            v1_rank = production_ranks.get(symbol)
+            v1_rank_score = None
             peak_price = None
             drawdown = None
             evidence = ()
             pump_score = None
-            volume_24h = float(
-                ticker_by_symbol.get(symbol, {}).get("quoteVolume", 0) or 0
-            )
+            v1_volume = volume_24h
+            v1_selected = symbol in champion_selected_set
         else:
-            champion_stage = "REJECTED"
-            champion_reasons = (
+            v1_stage = "REJECTED"
+            v1_reasons = (
                 (
                     "pump_filter_rejected"
                     if symbol in production_set
@@ -157,40 +162,37 @@ def assemble_candidate_filter_audit(
                 ),
                 "candidate_rejected",
             )
-            champion_rank = None
-            champion_rank_score = None
+            v1_rank = None
+            v1_rank_score = None
             peak_price = None
             drawdown = None
             evidence = ()
             pump_score = None
-            volume_24h = float(
-                ticker_by_symbol.get(symbol, {}).get("quoteVolume", 0) or 0
-            )
+            v1_volume = volume_24h
+            v1_selected = False
 
-        champion = FilterAuditDecision(
+        v1_decision = FilterAuditDecision(
             symbol=symbol,
-            filter_version=champion_version,
-            selected=champion_selected,
-            stage=champion_stage,
+            filter_version="pump_filter_v1",
+            selected=v1_selected,
+            stage=v1_stage,
             observed_at=observation.observed_at,
             reference_price=float(observation.close),
-            rank=champion_rank if champion_selected else None,
-            rank_score=champion_rank_score,
+            rank=v1_rank if v1_selected else None,
+            rank_score=v1_rank_score,
             pump_score=pump_score,
             peak_price=peak_price,
             drawdown_from_peak=drawdown,
-            volume_24h_usd=volume_24h,
+            volume_24h_usd=v1_volume,
             evidence_groups=evidence,
-            reason_codes=champion_reasons,
+            reason_codes=v1_reasons,
         )
-        champion_rows.append(champion)
-        audit_decisions.append(champion)
 
-        v2 = v2_by_symbol.get(symbol)
+        # Build V2 Quant Decision
         if v2 is None:
-            challenger = FilterAuditDecision(
+            v2_decision = FilterAuditDecision(
                 symbol=symbol,
-                filter_version=challenger_version,
+                filter_version="candidate_filter_v2",
                 selected=False,
                 stage="DATA_UNAVAILABLE",
                 observed_at=observation.observed_at,
@@ -199,14 +201,12 @@ def assemble_candidate_filter_audit(
                 reason_codes=("challenger_decision_missing", "candidate_rejected"),
             )
         else:
-            challenger = FilterAuditDecision(
+            v2_decision = FilterAuditDecision(
                 symbol=symbol,
-                filter_version=challenger_version,
+                filter_version="candidate_filter_v2",
                 selected=bool(v2.selected),
                 stage=str(v2.stage),
                 observed_at=observation.observed_at,
-                # Labels for both lanes must start from the same tradable
-                # market price, not from v2's historical pump reference.
                 reference_price=float(observation.close),
                 rank=v2.rank,
                 rank_score=float(v2.rank_score),
@@ -220,6 +220,69 @@ def assemble_candidate_filter_audit(
                 evidence_groups=tuple(v2.evidence_groups),
                 reason_codes=tuple(v2.reason_codes),
             )
+
+        # Map to Champion & Challenger according to configured versions
+        if champion_version == "candidate_filter_v2":
+            champion = v2_decision
+            # If champion is v2, assign challenger
+            if challenger_version == "pump_filter_v1":
+                challenger = v1_decision
+            else:
+                challenger = FilterAuditDecision(
+                    symbol=symbol,
+                    filter_version=challenger_version,
+                    selected=v1_decision.selected,
+                    stage=v1_decision.stage,
+                    observed_at=v1_decision.observed_at,
+                    reference_price=v1_decision.reference_price,
+                    rank=v1_decision.rank,
+                    rank_score=v1_decision.rank_score,
+                    pump_score=v1_decision.pump_score,
+                    peak_price=v1_decision.peak_price,
+                    drawdown_from_peak=v1_decision.drawdown_from_peak,
+                    volume_24h_usd=v1_decision.volume_24h_usd,
+                    evidence_groups=v1_decision.evidence_groups,
+                    reason_codes=v1_decision.reason_codes,
+                )
+        else:
+            champion = FilterAuditDecision(
+                symbol=symbol,
+                filter_version=champion_version,
+                selected=v1_decision.selected,
+                stage=v1_decision.stage,
+                observed_at=v1_decision.observed_at,
+                reference_price=v1_decision.reference_price,
+                rank=v1_decision.rank,
+                rank_score=v1_decision.rank_score,
+                pump_score=v1_decision.pump_score,
+                peak_price=v1_decision.peak_price,
+                drawdown_from_peak=v1_decision.drawdown_from_peak,
+                volume_24h_usd=v1_decision.volume_24h_usd,
+                evidence_groups=v1_decision.evidence_groups,
+                reason_codes=v1_decision.reason_codes,
+            )
+            challenger = FilterAuditDecision(
+                symbol=symbol,
+                filter_version=challenger_version,
+                selected=v2_decision.selected,
+                stage=v2_decision.stage,
+                observed_at=v2_decision.observed_at,
+                reference_price=v2_decision.reference_price,
+                rank=v2_decision.rank,
+                rank_score=v2_decision.rank_score,
+                pump_score=v2_decision.pump_score,
+                transition_score=v2_decision.transition_score,
+                peak_price=v2_decision.peak_price,
+                peak_time=v2_decision.peak_time,
+                peak_age_hours=v2_decision.peak_age_hours,
+                drawdown_from_peak=v2_decision.drawdown_from_peak,
+                volume_24h_usd=v2_decision.volume_24h_usd,
+                evidence_groups=v2_decision.evidence_groups,
+                reason_codes=v2_decision.reason_codes,
+            )
+
+        champion_rows.append(champion)
+        audit_decisions.append(champion)
         challenger_rows.append(challenger)
         audit_decisions.append(challenger)
 

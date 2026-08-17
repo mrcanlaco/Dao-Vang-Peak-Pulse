@@ -4,7 +4,7 @@ import { parseSystemDate } from '../utils/time';
 import { Clock, TrendingDown, Send, Copy, Check, Volume2, AlertOctagon, X, ChevronDown, ChevronUp, Flame, Zap, Eye } from 'lucide-react';
 import { CoinLink } from './CoinLink';
 import { useTranslation } from '../i18n/LanguageContext';
-import { getRiskLabel } from '../i18n/translations';
+import { getRiskLabel, formatDuration } from '../i18n/translations';
 
 interface SignalFeedProps {
   signals: SignalItem[];
@@ -43,7 +43,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
   isCollapsed = false,
   onToggleCollapse
 }) => {
-  const { language } = useTranslation();
+  const { language, t } = useTranslation();
   const [, setTicks] = useState(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -154,27 +154,6 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
     return parseSystemDate(value);
   };
 
-  const formatDuration = (totalSeconds: number) => {
-    const seconds = Math.max(0, Math.floor(totalSeconds));
-    const days = Math.floor(seconds / 86400);
-    const hours = Math.floor((seconds % 86400) / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (language === 'en') {
-      if (days > 0) return `${days}d ${hours}h`;
-      return `${hours}h ${minutes.toString().padStart(2, '0')}m`;
-    }
-    if (language === 'zh') {
-      if (days > 0) return `${days}天 ${hours}小时`;
-      return `${hours}小时 ${minutes.toString().padStart(2, '0')}分钟`;
-    }
-    if (language === 'ko') {
-      if (days > 0) return `${days}일 ${hours}시간`;
-      return `${hours}시간 ${minutes.toString().padStart(2, '0')}분`;
-    }
-    if (days > 0) return `${days} ngày ${hours} giờ`;
-    return `${hours} giờ ${minutes.toString().padStart(2, '0')} phút`;
-  };
-
   const getSignalTiming = (sig: SignalItem) => {
     const now = Date.now();
     const signalDate = parseSignalDate(sig.signal_time);
@@ -192,8 +171,8 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
       : Math.max(0, totalSeconds - signalElapsedSeconds);
     const progress = Math.min(100, Math.max(0, (signalElapsedSeconds / totalSeconds) * 100));
     return {
-      elapsedLabel: formatDuration(reportedElapsedSeconds),
-      remainingLabel: formatDuration(remainingSeconds),
+      elapsedLabel: formatDuration(reportedElapsedSeconds, language),
+      remainingLabel: formatDuration(remainingSeconds, language),
       remainingSeconds,
       progress,
       isExpired: remainingSeconds <= 0,
@@ -218,22 +197,22 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
   };
 
   const getSortLabel = (sort: SignalSort) => {
-    const map: Record<SignalSort, Record<string, string>> = {
-      NEWEST: { vi: 'Mới nhất', en: 'Newest', zh: '最新触发', ko: '최신 발생순' },
-      HIGHEST_PROBABILITY: { vi: 'Xác suất cao', en: 'Highest Prob', zh: '最高概率', ko: '확률 높은순' },
-      HIGHEST_RISK: { vi: 'Rủi ro cao', en: 'Highest Risk', zh: '最高风险', ko: '위험도 높은순' },
-      EXPIRING_SOON: { vi: 'Sắp hết hạn', en: 'Expiring Soon', zh: '即将过期', ko: '마감 임박순' },
-    };
-    return map[sort]?.[language] ?? sort;
+    switch (sort) {
+      case 'NEWEST': return t('sort_newest');
+      case 'HIGHEST_PROBABILITY': return t('sort_prob_desc');
+      case 'HIGHEST_RISK': return t('sort_risk_desc');
+      case 'EXPIRING_SOON': return t('sort_expiring_soon');
+      default: return sort;
+    }
   };
 
   const getTelegramFilterLabel = (filter: TelegramFilter) => {
-    const map: Record<TelegramFilter, Record<string, string>> = {
-      ALL: { vi: 'Tất cả', en: 'All', zh: '全部', ko: '전체' },
-      SENT: { vi: 'Đã gửi', en: 'Sent', zh: '已发送', ko: '전송됨' },
-      UNSENT: { vi: 'Chưa gửi', en: 'Unsent', zh: '未发送', ko: '미전송' },
-    };
-    return map[filter]?.[language] ?? filter;
+    switch (filter) {
+      case 'ALL': return t('feed_tg_all');
+      case 'SENT': return t('feed_tg_sent');
+      case 'UNSENT': return t('feed_tg_unsent');
+      default: return filter;
+    }
   };
 
   return (
@@ -245,7 +224,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
           <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
           <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
             <AlertOctagon className="w-3.5 h-3.5 text-red-500" />
-            {language === 'en' ? 'LIVE RADAR FEED' : language === 'zh' ? '实时预警雷达' : language === 'ko' ? '실시간 레이더 피드' : 'RADAR CẢNH BÁO TỨC THỜI'}
+            {t('feed_live_title')}
           </h2>
         </div>
         <div className="flex items-center gap-1.5">
@@ -268,8 +247,8 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
               className="lg:hidden min-h-8 min-w-8 inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-800/80 text-slate-300 transition hover:border-amber-500/60 hover:text-amber-300 active:scale-95"
               aria-expanded={!isCollapsed}
               aria-controls="radar-signal-list"
-              aria-label={isCollapsed ? (language === 'en' ? 'Expand Radar' : 'Mở Radar') : (language === 'en' ? 'Collapse Radar' : 'Đóng Radar')}
-              title={isCollapsed ? (language === 'en' ? 'Expand Radar' : 'Mở Radar') : (language === 'en' ? 'Collapse Radar' : 'Đóng Radar')}
+              aria-label={isCollapsed ? t('btn_track') : t('btn_tracked')}
+              title={isCollapsed ? t('btn_track') : t('btn_tracked')}
             >
               {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
             </button>
@@ -281,15 +260,15 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
         <div className="mb-2.5 rounded-lg border border-slate-800/80 bg-slate-950/70 p-1.5">
           <div className="flex items-center justify-between gap-2 mb-1.5 px-0.5">
             <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">
-              {language === 'en' ? 'Radar Quick Filters' : language === 'zh' ? '雷达快捷过滤器' : language === 'ko' ? '레이더 빠른 필터' : 'Bộ lọc nhanh trong Radar'}
+              {t('feed_quick_filters')}
             </span>
             <span className="text-[9px] font-mono text-slate-500">
-              {signals.length} {language === 'en' ? 'results' : language === 'zh' ? '条结果' : language === 'ko' ? '개' : 'kết quả'}
+              {signals.length} {t('feed_results_count')}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-1.5 mb-1.5">
             <label className="flex items-center gap-1.5 rounded-md border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] text-slate-400">
-              <span className="shrink-0 text-slate-500">{language === 'en' ? 'Sort' : language === 'zh' ? '排序' : language === 'ko' ? '정렬' : 'Sắp xếp'}</span>
+              <span className="shrink-0 text-slate-500">{t('feed_filter_sort')}</span>
               <select
                 value={signalSort}
                 onChange={event => setSignalSort(event.target.value as SignalSort)}
@@ -304,7 +283,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
               </select>
             </label>
             <label className="flex items-center gap-1.5 rounded-md border border-slate-800 bg-slate-900 px-2 py-1 text-[10px] text-slate-400">
-              <span className="shrink-0 text-slate-500">{language === 'en' ? 'Status' : language === 'zh' ? 'TG状态' : language === 'ko' ? 'TG상태' : 'Trạng thái'}</span>
+              <span className="shrink-0 text-slate-500">{t('feed_filter_status')}</span>
               <select
                 value={telegramFilter}
                 onChange={event => setTelegramFilter(event.target.value as TelegramFilter)}
@@ -328,7 +307,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200'
               }`}
             >
-              {language === 'en' ? 'All' : language === 'zh' ? '全部' : language === 'ko' ? '전체' : 'Tất cả'}
+              {t('feed_tag_all')}
             </button>
             <button
               type="button"
@@ -339,7 +318,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-red-900/70 hover:text-red-300'
               }`}
             >
-              <Flame className="w-3 h-3" /> {language === 'en' ? 'High ≥75%' : language === 'zh' ? '高风险 ≥75%' : language === 'ko' ? '고위험 ≥75%' : 'Cao ≥75%'}
+              <Flame className="w-3 h-3" /> {t('feed_tag_hot_risk')}
             </button>
             <button
               type="button"
@@ -350,7 +329,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-amber-900/70 hover:text-amber-300'
               }`}
             >
-              <Clock className="w-3 h-3" /> {language === 'en' ? 'Expiring Soon' : language === 'zh' ? '即将过期' : language === 'ko' ? '마감 임박' : 'Sắp hết hạn'}
+              <Clock className="w-3 h-3" /> {t('feed_tag_expiring')}
             </button>
             <button
               type="button"
@@ -361,7 +340,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-sky-900/70 hover:text-sky-300'
               }`}
             >
-              <Zap className="w-3 h-3" /> {language === 'en' ? 'Volume Spike' : language === 'zh' ? '量能异动' : language === 'ko' ? '거래량 급증' : 'Tăng đột biến KL'}
+              <Zap className="w-3 h-3" /> {t('feed_tag_volume_spike')}
             </button>
             <button
               type="button"
@@ -372,7 +351,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-emerald-900/70 hover:text-emerald-300'
               }`}
             >
-              {language === 'en' ? 'Active' : language === 'zh' ? '有效中' : language === 'ko' ? '유효' : 'Đang hiệu lực'}
+              {t('feed_tag_active')}
             </button>
             <button
               type="button"
@@ -383,7 +362,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200'
               }`}
             >
-              {language === 'en' ? 'Expired' : language === 'zh' ? '已失效' : language === 'ko' ? '만료됨' : 'Đã hết hạn'}
+              {t('feed_tag_expired')}
             </button>
           </div>
         </div>
@@ -393,7 +372,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
       {!isCollapsed && <div id="radar-signal-list" className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1">
         {groupedSignals.length === 0 ? (
           <div className="p-8 text-center text-slate-500 text-xs">
-            {language === 'en' ? 'No signals match the current filter criteria.' : language === 'zh' ? '当前过滤条件下未发现符合条件的信号。' : language === 'ko' ? '현재 필터 조건에 부합하는 신호가 없습니다.' : 'Không có tín hiệu phù hợp với điều kiện lọc hiện tại.'}
+            {t('feed_no_matching')}
           </div>
         ) : (
           groupedSignals.map(({ signal: sig, count }) => {
@@ -428,7 +407,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 <div className="grid grid-cols-2 gap-2 mb-2 bg-slate-900/70 p-2 rounded-lg border border-slate-800/60">
                   <div>
                     <div className="text-[9px] text-slate-400 uppercase font-medium">
-                      {language === 'en' ? 'Distribution Prob (AI)' : language === 'zh' ? '派发概率 (AI)' : language === 'ko' ? '분산 확률 (AI)' : 'Xác suất xả (AI)'}
+                      {t('feed_dist_prob')}
                     </div>
                     <div className="text-base font-extrabold text-amber-400 font-mono">
                       {probPct}%
@@ -436,7 +415,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   </div>
                   <div>
                     <div className="text-[9px] text-slate-400 uppercase font-medium">
-                      {language === 'en' ? 'Target Drawdown' : language === 'zh' ? '目标回撤' : language === 'ko' ? '목표 하락폭' : 'Mục tiêu giảm'}
+                      {t('feed_target_drawdown')}
                     </div>
                     <div className="text-xs font-bold text-red-400 font-mono flex items-center gap-1">
                       <TrendingDown className="w-3.5 h-3.5" />
@@ -467,17 +446,17 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                       <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
                         <div className="flex items-center gap-1 text-slate-400">
                           <Clock className="w-3 h-3 text-sky-400" />
-                          <span>{language === 'en' ? 'Reported:' : language === 'zh' ? '已触发:' : language === 'ko' ? '발생:' : 'Đã báo:'}</span>
+                          <span>{t('feed_reported')}:</span>
                           <span className="text-sky-300 font-semibold">{timing.elapsedLabel}</span>
                         </div>
                         <div className={`flex items-center justify-end gap-1 ${timing.isExpired ? 'text-red-400' : 'text-slate-400'}`}>
-                          <span>{language === 'en' ? 'Left:' : language === 'zh' ? '剩余:' : language === 'ko' ? '잔여:' : 'Còn:'}</span>
+                          <span>{t('feed_left')}:</span>
                           <span className={`font-semibold ${timing.isExpired ? 'text-red-400' : timing.remainingSeconds <= 7200 ? 'text-red-300' : 'text-amber-300'}`}>
-                            {timing.isExpired ? (language === 'en' ? 'Expired' : language === 'zh' ? '已过期' : language === 'ko' ? '만료' : 'Hết hạn') : timing.remainingLabel}
+                            {timing.isExpired ? t('feed_tag_expired') : timing.remainingLabel}
                           </span>
                         </div>
                       </div>
-                      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-800" title={`${timing.progress.toFixed(0)}% ${language === 'en' ? 'elapsed validity' : language === 'zh' ? '有效期进度' : language === 'ko' ? '유효 기간 경과율' : 'thời gian hiệu lực đã trôi qua'}`}>
+                      <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-800" title={`${timing.progress.toFixed(0)}%`}>
                         <div
                           className={`h-full rounded-full transition-all ${timing.isExpired ? 'bg-red-500' : timing.remainingSeconds <= 7200 ? 'bg-gradient-to-r from-amber-500 to-red-500' : 'bg-sky-500'}`}
                           style={{ width: `${timing.progress}%` }}
@@ -489,7 +468,6 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
 
                 {/* Action Buttons */}
                 <div className="flex items-center justify-end text-[10px] pt-1">
-
                   <div className="flex items-center gap-1">
                     <button
                       onClick={(e) => {
@@ -497,7 +475,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                         handleCopyAlertText(sig);
                       }}
                       className="p-1 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 rounded text-[10px] flex items-center gap-1 transition"
-                      title={language === 'en' ? 'Copy formatted alert message' : language === 'zh' ? '复制预警格式化文本' : language === 'ko' ? '경보 메시지 복사' : 'Sao chép tin nhắn cảnh báo dạng văn bản'}
+                      title={t('drawer_copy_text')}
                     >
                       {copiedId === sig.id ? (
                         <Check className="w-3 h-3 text-emerald-400" />
@@ -516,10 +494,10 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                         className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition border ${isSignalTracked?.(sig)
                           ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
                           : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-sky-800 hover:bg-sky-950 hover:text-sky-300'}`}
-                        title={isSignalTracked?.(sig) ? (language === 'en' ? 'Already in tracking list' : language === 'zh' ? '已在跟踪列表中' : language === 'ko' ? '이미 추적 중' : 'Đang có trong danh sách theo dõi') : (language === 'en' ? 'Track this coin performance' : language === 'zh' ? '跟踪该币种走势' : language === 'ko' ? '이 코인 추적' : 'Theo dõi tiến trình coin này')}
+                        title={isSignalTracked?.(sig) ? t('btn_tracked') : t('btn_track')}
                       >
                         <Eye className="w-2.5 h-2.5" />
-                        {isSignalTracked?.(sig) ? (language === 'en' ? 'Tracked' : language === 'zh' ? '已跟踪' : language === 'ko' ? '추적 중' : 'Đang theo dõi') : (language === 'en' ? 'Track' : language === 'zh' ? '跟踪' : language === 'ko' ? '추적' : 'Theo dõi')}
+                        {isSignalTracked?.(sig) ? t('btn_tracked') : t('btn_track')}
                       </button>
                     )}
 
@@ -529,7 +507,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                         onPushTelegram(sig);
                       }}
                       className="px-2 py-0.5 bg-sky-950 hover:bg-sky-900 border border-sky-800 text-sky-400 rounded text-[10px] font-semibold flex items-center gap-1 transition"
-                      title={language === 'en' ? 'Push alert to Telegram' : language === 'zh' ? '推送至 Telegram' : language === 'ko' ? '텔레그램으로 전송' : 'Bắn cảnh báo sang Telegram'}
+                      title={t('drawer_push_telegram')}
                     >
                       <Send className="w-2.5 h-2.5" />
                       Telegram
@@ -542,7 +520,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                           onDismissSignal(sig);
                         }}
                         className="p-1 bg-slate-900 hover:bg-red-950 border border-slate-800 hover:border-red-800 text-slate-400 hover:text-red-400 rounded text-[10px] transition"
-                        title={language === 'en' ? 'Dismiss this signal' : language === 'zh' ? '隐藏该信号' : language === 'ko' ? '신호 숨기기' : 'Ẩn tín hiệu này'}
+                        title={t('btn_close')}
                       >
                         <X className="w-3 h-3" />
                       </button>

@@ -151,8 +151,8 @@ class CandidateComparisonConfig(BaseModel):
     """
 
     enabled: bool = False
-    champion_version: str = "pump_filter_v1"
-    challenger_version: str = "candidate_filter_v2"
+    champion_version: str = "candidate_filter_v2"
+    challenger_version: str = "pump_filter_v1"
     universe_size: int = Field(default=150, ge=10, le=500)
     max_candidates: int = Field(default=30, ge=1, le=100)
     max_workers: int = Field(default=4, ge=1, le=16)

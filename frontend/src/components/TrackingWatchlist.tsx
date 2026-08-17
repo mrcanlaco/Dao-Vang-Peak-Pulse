@@ -107,7 +107,7 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
   onUpdateItem,
   onRemoveItem,
 }) => {
-  const { language } = useTranslation();
+  const { language, t } = useTranslation();
 
   const [filter, setFilter] = useState<TrackingFilter>('ACTIVE');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -189,16 +189,10 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
         <div>
           <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-100">
             <Target className="h-4 w-4 text-amber-400" />
-            {language === 'en' ? 'Signal & PnL Performance Tracking' : language === 'zh' ? '信号验证与 PnL 盈亏表现跟踪' : language === 'ko' ? '신호 및 PnL 실적 추적' : 'Theo dõi tiến trình & Hiệu quả PnL'}
+            {t('track_title')}
           </h2>
           <p className="mt-1 text-[11px] text-slate-500">
-            {language === 'en' 
-              ? 'Independent performance tracking pool from 24/7 scanner alerts.' 
-              : language === 'zh' 
-              ? '独立于 24/7 扫描池的个人跟单与 PnL 盈亏追踪表。' 
-              : language === 'ko' 
-              ? '24/7 스캐너와 분리된 개별 신호 및 손익(PnL) 추적 공간입니다.' 
-              : 'Tách khỏi danh sách coin mà scanner dùng để quét.'}
+            {t('track_subtitle')}
           </p>
         </div>
         <button
@@ -208,25 +202,25 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
           className="inline-flex h-8 items-center justify-center gap-1.5 self-start rounded-lg border border-slate-700 bg-slate-900 px-3 text-[11px] font-semibold text-slate-300 transition hover:border-amber-500/60 hover:text-amber-300 disabled:opacity-60 sm:self-auto"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-          {language === 'en' ? 'Refresh Prices' : language === 'zh' ? '刷新行情' : language === 'ko' ? '시세 새로고침' : 'Cập nhật giá'}
+          {t('track_refresh_price')}
         </button>
       </div>
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <div className="rounded-xl border border-amber-800/60 bg-amber-950/30 p-3">
-          <div className="text-[10px] uppercase text-slate-500">{language === 'en' ? 'Total Tracked' : language === 'zh' ? '跟踪总数' : language === 'ko' ? '총 추적' : 'Đang theo dõi'}</div>
+          <div className="text-[10px] uppercase text-slate-500">{t('track_stat_total')}</div>
           <div className="mt-1 text-xl font-black text-amber-300">{stats.total}</div>
         </div>
         <div className="rounded-xl border border-sky-800/60 bg-sky-950/30 p-3">
-          <div className="text-[10px] uppercase text-slate-500">{language === 'en' ? 'Radar Active' : language === 'zh' ? '雷达有效' : language === 'ko' ? '레이더 유효' : 'Radar còn hiệu lực'}</div>
+          <div className="text-[10px] uppercase text-slate-500">{t('track_stat_active')}</div>
           <div className="mt-1 text-xl font-black text-sky-300">{stats.activeSignals}</div>
         </div>
         <div className="rounded-xl border border-purple-800/60 bg-purple-950/30 p-3">
-          <div className="text-[10px] uppercase text-slate-500">{language === 'en' ? 'In Position' : language === 'zh' ? '持仓中' : language === 'ko' ? '포지션 보유' : 'Đang vào lệnh'}</div>
+          <div className="text-[10px] uppercase text-slate-500">{t('track_stat_in_pos')}</div>
           <div className="mt-1 text-xl font-black text-purple-300">{stats.positions}</div>
         </div>
         <div className="rounded-xl border border-red-800/60 bg-red-950/30 p-3">
-          <div className="text-[10px] uppercase text-slate-500">{language === 'en' ? 'Attention Needed' : language === 'zh' ? '需关注' : language === 'ko' ? '주의 필요' : 'Cần chú ý'}</div>
+          <div className="text-[10px] uppercase text-slate-500">{t('track_stat_attention')}</div>
           <div className="mt-1 text-xl font-black text-red-300">{stats.attention}</div>
         </div>
       </div>
@@ -247,16 +241,16 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
       {isLoading && items.length === 0 ? (
         <div className="rounded-xl border border-slate-800 bg-slate-950 p-10 text-center text-xs text-slate-500">
           <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin text-amber-400" />
-          {language === 'en' ? 'Loading tracking list...' : language === 'zh' ? '正在加载跟踪列表...' : language === 'ko' ? '추적 목록 로드 중...' : 'Đang tải danh sách theo dõi...'}
+          {t('track_empty_desc')}
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/60 p-10 text-center">
           <Eye className="mx-auto mb-2 h-6 w-6 text-slate-600" />
           <div className="text-xs font-semibold text-slate-400">
-            {language === 'en' ? 'No coins in this group' : language === 'zh' ? '当前分组暂无币种' : language === 'ko' ? '이 그룹에 코인이 없습니다' : 'Chưa có coin trong nhóm này'}
+            {t('track_empty_title')}
           </div>
           <div className="mt-1 text-[11px] text-slate-600">
-            {language === 'en' ? 'Click "Track" on any Radar alert to start monitoring performance.' : language === 'zh' ? '在任意雷达警报卡片上点击“跟踪”即可开始监控。' : language === 'ko' ? '레이더 경보 카드에서 "추적"을 클릭하여 모니터링을 시작하세요.' : 'Bấm "Theo dõi" trên một cảnh báo Radar để bắt đầu.'}
+            {t('track_empty_desc')}
           </div>
         </div>
       ) : (
@@ -295,19 +289,19 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
                       <div className="text-[10px] text-slate-500">{formatPrice(item.source_price)}</div>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2">
-                      <div className="text-[9px] uppercase text-slate-500">{language === 'en' ? 'Current Price' : language === 'zh' ? '当前行情价' : language === 'ko' ? '현재가' : 'Giá hiện tại'}</div>
+                      <div className="text-[9px] uppercase text-slate-500">{t('track_card_cur_price')}</div>
                       <div className="mt-0.5 font-mono text-xs font-bold text-slate-100">{formatPrice(item.current_price)}</div>
                       <div className={`text-[10px] ${positiveSignalChange ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {formatPercent(item.signal_change_pct, true)} {language === 'en' ? 'from Radar' : language === 'zh' ? '较警报点' : language === 'ko' ? '경보 시점 대비' : 'từ Radar'}
+                        {formatPercent(item.signal_change_pct, true)}
                       </div>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2">
-                      <div className="text-[9px] uppercase text-slate-500">{language === 'en' ? 'Target Progress' : language === 'zh' ? '目标进度 (-8%)' : language === 'ko' ? '목표 진행률' : 'Tiến trình mục tiêu'}</div>
+                      <div className="text-[9px] uppercase text-slate-500">{t('track_card_target_prog')}</div>
                       <div className="mt-0.5 font-mono text-xs font-bold text-amber-300">{formatPercent(item.signal_progress_pct)}</div>
                       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-gradient-to-r from-amber-600 to-emerald-400" style={{ width: `${progress}%` }} /></div>
                     </div>
                     <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2">
-                      <div className="text-[9px] uppercase text-slate-500">{language === 'en' ? 'Position / PnL' : language === 'zh' ? '持仓 / 盈亏' : language === 'ko' ? '포지션 / 손익' : 'Vị thế / PnL'}</div>
+                      <div className="text-[9px] uppercase text-slate-500">{t('track_card_pos_pnl')}</div>
                       {item.status === 'IN_POSITION' ? (
                         <>
                           <div className={`mt-0.5 flex items-center gap-1 font-mono text-xs font-bold ${positivePnl ? 'text-emerald-400' : 'text-red-400'}`}>
@@ -316,7 +310,7 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
                           </div>
                           <div className={`text-[10px] ${positivePnl ? 'text-emerald-500' : 'text-red-500'}`}>ROI {formatPercent(item.position_roi_pct, true)} · PnL {formatMoney(item.position_pnl)}</div>
                         </>
-                      ) : <div className="mt-0.5 text-xs text-slate-500">{language === 'en' ? 'No position entered' : language === 'zh' ? '未录入持仓' : language === 'ko' ? '포지션 미입력' : 'Chưa nhập lệnh'}</div>}
+                      ) : <div className="mt-0.5 text-xs text-slate-500">{t('track_no_position')}</div>}
                     </div>
                   </div>
 
@@ -324,17 +318,17 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
                     {item.status !== 'CLOSED' && (
                       <button type="button" onClick={() => openEditor(item)} disabled={isUpdating} className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-[10px] font-semibold text-slate-300 transition hover:border-amber-500/60 hover:text-amber-300 disabled:opacity-50">
                         {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pencil className="h-3 w-3" />}
-                        {item.status === 'IN_POSITION' ? (language === 'en' ? 'Edit Position' : language === 'zh' ? '修改持仓' : language === 'ko' ? '포지션 수정' : 'Sửa lệnh') : (language === 'en' ? 'Enter Position' : language === 'zh' ? '录入持仓' : language === 'ko' ? '포지션 입력' : 'Đã vào lệnh')}
+                        {item.status === 'IN_POSITION' ? t('track_btn_edit_pos') : t('track_btn_enter_pos')}
                       </button>
                     )}
                     {item.status === 'IN_POSITION' && (
                       <button type="button" onClick={() => void closeTracking(item)} disabled={isUpdating} className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-800/70 bg-emerald-950/40 px-2.5 text-[10px] font-semibold text-emerald-300 transition hover:bg-emerald-950 disabled:opacity-50">
-                        <CheckCircle2 className="h-3 w-3" /> {language === 'en' ? 'Close Position' : language === 'zh' ? '平仓结算' : language === 'ko' ? '포지션 종료' : 'Đóng lệnh'}
+                        <CheckCircle2 className="h-3 w-3" /> {t('track_btn_close_pos')}
                       </button>
                     )}
                     {item.status === 'CLOSED' && (
                       <button type="button" onClick={() => void onRemoveItem(item.id)} disabled={isUpdating} className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-900/70 bg-red-950/40 px-2.5 text-[10px] font-semibold text-red-300 transition hover:bg-red-950 disabled:opacity-50">
-                        <Archive className="h-3 w-3" /> {language === 'en' ? 'Delete' : language === 'zh' ? '删除' : language === 'ko' ? '삭제' : 'Xóa'}
+                        <Archive className="h-3 w-3" /> {t('track_btn_delete')}
                       </button>
                     )}
                   </div>
@@ -344,40 +338,40 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
                   <span className="inline-flex items-center gap-1">
                     <Clock3 className="h-3 w-3 text-sky-400" />
                     {item.validity_hours_left == null 
-                      ? (language === 'en' ? 'No expiration' : language === 'zh' ? '无有效期限制' : language === 'ko' ? '만료 기한 없음' : 'Không có thời hạn') 
+                      ? t('feed_no_matching')
                       : item.validity_hours_left > 0 
-                        ? (language === 'en' ? `${item.validity_hours_left.toFixed(1)}h left` : language === 'zh' ? `剩余 ${item.validity_hours_left.toFixed(1)} 小时` : language === 'ko' ? `${item.validity_hours_left.toFixed(1)}시간 남음` : `Còn ${item.validity_hours_left.toFixed(1)} giờ`) 
-                        : (language === 'en' ? 'Expired' : language === 'zh' ? '已过期' : language === 'ko' ? '만료됨' : 'Đã hết hạn')}
+                        ? `${t('feed_left')} ${item.validity_hours_left.toFixed(1)}h` 
+                        : t('feed_tag_expired')}
                   </span>
-                  <span>{language === 'en' ? 'Target' : language === 'zh' ? '目标' : language === 'ko' ? '목표가' : 'Mục tiêu'} {formatPrice(item.source_target_price)}</span>
+                  <span>{t('feed_target_drawdown')} {formatPrice(item.source_target_price)}</span>
                   {item.status === 'IN_POSITION' && <span>Entry {formatPrice(item.entry_price)} · {item.position_side}</span>}
-                  {item.last_market_update && <span>{language === 'en' ? 'Updated' : language === 'zh' ? '更新于' : language === 'ko' ? '갱신 시각' : 'Cập nhật'} {formatSystemTime(item.last_market_update)}</span>}
+                  {item.last_market_update && <span>{t('col_time')} {formatSystemTime(item.last_market_update)}</span>}
                 </div>
 
                 {editingId === item.id && (
                   <form onSubmit={(event) => void submitPosition(event, item)} className="mt-3 rounded-xl border border-amber-800/60 bg-amber-950/20 p-3">
                     <div className="mb-2 flex items-center justify-between">
                       <div className="text-xs font-bold text-amber-300">
-                        {language === 'en' ? 'Binance Position Tracker (Manual Entry)' : language === 'zh' ? '币安持仓记录器 (手动输入)' : language === 'ko' ? '바이낸스 포지션 기록 (수동 입력)' : 'Thông tin lệnh Binance (nhập thủ công)'}
+                        {t('track_form_title')}
                       </div>
                       <button type="button" onClick={closeEditor} className="text-slate-500 hover:text-slate-200"><X className="h-4 w-4" /></button>
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <label className="text-[10px] text-slate-400">{language === 'en' ? 'Side' : language === 'zh' ? '多空方向' : language === 'ko' ? '방향' : 'Hướng'}<select value={form.position_side} onChange={event => setForm(prev => ({ ...prev, position_side: event.target.value as 'LONG' | 'SHORT' }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200"><option value="SHORT">SHORT</option><option value="LONG">LONG</option></select></label>
-                      <label className="text-[10px] text-slate-400">{language === 'en' ? 'Entry Price' : language === 'zh' ? '开仓价' : language === 'ko' ? '진입가' : 'Giá vào'}<input required type="number" step="any" min="0" value={form.entry_price} onChange={event => setForm(prev => ({ ...prev, entry_price: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
-                      <label className="text-[10px] text-slate-400">{language === 'en' ? 'Quantity' : language === 'zh' ? '持币数量' : language === 'ko' ? '수량' : 'Số lượng coin'}<input type="number" step="any" min="0" value={form.quantity} onChange={event => setForm(prev => ({ ...prev, quantity: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
-                      <label className="text-[10px] text-slate-400">{language === 'en' ? 'Notional USDT' : language === 'zh' ? '名义价值 USDT' : language === 'ko' ? '명목가치 USDT' : 'Notional USDT'}<input type="number" step="any" min="0" value={form.notional} onChange={event => setForm(prev => ({ ...prev, notional: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
-                      <label className="text-[10px] text-slate-400">{language === 'en' ? 'Leverage' : language === 'zh' ? '杠杆倍数' : language === 'ko' ? '레버리지' : 'Đòn bẩy'}<input type="number" step="any" min="0" value={form.leverage} onChange={event => setForm(prev => ({ ...prev, leverage: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
+                      <label className="text-[10px] text-slate-400">{t('track_form_side')}<select value={form.position_side} onChange={event => setForm(prev => ({ ...prev, position_side: event.target.value as 'LONG' | 'SHORT' }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200"><option value="SHORT">SHORT</option><option value="LONG">LONG</option></select></label>
+                      <label className="text-[10px] text-slate-400">{t('track_form_entry')}<input required type="number" step="any" min="0" value={form.entry_price} onChange={event => setForm(prev => ({ ...prev, entry_price: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
+                      <label className="text-[10px] text-slate-400">{t('track_form_qty')}<input type="number" step="any" min="0" value={form.quantity} onChange={event => setForm(prev => ({ ...prev, quantity: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
+                      <label className="text-[10px] text-slate-400">Notional USDT<input type="number" step="any" min="0" value={form.notional} onChange={event => setForm(prev => ({ ...prev, notional: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
+                      <label className="text-[10px] text-slate-400">{t('track_form_leverage')}<input type="number" step="any" min="0" value={form.leverage} onChange={event => setForm(prev => ({ ...prev, leverage: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
                       <label className="text-[10px] text-slate-400">Stop Loss<input type="number" step="any" min="0" value={form.stop_loss} onChange={event => setForm(prev => ({ ...prev, stop_loss: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
                       <label className="text-[10px] text-slate-400">Take Profit<input type="number" step="any" min="0" value={form.take_profit} onChange={event => setForm(prev => ({ ...prev, take_profit: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
-                      <label className="text-[10px] text-slate-400 sm:col-span-1">{language === 'en' ? 'Notes' : language === 'zh' ? '备注' : language === 'ko' ? '메모' : 'Ghi chú'}<input value={form.notes} onChange={event => setForm(prev => ({ ...prev, notes: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
+                      <label className="text-[10px] text-slate-400 sm:col-span-1">{t('track_form_notes')}<input value={form.notes} onChange={event => setForm(prev => ({ ...prev, notes: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <span className="text-[10px] text-slate-500">
-                        {language === 'en' ? 'PnL excludes exchange fees, funding and liquidation limits.' : language === 'zh' ? '盈亏计算暂未扣除手续费、资金费及强制平仓线。' : language === 'ko' ? '손익(PnL)은 거래 수수료, 펀딩비, 청산가를 제외한 추정치입니다.' : 'PnL chưa bao gồm phí, funding và giá thanh lý.'}
+                        {t('track_form_disclaimer')}
                       </span>
                       <button type="submit" disabled={isUpdating} className="inline-flex h-8 items-center gap-1 rounded-lg bg-amber-500 px-3 text-[10px] font-bold text-slate-950 hover:bg-amber-400 disabled:opacity-50">
-                        <Activity className="h-3 w-3" /> {language === 'en' ? 'Save Position' : language === 'zh' ? '保存持仓' : language === 'ko' ? '포지션 저장' : 'Lưu vị thế'}
+                        <Activity className="h-3 w-3" /> {t('track_form_save')}
                       </button>
                     </div>
                   </form>

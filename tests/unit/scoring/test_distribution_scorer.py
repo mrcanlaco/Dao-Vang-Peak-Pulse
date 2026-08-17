@@ -151,7 +151,8 @@ class TestFakeBreakout:
         comp = score_fake_breakout(1.0)
         assert comp.score == 100.0
         assert comp.weight == 0.05
-        assert "bull trap" in comp.explanation.lower()
+        exp = comp.explanation.lower()
+        assert "bull trap" in exp or "bẫy tăng giá" in exp
 
     def test_no_breakout(self) -> None:
         """Feature value 0.0 → score 0."""
@@ -167,7 +168,8 @@ class TestFakeBreakout:
         """Feature value 0.2 → low score, weak signal."""
         comp = score_fake_breakout(0.2)
         assert comp.score <= 25
-        assert "weak" in comp.explanation.lower()
+        exp = comp.explanation.lower()
+        assert "weak" in exp or "yếu" in exp or "nhẹ" in exp
 
 
 class TestCompositeScore:

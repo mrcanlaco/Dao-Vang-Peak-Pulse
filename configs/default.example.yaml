@@ -79,8 +79,8 @@ self_learning:
 # (challenger). Challenger chỉ ghi audit/outcome, tuyệt đối không gửi Telegram.
 candidate_comparison:
   enabled: false
-  champion_version: pump_filter_v1
-  challenger_version: candidate_filter_v2
+  champion_version: candidate_filter_v2
+  challenger_version: pump_filter_v1
   universe_size: 150
   max_candidates: 30
   max_workers: 4

@@ -105,7 +105,12 @@ export interface CandidateCoin {
   volume_24h: string;
   age: string;
   is_stale?: boolean;
+  stage?: string;
+  filter_version?: string;
+  pump_pct?: number;
 }
+
+export type CandidateFilterSegment = 'ALL' | 'V2_CHAMPION' | 'V1_CHALLENGER' | 'OVERLAP' | 'V2_UNIQUE' | 'V3_PREVIEW';
 
 export interface CandidateFilterArmMetrics {
   anchors: number;
@@ -162,6 +167,12 @@ export interface CandidateFilterComparison {
   cycle?: number;
   champion_version?: string;
   challenger_version?: string;
+  future_versions?: Array<{
+    version: string;
+    name: string;
+    status: string;
+    description: string;
+  }>;
   universe_count?: number;
   champion_selected?: number;
   challenger_selected?: number;
@@ -172,6 +183,8 @@ export interface CandidateFilterComparison {
   selected?: {
     champion?: CandidateFilterDecisionSummary[];
     challenger?: CandidateFilterDecisionSummary[];
+    overlap?: CandidateFilterDecisionSummary[];
+    champion_only?: CandidateFilterDecisionSummary[];
     challenger_only?: CandidateFilterDecisionSummary[];
   };
   comparison?: {
@@ -277,6 +290,19 @@ export interface DeepAnalysis {
   rsi: { rsi_14?: number; rsi_7?: number };
   threshold: number;
   has_features: boolean;
+}
+
+export interface TradeSetup {
+  entryPrice: number;
+  entryZoneLow: number;
+  entryZoneHigh: number;
+  stopLossPrice: number;
+  stopLossPct: number;
+  tp1Price: number;
+  tp1Pct: number;
+  tp2Price: number;
+  tp2Pct: number;
+  riskRewardRatio: number;
 }
 
 export interface SystemStatus {
@@ -708,6 +734,7 @@ export interface SelfLearningStatus {
 export interface SystemHistoryData {
   generated_at: string;
   db_path?: string;
+  freshness?: Record<string, { max_time?: string | null; row_count?: number | null }>;
   data_stats: DataStat[];
   scanner: {
     heartbeat: Record<string, any>;

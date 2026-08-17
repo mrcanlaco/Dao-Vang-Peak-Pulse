@@ -83,10 +83,10 @@ GLOSSARY = {
     "Risk Level": "Mức nguy cơ — CAO (≥1.5×ngưỡng), TRUNG BÌNH (≥ngưỡng), THẤP (≥0.5×ngưỡng), RẤT THẤP (<0.5×ngưỡng).",
     "Prevalence": "Tần suất sự kiện — bao nhiêu % thời gian coin THẬT SỰ xả? VD: 5% = 5/100 nến có xả thật. Thấp = hiếm → AI khó học.",
     "Embargo": "Khoảng cách 12h giữa train và test — tránh 'nhìn trộm' dữ liệu chồng lấp do horizon 24h.",
-    "Open Interest (OI)": "Tổng hợp đồng futures đang mở. OI tăng + giá giảm = phe short vào mạnh → dấu hiệu xả.",
-    "Funding Rate": "Lãi suất 8h mà long trả short (hoặc ngược). Funding âm = short trả long = thị trường quá bán.",
-    "Taker Buy/Sell Ratio": "Tỷ lệ volume mua/bán chủ động. >1 = mua mạnh, <1 = bán mạnh (đang xả).",
-    "Long/Short Ratio": "Tỷ lệ tài khoản long/short. Cao = nhiều long = nguy cơ bóp ngắn ngược.",
+    "Open Interest (OI)": "Tổng hợp đồng tương lai đang mở. Trạng thái các vị thế chưa đóng trên thị trường phái sinh. OI tăng + giá giảm = phe short đang dồn tiền mở vị thế mạnh → dấu hiệu rõ ràng của xả hàng.",
+    "Funding Rate": "Phí tài trợ. Khoản phí định kỳ (thường 8h/lần) phe Long trả phe Short (hoặc ngược lại) để cân bằng giá Spot và Futures. Funding âm = Short trả tiền cho Long = thị trường bán khống quá mức.",
+    "Taker Buy/Sell Ratio": "Tỷ lệ Taker Mua/Bán. So sánh khối lượng mua chủ động so với bán chủ động (lệnh khớp ngay vào sổ lệnh). Tỷ lệ > 1 = phe mua hung hãn, < 1 = phe bán áp đảo (áp lực xả trực tiếp).",
+    "Long/Short Ratio": "Tỷ lệ tài khoản Long/Short. So sánh lượng tài khoản đánh lên và đánh xuống. Tỷ lệ này cao = quá nhiều người Long = tạo thanh khoản lý tưởng để cá mập chốt lời hoặc sàn quét thanh lý (Long Squeeze).",
     "Calibration": "Độ tin cậy — AI báo 70% thì tần suất thật ~70%. Nhóm 'AI báo 80-90%' phải xảy ra ~80-90% thật.",
     "Forward Test": "Đóng băng AI → chờ dữ liệu mới sinh ra → chấm điểm. Kiểm tra AI có hoạt động ngoài phòng lab không.",
     "Point-in-Time": "Mọi dữ liệu tại thời điểm T phải THẬT SỰ biết được tại/sau T. Vi phạm = rò rỉ.",
@@ -127,14 +127,14 @@ GLOSSARY = {
     "Seed": "Hạt giống ngẫu nhiên — số cố định để tái hiện kết quả. Cùng seed = cùng kết quả.",
     # === Bổ sung: Scoring system ===
     "Composite Score": "Tổng điểm 0-100 — chấm điểm coin dựa trên 8 tín hiệu. ≥70 = ứng viên bán.",
-    "Price-Volume Divergence": "Phân kỳ giá-khối lượng — giá tăng nhưng volume giảm → pump giả, không có nhu cầu thật.",
-    "Funding Spike": "Funding tăng vọt — lãi suất funding tăng đột biến (z-score cao) → long đang trả nhiều tiền, sắp unwind.",
-    "Momentum Exhaustion": "Động lượng cạn kiệt — tốc độ tăng giá giảm dần → pump đang yếu đi.",
-    "Distance From High": "Khoảng cách từ đỉnh — giá hiện tại cách đỉnh 24h bao xa. Gần đỉnh = R:R tốt cho short.",
-    "Taker Sell Pressure": "Áp lực bán chủ động — phe bán chủ động mạnh hơn phe mua → đang xả.",
-    "OI Divergence": "Phân kỳ OI — giá tăng nhưng Open Interest giảm → phe đang rút lui, pump không bền.",
-    "BTC Context": "Bối cảnh BTC — BTC đang FOMO/NEUTRAL/WEAK. Ảnh hưởng toàn thị trường altcoin.",
-    "Fake Breakout": "Phá vỡ giả (bull trap) — nến phá trên đỉnh gần nhất rồi đóng cửa lại bên dưới → dụ FOMO mua rồi xả. Tín hiệu strong-short.",
+    "Price-Volume Divergence": "Phân kỳ giá-khối lượng. Giá tài sản tiếp tục tăng nhưng khối lượng giao dịch (volume) suy giảm. Cho thấy đà tăng (pump) không được hỗ trợ bởi dòng tiền thật, cầu đã yếu, dễ đảo chiều giảm.",
+    "Funding Spike": "Funding tăng vọt. Lãi suất funding tăng đột biến, phe Long phải trả mức phí khổng lồ để giữ vị thế. Xảy ra khi FOMO cực độ, phe Long dễ kiệt sức và phải đóng lệnh (unwind), gây áp lực bán mạnh.",
+    "Momentum Exhaustion": "Động lượng cạn kiệt. Tốc độ tăng giá chậm dần dù trước đó tăng mạnh. Dấu hiệu chu kỳ bơm giá (pump) đang yếu đi và sắp chuyển sang xả.",
+    "Distance From High": "Khoảng cách từ đỉnh. Giá hiện tại cách đỉnh cao nhất trong 24h qua bao xa. Khi giá quá gần đỉnh, tỷ lệ lợi nhuận/rủi ro cho phe Short rất hấp dẫn, dễ kích hoạt các lệnh bán khống lớn.",
+    "Taker Sell Pressure": "Áp lực bán chủ động. Khối lượng lệnh bán khớp trực tiếp vào tường mua lớn hơn lệnh mua. Dấu hiệu trực tiếp của dòng tiền đang thoát hàng (xả).",
+    "OI Divergence": "Phân kỳ Open Interest. Giá vẫn đang đi lên nhưng tổng số hợp đồng mở (OI) lại bắt đầu giảm. Phe mua đang chốt lời đóng lệnh (rút lui) chứ không phải dòng tiền mới vào, đợt bơm giá không bền vững.",
+    "BTC Context": "Bối cảnh Bitcoin. Trạng thái chung của BTC (FOMO, Trung lập hay Yếu). Do BTC dẫn dắt toàn thị trường, nếu BTC suy yếu, các altcoin khác sẽ chịu áp lực xả còn mạnh hơn.",
+    "Fake Breakout": "Phá vỡ giả (Bẫy tăng giá). Hiện tượng nến đâm xuyên đỉnh kháng cự gần nhất tạo cảm giác sắp tăng để dụ đám đông FOMO mua vào, nhưng sau đó lập tức tụt lại. Tín hiệu nhà tạo lập bắt đầu xả.",
     "SHORT_CANDIDATE": "Ứng viên bán — điểm ≥70, có thể cân nhắc vị thế short.",
     "WATCH": "Theo dõi — điểm 50-70, chưa đủ cao để hành động nhưng cần để ý.",
     "WAIT": "Chờ — điểm <50, chưa có dấu hiệu xả rõ ràng.",
@@ -1083,17 +1083,17 @@ with _ranking_container:
 
                     # Display each component as a bar
                     _signal_vi = {
-                        "PRICE_VOLUME_DIVERGENCE": "Phân kỳ giá-khối lượng",
-                        "FUNDING_SPIKE": "Funding tăng vọt",
-                        "MOMENTUM_EXHAUSTION": "Động lượng cạn kiệt",
-                        "DISTANCE_FROM_HIGH": "Khoảng cách từ đỉnh",
-                        "TAKER_SELL_PRESSURE": "Áp lực bán chủ động",
-                        "OI_DIVERGENCE": "Phân kỳ OI",
-                        "BTC_CONTEXT": "Bối cảnh BTC",
-                        "FAKE_BREAKOUT": "Phá vỡ giả (bẫy FOMO)",
+                        "price_volume_divergence": "Phân kỳ giá-khối lượng",
+                        "funding_spike": "Funding tăng vọt",
+                        "momentum_exhaustion": "Động lượng cạn kiệt",
+                        "distance_from_high": "Khoảng cách từ đỉnh",
+                        "taker_sell_pressure": "Áp lực bán chủ động",
+                        "oi_divergence": "Phân kỳ OI",
+                        "btc_context": "Bối cảnh BTC",
+                        "fake_breakout": "Phá vỡ giả (bẫy FOMO)",
                     }
                     for _comp in _selected.components:
-                        _label = _signal_vi.get(_comp.name, _comp.name.replace("_", " ").title())
+                        _label = _signal_vi.get(str(_comp.name).lower(), str(_comp.name).replace("_", " ").title())
                         _pct = _comp.score / 100.0
                         st.markdown(f"**{_label}** — {_comp.score:.0f}/100 "
                                     f"(trọng số {_comp.weight:.0%})")

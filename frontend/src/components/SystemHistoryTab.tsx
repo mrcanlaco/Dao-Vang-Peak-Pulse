@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { formatSystemDateTime, parseSystemDate } from '../utils/time';
 import { useTranslation, type Language } from '../i18n/LanguageContext';
+import { getModelLabel, getModelDescription, getScanModeLabel } from '../i18n/translations';
 
 /* ---------- Tooltip helper ---------- */
 const InfoTip: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => {
@@ -50,63 +51,7 @@ const StatCard: React.FC<StatCardProps> = ({ label, value, tooltip, highlight, v
 );
 
 export const SystemHistoryTab: React.FC = () => {
-  const { language } = useTranslation();
-
-  const modelName = (name?: string) => {
-    if (!name) return language === 'en' ? 'Model' : language === 'zh' ? '模型' : language === 'ko' ? '모델' : 'Mô hình';
-    if (language === 'zh') return name.replace(/^Frozen LR/, '已冻结逻辑回归');
-    if (language === 'ko') return name.replace(/^Frozen LR/, '동결된 로지스틱 회귀');
-    if (language === 'en') return name;
-    return name.replace(/^Frozen LR/, 'Hồi quy logistic đã đóng băng');
-  };
-
-  const modelDescription = (description?: string) => {
-    if (!description) return '';
-    if (language === 'zh') {
-      return description
-        .replace(/Logistic Regression/g, '逻辑回归')
-        .replace(/rule-based/g, '基于规则')
-        .replace(/funding spike/g, '资金费率异动')
-        .replace(/price-volume/g, '量价')
-        .replace(/backtest/g, '历史回测')
-        .replace(/baseline/g, '基准')
-        .replace(/Train cutoff/g, '训练截止时间')
-        .replace(/train model/g, '训练模型');
-    }
-    if (language === 'ko') {
-      return description
-        .replace(/Logistic Regression/g, '로지스틱 회귀')
-        .replace(/rule-based/g, '규칙 기반')
-        .replace(/funding spike/g, '펀딩비 급증')
-        .replace(/price-volume/g, '가격-거래량')
-        .replace(/backtest/g, '백테스트')
-        .replace(/baseline/g, '기준선')
-        .replace(/Train cutoff/g, '학습 기준시점')
-        .replace(/train model/g, '모델 학습');
-    }
-    if (language === 'en') return description;
-    return description
-      .replace(/Logistic Regression/g, 'Hồi quy logistic')
-      .replace(/rule-based/g, 'theo quy tắc')
-      .replace(/funding spike/g, 'tăng đột biến funding')
-      .replace(/price-volume/g, 'giá-khối lượng')
-      .replace(/backtest/g, 'kiểm thử lịch sử')
-      .replace(/baseline/g, 'mốc chuẩn')
-      .replace(/Train cutoff/g, 'Mốc cắt huấn luyện')
-      .replace(/train model/g, 'huấn luyện mô hình');
-  };
-
-  const getScanModeLabel = (mode: string, lang: Language): string => {
-    const map: Record<string, Record<string, string>> = {
-      volatile: { vi: 'BIẾN ĐỘNG', en: 'VOLATILE', zh: '高波动', ko: '고변동성' },
-      gainers: { vi: 'TĂNG MẠNH', en: 'TOP GAINERS', zh: '涨幅榜', ko: '급등 코인' },
-      losers: { vi: 'GIẢM MẠNH', en: 'TOP LOSERS', zh: '跌幅榜', ko: '급락 코인' },
-      volume: { vi: 'KHỐI LƯỢNG', en: 'VOLUME LEADERS', zh: '成交榜', ko: '거래대금 상위' },
-      all: { vi: 'TẤT CẢ', en: 'ALL COINS', zh: '全部币种', ko: '전체 코인' },
-      manual: { vi: 'CÁ NHÂN', en: 'CUSTOM', zh: '自定义', ko: '사용자 정의' },
-    };
-    return map[mode]?.[lang] ?? map[mode]?.['en'] ?? mode.toUpperCase();
-  };
+  const { language, t } = useTranslation();
 
   const [data, setData] = useState<SystemHistoryData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,7 +66,7 @@ export const SystemHistoryTab: React.FC = () => {
       const json = await res.json();
       setData(json);
     } catch (err) {
-      setError(err instanceof Error ? err.message : (language === 'en' ? 'Failed to load telemetry' : 'Lỗi tải dữ liệu'));
+      setError(err instanceof Error ? err.message : t('network_err'));
     } finally {
       setLoading(false);
     }
@@ -136,7 +81,7 @@ export const SystemHistoryTab: React.FC = () => {
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="flex items-center gap-2 text-xs text-slate-400 font-mono">
           <RefreshCw className="w-4 h-4 animate-spin" />
-          {language === 'en' ? 'Loading system telemetry and logs...' : language === 'zh' ? '正在加载系统遥测与日志...' : language === 'ko' ? '시스템 텔레메트리 및 로그 로드 중...' : 'Đang tải lịch sử hệ thống...'}
+          {t('tab_loading')}
         </div>
       </div>
     );
@@ -148,7 +93,7 @@ export const SystemHistoryTab: React.FC = () => {
         <XCircle className="w-8 h-8 text-red-400" />
         <p className="text-xs text-red-400">{error}</p>
         <button onClick={fetchData} className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded text-xs">
-          {language === 'en' ? 'Retry' : language === 'zh' ? '重试' : language === 'ko' ? '다시 시도' : 'Thử lại'}
+          {t('refresh')}
         </button>
       </div>
     );
@@ -341,36 +286,34 @@ export const SystemHistoryTab: React.FC = () => {
       green: { vi: 'MỚI', en: 'FRESH', zh: '最新', ko: '최신' },
       yellow: { vi: 'ĐANG CŨ', en: 'AGING', zh: '轻微延迟', ko: '지연' },
       red: { vi: 'QUÁ CŨ', en: 'STALE', zh: '数据过旧', ko: '오래됨' },
-      gray: { vi: 'CHƯA CÓ DỮ LIỆU', en: 'NO DATA', zh: '无数据', ko: '데이터 없음' },
-      ondemand: { vi: 'THEO YÊU CẦU', en: 'ON DEMAND', zh: '按需触发', ko: '이벤트 기반' },
+      gray: { vi: 'CHƯA CÓ DỮ LIỆU', en: 'NO DATA', zh: '暂无数据', ko: '데이터 없음' },
     };
     return {
-      green: { dot: 'bg-emerald-400', text: 'text-emerald-400', label: labels.green[lang] ?? 'FRESH', ring: 'border-emerald-500/30' },
-      yellow: { dot: 'bg-amber-400', text: 'text-amber-400', label: labels.yellow[lang] ?? 'AGING', ring: 'border-amber-500/30' },
-      red: { dot: 'bg-red-400', text: 'text-red-400', label: labels.red[lang] ?? 'STALE', ring: 'border-red-500/40' },
-      gray: { dot: 'bg-slate-500', text: 'text-slate-400', label: labels.gray[lang] ?? 'NO DATA', ring: 'border-slate-700' },
-      ondemand: { dot: 'bg-sky-400', text: 'text-sky-400', label: labels.ondemand[lang] ?? 'ON DEMAND', ring: 'border-sky-500/30' },
+      green: { dot: 'bg-emerald-400', text: 'text-emerald-400', label: labels.green[lang] || labels.green.en, ring: 'border-emerald-500/30' },
+      yellow: { dot: 'bg-amber-400', text: 'text-amber-400', label: labels.yellow[lang] || labels.yellow.en, ring: 'border-amber-500/30' },
+      red: { dot: 'bg-red-400', text: 'text-red-400', label: labels.red[lang] || labels.red.en, ring: 'border-red-500/40' },
+      gray: { dot: 'bg-slate-500', text: 'text-slate-500', label: labels.gray[lang] || labels.gray.en, ring: 'border-slate-800' },
     };
   };
 
   const statusStyles = getStatusStyles(language);
   const pipelineSpec = getPipelineSpec(language);
-
   const freshnessRows = pipelineSpec.map(spec => {
-    const stat = data.data_stats.find(d => d.table === spec.table);
-    const ageMin = computeAgeMin(stat?.max_time, data.generated_at);
+    const tableData = data?.freshness?.[spec.table];
+    const ageMin = computeAgeMin(tableData?.max_time, data?.generated_at || '');
     const status = getStatus(ageMin, spec.expectedMin, spec.onDemand);
-    return { ...spec, maxTime: stat?.max_time, ageMin, status, rows: stat?.rows ?? 0 };
+    return {
+      ...spec,
+      max_time: tableData?.max_time,
+      row_count: tableData?.row_count,
+      ageMin,
+      status,
+    };
   });
   const nStale = freshnessRows.filter(r => r.status === 'red').length;
   const nAging = freshnessRows.filter(r => r.status === 'yellow').length;
 
-  const getHeaderTitle = () => {
-    if (language === 'zh') return '系统遥测与 DUCKDB 数据湖审计';
-    if (language === 'ko') return '시스템 텔레메트리 & 데이터 레이크 감사';
-    if (language === 'en') return 'SYSTEM TELEMETRY & DATA LAKE AUDIT';
-    return 'LỊCH SỬ & DỮ LIỆU HỆ THỐNG';
-  };
+  if (!data) return null;
 
   return (
     <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -378,33 +321,33 @@ export const SystemHistoryTab: React.FC = () => {
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase">
           <Activity className="w-3.5 h-3.5 text-amber-400" />
-          {getHeaderTitle()}
+          {t('history_header_title')}
         </h3>
         <button onClick={fetchData} className="px-2 py-0.5 text-[10px] text-amber-400 border border-amber-500/30 rounded hover:bg-amber-500/10 flex items-center gap-1">
-          <RefreshCw className="w-3 h-3" /> {language === 'en' ? 'Reload' : language === 'zh' ? '重新加载' : language === 'ko' ? '새로고침' : 'Tải lại'}
+          <RefreshCw className="w-3 h-3" /> {t('refresh')}
         </button>
       </div>
       <p className="text-[11px] text-slate-400 -mt-2">
-        {language === 'en' ? 'Report generated at (UTC+7):' : language === 'zh' ? '报告生成时间 (UTC+7):' : language === 'ko' ? '보고서 생성 시각 (UTC+7):' : 'Cập nhật lúc (Hà Nội, UTC+7):'} <span className="text-slate-200 font-mono font-bold">{fmtTime(data.generated_at)}</span>
+        {t('history_report_gen')} (Hà Nội, UTC+7): <span className="text-slate-200 font-mono font-bold">{fmtTime(data.generated_at)}</span>
       </p>
 
       {/* ===== SECTION 0: FRESHNESS HEALTH CHECK ===== */}
       <section className={`bg-slate-950 border rounded-xl p-3 ${nStale > 0 ? 'border-red-500/40' : nAging > 0 ? 'border-amber-500/30' : 'border-emerald-500/30'}`}>
         <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 mb-2">
           <Gauge className="w-3.5 h-3.5 text-amber-400" />
-          {language === 'en' ? 'DATA FRESHNESS & PIPELINE HEALTH' : language === 'zh' ? '数据新鲜度与流水线健康度' : language === 'ko' ? '데이터 신선도 및 파이프라인 상태' : 'KIỂM TRA ĐỘ MỚI DỮ LIỆU'}
-          <InfoTip text={language === 'en' ? 'Monitors each pipeline ingestion table. Red indicates stale feeds requiring log inspection.' : language === 'zh' ? '监控各数据表摄取状态。红色表示数据过期，需要排查日志。' : language === 'ko' ? '각 데이터 파이프라인 수집 상태를 모니터링합니다.' : 'Kiểm tra độ mới của từng luồng dữ liệu. Mỗi luồng có tần suất cập nhật riêng.'} />
+          {t('history_freshness_title')}
+          <InfoTip text={t('history_freshness_desc')} />
           {nStale > 0 ? (
             <span className="ml-auto text-[10px] text-red-400 font-bold flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" /> {nStale} {language === 'en' ? 'stale' : language === 'zh' ? '个过旧' : language === 'ko' ? '개 지연' : 'quá cũ'}
+              <AlertTriangle className="w-3 h-3" /> {nStale} {t('history_stale_count')}
             </span>
           ) : nAging > 0 ? (
             <span className="ml-auto text-[10px] text-amber-400 font-bold flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3" /> {nAging} {language === 'en' ? 'aging' : language === 'zh' ? '个轻微延迟' : language === 'ko' ? '개 경고' : 'đang cũ'}
+              <AlertTriangle className="w-3 h-3" /> {nAging} {t('history_aging_count')}
             </span>
           ) : (
             <span className="ml-auto text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> {language === 'en' ? 'ALL PIPELINES FRESH' : language === 'zh' ? '所有流水线处于最新状态' : language === 'ko' ? '모든 파이프라인 정상' : 'TẤT CẢ ĐỀU MỚI'}
+              <CheckCircle2 className="w-3 h-3" /> {t('history_all_fresh')}
             </span>
           )}
         </h4>
@@ -423,18 +366,18 @@ export const SystemHistoryTab: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-3 gap-1 text-[10px]">
                   <div>
-                    <div className="text-slate-500 uppercase text-[8px]">{language === 'en' ? 'Latest' : language === 'zh' ? '最新' : language === 'ko' ? '최신' : 'Mới nhất'}</div>
+                    <div className="text-slate-500 uppercase text-[8px]">{t('history_col_latest')}</div>
                     <div className={`font-mono font-bold ${r.status === 'red' ? 'text-red-400' : 'text-slate-200'}`}>
-                      {r.maxTime ? fmtTime(r.maxTime) : '—'}
+                      {r.max_time ? fmtTime(r.max_time) : '—'}
                     </div>
                   </div>
                   <div>
-                    <div className="text-slate-500 uppercase text-[8px]">{language === 'en' ? 'Age' : language === 'zh' ? '延迟' : language === 'ko' ? '경과' : 'Tuổi'}</div>
+                    <div className="text-slate-500 uppercase text-[8px]">{t('history_col_age')}</div>
                     <div className={`font-mono font-bold ${st.text}`}>{fmtAge(r.ageMin)}</div>
                   </div>
                   <div>
-                    <div className="text-slate-500 uppercase text-[8px]">{language === 'en' ? 'Rows' : language === 'zh' ? '行数' : language === 'ko' ? '행 수' : 'Số dòng'}</div>
-                    <div className="text-slate-300 font-mono">{fmtNum(r.rows)}</div>
+                    <div className="text-slate-500 uppercase text-[8px]">{t('backtest_modal_total_rows')}</div>
+                    <div className="text-slate-300 font-mono">{fmtNum(r.row_count)}</div>
                   </div>
                 </div>
               </div>
@@ -447,28 +390,28 @@ export const SystemHistoryTab: React.FC = () => {
       <section className="bg-slate-950 border border-slate-800 rounded-xl p-3">
         <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 mb-2">
           <Database className="w-3.5 h-3.5 text-sky-400" />
-          {language === 'en' ? 'DUCKDB DATA LAKE STATS' : language === 'zh' ? 'DUCKDB 数据湖统计' : language === 'ko' ? 'DUCKDB 데이터 레이크 통계' : 'DỮ LIỆU ĐÃ THU THẬP'}
+          {t('history_duckdb_title')}
         </h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
           <StatCard
-            label={language === 'en' ? 'Total Rows' : language === 'zh' ? '总记录行数' : language === 'ko' ? '총 행 수' : 'Tổng số dòng'}
+            label={t('history_total_rows')}
             value={fmtNum(totalRows)}
             valueClass="text-sky-400"
             highlight
           />
           <StatCard
-            label={language === 'en' ? 'Tables' : language === 'zh' ? '数据表数量' : language === 'ko' ? '테이블 수' : 'Số bảng'}
+            label={t('history_tables_count')}
             value={data.data_stats.length}
             valueClass="text-slate-200"
           />
           <StatCard
-            label={language === 'en' ? 'Latest Data' : language === 'zh' ? '最新数据时点' : language === 'ko' ? '최신 데이터' : 'Dữ liệu mới nhất'}
+            label={t('history_latest_data')}
             value={<span className="text-xs">{fmtTime(latestDataTime)}</span>}
             valueClass="text-emerald-400"
             highlight
           />
           <StatCard
-            label={language === 'en' ? 'Database Path' : language === 'zh' ? '数据库路径' : language === 'ko' ? '데이터베이스 경로' : 'Đường dẫn cơ sở dữ liệu'}
+            label={t('history_db_path')}
             value={<span className="text-[10px]">{data.db_path || '—'}</span>}
             valueClass="text-slate-300 truncate"
           />
@@ -477,11 +420,11 @@ export const SystemHistoryTab: React.FC = () => {
           <table className="w-full text-left text-[10px] text-slate-300 font-mono">
             <thead className="text-slate-400 uppercase border-b border-slate-800">
               <tr>
-                <th className="p-1.5">{language === 'en' ? 'Table' : language === 'zh' ? '数据表' : language === 'ko' ? '테이블' : 'Bảng'}</th>
-                <th className="p-1.5">{language === 'en' ? 'Rows' : language === 'zh' ? '行数' : language === 'ko' ? '행 수' : 'Số dòng'}</th>
-                <th className="p-1.5">{language === 'en' ? 'Time Column' : language === 'zh' ? '时间戳列' : language === 'ko' ? '시간 컬럼' : 'Cột thời gian'}</th>
-                <th className="p-1.5">{language === 'en' ? 'Earliest' : language === 'zh' ? '最早时段' : language === 'ko' ? '최초 시점' : 'Cũ nhất'}</th>
-                <th className="p-1.5">{language === 'en' ? 'Latest' : language === 'zh' ? '最新时段' : language === 'ko' ? '최신 시점' : 'Mới nhất'}</th>
+                <th className="p-1.5">{t('history_col_table')}</th>
+                <th className="p-1.5">{t('backtest_modal_total_rows')}</th>
+                <th className="p-1.5">{t('history_col_time_col')}</th>
+                <th className="p-1.5">{t('history_col_earliest')}</th>
+                <th className="p-1.5">{t('history_col_latest')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -512,48 +455,48 @@ export const SystemHistoryTab: React.FC = () => {
       <section className="bg-slate-950 border border-slate-800 rounded-xl p-3">
         <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 mb-2">
           <Radar className="w-3.5 h-3.5 text-emerald-400" />
-          {language === 'en' ? '24/7 SCANNER DAEMON TELEMETRY' : language === 'zh' ? '24/7 守护扫描进程遥测' : language === 'ko' ? '24/7 스캐너 데몬 텔레메트리' : 'HOẠT ĐỘNG BỘ QUÉT 24/7'}
+          {t('history_scanner_daemon')}
         </h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
           <StatCard
-            label={language === 'en' ? 'Status' : language === 'zh' ? '运行状态' : language === 'ko' ? '상태' : 'Trạng thái'}
+            label={t('col_status')}
             value={
               <span className="flex items-center gap-1">
                 {isOnline ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                {isOnline ? (language === 'en' ? 'ONLINE' : language === 'zh' ? '运行中' : language === 'ko' ? '온라인' : 'ĐANG CHẠY') : (language === 'en' ? 'OFFLINE' : language === 'zh' ? '已停止' : language === 'ko' ? '오프라인' : 'ĐÃ DỪNG')}
+                {isOnline ? t('scanner_running') : t('scanner_stopped')}
               </span>
             }
             valueClass={isOnline ? 'text-emerald-400' : 'text-red-400'}
             highlight
           />
           <StatCard
-            label={language === 'en' ? 'Latest Cycle' : language === 'zh' ? '当前周期' : language === 'ko' ? '최신 주기' : 'Chu kỳ mới nhất'}
+            label={t('history_latest_cycle')}
             value={`#${lastCycle.cycle ?? '—'}`}
             valueClass="text-amber-400"
           />
           <StatCard
-            label={language === 'en' ? 'Last Scan Time' : language === 'zh' ? '上次扫描时间' : language === 'ko' ? '마지막 스캔' : 'Quét lúc'}
+            label={t('history_last_scan_time')}
             value={<span className="text-xs">{fmtTime(lastCycle.last_scan_time)}</span>}
             valueClass="text-slate-200"
             highlight
           />
           <StatCard
-            label={language === 'en' ? 'Symbols / Cycle' : language === 'zh' ? '每轮币种数' : language === 'ko' ? '스캔 코인수' : 'Mã/quét'}
+            label={t('history_symbols_per_cycle')}
             value={fmtNum(lastCycle.n_symbols)}
             valueClass="text-sky-400"
           />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3 text-[10px]">
           <div className="bg-slate-900 p-1.5 rounded flex items-center gap-1">
-            <span className="text-slate-500">{language === 'en' ? 'Heartbeat:' : language === 'zh' ? '心跳时间:' : language === 'ko' ? '하트비트:' : 'Nhịp hoạt động:'}</span>{' '}
+            <span className="text-slate-500">{t('history_heartbeat')}:</span>{' '}
             <span className="text-slate-300 font-mono font-bold">{fmtTime(hb.timestamp)}</span>
           </div>
           <div className="bg-slate-900 p-1.5 rounded flex items-center gap-1">
-            <span className="text-slate-500">{language === 'en' ? 'Scan Mode:' : language === 'zh' ? '扫描模式:' : language === 'ko' ? '스캔 모드:' : 'Chế độ quét:'}</span>{' '}
+            <span className="text-slate-500">{t('history_scan_mode')}:</span>{' '}
             <span className="text-amber-400 font-mono uppercase font-bold">{getScanModeLabel(data.scanner.scan_mode, language)}</span>
           </div>
           <div className="bg-slate-900 p-1.5 rounded flex items-center gap-1">
-            <span className="text-slate-500">{language === 'en' ? 'Poll Interval:' : language === 'zh' ? '轮询间隔:' : language === 'ko' ? '폴링 주기:' : 'Chu kỳ kiểm tra:'}</span>{' '}
+            <span className="text-slate-500">{t('history_poll_interval')}:</span>{' '}
             <span className="text-slate-300 font-mono font-bold">{hb.poll_minutes || '?'} {language === 'en' ? 'min' : language === 'zh' ? '分钟' : language === 'ko' ? '분' : 'phút'}</span>
           </div>
         </div>
@@ -562,7 +505,7 @@ export const SystemHistoryTab: React.FC = () => {
           <div className="mt-3">
             <h5 className="text-[11px] font-bold text-slate-300 mb-1.5 flex items-center gap-1">
               <TrendingUp className="w-3 h-3 text-sky-400" />
-              {language === 'en' ? 'Daily Scan Cycles & Unique Symbols (Past 30 Days)' : language === 'zh' ? '每日扫描轮数与覆盖币种 (过去30天)' : language === 'ko' ? '일일 스캔 횟수 및 코인 수 (최근 30일)' : 'Số chu kỳ quét & mã theo ngày (30 ngày gần nhất)'}
+              {t('history_daily_scan_chart')}
             </h5>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={scanChart} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
@@ -573,8 +516,8 @@ export const SystemHistoryTab: React.FC = () => {
                   contentStyle={{ background: '#0f172a', border: '1px solid #334155', fontSize: 11 }}
                   labelStyle={{ color: '#fbbf24' }}
                 />
-                <Bar dataKey="cycles" fill="#0ea5e9" name={language === 'en' ? 'Cycles' : language === 'zh' ? '扫描轮数' : language === 'ko' ? '사이클 수' : 'Chu kỳ'} radius={[3, 3, 0, 0]} />
-                <Bar dataKey="symbols" fill="#10b981" name={language === 'en' ? 'Symbols' : language === 'zh' ? '覆盖币种' : language === 'ko' ? '코인 수' : 'Mã coin'} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="cycles" fill="#0ea5e9" name={t('history_chart_cycles')} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="symbols" fill="#10b981" name={t('history_chart_symbols')} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -585,28 +528,28 @@ export const SystemHistoryTab: React.FC = () => {
       <section className="bg-slate-950 border border-slate-800 rounded-xl p-3">
         <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 mb-2">
           <Cpu className="w-3.5 h-3.5 text-amber-400" />
-          {language === 'en' ? 'AI PREDICTIVE MODELS & ACTIVE DEPLOYMENT' : language === 'zh' ? 'AI 预测模型与在线部署状态' : language === 'ko' ? 'AI 예측 모델 및 배포 현황' : 'MÔ HÌNH AI & TIẾN BỘ'}
+          {t('history_ai_models_title')}
         </h4>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
           <StatCard
-            label={language === 'en' ? 'Frozen Models' : language === 'zh' ? '已冻结模型' : language === 'ko' ? '동결된 모델' : 'Mô hình đã đóng băng'}
+            label={t('history_frozen_models')}
             value={data.models.length}
             valueClass="text-amber-400"
           />
           <StatCard
-            label={language === 'en' ? 'Total Experiments' : language === 'zh' ? '总实验数' : language === 'ko' ? '총 실험' : 'Thử nghiệm'}
+            label={t('history_total_experiments')}
             value={data.experiments.total}
             valueClass="text-sky-400"
             highlight
           />
           <StatCard
-            label={language === 'en' ? 'Active Scanner Model' : language === 'zh' ? '当前雷达模型' : language === 'ko' ? '활성 스캐너 모델' : 'Mô hình bộ quét'}
-            value={<span className="text-[10px]">{data.current_scanner_model_id || (language === 'en' ? 'Rules-based' : language === 'zh' ? '基于规则' : language === 'ko' ? '규칙 기반' : 'chưa cài')}</span>}
+            label={t('history_active_scanner_model')}
+            value={<span className="text-[10px]">{data.current_scanner_model_id ? getModelLabel(data.current_scanner_model_id, language) : (language === 'en' ? 'Rules-based' : language === 'zh' ? '基于规则' : language === 'ko' ? '규칙 기반' : 'chưa cài')}</span>}
             valueClass="text-emerald-400 truncate"
             highlight
           />
           <StatCard
-            label={language === 'en' ? 'Latest Artifact' : language === 'zh' ? '最新产物' : language === 'ko' ? '최신 아티팩트' : 'Thử nghiệm mới nhất'}
+            label={t('history_latest_artifact')}
             value={<span className="text-[10px]">{data.experiments.latest?.artifact_id?.slice(-12) || '—'}</span>}
             valueClass="text-slate-300"
           />
@@ -620,39 +563,39 @@ export const SystemHistoryTab: React.FC = () => {
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <Lock className="w-3 h-3 text-amber-400 shrink-0" />
-                    <span className="text-xs font-bold text-white truncate">{modelName(m.friendly_name)}</span>
+                    <span className="text-xs font-bold text-white truncate">{getModelLabel(m.friendly_name || m.model_id, language)}</span>
                     {m.is_scanner_model && (
                       <span className="text-[9px] text-emerald-400 font-mono bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30 flex items-center gap-0.5 shrink-0 font-bold">
-                        <Trophy className="w-2.5 h-2.5" /> {language === 'en' ? 'ACTIVE SCANNER' : language === 'zh' ? '当前生产雷达' : language === 'ko' ? '활성 스캐너' : 'ĐANG QUÉT'}
+                        <Trophy className="w-2.5 h-2.5" /> {t('history_active_badge')}
                       </span>
                     )}
                   </div>
                   <span className="text-[9px] text-slate-500 font-mono shrink-0">{m.label_version}</span>
                 </div>
-                <p className="text-[10px] text-slate-400 mb-1.5 leading-relaxed">{modelDescription(m.description)}</p>
+                <p className="text-[10px] text-slate-400 mb-1.5 leading-relaxed">{getModelDescription(m.description, language)}</p>
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 text-[10px]">
                   <div className="bg-slate-950 p-1 rounded">
-                    <div className="text-slate-500 uppercase text-[8px]">{language === 'en' ? 'Train Size' : language === 'zh' ? '训练样本量' : language === 'ko' ? '학습 데이터' : 'Cỡ tập huấn luyện'}</div>
+                    <div className="text-slate-500 uppercase text-[8px]">{t('forward_train_size')}</div>
                     <div className="text-slate-200 font-mono font-bold">{fmtNum(m.train_size)}</div>
                   </div>
                   <div className="bg-slate-950 p-1 rounded">
-                    <div className="text-slate-500 uppercase text-[8px]">{language === 'en' ? 'Positives' : language === 'zh' ? '训练暴跌样本' : language === 'ko' ? '양성 샘플' : 'Mẫu xả khi huấn luyện'}</div>
+                    <div className="text-slate-500 uppercase text-[8px]">{t('forward_train_positives')}</div>
                     <div className="text-emerald-400 font-mono font-bold">{fmtNum(m.train_positives)}</div>
                   </div>
                   <div className="bg-slate-950 p-1 rounded">
-                    <div className="text-slate-500 uppercase text-[8px]">{language === 'en' ? 'Precision' : language === 'zh' ? '精准率' : language === 'ko' ? '정밀도' : 'Độ chính xác'}</div>
+                    <div className="text-slate-500 uppercase text-[8px]">{t('forward_precision')}</div>
                     <div className="text-amber-400 font-mono font-bold">{fmtPct(m.train_precision)}</div>
                   </div>
                   <div className="bg-slate-950 p-1 rounded">
-                    <div className="text-slate-500 uppercase text-[8px]">{language === 'en' ? 'Recall' : language === 'zh' ? '召回率' : language === 'ko' ? '재현율' : 'Tỷ lệ bắt'}</div>
+                    <div className="text-slate-500 uppercase text-[8px]">{t('forward_recall')}</div>
                     <div className="text-sky-400 font-mono font-bold">{fmtPct(m.train_recall)}</div>
                   </div>
                   <div className="bg-slate-950 p-1 rounded">
-                    <div className="text-slate-500 uppercase text-[8px]">{language === 'en' ? 'Features' : language === 'zh' ? '特征数量' : language === 'ko' ? '특성 수' : 'Đặc trưng'}</div>
+                    <div className="text-slate-500 uppercase text-[8px]">{t('forward_features')}</div>
                     <div className="text-slate-200 font-mono">{m.n_features}</div>
                   </div>
                   <div className="bg-slate-950 p-1 rounded">
-                    <div className="text-slate-500 uppercase text-[8px]">{language === 'en' ? 'Threshold' : language === 'zh' ? '决策阈值' : language === 'ko' ? '임계값' : 'Ngưỡng'}</div>
+                    <div className="text-slate-500 uppercase text-[8px]">{t('threshold')}</div>
                     <div className="text-amber-400 font-mono font-bold">{m.threshold.toFixed(2)}</div>
                   </div>
                 </div>
@@ -666,23 +609,23 @@ export const SystemHistoryTab: React.FC = () => {
       <section className="bg-slate-950 border border-slate-800 rounded-xl p-3">
         <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 mb-2">
           <Layers className="w-3.5 h-3.5 text-red-400" />
-          {language === 'en' ? 'RADAR: SIGNALS DETECTED PER DAY' : language === 'zh' ? '雷达: 每日捕获警报统计' : language === 'ko' ? '레이더: 일별 감지 신호 수' : 'RADAR: TÍN HIỆU PHÁT HIỆN THEO NGÀY'}
+          {t('history_radar_signals_title')}
         </h4>
         {signalsChart.length > 0 ? (
           <>
             <div className="grid grid-cols-3 gap-2 mb-3">
               <StatCard
-                label={language === 'en' ? 'Total Signals' : language === 'zh' ? '总捕获信号' : language === 'ko' ? '총 감지 신호' : 'Tổng tín hiệu'}
+                label={t('history_total_signals')}
                 value={data.signals_per_day.reduce((s, d) => s + d.n_signals, 0)}
                 valueClass="text-amber-400"
               />
               <StatCard
-                label={language === 'en' ? 'Telegram Sent' : language === 'zh' ? '已推送 Telegram' : language === 'ko' ? '텔레그램 발송' : 'Telegram đã gửi'}
+                label={t('history_tg_sent')}
                 value={data.signals_per_day.reduce((s, d) => s + d.n_telegram, 0)}
                 valueClass="text-sky-400"
               />
               <StatCard
-                label={language === 'en' ? 'Actual Target Hits' : language === 'zh' ? '实际见顶达成' : language === 'ko' ? '목표 달성' : 'Thực xả'}
+                label={t('history_actual_hits')}
                 value={data.signals_per_day.reduce((s, d) => s + d.n_hit, 0)}
                 valueClass="text-emerald-400"
                 highlight
@@ -698,15 +641,15 @@ export const SystemHistoryTab: React.FC = () => {
                   labelStyle={{ color: '#fbbf24' }}
                 />
                 <ReferenceLine y={0} stroke="#334155" />
-                <Bar dataKey="signals" fill="#f59e0b" name={language === 'en' ? 'Signals' : language === 'zh' ? '警报信号' : language === 'ko' ? '신호' : 'Tín hiệu'} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="signals" fill="#f59e0b" name={t('feed_tab_all')} radius={[3, 3, 0, 0]} />
                 <Bar dataKey="telegram" fill="#0ea5e9" name="Telegram" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="hits" fill="#10b981" name={language === 'en' ? 'Target Hits' : language === 'zh' ? '达成目标' : language === 'ko' ? '실제 하락' : 'Thực xả'} radius={[3, 3, 0, 0]} />
+                <Bar dataKey="hits" fill="#10b981" name={t('history_actual_hits')} radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </>
         ) : (
           <p className="text-[11px] text-slate-500 italic">
-            {language === 'en' ? 'No signals recorded yet in alert history.' : language === 'zh' ? '暂无历史警报记录。' : language === 'ko' ? '경보 이력이 아직 없습니다.' : 'Chưa có tín hiệu nào trong alert_history.'}
+            {t('history_no_signals')}
           </p>
         )}
       </section>
