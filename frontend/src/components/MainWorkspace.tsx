@@ -165,24 +165,45 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const [candidateFilterSegment, setCandidateFilterSegment] = useState<'ALL' | 'V2_CHAMPION' | 'V1_CHALLENGER' | 'OVERLAP' | 'V2_UNIQUE' | 'V3_PREVIEW'>('ALL');
 
   const comparisonSelections = useMemo(() => {
-    // V2 is now Champion (Official), V1 is Challenger (A/B Test Baseline)
-    const champion = candidateComparison?.selected?.champion ?? [];
-    const challenger = candidateComparison?.selected?.challenger ?? [];
-    const challengerSymbols = new Set(challenger.map((item) => item.symbol));
-    const championSymbols = new Set(champion.map((item) => item.symbol));
+    const champVer = (candidateComparison?.champion_version || '').toLowerCase();
+    const challVer = (candidateComparison?.challenger_version || '').toLowerCase();
+
+    // Dynamically check whether champion is v2 or v1 (live daemon has champion=pump_filter_v1, challenger=candidate_filter_v2)
+    const isChampV2 = champVer.includes('v2') || (!challVer.includes('v2') && !champVer.includes('v1'));
+
+    const rawChamp = candidateComparison?.selected?.champion ?? [];
+    const rawChall = candidateComparison?.selected?.challenger ?? [];
+
+    const v2 = isChampV2 ? rawChamp : rawChall;
+    const v1 = isChampV2 ? rawChall : rawChamp;
+
+    const v1Symbols = new Set(v1.map((item) => item.symbol));
+
+    const rawOverlap = candidateComparison?.selected?.overlap && candidateComparison.selected.overlap.length > 0
+      ? candidateComparison.selected.overlap
+      : v2.filter((item) => v1Symbols.has(item.symbol));
+
+    const rawChampOnly = candidateComparison?.selected?.champion_only && candidateComparison.selected.champion_only.length > 0
+      ? candidateComparison.selected.champion_only
+      : rawChamp.filter((item) => !new Set(rawChall.map((c) => c.symbol)).has(item.symbol));
+
+    const rawChallOnly = candidateComparison?.selected?.challenger_only && candidateComparison.selected.challenger_only.length > 0
+      ? candidateComparison.selected.challenger_only
+      : rawChall.filter((item) => !new Set(rawChamp.map((c) => c.symbol)).has(item.symbol));
+
+    const v2Only = isChampV2 ? rawChampOnly : rawChallOnly;
+    const v1Only = isChampV2 ? rawChallOnly : rawChampOnly;
 
     return {
-      champion, // V2 (Official)
-      challenger, // V1 (A/B Baseline)
-      overlap: candidateComparison?.selected?.overlap && candidateComparison.selected.overlap.length > 0
-        ? candidateComparison.selected.overlap
-        : champion.filter((item) => challengerSymbols.has(item.symbol)),
-      champion_only: candidateComparison?.selected?.champion_only && candidateComparison.selected.champion_only.length > 0
-        ? candidateComparison.selected.champion_only
-        : champion.filter((item) => !challengerSymbols.has(item.symbol)), // V2 Unique Discoveries
-      challenger_only: candidateComparison?.selected?.challenger_only && candidateComparison.selected.challenger_only.length > 0
-        ? candidateComparison.selected.challenger_only
-        : challenger.filter((item) => !championSymbols.has(item.symbol)), // V1 Only
+      v2,
+      v1,
+      champion: v2, // Keep alias pointing to V2
+      challenger: v1, // Keep alias pointing to V1
+      overlap: rawOverlap,
+      champion_only: v2Only, // V2 Unique Discoveries
+      challenger_only: v1Only, // V1 Only
+      v2_only: v2Only,
+      v1_only: v1Only,
     };
   }, [candidateComparison]);
 
@@ -1086,7 +1107,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               {/* V2 Selected (Champion) */}
               {(() => {
                 const isExpanded = expandedComparisonGroup === 'champion';
-                const count = candidateComparison?.champion_selected ?? comparisonSelections.champion.length;
+                const isChampV2 = (candidateComparison?.champion_version || '').toLowerCase().includes('v2');
+                const rawCount = isChampV2 ? candidateComparison?.champion_selected : candidateComparison?.challenger_selected;
+                const count = rawCount ?? comparisonSelections.champion.length;
                 return (
                   <button
                     type="button"
@@ -1115,7 +1138,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               {/* V1 Selected (Challenger) */}
               {(() => {
                 const isExpanded = expandedComparisonGroup === 'challenger';
-                const count = candidateComparison?.challenger_selected ?? comparisonSelections.challenger.length;
+                const isChampV2 = (candidateComparison?.champion_version || '').toLowerCase().includes('v2');
+                const rawCount = isChampV2 ? candidateComparison?.challenger_selected : candidateComparison?.champion_selected;
+                const count = rawCount ?? comparisonSelections.challenger.length;
                 return (
                   <button
                     type="button"
@@ -1173,7 +1198,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               {/* V2 Discoveries */}
               {(() => {
                 const isExpanded = expandedComparisonGroup === 'champion_only';
-                const count = candidateComparison?.champion_only ?? comparisonSelections.champion_only.length;
+                const isChampV2 = (candidateComparison?.champion_version || '').toLowerCase().includes('v2');
+                const rawCount = isChampV2 ? candidateComparison?.champion_only : candidateComparison?.challenger_only;
+                const count = rawCount ?? comparisonSelections.champion_only.length;
                 return (
                   <button
                     type="button"

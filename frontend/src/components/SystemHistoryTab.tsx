@@ -287,25 +287,30 @@ export const SystemHistoryTab: React.FC = () => {
       yellow: { vi: 'ĐANG CŨ', en: 'AGING', zh: '轻微延迟', ko: '지연' },
       red: { vi: 'QUÁ CŨ', en: 'STALE', zh: '数据过旧', ko: '오래됨' },
       gray: { vi: 'CHƯA CÓ DỮ LIỆU', en: 'NO DATA', zh: '暂无数据', ko: '데이터 없음' },
+      ondemand: { vi: 'THEO SỰ KIỆN', en: 'ON DEMAND', zh: '按需触发', ko: '이벤트 기반' },
     };
     return {
       green: { dot: 'bg-emerald-400', text: 'text-emerald-400', label: labels.green[lang] || labels.green.en, ring: 'border-emerald-500/30' },
       yellow: { dot: 'bg-amber-400', text: 'text-amber-400', label: labels.yellow[lang] || labels.yellow.en, ring: 'border-amber-500/30' },
       red: { dot: 'bg-red-400', text: 'text-red-400', label: labels.red[lang] || labels.red.en, ring: 'border-red-500/40' },
       gray: { dot: 'bg-slate-500', text: 'text-slate-500', label: labels.gray[lang] || labels.gray.en, ring: 'border-slate-800' },
+      ondemand: { dot: 'bg-sky-400', text: 'text-sky-400', label: labels.ondemand[lang] || labels.ondemand.en, ring: 'border-sky-500/30' },
     };
   };
 
   const statusStyles = getStatusStyles(language);
   const pipelineSpec = getPipelineSpec(language);
+  const dataStatsMap = new Map((data?.data_stats || []).map(d => [d.table, d]));
   const freshnessRows = pipelineSpec.map(spec => {
-    const tableData = data?.freshness?.[spec.table];
-    const ageMin = computeAgeMin(tableData?.max_time, data?.generated_at || '');
+    const tableData = data?.freshness?.[spec.table] || dataStatsMap.get(spec.table);
+    const maxTime = tableData?.max_time;
+    const rowCount = 'row_count' in (tableData || {}) ? (tableData as any).row_count : (tableData as any)?.rows;
+    const ageMin = computeAgeMin(maxTime, data?.generated_at || '');
     const status = getStatus(ageMin, spec.expectedMin, spec.onDemand);
     return {
       ...spec,
-      max_time: tableData?.max_time,
-      row_count: tableData?.row_count,
+      max_time: maxTime,
+      row_count: rowCount,
       ageMin,
       status,
     };
@@ -353,7 +358,7 @@ export const SystemHistoryTab: React.FC = () => {
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
           {freshnessRows.map(r => {
-            const st = statusStyles[r.status];
+            const st = statusStyles[r.status] || statusStyles.gray;
             return (
               <div key={r.table} className={`bg-slate-900 border ${st.ring} rounded-lg p-2`}>
                 <div className="flex items-center justify-between mb-1">
@@ -596,7 +601,7 @@ export const SystemHistoryTab: React.FC = () => {
                   </div>
                   <div className="bg-slate-950 p-1 rounded">
                     <div className="text-slate-500 uppercase text-[8px]">{t('threshold')}</div>
-                    <div className="text-amber-400 font-mono font-bold">{m.threshold.toFixed(2)}</div>
+                    <div className="text-amber-400 font-mono font-bold">{m.threshold != null ? m.threshold.toFixed(2) : "—"}</div>
                   </div>
                 </div>
               </div>
