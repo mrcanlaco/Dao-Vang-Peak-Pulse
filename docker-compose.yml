@@ -41,6 +41,7 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+      - "8001:8000"
     env_file:
       - .env.docker
     environment:
@@ -79,6 +80,7 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: dao_vang_tunnel
     restart: unless-stopped
+    network_mode: host
     command: tunnel --config /etc/cloudflared/config.yml run
     volumes:
       - ./cloudflared:/etc/cloudflared
