@@ -17,27 +17,18 @@ services:
       - .env.docker
     environment:
       - TZ=Asia/Ho_Chi_Minh
-      - DAO_VANG_PATHS__DATA_DIR=/app/data
-      - DAO_VANG_PATHS__RAW_DIR=/app/data/raw
-      - DAO_VANG_PATHS__NORMALIZED_DIR=/app/data/normalized
-      - DAO_VANG_SCANNER__DB_PATH=/app/data/live.duckdb
-      - DAO_VANG_SCANNER__WATCHLIST_PATH=/app/data/watchlist.json
-      - DAO_VANG_SCANNER__KILL_SWITCH_PATH=/app/data/scanner_kill_switch.json
-      - DAO_VANG_SCANNER__ROLLBACK_STATE_PATH=/app/data/scanner_rollback.json
-      - DAO_VANG_SCANNER__HEALTH_REPORT_PATH=/app/data/scanner_health.json
-      - DAO_VANG_SCANNER__POLL_INTERVAL_MINUTES=5
-      - DAO_VANG_SCANNER__MAX_COINS=150
-      - DAO_VANG_SCANNER__SCAN_MODE=gainers
-      - DAO_VANG_SCANNER__MIN_PRICE_CHANGE_PCT=5
-      - DAO_VANG_SCANNER__INCLUDE_BTC=true
-      - DAO_VANG_SCANNER__EXCLUDE_STABLECOINS=true
-      - DAO_VANG_COINGECKO__ENABLED=false
     volumes:
-      - ./data:/app/data
+      - ./data:/app/data_live
       - ./artifacts:/app/artifacts
       - ./configs:/app/configs
     command: >
       dao-vang scanner start --config configs/live.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /app/data_live/scanner_heartbeat.json"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     logging:
       driver: json-file
       options:
@@ -54,13 +45,20 @@ services:
       - .env.docker
     environment:
       - TZ=Asia/Ho_Chi_Minh
-      - DAO_VANG_WEB__PORT=8000
-      - DAO_VANG_PATHS__DATA_DIR=/app/data
-      - DAO_VANG_PATHS__RAW_DIR=/app/data/raw
-      - DAO_VANG_PATHS__NORMALIZED_DIR=/app/data/normalized
-      - DAO_VANG_SCANNER__DB_PATH=/app/data/live.duckdb
+      - DAO_VANG_PATHS__DATA_DIR=data_live
+      - DAO_VANG_PATHS__RAW_DIR=data_live/raw
+      - DAO_VANG_PATHS__NORMALIZED_DIR=data_live/normalized
+      - DAO_VANG_SCANNER__DB_PATH=data_live/live.duckdb
+      - DAO_VANG_SCANNER__WATCHLIST_PATH=data_live/watchlist.json
+      - DAO_VANG_SCANNER__KILL_SWITCH_PATH=data_live/scanner_kill_switch.json
+      - DAO_VANG_SCANNER__ROLLBACK_STATE_PATH=data_live/scanner_rollback.json
+      - DAO_VANG_SCANNER__HEALTH_REPORT_PATH=data_live/scanner_health.json
+      - DAO_VANG_CANDIDATE_COMPARISON__SNAPSHOT_PATH=data_live/candidate_filter_comparison.json
+      - DAO_VANG_CANDIDATE_COMPARISON__STATE_PATH=data_live/candidate_filter_v2_state.json
+      - DAO_VANG_SELF_LEARNING__STATE_PATH=artifacts/self_learning/live_state.json
+      - DAO_VANG_SELF_LEARNING__REPORT_DIR=artifacts/self_learning/live_runs
     volumes:
-      - ./data:/app/data
+      - ./data:/app/data_live
       - ./artifacts:/app/artifacts
       - ./configs:/app/configs
     depends_on:
