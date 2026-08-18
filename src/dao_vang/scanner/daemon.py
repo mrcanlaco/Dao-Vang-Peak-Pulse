@@ -70,6 +70,7 @@ from dao_vang.scanner.candidate_filter_comparison import (
 )
 from dao_vang.scanner.candidate_filter_store import CandidateFilterStore
 from dao_vang.scanner.candidate_filter_v2 import (
+    CandidateV2Decision,
     CandidateV2Policy,
     scan_candidate_filter_v2,
 )
@@ -473,18 +474,90 @@ class ScannerDaemon:
                     error=str(exc),
                 )
 
-        # 1b. Pump filter — find coins that pumped 50-300% in 1-5 days
+        # 1b. Candidate Filter — V2 Multi-stage Quant Filter or V1 Pump Filter
         pump_candidates = scan_pumps(self._settings.pump_filter, symbols)
         pump_map: dict[str, PumpCandidate] = {c.symbol: c for c in pump_candidates}
-        # If pump filter finds candidates, prioritize them; else use all symbols
-        score_symbols = list(pump_map.keys()) if pump_map else symbols
+
+        cfg_comparison = self._settings.candidate_comparison
+        v2_decisions: list[CandidateV2Decision] = []
+        v2_observations: list[Any] = []
+        v2_next_state: dict[str, Any] = {}
+        is_v2_champion = (
+            cfg_comparison.enabled
+            and cfg_comparison.champion_version == "candidate_filter_v2"
+        )
+
+        if is_v2_champion and comparison_universe:
+            try:
+                univ_symbols = [
+                    str(t.get("symbol", "")).upper()
+                    for t in comparison_universe
+                    if t.get("symbol")
+                ]
+                quote_vols = {
+                    str(t.get("symbol", "")).upper(): float(t.get("quoteVolume", 0) or 0)
+                    for t in comparison_universe
+                    if t.get("symbol")
+                }
+                v2_policy = CandidateV2Policy(
+                    version="candidate_filter_v2",
+                    max_candidates=cfg_comparison.max_candidates,
+                )
+                prev_v2_state = {
+                    sym: val
+                    for sym, val in self._load_candidate_filter_state().items()
+                    if isinstance(val, dict)
+                    and val.get("filter_version") == "candidate_filter_v2"
+                }
+                v2_decisions, v2_observations, v2_next_state = scan_candidate_filter_v2(
+                    univ_symbols,
+                    comparison_now,
+                    prev_v2_state,
+                    v2_policy,
+                    quote_volumes_24h=quote_vols,
+                    base_url=str(self._settings.binance.base_url),
+                    timeout_seconds=min(10.0, float(self._settings.collection.timeout_seconds)),
+                    max_workers=cfg_comparison.max_workers,
+                )
+                v2_selected = [d for d in v2_decisions if d.selected]
+                if v2_selected:
+                    score_symbols = [d.symbol for d in v2_selected]
+                    for d in v2_selected:
+                        if d.symbol not in pump_map:
+                            p_pct = max(
+                                0.0,
+                                ((d.peak_price - d.reference_price) / d.reference_price)
+                                if (d.peak_price and d.reference_price and d.reference_price > 0)
+                                else float(d.pump_score or 0.0),
+                            )
+                            p_days = max(1, int((d.peak_age_hours or 24.0) / 24.0))
+                            cur_vs_peak = (1.0 - d.drawdown_from_peak) if d.drawdown_from_peak is not None else 1.0
+                            pump_map[d.symbol] = PumpCandidate(
+                                symbol=d.symbol,
+                                pump_pct=p_pct,
+                                pump_days=p_days,
+                                current_vs_peak=cur_vs_peak,
+                                peak_price=d.peak_price or (d.reference_price or 0.0),
+                                current_price=d.reference_price or 0.0,
+                                quote_volume=float(d.volume_24h_usd or 0.0),
+                            )
+                else:
+                    score_symbols = list(pump_map.keys()) if pump_map else symbols
+            except Exception as exc:
+                logger.warning("v2_champion_scan_failed_fallback_v1", error=str(exc))
+                score_symbols = list(pump_map.keys()) if pump_map else symbols
+        else:
+            score_symbols = list(pump_map.keys()) if pump_map else symbols
+
         self._last_cycle_n_symbols = len(score_symbols)
         logger.info(
-            "pump_filter_result",
+            "candidate_filter_result",
+            champion_version=cfg_comparison.champion_version if cfg_comparison.enabled else "pump_filter_v1",
             n_scanned=len(symbols),
+            n_v2_selected=len([d for d in v2_decisions if d.selected]),
             n_pump_candidates=len(pump_candidates),
             n_to_score=len(score_symbols),
-            pump_symbols=[c.symbol for c in pump_candidates[:5]],  # top 5 for log
+            score_symbols=score_symbols[:10],
         )
 
         # 2. Collect + normalize + timeline + features (shared across symbols)
@@ -584,6 +657,11 @@ class ScannerDaemon:
         # Binance response cannot suppress a v1 Telegram report.
         if self._settings.candidate_comparison.enabled and comparison_universe:
             try:
+                precomputed = (
+                    (v2_decisions, v2_observations, v2_next_state)
+                    if v2_decisions
+                    else None
+                )
                 self._run_candidate_filter_comparison(
                     db=db,
                     universe_tickers=comparison_universe,
@@ -592,6 +670,7 @@ class ScannerDaemon:
                     pump_candidates=pump_candidates,
                     comparison_now=comparison_now,
                     champion_fallback_all=not bool(pump_candidates),
+                    precomputed_v2=precomputed,
                 )
             except Exception as exc:
                 self._last_candidate_comparison = {
@@ -642,8 +721,9 @@ class ScannerDaemon:
         pump_candidates: list[PumpCandidate],
         comparison_now: datetime,
         champion_fallback_all: bool,
+        precomputed_v2: tuple[list[CandidateV2Decision], list[Any], dict[str, Any]] | None = None,
     ) -> None:
-        """Evaluate and persist v2 without granting it alert capability."""
+        """Evaluate and persist candidate filter comparison audit."""
 
         cfg = self._settings.candidate_comparison
         symbols = [
@@ -658,31 +738,39 @@ class ScannerDaemon:
             for ticker in universe_tickers
             if ticker.get("symbol")
         }
-        policy = CandidateV2Policy(
-            version=cfg.challenger_version,
-            max_candidates=cfg.max_candidates,
-        )
-        previous_state = {
-            symbol: value
-            for symbol, value in self._load_candidate_filter_state().items()
-            if isinstance(value, dict)
-            and value.get("filter_version") == cfg.challenger_version
-        }
-        challenger_decisions, challenger_observations, next_state = (
-            scan_candidate_filter_v2(
-                symbols,
-                comparison_now,
-                previous_state,
-                policy,
-                quote_volumes_24h=quote_volumes,
-                base_url=str(self._settings.binance.base_url),
-                timeout_seconds=min(
-                    10.0,
-                    float(self._settings.collection.timeout_seconds),
-                ),
-                max_workers=cfg.max_workers,
+        if precomputed_v2 is not None and precomputed_v2[0]:
+            challenger_decisions, challenger_observations, next_state = precomputed_v2
+        else:
+            target_version = (
+                cfg.challenger_version
+                if cfg.challenger_version == "candidate_filter_v2"
+                else "candidate_filter_v2"
             )
-        )
+            policy = CandidateV2Policy(
+                version=target_version,
+                max_candidates=cfg.max_candidates,
+            )
+            previous_state = {
+                symbol: value
+                for symbol, value in self._load_candidate_filter_state().items()
+                if isinstance(value, dict)
+                and value.get("filter_version") == target_version
+            }
+            challenger_decisions, challenger_observations, next_state = (
+                scan_candidate_filter_v2(
+                    symbols,
+                    comparison_now,
+                    previous_state,
+                    policy,
+                    quote_volumes_24h=quote_volumes,
+                    base_url=str(self._settings.binance.base_url),
+                    timeout_seconds=min(
+                        10.0,
+                        float(self._settings.collection.timeout_seconds),
+                    ),
+                    max_workers=cfg.max_workers,
+                )
+            )
         audit: CandidateFilterCycleAudit = assemble_candidate_filter_audit(
             universe_tickers=universe_tickers,
             production_symbols=production_symbols,
