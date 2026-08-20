@@ -17,6 +17,7 @@ import {
   Target,
   Check,
   Sparkles,
+  Scale,
 } from 'lucide-react';
 import {
   getRiskLabel,
@@ -38,6 +39,7 @@ interface HeaderProps {
   onOpenGlossary: () => void;
   onOpenWatchlistModal: () => void;
   onOpenTracking: () => void;
+  onOpenModelComparison?: () => void;
   trackingCount: number;
   activeScanMode: string;
   autoTelegramEnabled: boolean;
@@ -65,6 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenGlossary,
   onOpenWatchlistModal,
   onOpenTracking,
+  onOpenModelComparison,
   trackingCount,
   activeScanMode,
   autoTelegramEnabled,
@@ -298,6 +301,20 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="font-mono text-[11px] font-bold">
                   {guiVersion === 'v2' ? t('gui_version_v2') : t('gui_version_v1')}
                 </span>
+              </button>
+            )}
+
+            {/* A/B Engine Comparison Button */}
+            {onOpenModelComparison && (
+              <button
+                type="button"
+                onClick={onOpenModelComparison}
+                className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-950/40 px-2.5 py-1 text-violet-300 shadow-sm transition hover:bg-violet-900/50 hover:border-violet-400 active:scale-95"
+                title={t('model_comparison_button') || 'So Sánh A/B Engine (V1 vs V2)'}
+                aria-label="Open Engine A/B Comparison"
+              >
+                <Scale className="h-3.5 w-3.5 text-violet-400" />
+                <span className="hidden text-xs font-bold sm:inline font-mono">A/B Engine</span>
               </button>
             )}
 

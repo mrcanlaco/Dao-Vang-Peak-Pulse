@@ -32,20 +32,23 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
   const sl = invalidationPrice && invalidationPrice > entry
     ? invalidationPrice
     : peakPrice && peakPrice > entry
-    ? peakPrice * 1.015
-    : entry * 1.04;
+    ? peakPrice * 1.008
+    : entry * 1.035;
 
   const tp1 = entry * 0.96; // -4%
   const tp2 = targetPrice && targetPrice > 0 && targetPrice < entry ? targetPrice : entry * 0.92; // -8%
+  const tp3 = entry * 0.86; // -14% (Trailing / Deep Dump)
 
   const slPct = ((sl - entry) / entry) * 100;
   const tp1Pct = ((entry - tp1) / entry) * 100;
   const tp2Pct = ((entry - tp2) / entry) * 100;
-  const rrRatio = slPct > 0 ? (tp2Pct / slPct) : 2.0;
+  const tp3Pct = ((entry - tp3) / entry) * 100;
+  const rrRatio = slPct > 0 ? (tp2Pct / slPct) : 2.3;
 
   const totalPos = marginUsd * leverage;
   const maxLoss = totalPos * (slPct / 100);
   const maxProfitTp2 = totalPos * (tp2Pct / 100);
+  const maxProfitTp3 = totalPos * (tp3Pct / 100);
 
   const formatPrice = (p: number) => {
     if (p < 0.001) return p.toFixed(6);
@@ -82,64 +85,48 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
         </div>
       </div>
 
-      {/* 4 Levels Grid */}
+      {/* Levels Grid (Entry, SL, TP1, TP2, TP3) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {/* Entry Level */}
-        <div className="bg-slate-900/90 border border-amber-500/30 rounded-lg p-2.5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-[10px] text-amber-300 font-semibold mb-1">
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-              {t('trade_entry_zone')}
-            </span>
-          </div>
-          <div className="text-sm sm:text-base font-black font-mono text-slate-100">
-            ${formatPrice(entry)}
-          </div>
-          <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {t('trade_signal_current')}
-          </div>
-        </div>
-
-        {/* Invalidation / Stop Loss Level */}
+        {/* Invalidation / Stop Loss Level (Adaptive) */}
         <div className="bg-slate-900/90 border border-red-500/30 rounded-lg p-2.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[10px] text-red-400 font-semibold mb-1">
             <span className="flex items-center gap-1">
               <ShieldAlert className="w-3 h-3 text-red-400" />
-              {t('trade_stop_loss')}
+              <span>{t('trade_stop_loss')} (Adaptive)</span>
             </span>
-            <span className="font-mono text-[9px] text-red-400">+{slPct.toFixed(1)}%</span>
+            <span className="font-mono text-[9px] text-red-400 font-bold">+{slPct.toFixed(1)}%</span>
           </div>
           <div className="text-sm sm:text-base font-black font-mono text-red-400">
             ${formatPrice(sl)}
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {t('trade_invalidation_level')}
+            Đỉnh râu nến 5m + buffer
           </div>
         </div>
 
-        {/* Take Profit 1 (-4%) */}
+        {/* Take Profit 1 (-4% - Chốt 50% + SL Hòa vốn) */}
         <div className="bg-slate-900/90 border border-emerald-500/30 rounded-lg p-2.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[10px] text-emerald-400 font-semibold mb-1">
             <span className="flex items-center gap-1">
               <TrendingDown className="w-3 h-3 text-emerald-400" />
-              {t('trade_target_1')}
+              <span>TP1 (50% Vol)</span>
             </span>
-            <span className="font-mono text-[9px] text-emerald-400">-{tp1Pct.toFixed(1)}%</span>
+            <span className="font-mono text-[9px] text-emerald-400 font-bold">-{tp1Pct.toFixed(1)}%</span>
           </div>
           <div className="text-sm sm:text-base font-black font-mono text-emerald-300">
             ${formatPrice(tp1)}
           </div>
-          <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {t('trade_quick_drawdown_4')}
+          <div className="text-[9px] text-emerald-400/80 mt-1 font-mono font-semibold">
+            Dời SL về Entry hòa vốn
           </div>
         </div>
 
-        {/* Take Profit 2 (-8%) */}
+        {/* Take Profit 2 (-8% - Chốt 30%) */}
         <div className="bg-slate-900/90 border border-emerald-600/50 rounded-lg p-2.5 flex flex-col justify-between shadow-inner">
           <div className="flex items-center justify-between text-[10px] text-emerald-300 font-bold mb-1">
             <span className="flex items-center gap-1">
               <Target className="w-3 h-3 text-emerald-400" />
-              {t('trade_target_2')}
+              <span>TP2 (30% Vol)</span>
             </span>
             <span className="font-mono text-[9px] text-emerald-300 font-black">-{tp2Pct.toFixed(1)}%</span>
           </div>
@@ -148,6 +135,23 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
             {t('trade_ai_target_8')}
+          </div>
+        </div>
+
+        {/* Take Profit 3 (-14% - Trailing 20%) */}
+        <div className="bg-gradient-to-br from-violet-950/40 to-slate-900/90 border border-violet-500/40 rounded-lg p-2.5 flex flex-col justify-between shadow-inner">
+          <div className="flex items-center justify-between text-[10px] text-violet-300 font-bold mb-1">
+            <span className="flex items-center gap-1">
+              <Zap className="w-3 h-3 text-amber-400" />
+              <span>TP3 (20% Vol)</span>
+            </span>
+            <span className="font-mono text-[9px] text-violet-300 font-black">-{tp3Pct.toFixed(1)}%</span>
+          </div>
+          <div className="text-sm sm:text-base font-black font-mono text-violet-300">
+            ${formatPrice(tp3)}
+          </div>
+          <div className="text-[9px] text-violet-400 mt-1 font-mono">
+            Trailing gồng xả lũ
           </div>
         </div>
       </div>
@@ -176,6 +180,7 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
           <div className="hidden sm:flex items-center gap-2 text-[11px]">
             <span className="text-red-400">SL: -${maxLoss.toFixed(1)}</span>
             <span className="text-emerald-400">TP2: +${maxProfitTp2.toFixed(1)}</span>
+            <span className="text-violet-400">TP3: +${maxProfitTp3.toFixed(1)}</span>
           </div>
         </div>
 

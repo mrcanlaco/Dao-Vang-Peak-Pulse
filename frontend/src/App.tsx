@@ -5,6 +5,7 @@ import { MainWorkspace } from './components/MainWorkspace';
 import { ActionDrawer } from './components/ActionDrawer';
 import { GlossaryModal } from './components/GlossaryModal';
 import { WatchlistModal } from './components/WatchlistModal';
+import { ModelComparisonModal } from './components/ModelComparisonModal';
 import { MobileBottomNav, type MobileTabType } from './components/v2/MobileBottomNav';
 import { StickyActionBar } from './components/v2/StickyActionBar';
 import { OrderExecutionModal } from './components/v2/OrderExecutionModal';
@@ -26,7 +27,7 @@ export function App() {
   const [telemetryData, setTelemetryData] = useState<ScannerTelemetry | null>(null);
   const [watchlistPresets, setWatchlistPresets] = useState<WatchlistPreset[]>([]);
   const [availableModels, setAvailableModels] = useState<ModelChoice[]>([]);
-  const [selectedModelKey, setSelectedModelKey] = useState<string>('heuristic_composite');
+  const [selectedModelKey, setSelectedModelKey] = useState<string>('two_tier_climax');
   const [scannerModelId, setScannerModelId] = useState<string>('');
 
   const [activeScanModes, setActiveScanModes] = useState<string[]>(['volatile']);
@@ -103,6 +104,7 @@ export function App() {
 
   const [mobileTab, setMobileTab] = useState<MobileTabType>('RADAR');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [isModelComparisonOpen, setIsModelComparisonOpen] = useState(false);
 
   const getStepText = (stepKey: string, _lang: Language) => {
     return t(`loading_${stepKey}`);
@@ -699,6 +701,7 @@ export function App() {
         scannerModelId={scannerModelId}
         guiVersion={guiVersion}
         onSelectGuiVersion={handleSelectGuiVersion}
+        onOpenModelComparison={() => setIsModelComparisonOpen(true)}
       />
 
       {/* Main Workspace Layout */}
@@ -859,6 +862,12 @@ export function App() {
       <GlossaryModal
         isOpen={isGlossaryOpen}
         onClose={() => setIsGlossaryOpen(false)}
+      />
+
+      {/* A/B Engine Comparison Benchmark Modal */}
+      <ModelComparisonModal
+        isOpen={isModelComparisonOpen}
+        onClose={() => setIsModelComparisonOpen(false)}
       />
 
       {/* Watchlist Preset Modal */}

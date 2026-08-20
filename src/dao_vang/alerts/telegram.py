@@ -520,6 +520,101 @@ class TelegramNotifier:
         text = "\n".join(lines)
         return self.send_message(text)
 
+    def send_two_tier_alert(
+        self,
+        symbol: str,
+        stage: str,
+        total_score: float,
+        htf_score: float,
+        ltf_score: float,
+        pump_pct: float,
+        pump_days: int,
+        close_price: float | None,
+        feature_time: str,
+        peak_wick_price: float | None = None,
+        web_url: str | None = None,
+        operating_mode: str = "production",
+    ) -> bool:
+        """Send a 2-Tier Climax specialized alert: ARMED (Pre-alert) or FIRED (Execution)."""
+        price = close_price or 0.0
+        price_str = f"${price:,.4f}" if price > 0 else "N/A"
+        mode_label = _mode_label(operating_mode, self._lang)
+        mode_prefix = f" `[{mode_label}]`" if operating_mode != "production" else ""
+        detail_url = web_url or _coin_url(self._web_base_url, symbol)
+        binance_url = f"https://www.binance.com/en/futures/{symbol}"
+        okx_sym = symbol.replace("USDT", "-USDT-SWAP").lower() if symbol.endswith("USDT") else f"{symbol}-SWAP".lower()
+        okx_url = f"https://www.okx.com/trade-swap/{okx_sym}"
+
+        # Adaptive SL calculation
+        if peak_wick_price and peak_wick_price > price:
+            sl_price = peak_wick_price * 1.005
+            sl_pct = ((sl_price - price) / price) * 100
+        else:
+            sl_pct = 3.5
+            sl_price = price * 1.035
+
+        tp1_price = price * 0.96
+        tp2_price = price * 0.92
+        tp3_price = price * 0.86
+        rr_ratio = (8.0 / sl_pct) if sl_pct > 0 else 2.3
+
+        if stage.upper() == "ARMED":
+            if self._lang == "en":
+                lines = [
+                    f"🧭 *[SHORT WATCHLIST — ARMED]* `{symbol}`{mode_prefix}",
+                    f"• *Status:* `Tier 1: HTF PUMP CLIMAX ARMED` (Score: {htf_score:.0f}/100)",
+                    f"• *Pump Amplitude:* `+{pump_pct:.0%}` ({pump_days}d)",
+                    f"• *Current Price:* {price_str}",
+                    f"• *Action:* Extreme overbought zone reached. Stand by for 5m order flow dump trigger.",
+                ]
+                if detail_url:
+                    lines.append(f"[🔗 Open {symbol} Cockpit Dashboard]({detail_url})")
+            else:
+                lines = [
+                    f"🧭 *[CANH VỊ THẾ SHORT — ARMED]* `{symbol}`{mode_prefix}",
+                    f"• *Trạng thái:* `Tầng 1: Đỉnh Bơm Khung Lớn (ARMED)` | Điểm: *{htf_score:.0f}/100*",
+                    f"• *Biên độ bơm:* `+{pump_pct:.0%}` ({pump_days} ngày)",
+                    f"• *Giá thị trường:* {price_str}",
+                    f"• *Khuyến nghị:* Coin đã vào vùng bơm nóng cực hạn. Chuẩn bị sẵn vốn & mở biểu đồ chờ cò xả 5m.",
+                ]
+                if detail_url:
+                    lines.append(f"[🔗 Mở Radar & Bảng Điều Khiển {symbol}]({detail_url})")
+        else:
+            if self._lang == "en":
+                lines = [
+                    f"⚡ *[SHORT EXECUTION — FIRED]* `{symbol}` 🚨{mode_prefix}",
+                    f"• *2-Tier Confluence:* `ARMED` + `FIRED` | Total Score: *{total_score:.0f}/100*",
+                    f"• *Entry Zone:* `{price_str}`",
+                    f"• *Adaptive Stop Loss:* `${sl_price:,.4f}` (+{sl_pct:.1f}% wick buffer)",
+                    f"• *Multi-Tier Take Profit:*",
+                    f"  🎯 *TP1:* `${tp1_price:,.4f}` (-4.0% — Close 50% & SL to Entry)",
+                    f"  🎯 *TP2:* `${tp2_price:,.4f}` (-8.0% — Close 30%)",
+                    f"  🎯 *TP3:* `${tp3_price:,.4f}` (-14.0% — Trailing remaining 20%)",
+                    f"• *Risk / Reward:* `1 : {rr_ratio:.2f}`",
+                    f"• *Direct Terminals:* [Binance Futures]({binance_url}) | [OKX Futures]({okx_url})",
+                ]
+                if detail_url:
+                    lines.append(f"[🔗 Open 1-Click Order Modal]({detail_url})")
+            else:
+                lines = [
+                    f"⚡ *[VÀO LỆNH SHORT NGAY — FIRED]* `{symbol}` 🚨{mode_prefix}",
+                    f"• *Hợp lưu 2 Tầng:* `ARMED` + `FIRED` | Điểm tổng: *{total_score:.0f}/100*",
+                    f"• *Điểm vào lệnh (Entry):* `{price_str}`",
+                    f"• *Cắt lỗ (Adaptive SL):* `${sl_price:,.4f}` (+{sl_pct:.1f}% theo đỉnh râu nến 5m)",
+                    f"• *Chiến lược Chốt lời Đa tầng:*",
+                    f"  🎯 *TP1:* `${tp1_price:,.4f}` (-4.0% — Đóng 50% & Dời SL về Entry hòa vốn)",
+                    f"  🎯 *TP2:* `${tp2_price:,.4f}` (-8.0% — Đóng 30%)",
+                    f"  🎯 *TP3:* `${tp3_price:,.4f}` (-14.0% — Gồng Trailing 20% còn lại)",
+                    f"• *Tỷ lệ Lợi nhuận / Rủi ro:* `1 : {rr_ratio:.2f}`",
+                    f"• *Sàn giao dịch:* [Mở Binance Futures]({binance_url}) | [Mở OKX Futures]({okx_url})",
+                ]
+                if detail_url:
+                    lines.append(f"[🔗 Mở Bảng Vào Lệnh 1-Chạm]({detail_url})")
+
+        lines.extend(["", "_Báo cáo phân tích xác suất từ Đảo Vàng AI._"])
+        text = "\n".join(lines)
+        return self.send_message(text)
+
     def send_test(self) -> bool:
         """Send a test message to verify configuration."""
         if self._lang == "en":
@@ -533,3 +628,4 @@ class TelegramNotifier:
             "Telegram bot đã kết nối thành công. "
             "Bạn sẽ nhận alert khi scanner phát hiện Distribution."
         )
+

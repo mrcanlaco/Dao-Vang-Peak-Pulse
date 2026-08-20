@@ -145,6 +145,77 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
         </div>
       </div>
 
+      {/* 2-Tier Pump Climax & Realtime Order Flow Engine Panel */}
+      {deepAnalysis?.two_tier_analysis && (
+        <div className="bg-slate-950/90 border border-violet-800/40 rounded-xl p-3 shadow-md space-y-2">
+          <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-violet-300">
+              <Zap className="w-3.5 h-3.5 text-amber-400" />
+              <span>{t('two_tier_title') || 'Kiến Trúc 2 Tầng (2-Tier Climax)'}</span>
+            </div>
+            <span className="text-[10px] font-mono text-slate-400">
+              Score: <strong className="text-violet-300">{deepAnalysis.two_tier_analysis.total_score}</strong>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+            {/* Tier 1: HTF Climax Context */}
+            <div className={`p-2 rounded-lg border ${
+              deepAnalysis.two_tier_analysis.htf_state === 'ARMED'
+                ? 'bg-red-950/40 border-red-800/60 text-red-200'
+                : 'bg-slate-900/60 border-slate-800 text-slate-300'
+            }`}>
+              <div className="flex items-center justify-between font-bold">
+                <span className="text-slate-400">{t('two_tier_htf') || 'Tầng 1 (Khung lớn)'}</span>
+                <span className={`px-1.5 py-0.2 rounded text-[9px] ${
+                  deepAnalysis.two_tier_analysis.htf_state === 'ARMED'
+                    ? 'bg-red-900 text-red-200 font-black animate-pulse'
+                    : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {deepAnalysis.two_tier_analysis.htf_state}
+                </span>
+              </div>
+              <div className="mt-1 text-xs font-bold">
+                {deepAnalysis.two_tier_analysis.htf_climax_score}/100
+              </div>
+              <div className="text-[9px] text-slate-400 truncate mt-0.5">
+                {deepAnalysis.two_tier_analysis.htf_state === 'ARMED' ? (t('two_tier_htf_armed') || 'Đã bơm nóng cực hạn') : (t('two_tier_htf_normal') || 'Biên độ bình thường')}
+              </div>
+            </div>
+
+            {/* Tier 2: LTF Real-time Trigger */}
+            <div className={`p-2 rounded-lg border ${
+              deepAnalysis.two_tier_analysis.ltf_state === 'FIRED'
+                ? 'bg-amber-950/40 border-amber-800/60 text-amber-200'
+                : 'bg-slate-900/60 border-slate-800 text-slate-300'
+            }`}>
+              <div className="flex items-center justify-between font-bold">
+                <span className="text-slate-400">{t('two_tier_ltf') || 'Tầng 2 (Dòng tiền 5m)'}</span>
+                <span className={`px-1.5 py-0.2 rounded text-[9px] ${
+                  deepAnalysis.two_tier_analysis.ltf_state === 'FIRED'
+                    ? 'bg-amber-500 text-slate-950 font-black'
+                    : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {deepAnalysis.two_tier_analysis.ltf_state}
+                </span>
+              </div>
+              <div className="mt-1 text-xs font-bold">
+                {deepAnalysis.two_tier_analysis.ltf_trigger_score}/100
+              </div>
+              <div className="text-[9px] text-slate-400 truncate mt-0.5">
+                {deepAnalysis.two_tier_analysis.ltf_state === 'FIRED' ? (t('two_tier_ltf_fired') || 'Lực xả 5m kích hoạt') : (t('two_tier_ltf_watch') || 'Đang chờ áp lực bán')}
+              </div>
+            </div>
+          </div>
+
+          {deepAnalysis.two_tier_analysis.explanation_summary && (
+            <p className="text-[10px] text-slate-300 leading-snug bg-slate-900/40 p-1.5 rounded border border-slate-800/50">
+              {deepAnalysis.two_tier_analysis.explanation_summary}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Action Buttons Grid */}
       <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 shadow-md space-y-2.5">
         <div className="flex items-center justify-between">

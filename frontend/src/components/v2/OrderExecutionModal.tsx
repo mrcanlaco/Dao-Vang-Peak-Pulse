@@ -49,21 +49,25 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
   const sl = invalidationPrice && invalidationPrice > entry
     ? invalidationPrice
     : peakPrice && peakPrice > entry
-    ? peakPrice * 1.015
-    : entry * 1.04;
+    ? peakPrice * 1.008
+    : entry * 1.035;
 
   const tp1 = entry * 0.96; // -4%
   const tp2 = targetPrice && targetPrice > 0 && targetPrice < entry ? targetPrice : entry * 0.92; // -8%
+  const tp3 = entry * 0.86; // -14% (Trailing)
 
-  const slPct = entry > 0 ? ((sl - entry) / entry) * 100 : 4.0;
+  const slPct = entry > 0 ? ((sl - entry) / entry) * 100 : 3.5;
   const tp1Pct = entry > 0 ? ((entry - tp1) / entry) * 100 : 4.0;
   const tp2Pct = entry > 0 ? ((entry - tp2) / entry) * 100 : 8.0;
-  const rrRatio = slPct > 0 ? (tp2Pct / slPct) : 2.0;
+  const tp3Pct = entry > 0 ? ((entry - tp3) / entry) * 100 : 14.0;
+  const rrRatio = slPct > 0 ? (tp2Pct / slPct) : 2.3;
 
   const totalPositionSize = marginUsd * leverage;
   const maxLossUsd = totalPositionSize * (slPct / 100);
-  const estProfitTp1Usd = totalPositionSize * (tp1Pct / 100);
-  const estProfitTp2Usd = totalPositionSize * (tp2Pct / 100);
+  const estProfitTp1Usd = totalPositionSize * (tp1Pct / 100) * 0.5; // 50% vol
+  const estProfitTp2Usd = totalPositionSize * (tp2Pct / 100) * 0.3; // 30% vol
+  const estProfitTp3Usd = totalPositionSize * (tp3Pct / 100) * 0.2; // 20% vol
+  const totalEstProfit = estProfitTp1Usd + estProfitTp2Usd + estProfitTp3Usd;
 
   const formatPrice = (p: number) => {
     if (p < 0.001) return p.toFixed(6);
@@ -86,9 +90,10 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
     const text = [
       `🔻 [ĐẢO VÀNG AI] SHORT SETUP: ${symbol}`,
       `💵 Entry Zone: $${formatPrice(entry)}`,
-      `🛑 Stop Loss: $${formatPrice(sl)} (+${slPct.toFixed(1)}%)`,
-      `🎯 Target 1: $${formatPrice(tp1)} (-${tp1Pct.toFixed(1)}%)`,
-      `🎯 Target 2: $${formatPrice(tp2)} (-${tp2Pct.toFixed(1)}%)`,
+      `🛑 Stop Loss (Adaptive): $${formatPrice(sl)} (+${slPct.toFixed(1)}%)`,
+      `🎯 TP1: $${formatPrice(tp1)} (-${tp1Pct.toFixed(1)}% — Đóng 50% & SL về Hòa vốn)`,
+      `🎯 TP2: $${formatPrice(tp2)} (-${tp2Pct.toFixed(1)}% — Đóng 30%)`,
+      `🎯 TP3: $${formatPrice(tp3)} (-${tp3Pct.toFixed(1)}% — Trailing 20% gồng xả lũ)`,
       `⚖️ R:R: 1 : ${rrRatio.toFixed(1)} | Rec. Leverage: ${leverage}x`,
       probValue !== null ? `📊 AI Dump Probability: ${probValue.toFixed(1)}%` : '',
     ].filter(Boolean).join('\n');
@@ -141,51 +146,38 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
           
           {/* 4 Levels Summary Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {/* Entry */}
-            <div className="bg-slate-950/80 border border-amber-500/30 rounded-xl p-2.5">
-              <span className="text-[10px] font-semibold text-amber-400 block mb-0.5">
-                {t('trade_entry_zone')}
-              </span>
-              <span className="text-sm font-black font-mono text-slate-100 block">
-                ${formatPrice(entry)}
-              </span>
-              <span className="text-[9px] text-slate-400 font-mono">
-                {t('trade_signal_current')}
-              </span>
-            </div>
-
-            {/* Stop Loss */}
+            {/* Stop Loss (Adaptive) */}
             <div className="bg-slate-950/80 border border-red-500/30 rounded-xl p-2.5">
               <div className="flex items-center justify-between text-[10px] font-semibold text-red-400 mb-0.5">
-                <span>{t('trade_stop_loss')}</span>
-                <span className="font-mono text-[9px]">+{slPct.toFixed(1)}%</span>
+                <span>{t('trade_stop_loss')} (Adaptive)</span>
+                <span className="font-mono text-[9px] font-bold">+{slPct.toFixed(1)}%</span>
               </div>
               <span className="text-sm font-black font-mono text-red-400 block">
                 ${formatPrice(sl)}
               </span>
               <span className="text-[9px] text-slate-400 font-mono">
-                {t('trade_invalidation_level')}
+                Đỉnh râu nến 5m + buffer
               </span>
             </div>
 
             {/* Target 1 */}
             <div className="bg-slate-950/80 border border-emerald-500/30 rounded-xl p-2.5">
               <div className="flex items-center justify-between text-[10px] font-semibold text-emerald-400 mb-0.5">
-                <span>{t('trade_target_1')}</span>
-                <span className="font-mono text-[9px]">-{tp1Pct.toFixed(1)}%</span>
+                <span>TP1 (50% Vol)</span>
+                <span className="font-mono text-[9px] font-bold">-{tp1Pct.toFixed(1)}%</span>
               </div>
               <span className="text-sm font-black font-mono text-emerald-300 block">
                 ${formatPrice(tp1)}
               </span>
-              <span className="text-[9px] text-slate-400 font-mono">
-                {t('trade_quick_drawdown_4')}
+              <span className="text-[9px] text-emerald-400/80 font-mono font-semibold">
+                Dời SL về Entry hòa vốn
               </span>
             </div>
 
             {/* Target 2 */}
             <div className="bg-slate-950/80 border border-emerald-600/50 rounded-xl p-2.5">
               <div className="flex items-center justify-between text-[10px] font-semibold text-emerald-300 mb-0.5">
-                <span>{t('trade_target_2')}</span>
+                <span>TP2 (30% Vol)</span>
                 <span className="font-mono text-[9px] font-bold">-{tp2Pct.toFixed(1)}%</span>
               </div>
               <span className="text-sm font-black font-mono text-emerald-400 block">
@@ -193,6 +185,20 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
               </span>
               <span className="text-[9px] text-slate-400 font-mono">
                 {t('trade_ai_target_8')}
+              </span>
+            </div>
+
+            {/* Target 3 (Trailing) */}
+            <div className="bg-slate-950/80 border border-violet-500/40 rounded-xl p-2.5">
+              <div className="flex items-center justify-between text-[10px] font-semibold text-violet-300 mb-0.5">
+                <span>TP3 (20% Vol)</span>
+                <span className="font-mono text-[9px] font-bold">-{tp3Pct.toFixed(1)}%</span>
+              </div>
+              <span className="text-sm font-black font-mono text-violet-300 block">
+                ${formatPrice(tp3)}
+              </span>
+              <span className="text-[9px] text-violet-400 font-mono">
+                Trailing gồng xả lũ
               </span>
             </div>
           </div>
@@ -275,12 +281,20 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
                 <span className="font-bold">-${maxLossUsd.toFixed(2)} USD (-{(slPct * leverage).toFixed(1)}%)</span>
               </div>
               <div className="flex justify-between text-emerald-400">
-                <span>{t('order_est_profit_tp1')}:</span>
-                <span className="font-bold">+${estProfitTp1Usd.toFixed(2)} USD (+{(tp1Pct * leverage).toFixed(1)}%)</span>
+                <span>TP1 (-4.0% / 50% Vol & SL hòa vốn):</span>
+                <span className="font-bold">+${estProfitTp1Usd.toFixed(2)} USD</span>
               </div>
               <div className="flex justify-between text-emerald-300">
-                <span>{t('order_est_profit_tp2')}:</span>
-                <span className="font-bold">+${estProfitTp2Usd.toFixed(2)} USD (+{(tp2Pct * leverage).toFixed(1)}%)</span>
+                <span>TP2 (-8.0% / 30% Vol):</span>
+                <span className="font-bold">+${estProfitTp2Usd.toFixed(2)} USD</span>
+              </div>
+              <div className="flex justify-between text-violet-300">
+                <span>TP3 (-14.0% / 20% Trailing):</span>
+                <span className="font-bold">+${estProfitTp3Usd.toFixed(2)} USD</span>
+              </div>
+              <div className="flex justify-between text-amber-300 border-t border-slate-800 pt-1 font-bold">
+                <span>Tổng Lợi Nhuận Dự Kiến:</span>
+                <span className="font-black">+${totalEstProfit.toFixed(2)} USD (+{(totalEstProfit / marginUsd * 100).toFixed(1)}% Margin)</span>
               </div>
             </div>
           </div>

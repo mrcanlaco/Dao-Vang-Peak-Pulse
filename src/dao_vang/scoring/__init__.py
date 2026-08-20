@@ -23,12 +23,19 @@ from dao_vang.scoring.frozen_inference import (
     score_snapshot,
 )
 
+from dao_vang.scoring.two_tier_scorer import (
+    TwoTierDistributionScore,
+    compute_two_tier_distribution_score,
+)
+
 __all__ = [
     "BtcContext",
     "classify_btc",
     "DistributionScore",
     "ScoreComponent",
     "compute_distribution_score",
+    "TwoTierDistributionScore",
+    "compute_two_tier_distribution_score",
     "FrozenInferenceError",
     "SnapshotQuality",
     "SnapshotScore",

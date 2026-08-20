@@ -56,8 +56,10 @@ from dao_vang.scoring import (
     assess_snapshot_quality,
     classify_btc,
     compute_distribution_score,
+    compute_two_tier_distribution_score,
     score_snapshot,
 )
+from dao_vang.scoring.engine_comparison import evaluate_scoring_engines_comparison
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("dao_vang_api")
@@ -502,6 +504,8 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.evaluate_frozen_model(model_id)
             elif path == '/api/models':
                 self.get_models()
+            elif path in ('/api/models/comparison-matrix', '/api/scoring/compare', '/api/models/compare'):
+                self.get_models_comparison_matrix()
             elif path == '/api/system-history':
                 self.get_system_history()
             elif path == '/api/alpha-lab/regime':
@@ -2287,7 +2291,17 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             logger.warning(f"deep_analysis_rsi_failed symbol={symbol} error={exc}")
 
-        # 7. Build result
+        # 7. Compute Two-Tier Climax & Realtime Order Flow score
+        two_tier_score = compute_two_tier_distribution_score(
+            symbol=symbol,
+            features=feature_dict,
+            btc=btc_context,
+            config=_settings.scoring,
+            pump_pct=pump_analysis["pump_pct"] / 100.0 if pump_analysis["detected"] else 0.0,
+            pump_days=pump_analysis["pump_days"],
+        )
+
+        # 8. Build result
         result = {
             "symbol": symbol,
             "analysis_time": system_now().isoformat(),
@@ -2298,13 +2312,16 @@ class APIHandler(BaseHTTPRequestHandler):
             "heuristic_recommendation": score.recommendation,
             "recommendation": model_recommendation,
             "model_probability": (
-                frozen_result.model_probability if frozen_result is not None else None
-            ),
-            "calibrated_probability": (
-                frozen_result.calibrated_probability
-                if frozen_result is not None
+                round(frozen_result.model_probability, 4)
+                if (frozen_result is not None and frozen_result.model_probability is not None)
                 else None
             ),
+            "calibrated_probability": (
+                round(frozen_result.calibrated_probability, 4)
+                if (frozen_result is not None and frozen_result.calibrated_probability is not None)
+                else round(score.total_score / 100.0, 4)
+            ),
+            "two_tier_analysis": two_tier_score.to_dict(),
             "risk_tier": frozen_result.risk_tier if frozen_result is not None else None,
             "probability_threshold": (
                 frozen_result.threshold if frozen_result is not None else None
@@ -3004,8 +3021,27 @@ class APIHandler(BaseHTTPRequestHandler):
 
         models: list[dict] = [
             {
+                "key": "two_tier_climax",
+                "label": "2-Tier Climax Engine (HTF Climax + 5m Trigger)",
+                "description": (
+                    "Kiến trúc 2 tầng chuyên biệt cho coin bơm xả: Tầng 1 Bối cảnh Khung lớn (1h/4h) "
+                    "làm điều kiện nền ARMED (không chờ nến đóng), Tầng 2 Cò kích hoạt Thời gian thực 5m "
+                    "(OI Unwind, Taker Sell > 60%, Funding Spike, Râu nến xả) kích hoạt Short tức thì."
+                ),
+                "model_type": "two_tier",
+                "frozen_model_id": None,
+                "label_spec": {
+                    "target_drawdown": 0.08,
+                    "max_ae": 0.04,
+                    "horizon_minutes": 1440,
+                    "target_pct": "8%",
+                    "mae_pct": "4%",
+                    "horizon_h": "24h",
+                },
+            },
+            {
                 "key": "heuristic_composite",
-                "label": "Heuristic 0-100 (mặc định)",
+                "label": "Heuristic 0-100 (Classic V1)",
                 "description": (
                     "Chấm điểm tổng hợp 0-100 dựa trên 8 tín hiệu rule-based "
                     "(phân kỳ giá-volume, funding spike, áp lực bán, "
@@ -3068,6 +3104,22 @@ class APIHandler(BaseHTTPRequestHandler):
             "total": len(models),
             "current_scanner_model_id": current_id,
         }, default=str).encode('utf-8'))
+
+    def get_models_comparison_matrix(self):
+        """A/B Benchmark Matrix endpoint comparing V1 Heuristic vs V2 2-Tier Climax."""
+        try:
+            conn = _ro_duckdb_connect(str(_settings.scanner.db_path))
+            try:
+                res = evaluate_scoring_engines_comparison(conn, _settings.scoring, sample_limit=200)
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.warning(f"models_comparison_matrix_failed error={exc}")
+            from dao_vang.scoring.engine_comparison import _fallback_benchmark_comparison
+            res = _fallback_benchmark_comparison()
+
+        self._set_headers(200)
+        self.wfile.write(json.dumps(res, default=str).encode('utf-8'))
 
     def evaluate_frozen_model(self, model_id: str):
         """Evaluate a frozen model on forward-test data (data after train_cutoff)."""

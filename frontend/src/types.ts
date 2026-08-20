@@ -266,6 +266,61 @@ export interface DeepAnalysisPump {
   quote_volume: number;
 }
 
+export interface TwoTierAnalysis {
+  symbol: string;
+  total_score: number;
+  calibrated_probability: number;
+  htf_climax_score: number;
+  htf_state: 'ARMED' | 'NORMAL';
+  ltf_trigger_score: number;
+  ltf_state: 'FIRED' | 'WATCH' | 'STANDBY';
+  recommendation: string;
+  explanation_summary: string;
+  components?: Array<{
+    name: string;
+    raw_value: number | string;
+    score: number;
+    weight: number;
+    weighted_score: number;
+    explanation: string;
+  }>;
+}
+
+export interface EnginePerformanceMetrics {
+  engine_name: string;
+  version_label: string;
+  total_signals: number;
+  tp1_hits: number;
+  tp1_hit_rate: number;
+  tp2_hits: number;
+  tp2_hit_rate: number;
+  sl_breaches: number;
+  sl_breach_rate: number;
+  avg_mae: number;
+  avg_mfe: number;
+  avg_risk_reward: number;
+  mean_lead_time_min: number;
+  precision_score: number;
+}
+
+export interface EngineComparisonResponse {
+  status: string;
+  sample_count: number;
+  evaluated_at: string;
+  champion_engine?: EnginePerformanceMetrics;
+  comparison: {
+    v1: EnginePerformanceMetrics;
+    v2: EnginePerformanceMetrics;
+  };
+  verdict: {
+    winner: string;
+    precision_diff_pct: number;
+    mae_reduction_pct: number;
+    risk_reward_advantage: number;
+    explanation: string;
+  };
+}
+
 export interface DeepAnalysis {
   symbol: string;
   analysis_time: string;
@@ -277,6 +332,7 @@ export interface DeepAnalysis {
   recommendation: string;
   model_probability: number | null;
   calibrated_probability: number | null;
+  two_tier_analysis?: TwoTierAnalysis;
   risk_tier: string | null;
   probability_threshold: number | null;
   quality_status?: string | null;
