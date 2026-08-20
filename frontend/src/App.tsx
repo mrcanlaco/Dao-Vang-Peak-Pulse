@@ -5,6 +5,9 @@ import { MainWorkspace } from './components/MainWorkspace';
 import { ActionDrawer } from './components/ActionDrawer';
 import { GlossaryModal } from './components/GlossaryModal';
 import { WatchlistModal } from './components/WatchlistModal';
+import { MobileBottomNav, type MobileTabType } from './components/v2/MobileBottomNav';
+import { StickyActionBar } from './components/v2/StickyActionBar';
+import { OrderExecutionModal } from './components/v2/OrderExecutionModal';
 import type {
   SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, SystemStatus, FilterTag, SignalSort, TelegramFilter, AutomationSettings, ScannerTelemetry, WatchlistPreset, DeepAnalysis, ModelChoice, ModelsData, TrackingWatchlistItem
 } from './types';
@@ -12,7 +15,7 @@ import { parseSystemDate } from './utils/time';
 import { useTranslation, type Language } from './i18n/LanguageContext';
 
 export function App() {
-  const { language } = useTranslation();
+  const { language, t } = useTranslation();
 
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [signals, setSignals] = useState<SignalItem[]>([]);
@@ -77,19 +80,32 @@ export function App() {
   const [isActionDrawerOpen, setIsActionDrawerOpen] = useState(false);
   const [isRadarCollapsed, setIsRadarCollapsed] = useState(false);
 
-  const getStepText = (stepKey: string, lang: Language) => {
-    const steps: Record<string, Record<string, string>> = {
-      init: { vi: 'Đang khởi tạo kết nối máy chủ...', en: 'Initializing server connection...', zh: '正在初始化服务器连接...', ko: '서버 연결 초기화 중...' },
-      s1: { vi: '1/8: Tải trạng thái hệ thống...', en: '1/8: Loading system status...', zh: '1/8: 正在加载系统状态...', ko: '1/8: 시스템 상태 로드 중...' },
-      s2: { vi: '2/8: Tải tín hiệu cảnh báo Radar...', en: '2/8: Loading Radar alert signals...', zh: '2/8: 正在加载雷达预警信号...', ko: '2/8: 레이더 경보 신호 로드 중...' },
-      s3: { vi: '3/8: Tải danh sách ứng viên xả...', en: '3/8: Loading dump candidates...', zh: '3/8: 正在加载做空候选榜...', ko: '3/8: 덤프 후보 목록 로드 중...' },
-      s4: { vi: '4/8: Tải dữ liệu kiểm định mô hình...', en: '4/8: Loading model audit & validation...', zh: '4/8: 正在加载模型审计与验证...', ko: '4/8: 모델 감사 및 검증 데이터 로드 중...' },
-      s5: { vi: '5/8: Tải thông tin thị trường...', en: '5/8: Loading market context...', zh: '5/8: 正在加载市场宏观环境...', ko: '5/8: 시장 환경 데이터 로드 중...' },
-      s6: { vi: '6/8: Tải danh sách theo dõi và giá Binance 24 giờ...', en: '6/8: Loading watchlist & tracking items...', zh: '6/8: 正在加载跟踪列表与 24h 价格...', ko: '6/8: 관심목록 및 24시간 가격 로드 중...' },
-      s7: { vi: '7/8: Tải thông số giám sát bộ quét...', en: '7/8: Loading scanner telemetry...', zh: '7/8: 正在加载扫描器遥测指标...', ko: '7/8: 스캐너 텔레메트리 지표 로드 중...' },
-      s8: { vi: '8/8: Tải danh sách mô hình...', en: '8/8: Loading AI models...', zh: '8/8: 正在加载 AI 模型列表...', ko: '8/8: AI 모델 목록 로드 중...' },
-    };
-    return steps[stepKey]?.[lang] ?? steps[stepKey]?.['en'] ?? stepKey;
+  // GUI Version: 'v1' (Classic 3-column) | 'v2' (Pro Mobile / Binance-OKX Style)
+  const [guiVersion, setGuiVersion] = useState<'v1' | 'v2'>(() => {
+    try {
+      const saved = localStorage.getItem('dao_vang_gui_version');
+      if (saved === 'v1' || saved === 'v2') return saved;
+      if (typeof window !== 'undefined' && window.location.hash.includes('v1')) return 'v1';
+      return 'v2';
+    } catch {
+      return 'v2';
+    }
+  });
+
+  const handleSelectGuiVersion = (version: 'v1' | 'v2') => {
+    setGuiVersion(version);
+    try {
+      localStorage.setItem('dao_vang_gui_version', version);
+    } catch {
+      // Ignore localStorage errors
+    }
+  };
+
+  const [mobileTab, setMobileTab] = useState<MobileTabType>('RADAR');
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+
+  const getStepText = (stepKey: string, _lang: Language) => {
+    return t(`loading_${stepKey}`);
   };
 
   const fetchJsonOr = async <T,>(url: string, fallback: T): Promise<T> => {
@@ -295,6 +311,9 @@ export function App() {
     setSelectedSignal(sig);
     setDeepAnalysis(null);
     setActiveTab('DECISION');
+    if (guiVersion === 'v2') {
+      setMobileTab('ANALYSIS');
+    }
     fetchCoinDetail(sig.symbol);
     handleRunDeepAnalysis(sig.symbol);
   };
@@ -309,6 +328,9 @@ export function App() {
     setSelectedSignal(null);
     setDeepAnalysis(null);
     setActiveTab('DECISION');
+    if (guiVersion === 'v2') {
+      setMobileTab('ANALYSIS');
+    }
     fetchCoinDetail(symbol);
     handleRunDeepAnalysis(symbol);
   };
@@ -320,13 +342,7 @@ export function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: sig.symbol, probability: sig.probability })
       });
-      const successMsg = language === 'en'
-        ? `Dispatched ${sig.symbol} alert to Telegram!`
-        : language === 'zh'
-        ? `已将 ${sig.symbol} 警报推送至 Telegram！`
-        : language === 'ko'
-        ? `${sig.symbol} 텔레그램 경보가 발송되었습니다!`
-        : `Đã gửi cảnh báo ${sig.symbol} sang Telegram!`;
+      const successMsg = t('toast_telegram_sent').replace('{symbol}', sig.symbol);
       setTelegramSentSuccess(successMsg);
       setTimeout(() => setTelegramSentSuccess(null), 4000);
     } catch (err) {
@@ -363,13 +379,7 @@ export function App() {
         body: JSON.stringify({ force: true })
       });
       const data = await res.json();
-      const successMsg = language === 'en'
-        ? `Manual scan completed! Inspected ${data.symbols_scanned ?? 48} pairs across Binance futures.`
-        : language === 'zh'
-        ? `手动扫描完成！已对 Binance 合约 ${data.symbols_scanned ?? 48} 个交易对完成深度量化分析。`
-        : language === 'ko'
-        ? `수동 스캔 완료! 바이낸스 선물 ${data.symbols_scanned ?? 48}개 페어 분석을 마쳤습니다.`
-        : `Đã kích hoạt quét thành công! Đã quét ${data.symbols_scanned ?? 48} mã trên Binance Futures.`;
+      const successMsg = t('toast_scan_triggered').replace('{count}', String(data.symbols_scanned ?? 48));
       setScanTriggeredSuccess(successMsg);
       await fetchData();
       setTimeout(() => setScanTriggeredSuccess(null), 6000);
@@ -393,20 +403,14 @@ export function App() {
         body: JSON.stringify({ symbol: nextSymbol })
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || (language === 'en' ? `Failed to add ${nextSymbol}` : `Không thể thêm ${nextSymbol}`));
+      if (!res.ok) throw new Error(data.error || t('error_failed_to_add'));
 
       setManualWatchlist(data.manual_watchlist || [...manualWatchlist, nextSymbol]);
-      const successMsg = language === 'en'
-        ? `Added ${nextSymbol} to custom watchlist.`
-        : language === 'zh'
-        ? `已将 ${nextSymbol} 添加至自定义扫描列表。`
-        : language === 'ko'
-        ? `${nextSymbol}이(가) 관심 스캔 목록에 추가되었습니다.`
-        : `Đã thêm ${nextSymbol} vào danh sách theo dõi cá nhân.`;
+      const successMsg = t('toast_watchlist_added').replace('{symbol}', nextSymbol);
       setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to add symbol.' : 'Không thể thêm coin.');
+      const message = err instanceof Error ? err.message : t('error_failed_to_add');
       setWatchlistFeedback({ type: 'error', message });
       console.error("Error adding manual coin:", err);
       return false;
@@ -423,20 +427,14 @@ export function App() {
         method: 'DELETE'
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || (language === 'en' ? `Failed to remove ${symbol}` : `Không thể xóa ${symbol}`));
+      if (!res.ok) throw new Error(data.error || t('error_failed_to_remove'));
 
       setManualWatchlist(data.manual_watchlist || manualWatchlist.filter((item) => item !== symbol));
-      const successMsg = language === 'en'
-        ? `Removed ${symbol} from custom watchlist.`
-        : language === 'zh'
-        ? `已将 ${symbol} 从自定义扫描列表中移除。`
-        : language === 'ko'
-        ? `${symbol}이(가) 관심 스캔 목록에서 삭제되었습니다.`
-        : `Đã xóa ${symbol} khỏi danh sách theo dõi cá nhân.`;
+      const successMsg = t('toast_watchlist_removed').replace('{symbol}', symbol);
       setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to remove symbol.' : 'Không thể xóa coin.');
+      const message = err instanceof Error ? err.message : t('error_failed_to_remove');
       setWatchlistFeedback({ type: 'error', message });
       console.error("Error removing manual coin:", err);
       return false;
@@ -471,18 +469,12 @@ export function App() {
         const exists = prev.some(item => item.id === data.item?.id);
         return exists ? prev.map(item => item.id === data.item?.id ? data.item! : item) : [data.item!, ...prev];
       });
-      const successMsg = language === 'en'
-        ? `${symbol} added to position tracking.`
-        : language === 'zh'
-        ? `${symbol} 已加入仓位走势跟踪。`
-        : language === 'ko'
-        ? `${symbol}이(가) 포지션 추적 목록에 추가되었습니다.`
-        : `${symbol} đã được thêm vào danh sách theo dõi tiến trình.`;
+      const successMsg = t('toast_tracking_added').replace('{symbol}', symbol);
       setWatchlistFeedback({ type: 'success', message: successMsg });
       setActiveTab('WATCHLIST');
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to add symbol to tracking.' : 'Không thể thêm coin vào danh sách theo dõi.');
+      const message = err instanceof Error ? err.message : t('error_failed_to_update_tracking');
       setWatchlistFeedback({ type: 'error', message });
       console.error('Tracking watchlist add error:', err);
       return false;
@@ -527,17 +519,11 @@ export function App() {
       const data = await res.json().catch(() => ({})) as { item?: TrackingWatchlistItem; error?: string };
       if (!res.ok || !data.item) throw new Error(data.error || `Tracking HTTP ${res.status}`);
       setTrackingItems(prev => prev.map(item => item.id === id ? data.item! : item));
-      const successMsg = language === 'en'
-        ? 'Tracking status updated.'
-        : language === 'zh'
-        ? '跟踪状态已更新。'
-        : language === 'ko'
-        ? '추적 상태가 업데이트되었습니다.'
-        : 'Đã cập nhật trạng thái theo dõi.';
+      const successMsg = t('toast_tracking_updated');
       setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to update tracking.' : 'Không thể cập nhật theo dõi.');
+      const message = err instanceof Error ? err.message : t('error_failed_to_update_tracking');
       setWatchlistFeedback({ type: 'error', message });
       console.error('Tracking watchlist update error:', err);
       return false;
@@ -552,17 +538,11 @@ export function App() {
       const res = await fetch(`/api/tracking-watchlist/${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`Tracking HTTP ${res.status}`);
       setTrackingItems(prev => prev.filter(item => item.id !== id));
-      const successMsg = language === 'en'
-        ? 'Tracking item removed.'
-        : language === 'zh'
-        ? '已移除跟踪项目。'
-        : language === 'ko'
-        ? '추적 항목이 삭제되었습니다.'
-        : 'Đã xóa mục theo dõi.';
+      const successMsg = t('toast_tracking_removed');
       setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to remove tracking item.' : 'Không thể xóa mục theo dõi.');
+      const message = err instanceof Error ? err.message : t('error_failed_to_remove_tracking');
       setWatchlistFeedback({ type: 'error', message });
       console.error('Tracking watchlist remove error:', err);
       return false;
@@ -586,24 +566,18 @@ export function App() {
         body: JSON.stringify({ modes: normalizedModes })
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || (language === 'en' ? `Failed to change scan mode (HTTP ${res.status})` : `Không thể đổi chế độ quét (HTTP ${res.status})`));
+      if (!res.ok) throw new Error(data.error || t('error_failed_to_change_scan_mode'));
       const confirmedModes = Array.isArray(data.active_scan_modes) && data.active_scan_modes.length > 0
         ? data.active_scan_modes
         : normalizedModes;
       setActiveScanModes(confirmedModes);
       const mode = confirmedModes.join(' + ');
-      const successMsg = language === 'en'
-        ? `Selected mode ${String(data.active_scan_mode || mode).toUpperCase()}. Scanner will apply in next cycle.`
-        : language === 'zh'
-        ? `已切换至模式 ${String(data.active_scan_mode || mode).toUpperCase()}。扫描器将在下一轮生效。`
-        : language === 'ko'
-        ? `${String(data.active_scan_mode || mode).toUpperCase()} 모드가 선택되었습니다. 다음 주기부터 적용됩니다.`
-        : `Đã chọn chế độ ${String(data.active_scan_mode || mode).toUpperCase()}. Bộ quét sẽ áp dụng ở chu kỳ kế tiếp.`;
+      const successMsg = t('toast_scan_mode_changed').replace('{mode}', String(data.active_scan_mode || mode).toUpperCase());
       setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
     } catch (err) {
       setActiveScanModes(previousModes);
-      const message = err instanceof Error ? err.message : (language === 'en' ? 'Failed to change scan mode.' : 'Không thể đổi chế độ quét.');
+      const message = err instanceof Error ? err.message : t('error_failed_to_change_scan_mode');
       setWatchlistFeedback({ type: 'error', message });
       console.error("Error updating scan mode:", err);
       return false;
@@ -683,7 +657,7 @@ export function App() {
             <span className="font-semibold">{loadingStep}</span>
           </div>
           <span className="text-slate-400">
-            {language === 'en' ? 'Loading real-time system telemetry...' : language === 'zh' ? '正在加载实时系统遥测数据...' : language === 'ko' ? '실시간 시스템 텔레메트리 로드 중...' : 'Đang tải dữ liệu thời gian thực từ hệ thống...'}
+            {t('loading_telemetry_realtime')}
           </span>
         </div>
       )}
@@ -701,7 +675,10 @@ export function App() {
         isRefreshing={isRefreshing}
         onOpenGlossary={() => setIsGlossaryOpen(true)}
         onOpenWatchlistModal={() => setIsWatchlistModalOpen(true)}
-        onOpenTracking={() => setActiveTab('WATCHLIST')}
+        onOpenTracking={() => {
+          setActiveTab('WATCHLIST');
+          if (guiVersion === 'v2') setMobileTab('TRACKING');
+        }}
         trackingCount={trackingItems.filter(item => item.status !== 'CLOSED').length}
         activeScanMode={activeScanMode}
         autoTelegramEnabled={automationSettings.autoTelegramPush}
@@ -709,6 +686,7 @@ export function App() {
         onToggleActionDrawer={() => setIsActionDrawerOpen(v => !v)}
         onGoHome={() => {
           setActiveTab('DECISION');
+          if (guiVersion === 'v2') setMobileTab('RADAR');
           setSelectedSignal(null);
           setSelectedSignalId(null);
           setCoinDetail(null);
@@ -719,13 +697,25 @@ export function App() {
         selectedModelKey={selectedModelKey}
         onSelectModel={setSelectedModelKey}
         scannerModelId={scannerModelId}
+        guiVersion={guiVersion}
+        onSelectGuiVersion={handleSelectGuiVersion}
       />
 
-      {/* Main 3-Column Layout: Feed (Left) - Decision Center (Center) - Smart Action (Right) */}
-      <main className="flex-1 max-w-[1700px] w-full mx-auto p-2.5 sm:p-3.5 grid grid-cols-1 lg:grid-cols-12 gap-2.5 lg:gap-3.5 lg:overflow-hidden">
+      {/* Main Workspace Layout */}
+      <main className={`flex-1 max-w-[1700px] w-full mx-auto p-2.5 sm:p-3.5 grid grid-cols-1 lg:grid-cols-12 gap-2.5 lg:gap-3.5 lg:overflow-hidden ${
+        guiVersion === 'v2' ? 'pb-24 sm:pb-3.5' : ''
+      }`}>
         
         {/* Left Column: Signal Feed Radar (3 cols) */}
-        <div className={`lg:col-span-3 ${isRadarCollapsed ? 'h-auto' : 'h-[min(68vh,620px)]'} lg:h-[calc(100vh-120px)] lg:min-h-[600px]`}>
+        <div className={`lg:col-span-3 ${
+          guiVersion === 'v2'
+            ? mobileTab === 'RADAR'
+              ? 'block h-[calc(100vh-140px)] min-h-[500px]'
+              : 'hidden lg:block lg:h-[calc(100vh-120px)] lg:min-h-[600px]'
+            : isRadarCollapsed
+            ? 'h-auto'
+            : 'h-[min(68vh,620px)]'
+        } lg:h-[calc(100vh-120px)] lg:min-h-[600px]`}>
           <SignalFeed
             signals={filteredSignals}
             selectedSignalId={selectedSignalId}
@@ -741,13 +731,15 @@ export function App() {
             setSignalSort={setSignalSort}
             telegramFilter={telegramFilter}
             setTelegramFilter={setTelegramFilter}
-            isCollapsed={isRadarCollapsed}
+            isCollapsed={guiVersion === 'v1' ? isRadarCollapsed : false}
             onToggleCollapse={() => setIsRadarCollapsed(value => !value)}
           />
         </div>
 
         {/* Center Column: Main Workspace & Charts (6 or 9 cols depending on drawer) */}
-        <div className={`min-w-0 h-auto lg:h-[calc(100vh-120px)] lg:min-h-[600px] ${isActionDrawerOpen ? 'lg:col-span-6' : 'lg:col-span-9'}`}>
+        <div className={`min-w-0 h-auto lg:h-[calc(100vh-120px)] lg:min-h-[600px] ${
+          guiVersion === 'v2' && mobileTab === 'RADAR' ? 'hidden lg:block' : 'block'
+        } ${isActionDrawerOpen ? 'lg:col-span-6' : 'lg:col-span-9'}`}>
           <MainWorkspace
             signals={signals}
             selectedSignal={selectedSignal}
@@ -782,6 +774,8 @@ export function App() {
             onRemoveTracking={removeTrackingItem}
             activeTab={activeTab}
             setActiveTab={setActiveTab}
+            onOpenOrderModal={() => setIsOrderModalOpen(true)}
+            guiVersion={guiVersion}
           />
         </div>
 
@@ -801,6 +795,65 @@ export function App() {
         )}
 
       </main>
+
+      {/* GUI V2 Mobile Bottom Navigation Bar */}
+      {guiVersion === 'v2' && (
+        <MobileBottomNav
+          activeTab={mobileTab}
+          onSelectTab={(tab) => {
+            setMobileTab(tab);
+            if (tab === 'RADAR') {
+              // Switch to radar view on mobile
+            } else if (tab === 'ANALYSIS') {
+              setActiveTab('DECISION');
+            } else if (tab === 'ORDER') {
+              setIsOrderModalOpen(true);
+            } else if (tab === 'TRACKING') {
+              setActiveTab('WATCHLIST');
+            } else if (tab === 'TOOLS') {
+              if (activeTab === 'DECISION' || activeTab === 'WATCHLIST') {
+                setActiveTab('RANKING');
+              }
+            }
+          }}
+          signalCount={filteredSignals.length}
+          selectedSymbol={coinDetail?.symbol || selectedSignal?.symbol || null}
+          trackingCount={trackingItems.filter(item => item.status !== 'CLOSED').length}
+        />
+      )}
+
+      {/* GUI V2 Sticky Action Bar (Mobile when coin selected) */}
+      {guiVersion === 'v2' && (coinDetail || selectedSignal) && mobileTab === 'ANALYSIS' && (
+        <StickyActionBar
+          symbol={coinDetail?.symbol || selectedSignal?.symbol || ''}
+          currentPrice={coinDetail?.current_price || selectedSignal?.signal_price || 0}
+          probability={deepAnalysis?.calibrated_probability ?? selectedSignal?.probability ?? coinDetail?.probability}
+          riskLevel={selectedSignal?.risk_level || coinDetail?.risk_level}
+          onOpenOrderModal={() => setIsOrderModalOpen(true)}
+          onTrackPosition={handleTrackCurrentCoin}
+          isSymbolTracked={Boolean(coinDetail?.symbol && trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === coinDetail.symbol.toUpperCase()))}
+          isTrackingLoading={isTrackingLoading}
+          onPushTelegram={() => selectedSignal && handlePushTelegram(selectedSignal)}
+        />
+      )}
+
+      {/* GUI V2 Order Execution & Risk Management Modal */}
+      {(coinDetail || selectedSignal) && (
+        <OrderExecutionModal
+          isOpen={isOrderModalOpen}
+          onClose={() => setIsOrderModalOpen(false)}
+          symbol={coinDetail?.symbol || selectedSignal?.symbol || ''}
+          currentPrice={coinDetail?.current_price || selectedSignal?.signal_price || 0}
+          signalPrice={selectedSignal?.signal_price}
+          targetPrice={coinDetail?.target_price || selectedSignal?.target_price}
+          peakPrice={deepAnalysis?.pump_analysis?.peak_price}
+          probability={deepAnalysis?.calibrated_probability ?? selectedSignal?.probability ?? coinDetail?.probability}
+          riskLevel={selectedSignal?.risk_level || coinDetail?.risk_level}
+          onTrackPosition={handleTrackCurrentCoin}
+          isSymbolTracked={Boolean(coinDetail?.symbol && trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === coinDetail.symbol.toUpperCase()))}
+          isTrackingLoading={isTrackingLoading}
+        />
+      )}
 
       {/* Glossary Modal */}
       <GlossaryModal

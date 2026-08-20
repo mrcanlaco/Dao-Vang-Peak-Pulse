@@ -8,13 +8,10 @@ interface CoinLinkProps {
 }
 
 export const CoinLink: React.FC<CoinLinkProps> = ({ symbol, onClick, className = '' }) => {
-  const { language } = useTranslation();
+  const { t } = useTranslation();
 
   const getTitle = () => {
-    if (language === 'zh') return `查看 ${symbol} 的深度分析`;
-    if (language === 'ko') return `${symbol} 정밀 분석 보기`;
-    if (language === 'en') return `View detailed analysis for ${symbol}`;
-    return `Xem phân tích chi tiết ${symbol}`;
+    return t('coin_link_view_details').replace('{symbol}', symbol);
   };
 
   return (

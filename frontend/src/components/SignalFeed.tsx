@@ -232,13 +232,13 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
             <button
               onClick={playAlertSound}
               className="p-1 text-amber-400 hover:bg-slate-800 rounded"
-              title={language === 'en' ? 'Play test sound' : language === 'zh' ? '播放测试音频' : language === 'ko' ? '알림음 테스트' : 'Phát âm thanh cảnh báo thử nghiệm'}
+              title={t('signal_play_test_sound')}
             >
               <Volume2 className="w-3.5 h-3.5" />
             </button>
           )}
           <span className="px-2 py-0.5 bg-slate-800 text-slate-400 text-[10px] rounded-full font-mono font-bold">
-            {signals.length} {language === 'en' ? 'signals' : language === 'zh' ? '条信号' : language === 'ko' ? '개 신호' : 'tín hiệu'}
+            {signals.length} {t('unit_signals')}
           </span>
           {onToggleCollapse && (
             <button

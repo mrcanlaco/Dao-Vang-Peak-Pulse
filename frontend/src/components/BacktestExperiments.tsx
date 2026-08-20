@@ -189,7 +189,7 @@ export const BacktestExperiments: React.FC<BacktestExperimentsProps> = ({ onSele
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={12} className="p-4 text-center text-slate-500">
-                    {language === 'en' ? 'No experiments match search criteria.' : language === 'zh' ? '未找到符合条件的实验记录。' : language === 'ko' ? '검색 조건과 일치하는 실험이 없습니다.' : 'Không có thử nghiệm nào khớp.'}
+                    {t('exp_no_matching')}
                   </td>
                 </tr>
               ) : filtered.map((e, i) => {

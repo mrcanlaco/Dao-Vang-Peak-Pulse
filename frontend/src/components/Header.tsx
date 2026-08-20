@@ -16,6 +16,7 @@ import {
   Sliders,
   Target,
   Check,
+  Sparkles,
 } from 'lucide-react';
 import {
   getRiskLabel,
@@ -47,6 +48,8 @@ interface HeaderProps {
   selectedModelKey?: string;
   onSelectModel?: (key: string) => void;
   scannerModelId?: string;
+  guiVersion?: 'v1' | 'v2';
+  onSelectGuiVersion?: (version: 'v1' | 'v2') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -72,6 +75,8 @@ export const Header: React.FC<HeaderProps> = ({
   selectedModelKey = 'heuristic_composite',
   onSelectModel,
   scannerModelId = '',
+  guiVersion = 'v2',
+  onSelectGuiVersion,
 }) => {
   const { language, setLanguage, t } = useTranslation();
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
@@ -163,7 +168,7 @@ export const Header: React.FC<HeaderProps> = ({
                     />
                     <div className="absolute right-0 top-full z-50 mt-1 max-h-96 w-[min(20rem,calc(100vw-1.5rem))] overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 p-2 shadow-xl lg:left-0 lg:right-auto">
                       <div className="mb-1 border-b border-slate-800 px-2 py-1 text-[10px] font-bold uppercase text-slate-400">
-                        🧠 {language === 'en' ? 'AI Prediction Models' : language === 'zh' ? 'AI 预测模型' : language === 'ko' ? 'AI 예측 모델' : 'Mô hình dự báo AI'}
+                        🧠 {t('header_ai_models')}
                       </div>
                       {availableModels.map((model) => (
                         <button
@@ -275,6 +280,26 @@ export const Header: React.FC<HeaderProps> = ({
               <HelpCircle className="h-3.5 w-3.5" />
               <span className="hidden text-xs font-medium sm:inline">{t('glossary')}</span>
             </button>
+
+            {/* GUI Version Switcher: V1 Classic ⇄ V2 Pro */}
+            {onSelectGuiVersion && (
+              <button
+                type="button"
+                onClick={() => onSelectGuiVersion(guiVersion === 'v1' ? 'v2' : 'v1')}
+                className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold shadow-sm transition ${
+                  guiVersion === 'v2'
+                    ? 'border-amber-400/80 bg-gradient-to-r from-amber-500/25 via-red-500/20 to-amber-500/15 text-amber-300 shadow-amber-500/15 ring-1 ring-amber-500/30'
+                    : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600 hover:text-white'
+                }`}
+                title={guiVersion === 'v2' ? 'Đang dùng GUI V2 Pro (Bấm để chuyển về V1 Classic)' : 'Đang dùng GUI V1 Classic (Bấm để nâng cấp lên V2 Pro Mobile)'}
+                aria-label="Toggle GUI Version"
+              >
+                <Sparkles className={`h-3.5 w-3.5 ${guiVersion === 'v2' ? 'text-amber-400 animate-pulse' : 'text-slate-400'}`} />
+                <span className="font-mono text-[11px] font-bold">
+                  {guiVersion === 'v2' ? t('gui_version_v2') : t('gui_version_v1')}
+                </span>
+              </button>
+            )}
 
             {/* 4-Language Dropdown Selector */}
             <div className="relative">

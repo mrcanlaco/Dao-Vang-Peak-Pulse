@@ -75,3 +75,20 @@ services:
       options:
         max-size: "20m"
         max-file: "3"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: dao_vang_cloudflared
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./cloudflared:/etc/cloudflared
+    command: tunnel --config /etc/cloudflared/config.yml run
+    depends_on:
+      - web
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+

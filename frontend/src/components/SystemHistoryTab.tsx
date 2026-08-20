@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { formatSystemDateTime, parseSystemDate } from '../utils/time';
 import { useTranslation, type Language } from '../i18n/LanguageContext';
-import { getModelLabel, getModelDescription, getScanModeLabel } from '../i18n/translations';
+import { getModelLabel, getModelDescription, getScanModeLabel, formatAgeMinutes } from '../i18n/translations';
 
 /* ---------- Tooltip helper ---------- */
 const InfoTip: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => {
@@ -177,14 +177,14 @@ export const SystemHistoryTab: React.FC = () => {
       funding: {
         vi: 'Tỷ lệ funding theo thời gian — tín hiệu áp lực mua/bán trên hợp đồng tương lai.',
         en: 'Funding rate time series from Binance USD-M futures.',
-        zh: '币安 U 本位合约资金费率时序。',
+        zh: '币安合约资金费率时序数据。',
         ko: '바이낸스 선물 펀딩비 시계열 데이터.',
       },
       open_interest: {
-        vi: 'OI (USD) — tổng vị thế đang mở, tăng = dòng tiền vào, giảm = dòng tiền rút ra.',
-        en: 'Open Interest (USD) position tracking.',
-        zh: '未平仓合约量 (OI USD) 持仓跟踪。',
-        ko: '미결제약정 (OI USD) 포지션 추적.',
+        vi: 'Dữ liệu Open Interest — số lượng vị thế đang mở.',
+        en: 'Open interest snapshot time series.',
+        zh: '未平仓合约量时序数据。',
+        ko: '미결제약정 스냅샷 시계열 데이터.',
       },
       taker_volume: {
         vi: 'Khối lượng mua/bán chủ động — chênh lệch giữa bên mua và bên bán trên thị trường.',
@@ -196,61 +196,61 @@ export const SystemHistoryTab: React.FC = () => {
     return map[table]?.[lang] ?? map[table]?.['en'] ?? '';
   };
 
-  const getPipelineSpec = (lang: Language) => [
+  const getPipelineSpec = () => [
     {
       table: 'kline',
-      label: lang === 'en' ? 'Candle Collector' : lang === 'zh' ? 'K 线采集器' : lang === 'ko' ? '캔들 수집기' : 'Bộ thu thập nến',
+      label: t('pipe_candle_collector'),
       expectedMin: 5,
-      desc: lang === 'en' ? '5m Binance candles. Updated ~5m.' : lang === 'zh' ? '币安 5 分钟 K 线，每 5 分钟更新。' : lang === 'ko' ? '바이낸스 5분 캔들. ~5분마다 갱신.' : 'Nến 5 phút từ Binance. Phải cập nhật mỗi ~5 phút.',
+      desc: t('pipe_candle_desc'),
     },
     {
       table: 'aligned_5m',
-      label: lang === 'en' ? 'Timeline Aligner' : lang === 'zh' ? '时间对齐引擎' : lang === 'ko' ? '시계열 정렬기' : 'Căn chỉnh dữ liệu',
+      label: t('pipe_aligner'),
       expectedMin: 5,
-      desc: lang === 'en' ? 'Normalized 5m timestamps for lookahead safety.' : lang === 'zh' ? '严格对齐时间戳确保无数据泄漏。' : lang === 'ko' ? '데이터 누수 방지를 위한 정규화.' : 'Nến đã chuẩn hóa theo đúng thời điểm.',
+      desc: t('pipe_aligner_desc'),
     },
     {
       table: 'feature_results',
-      label: lang === 'en' ? 'Feature Pipeline' : lang === 'zh' ? '特征流水线' : lang === 'ko' ? '특성 파이프라인' : 'Luồng đặc trưng',
+      label: t('pipe_feature'),
       expectedMin: 15,
-      desc: lang === 'en' ? 'Computed feature vectors for model scoring.' : lang === 'zh' ? '用于模型打分的特征向量。' : lang === 'ko' ? '모델 추론용 특성 벡터 생성.' : 'Vector đặc trưng tính từ aligned_5m.',
+      desc: t('pipe_feature_desc'),
     },
     {
       table: 'labels',
-      label: lang === 'en' ? 'Label Generator' : lang === 'zh' ? '标签生成器' : lang === 'ko' ? '라벨 생성기' : 'Tạo nhãn',
+      label: t('pipe_label'),
       expectedMin: 1440,
-      desc: lang === 'en' ? 'Requires 24-48h horizon to evaluate ground truth.' : lang === 'zh' ? '需 24-48 小时周期以判定真实见顶。' : lang === 'ko' ? '정답 판정을 위해 24-48시간 대기 필요.' : 'Nhãn phân phối cần chờ khung thời gian (24–48 giờ) để hoàn tất.',
+      desc: t('pipe_label_desc'),
     },
     {
       table: 'scan_results',
-      label: lang === 'en' ? 'Scanner Loop' : lang === 'zh' ? '扫描引擎循环' : lang === 'ko' ? '스캐너 루프' : 'Bộ quét',
+      label: t('pipe_scanner'),
       expectedMin: 5,
-      desc: lang === 'en' ? 'Outputs scores each cycle to scan_results.' : lang === 'zh' ? '每个周期写入最新扫描评分。' : lang === 'ko' ? '주기마다 scan_results에 점수 기록.' : 'Mỗi chu kỳ quét ghi vào scan_results.',
+      desc: t('pipe_scanner_desc'),
     },
     {
       table: 'funding',
-      label: lang === 'en' ? 'Funding Rate' : lang === 'zh' ? '资金费率' : lang === 'ko' ? '펀딩비' : 'Tỷ lệ funding',
+      label: t('pipe_funding'),
       expectedMin: 480,
-      desc: lang === 'en' ? 'Binance futures funding rate every 8 hours.' : lang === 'zh' ? '币安合约资金费率每 8 小时更新。' : lang === 'ko' ? '바이낸스 선물 펀딩비 8시간 주기.' : 'Tỷ lệ funding từ hợp đồng tương lai Binance, cập nhật mỗi 8 giờ.',
+      desc: t('pipe_funding_desc'),
     },
     {
       table: 'open_interest',
       label: 'OI',
       expectedMin: 15,
-      desc: lang === 'en' ? 'Open Interest snapshot every 15 min.' : lang === 'zh' ? '未平仓量快照每 15 分钟更新。' : lang === 'ko' ? '미결제약정 15분 주기 갱신.' : 'OI thay đổi mỗi 15 phút.',
+      desc: t('pipe_oi_desc'),
     },
     {
       table: 'taker_volume',
-      label: lang === 'en' ? 'Taker Volume' : lang === 'zh' ? '主动成交量' : lang === 'ko' ? '테이커 볼륨' : 'Khối lượng chủ động',
+      label: t('pipe_taker'),
       expectedMin: 15,
-      desc: lang === 'en' ? 'Taker volume delta every 15 min.' : lang === 'zh' ? '主动买卖差每 15 分钟计算。' : lang === 'ko' ? '테이커 매수/매도 델타 15분 주기.' : 'Khối lượng mua/bán chủ động mỗi 15 phút.',
+      desc: t('pipe_taker_desc'),
     },
     {
       table: 'alert_history',
-      label: lang === 'en' ? 'Radar Alerts' : lang === 'zh' ? '雷达警报' : lang === 'ko' ? '레이더 경보' : 'Cảnh báo Radar',
+      label: t('pipe_radar_alerts'),
       expectedMin: 0,
       onDemand: true,
-      desc: lang === 'en' ? 'Recorded only when symbols exceed threshold.' : lang === 'zh' ? '仅当币种突破预警阈值时记录。' : lang === 'ko' ? '임계값을 초과할 때만 기록됨.' : 'Chỉ ghi cảnh báo khi coin vượt ngưỡng.',
+      desc: t('pipe_radar_alerts_desc'),
     },
   ];
 
@@ -268,9 +268,7 @@ export const SystemHistoryTab: React.FC = () => {
 
   const fmtAge = (min: number | null) => {
     if (min == null) return '—';
-    if (min < 60) return language === 'en' ? `${min}m` : language === 'zh' ? `${min} 分钟` : language === 'ko' ? `${min}분` : `${min} phút`;
-    if (min < 1440) return language === 'en' ? `${Math.round(min / 60)}h` : language === 'zh' ? `${Math.round(min / 60)} 小时` : language === 'ko' ? `${Math.round(min / 60)}시간` : `${Math.round(min / 60)} giờ`;
-    return language === 'en' ? `${Math.round(min / 1440)}d` : language === 'zh' ? `${Math.round(min / 1440)} 天` : language === 'ko' ? `${Math.round(min / 1440)}일` : `${Math.round(min / 1440)} ngày`;
+    return formatAgeMinutes(min, language);
   };
 
   const getStatus = (ageMin: number | null, expectedMin: number, onDemand?: boolean) => {
@@ -299,7 +297,7 @@ export const SystemHistoryTab: React.FC = () => {
   };
 
   const statusStyles = getStatusStyles(language);
-  const pipelineSpec = getPipelineSpec(language);
+  const pipelineSpec = getPipelineSpec();
   const dataStatsMap = new Map((data?.data_stats || []).map(d => [d.table, d]));
   const freshnessRows = pipelineSpec.map(spec => {
     const tableData = data?.freshness?.[spec.table] || dataStatsMap.get(spec.table);
@@ -502,7 +500,7 @@ export const SystemHistoryTab: React.FC = () => {
           </div>
           <div className="bg-slate-900 p-1.5 rounded flex items-center gap-1">
             <span className="text-slate-500">{t('history_poll_interval')}:</span>{' '}
-            <span className="text-slate-300 font-mono font-bold">{hb.poll_minutes || '?'} {language === 'en' ? 'min' : language === 'zh' ? '分钟' : language === 'ko' ? '분' : 'phút'}</span>
+            <span className="text-slate-300 font-mono font-bold">{hb.poll_minutes || '?'} {t('unit_minutes')}</span>
           </div>
         </div>
 
@@ -549,7 +547,7 @@ export const SystemHistoryTab: React.FC = () => {
           />
           <StatCard
             label={t('history_active_scanner_model')}
-            value={<span className="text-[10px]">{data.current_scanner_model_id ? getModelLabel(data.current_scanner_model_id, language) : (language === 'en' ? 'Rules-based' : language === 'zh' ? '基于规则' : language === 'ko' ? '규칙 기반' : 'chưa cài')}</span>}
+            value={<span className="text-[10px]">{data.current_scanner_model_id ? getModelLabel(data.current_scanner_model_id, language) : t('status_rules_based')}</span>}
             valueClass="text-emerald-400 truncate"
             highlight
           />

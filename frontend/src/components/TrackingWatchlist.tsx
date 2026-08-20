@@ -176,11 +176,11 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
     await onUpdateItem(item.id, { status: 'CLOSED' });
   };
 
-  const getFilterButtons = (lang: Language): Array<[TrackingFilter, string]> => [
-    ['ACTIVE', lang === 'en' ? 'Active' : lang === 'zh' ? '当前有效' : lang === 'ko' ? '활성' : 'Đang hoạt động'],
-    ['WATCHING', lang === 'en' ? 'Watching Only' : lang === 'zh' ? '仅观察' : lang === 'ko' ? '관찰만' : 'Chỉ theo dõi'],
-    ['IN_POSITION', lang === 'en' ? 'In Position' : lang === 'zh' ? '持仓中' : lang === 'ko' ? '포지션 보유' : 'Đang vào lệnh'],
-    ['CLOSED', lang === 'en' ? 'Closed' : lang === 'zh' ? '已结平' : lang === 'ko' ? '종료' : 'Đã đóng'],
+  const getFilterButtons = (): Array<[TrackingFilter, string]> => [
+    ['ACTIVE', t('track_filter_active')],
+    ['WATCHING', t('track_filter_watching')],
+    ['IN_POSITION', t('track_filter_in_pos')],
+    ['CLOSED', t('track_filter_closed')],
   ];
 
   return (
@@ -226,7 +226,7 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
       </div>
 
       <div className="flex items-center gap-1 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950 p-1 [&::-webkit-scrollbar]:hidden">
-        {getFilterButtons(language).map(([value, label]) => (
+        {getFilterButtons().map(([value, label]) => (
           <button
             key={value}
             type="button"

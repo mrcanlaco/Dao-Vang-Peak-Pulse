@@ -20,6 +20,7 @@ interface AiDecisionCockpitProps {
   onDismissSignal?: (sig: SignalItem) => void;
   onAddWatchlist?: (symbol: string) => void | Promise<boolean | void>;
   onAddTracking?: (symbol: string) => void | Promise<boolean | void>;
+  onOpenOrderModal?: () => void;
 }
 
 export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
@@ -35,6 +36,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
   onDismissSignal,
   onAddWatchlist,
   onAddTracking,
+  onOpenOrderModal,
 }) => {
   const { language, t } = useTranslation();
   
@@ -144,10 +146,29 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
       </div>
 
       {/* Action Buttons Grid */}
-      <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 shadow-md space-y-2">
-        <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-          {language === 'zh' ? '快捷操作' : language === 'ko' ? '빠른 작업' : language === 'en' ? 'QUICK ACTIONS' : 'THAO TÁC NHANH'}
+      <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 shadow-md space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+            {t('cockpit_quick_actions')}
+          </span>
+          {onOpenOrderModal && (
+            <span className="text-[10px] text-amber-400 font-mono font-bold">
+              1-Click Binance & OKX
+            </span>
+          )}
         </div>
+
+        {/* Primary Short Setup Button */}
+        {onOpenOrderModal && (
+          <button
+            onClick={onOpenOrderModal}
+            className="w-full py-2.5 px-3 bg-gradient-to-r from-red-600 via-red-500 to-amber-500 hover:from-red-500 hover:to-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-600/25 active:scale-95 transition"
+          >
+            <Zap className="w-4 h-4 stroke-[2.5]" />
+            <span>{t('sticky_action_short')} (Binance / OKX Futures)</span>
+          </button>
+        )}
+
         <div className="grid grid-cols-2 gap-2">
           {/* Re-score Button */}
           <button
@@ -172,7 +193,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
             </button>
           ) : (
             <div className="px-3 py-2 bg-slate-900 border border-slate-800 text-slate-500 rounded-lg text-xs text-center font-mono">
-              {language === 'zh' ? '暂无信号' : language === 'ko' ? '신호 없음' : language === 'en' ? 'No Telegram Signal' : 'Chưa có tín hiệu'}
+              {t('cockpit_no_telegram_signal')}
             </div>
           )}
 
@@ -225,7 +246,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
               <Activity className="w-3.5 h-3.5 text-amber-400" />
-              {language === 'zh' ? 'BTC 宏观环境与暴涨形态' : language === 'ko' ? 'BTC 시장 환경 및 펌핑 패턴' : language === 'en' ? 'MARKET REGIME & PUMP PATTERN' : 'BỐI CẢNH BTC & BƠM XẢ'}
+              {t('cockpit_market_regime_pump')}
             </h3>
             <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
               deepAnalysis.btc_regime === 'FOMO' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' :
@@ -245,19 +266,19 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
                 ) : (
                   <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
                 )}
-                {language === 'zh' ? '抛物线暴涨形态检测' : language === 'ko' ? '포물선 급등 감지' : language === 'en' ? 'Parabolic Pump Detection' : 'Mẫu hình Tăng Nóng'}
+                {t('cockpit_parabolic_detection')}
               </span>
               <span className={`font-mono font-bold text-xs ${deepAnalysis.pump_analysis.detected ? 'text-orange-400' : 'text-slate-400'}`}>
-                {deepAnalysis.pump_analysis.detected ? `+${deepAnalysis.pump_analysis.pump_pct}% (${deepAnalysis.pump_analysis.pump_days}d)` : language === 'zh' ? '无' : language === 'ko' ? '없음' : language === 'en' ? 'None' : 'Không có'}
+                {deepAnalysis.pump_analysis.detected ? `+${deepAnalysis.pump_analysis.pump_pct}% (${deepAnalysis.pump_analysis.pump_days}d)` : (t('metric_insufficient_data'))}
               </span>
             </div>
 
             {deepAnalysis.pump_analysis.detected ? (
               <div className="mt-2 space-y-1.5">
                 <div className="flex justify-between text-[10px] font-mono text-slate-300">
-                  <span>{language === 'zh' ? '峰值:' : language === 'ko' ? '고점:' : language === 'en' ? 'Peak:' : 'Đỉnh:'} ${deepAnalysis.pump_analysis.peak_price.toFixed(4)}</span>
+                  <span>{t('cockpit_pump_peak')} ${deepAnalysis.pump_analysis.peak_price.toFixed(4)}</span>
                   <span className={deepAnalysis.pump_analysis.current_vs_peak < -20 ? 'text-red-400 font-bold' : 'text-slate-300'}>
-                    {deepAnalysis.pump_analysis.current_vs_peak}% {language === 'zh' ? '距峰值' : language === 'ko' ? '고점 대비' : language === 'en' ? 'from peak' : 'từ đỉnh'}
+                    {deepAnalysis.pump_analysis.current_vs_peak}% {t('cockpit_pump_from_peak')}
                   </span>
                 </div>
                 {/* Progress bar from peak */}
@@ -270,7 +291,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
               </div>
             ) : (
               <p className="text-[10px] text-slate-500 mt-1">
-                {language === 'zh' ? '✓ 近 1-5 天内未检测到剧烈异常拉升 (50-300%)。' : language === 'ko' ? '✓ 최근 1-5일 내 비정상 급등(50-300%) 감지되지 않음.' : language === 'en' ? '✓ No parabolic surge detected (50-300% in 1-5d).' : '✓ Không có dấu hiệu tăng quá nóng trong 1-5 ngày gần nhất.'}
+                {t('cockpit_no_pump_detected')}
               </p>
             )}
           </div>

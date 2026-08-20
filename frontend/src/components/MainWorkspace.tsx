@@ -17,6 +17,7 @@ import { CandlestickChart } from './CandlestickChart';
 import type { CandlestickSignalMarker } from './CandlestickChart';
 import { DecisionHeader } from './DecisionCenter/DecisionHeader';
 import { TradeSetupCard } from './DecisionCenter/TradeSetupCard';
+import { TradeSetupCardV2 } from './v2/TradeSetupCardV2';
 import { AiDecisionCockpit } from './DecisionCenter/AiDecisionCockpit';
 import { AiShapAccordion } from './DecisionCenter/AiShapAccordion';
 import { CoinLink } from './CoinLink';
@@ -64,6 +65,8 @@ interface MainWorkspaceProps {
   onRemoveTracking: (id: string) => Promise<boolean>;
   activeTab: 'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY';
   setActiveTab: (tab: 'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY') => void;
+  onOpenOrderModal?: () => void;
+  guiVersion?: 'v1' | 'v2';
 }
 
 export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
@@ -99,7 +102,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   onUpdateTracking,
   onRemoveTracking,
   activeTab,
-  setActiveTab
+  setActiveTab,
+  onOpenOrderModal,
+  guiVersion = 'v2',
 }) => {
   const { language, t } = useTranslation();  
   const riskLabels: Record<string, string> = {
@@ -119,12 +124,12 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     : undefined;
   const metricPercent = (value: number | null | undefined) => (
     value == null 
-      ? (language === 'en' ? 'Insufficient data' : language === 'zh' ? '数据不足' : language === 'ko' ? '데이터 부족' : 'Chưa đủ dữ liệu') 
+      ? t('badge_insufficient_data') 
       : `${(value * 100).toFixed(1)}%`
   );
   const deltaWithCi = (value: { point: number | null; ci_lower: number | null; ci_upper: number | null } | undefined) => (
     value?.point == null || value.ci_lower == null || value.ci_upper == null
-      ? (language === 'en' ? 'Insufficient data' : language === 'zh' ? '数据不足' : language === 'ko' ? '데이터 부족' : 'Chưa đủ dữ liệu')
+      ? t('badge_insufficient_data')
       : `${value.point >= 0 ? '+' : ''}${(value.point * 100).toFixed(1)}pp (CI95% ${(value.ci_lower * 100).toFixed(1)} → ${(value.ci_upper * 100).toFixed(1)})`
   );
   const auditStatusLabels: Record<string, string> = {
@@ -211,14 +216,14 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     ? comparisonSelections[expandedComparisonGroup]
     : [];
   const expandedComparisonLabel = expandedComparisonGroup === 'champion'
-    ? (language === 'en' ? 'V2 Official Selected (Quantitative Multi-stage — Champion)' : language === 'zh' ? 'V2 正式版已选 (多阶段量化过滤 — 生产冠军)' : language === 'ko' ? 'V2 정식 선택 (다단계 정량 필터 — 실서버)' : 'V2 Chọn (Bộ lọc Định lượng Đa tầng — Bản Chính Thức)')
+    ? t('candidate_arm_v2_selected_tooltip')
     : expandedComparisonGroup === 'challenger'
-      ? (language === 'en' ? 'V1 Baseline Selected (Pump Filter — A/B Challenger)' : language === 'zh' ? 'V1 对照组已选 (暴涨过滤 — A/B 挑战者)' : language === 'ko' ? 'V1 대조군 선택 (펌프 필터 — A/B 대조군)' : 'V1 Chọn (Bộ lọc Bơm Xả — Đối Soát A/B Test)')
+      ? t('candidate_arm_v1_selected_tooltip')
       : expandedComparisonGroup === 'overlap'
-        ? (language === 'en' ? 'Both Selected (High Conviction Overlap)' : language === 'zh' ? '双方均选 (高确定性重合币)' : language === 'ko' ? '양측 공통 선택 (고확신 중복 코인)' : 'Cả hai cùng chọn (Trùng nhau — Độ tin cậy tối đa)')
+        ? t('candidate_arm_both_tooltip')
         : expandedComparisonGroup === 'champion_only'
-          ? (language === 'en' ? 'V2 Unique Discoveries (Early Signals Exclusive to V2)' : language === 'zh' ? 'V2 独特早期发现 (V2 专属)' : language === 'ko' ? 'V2 단독 조기 포착 (V2 독점)' : 'V2 Phát hiện sớm (Độc quyền bộ lọc V2)')
-          : (language === 'en' ? 'V1 Pump Only (Legacy Model)' : language === 'zh' ? '仅 V1 暴涨模型选中' : language === 'ko' ? 'V1 단독 선택 (기존 모델)' : 'Chỉ V1 Chọn (Mô hình tăng nóng cũ)');
+          ? t('candidate_arm_v2_tooltip')
+          : t('candidate_arm_v1_tooltip');
 
   const filteredCandidates = useMemo(() => {
     if (candidateFilterSegment === 'ALL') {
@@ -440,41 +445,21 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     if (isTriggeringScan) {
       setActiveTab('TELEMETRY');
       setScanProgress(15);
-      setScanStepText(
-        language === 'en' ? 'Step 1/4: Syncing 48 symbols from Binance USD-M futures...' :
-        language === 'zh' ? '第 1/4 步: 正在从币安 U 本位合约同步 48 个币种...' :
-        language === 'ko' ? '1/4단계: 바이낸스 선물 48개 페어 동기화 중...' :
-        'Bước 1/4: Đang đồng bộ 48/48 mã từ hợp đồng tương lai Binance USD-M...'
-      );
+      setScanStepText(t('scan_progress_step1'));
 
       const t1 = setTimeout(() => {
         setScanProgress(50);
-        setScanStepText(
-          language === 'en' ? 'Step 2/4: Computing Open Interest deltas & taker sell ratios...' :
-          language === 'zh' ? '第 2/4 步: 正在计算持仓量 OI 变化率与主动卖出比...' :
-          language === 'ko' ? '2/4단계: 미결제약정(OI) 변화 및 테이커 매도 비율 계산 중...' :
-          'Bước 2/4: Đang tính toán thay đổi OI và tỷ lệ bán chủ động...'
-        );
+        setScanStepText(t('scan_progress_step2'));
       }, 500);
 
       const t2 = setTimeout(() => {
         setScanProgress(85);
-        setScanStepText(
-          language === 'en' ? 'Step 3/4: Running XGBoost + LightGBM ensemble inference...' :
-          language === 'zh' ? '第 3/4 步: 正在运行集成 AI 模型推断 (XGBoost + LightGBM)...' :
-          language === 'ko' ? '3/4단계: 앙상블 AI 모델 추론 실행 중 (XGBoost + LightGBM)...' :
-          'Bước 3/4: Đang chạy suy luận mô hình AI kết hợp (XGBoost + LightGBM)...'
-        );
+        setScanStepText(t('scan_progress_step3'));
       }, 1000);
 
       const t3 = setTimeout(() => {
         setScanProgress(100);
-        setScanStepText(
-          language === 'en' ? 'Step 4/4: Signals updated & real-time alerts armed!' :
-          language === 'zh' ? '第 4/4 步: 风险信号已更新，实时警报就绪！' :
-          language === 'ko' ? '4/4단계: 위험 신호 갱신 및 실시간 경보 활성화 완료!' :
-          'Bước 4/4: Đã cập nhật tín hiệu rủi ro và bật cảnh báo!'
-        );
+        setScanStepText(t('scan_progress_step4'));
       }, 1400);
 
       return () => {
@@ -495,7 +480,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             <Loader2 className="w-7 h-7 animate-spin" />
           </div>
           <h3 className="text-base font-bold text-slate-100 uppercase tracking-wider mb-1">
-            ⚡ {language === 'en' ? 'TRIGGERING REAL-TIME SCAN (MODE:' : language === 'zh' ? '正在触发实时扫描 (模式:' : language === 'ko' ? '실시간 스캔 실행 중 (모드:' : 'ĐANG KÍCH HOẠT LƯỢT QUÉT NGAY (CHẾ ĐỘ:'} {scanModeLabels[telemetryData?.active_scan_mode || ''] ?? telemetryData?.active_scan_mode?.toUpperCase()})
+            {t('scan_triggering_banner_prefix')} {scanModeLabels[telemetryData?.active_scan_mode || ''] ?? telemetryData?.active_scan_mode?.toUpperCase()})
           </h3>
           <p className="text-xs text-amber-400 font-mono mb-4">{scanStepText}</p>
 
@@ -505,7 +490,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               style={{ width: `${scanProgress}%` }}
             />
           </div>
-          <span className="text-[11px] font-mono font-bold text-slate-400 mt-2">{scanProgress}% {language === 'en' ? 'complete' : language === 'zh' ? '完成' : language === 'ko' ? '완료' : 'hoàn tất'}</span>
+          <span className="text-[11px] font-mono font-bold text-slate-400 mt-2">{scanProgress}% {t('scan_progress_complete_suffix')}</span>
         </div>
       )}
 
@@ -513,7 +498,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       <div className="flex items-center gap-3 border-b border-slate-800 pb-2.5 mb-3 min-w-0">
         {selectedSignal && (
           <div className="hidden sm:flex items-center gap-2 text-xs font-mono shrink-0">
-            <span className="text-slate-400">{language === 'en' ? 'Viewing:' : language === 'zh' ? '正在查看:' : language === 'ko' ? '조회 중:' : 'Đang xem:'}</span>
+            <span className="text-slate-400">{t('ranking_viewing_prefix')}</span>
             <CoinLink
               symbol={selectedSignal.symbol}
               onClick={() => onSelectCandidate(selectedSignal.symbol)}
@@ -532,7 +517,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            {language === 'en' ? 'Decision Center' : language === 'zh' ? '决策中心' : language === 'ko' ? '의사결정 센터' : 'Trung tâm quyết định'}
+            {t('ws_tab_decision')}
           </button>
 
           <button
@@ -544,7 +529,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Target className="w-3.5 h-3.5" />
-            {language === 'en' ? 'Tracking' : language === 'zh' ? '持仓追踪' : language === 'ko' ? '추적 목록' : 'Theo dõi'} ({trackingItems.filter(item => item.status !== 'CLOSED').length})
+            {t('ws_tab_tracking')} ({trackingItems.filter(item => item.status !== 'CLOSED').length})
           </button>
 
           <button
@@ -556,7 +541,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            {language === 'en' ? 'Candidate Ranking' : language === 'zh' ? '候选榜单' : language === 'ko' ? '후보 순위' : 'Bảng Ứng Viên'} ({candidates.length})
+            {t('ws_tab_candidates')} ({candidates.length})
           </button>
 
           <button
@@ -568,13 +553,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            {language === 'en' ? 'Market Context' : language === 'zh' ? '宏观行情' : language === 'ko' ? '시장 거시환경' : 'Thị Trường'}
+            {t('ws_tab_market_context')}
           </button>
 
           <span
             aria-hidden="true"
             className="mx-1 h-5 w-px shrink-0 bg-slate-700"
-            title={language === 'en' ? 'Research and development suite' : language === 'zh' ? '研发与回测套件' : language === 'ko' ? '연구 및 백테스트 도구' : 'Khu vực dev và nghiên cứu'}
+            title={t('guide_overview_title')}
           />
 
           <button
@@ -586,7 +571,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <FlaskConical className="w-3.5 h-3.5" />
-            {language === 'en' ? 'Multi-Coin Scan' : language === 'zh' ? '多币种扫描' : language === 'ko' ? '다중 코인 스캔' : 'Quét Multi-Coin'}
+            {t('ws_tab_multiscan')}
           </button>
 
           <button
@@ -598,7 +583,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            {language === 'en' ? 'Backtest Validation' : language === 'zh' ? '历史回测' : language === 'ko' ? '백테스트 검증' : 'Kiểm thử lịch sử'}
+            {t('ws_tab_experiments')}
           </button>
 
           <button
@@ -610,7 +595,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Lock className="w-3.5 h-3.5" />
-            {language === 'en' ? 'Forward Testing' : language === 'zh' ? '前向测试' : language === 'ko' ? '전진 테스트' : 'Kiểm thử dữ liệu mới'}
+            {t('ws_tab_forward')}
           </button>
 
           <button
@@ -622,7 +607,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5" />
-            {language === 'en' ? 'Model Audit' : language === 'zh' ? '模型审计' : language === 'ko' ? '모델 감사' : 'Kiểm Định AI'}
+            {t('ws_tab_audit')}
           </button>
 
           <button
@@ -634,7 +619,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            {language === 'en' ? '📡 Telemetry & Logs' : language === 'zh' ? '📡 遥测与日志' : language === 'ko' ? '📡 텔레메트리 & 로그' : '📡 Nhật Ký & Trạng Thái Quét'}
+            {t('ws_tab_telemetry')}
           </button>
 
           <button
@@ -646,7 +631,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             }`}
           >
             <Activity className="w-3.5 h-3.5" />
-            {language === 'en' ? 'System Telemetry' : language === 'zh' ? '系统数据湖' : language === 'ko' ? '시스템 데이터' : 'Lịch sử & dữ liệu'}
+            {t('ws_tab_history')}
           </button>
         </div>
       </div>
@@ -693,7 +678,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           {`${t('ws_chart_candlestick_title')} ${candleInterval} (${displayDetail.symbol})`}
                         </h3>
                         <p className="text-[11px] text-slate-400">
-                          {language === 'zh' ? '🟢 阳线 | 🔴 阴线 | 🟡 入场点 | 🔴 止损 SL | 🟢 止盈 TP1/TP2' : language === 'ko' ? '🟢 양봉 | 🔴 음봉 | 🟡 진입가 | 🔴 손절 SL | 🟢 익절 TP1/TP2' : language === 'en' ? '🟢 Bullish | 🔴 Bearish | 🟡 Entry | 🔴 SL | 🟢 TP1 (-4%) | 🟢 TP2 (-8%)' : '🟢 Tăng | 🔴 Giảm | 🟡 Vào lệnh | 🔴 Cắt lỗ SL | 🟢 Chốt lời TP1/TP2'}
+                          {language === 'zh' ? '🟢 阳线 | 🔴 阴线 | 🟡 入场点 | 🔴 止损 SL | 🟢 止盈 TP1/TP2' : language === 'ko' ? '🟢 양봉 | 🔴 음봉 | 🟡 진입가 | 🔴 손절 SL | 🟢 익절 TP1/TP2' : t('chart_legend_indicators')}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -793,14 +778,26 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     )}
                   </div>
 
-                  {/* Trade Setup Card */}
-                  <TradeSetupCard
-                    currentPrice={displayDetail.current_price}
-                    signalPrice={selectedSignal?.signal_price}
-                    targetPrice={displayDetail.target_price}
-                    peakPrice={deepAnalysis?.pump_analysis?.peak_price}
-                    invalidationPrice={tradeSetup?.stopLossPrice}
-                  />
+                  {/* Trade Setup Card (V2 Interactive / V1 Classic) */}
+                  {guiVersion === 'v2' ? (
+                    <TradeSetupCardV2
+                      symbol={displayDetail.symbol}
+                      currentPrice={displayDetail.current_price}
+                      signalPrice={selectedSignal?.signal_price}
+                      targetPrice={displayDetail.target_price}
+                      peakPrice={deepAnalysis?.pump_analysis?.peak_price}
+                      invalidationPrice={tradeSetup?.stopLossPrice}
+                      onOpenOrderModal={onOpenOrderModal}
+                    />
+                  ) : (
+                    <TradeSetupCard
+                      currentPrice={displayDetail.current_price}
+                      signalPrice={selectedSignal?.signal_price}
+                      targetPrice={displayDetail.target_price}
+                      peakPrice={deepAnalysis?.pump_analysis?.peak_price}
+                      invalidationPrice={tradeSetup?.stopLossPrice}
+                    />
+                  )}
 
                   {/* Metrics grid — 6 cols */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 [&>div]:min-w-0">
@@ -827,7 +824,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       </div>
                     </div>
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="text-[9px] text-slate-400 uppercase">{language === 'en' ? '24h Vol Delta' : 'Biến động Vol 24h'}</div>
+                      <div className="text-[9px] text-slate-400 uppercase">{t('chart_vol_delta_24h')}</div>
                       <div className="font-mono font-bold text-xs sm:text-sm text-sky-400 truncate" title={displayDetail.metrics.volume_delta_24h}>{displayDetail.metrics.volume_delta_24h}</div>
                     </div>
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
@@ -853,6 +850,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     onDismissSignal={onDismissSignal}
                     onAddWatchlist={onAddWatchlist ? ((s: string) => onAddWatchlist(s)) : undefined}
                     onAddTracking={onAddTracking ? ((s: string) => onAddTracking(s)) : undefined}
+                    onOpenOrderModal={onOpenOrderModal}
                   />
 
                   {/* SHAP Drivers & 8-Component Decomposition Accordion */}
@@ -867,7 +865,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             <div className="p-12 text-center text-slate-500 bg-slate-950/60 border border-slate-800 rounded-xl">
               <Activity className="w-8 h-8 text-amber-400/60 mx-auto mb-2 animate-pulse" />
               <p className="text-sm text-slate-400 font-medium">
-                {language === 'en' ? 'Please select a signal or candidate to enter Decision Center.' : 'Vui lòng chọn 1 tín hiệu hoặc ứng viên để mở Trung tâm quyết định.'}
+                {t('decision_select_prompt')}
               </p>
             </div>
           )}
@@ -881,29 +879,29 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             <div>
               <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase">
                 <BarChart3 className="w-3.5 h-3.5 text-violet-400" />
-                {language === 'en' ? 'CANDIDATE SELL RANKING' : 'BẢNG XẾP HẠNG ỨNG VIÊN BÁN'}
+                {t('ranking_title_full')}
                 <span className="rounded-full bg-violet-950/80 border border-violet-700/80 px-2 py-0.2 text-[9px] font-bold text-violet-300">
-                  {language === 'en' ? 'V2 OFFICIAL' : 'V2 CHÍNH THỨC'}
+                  {t('ranking_badge_v2_official')}
                 </span>
                 <span className="rounded-full bg-amber-950/60 border border-amber-800/60 px-2 py-0.2 text-[9px] font-medium text-amber-300">
-                  {language === 'en' ? 'V1 A/B ACTIVE' : 'V1 ĐỐI SOÁT'}
+                  {t('ranking_badge_v1_ab')}
                 </span>
               </h3>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                {language === 'en' ? 'V2 Quantitative Multi-stage filter is actively driving candidate rankings & Telegram lane. V1 continues running in shadow mode for continuous A/B test verification.' : 'Bộ lọc định lượng đa tầng V2 là bản chính thức điều phối bảng ứng viên & Telegram. V1 tiếp tục chạy ngầm làm mốc đối soát A/B test.'}
+                {t('ranking_desc_v2_v1')}
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-400 font-mono">{language === 'en' ? 'Sorted by risk score' : 'Sắp xếp theo điểm rủi ro'}</span>
+              <span className="text-[11px] text-slate-400 font-mono">{t('ranking_sorted_by_risk')}</span>
               <button
                 type="button"
                 onClick={() => onRefreshCandidates()}
                 disabled={isRefreshingCandidates}
                 className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-medium text-slate-300 transition hover:border-violet-500/60 hover:text-violet-300 disabled:cursor-not-allowed disabled:opacity-60"
-                title={language === 'en' ? 'Refresh table with latest scan metrics' : 'Cập nhật bảng theo chỉ số scan mới nhất'}
+                title={t('ranking_refresh_tooltip')}
               >
                 <RefreshCw className={`h-3 w-3 ${isRefreshingCandidates ? 'animate-spin' : ''}`} />
-                {isRefreshingCandidates ? (language === 'en' ? 'Scanning...' : 'Đang quét') : (language === 'en' ? 'Refresh' : 'Cập nhật')}
+                {isRefreshingCandidates ? t('ranking_scanning_status') : t('refresh')}
               </button>
             </div>
           </div>
@@ -911,7 +909,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           {/* BỘ LỌC PHÂN ĐOẠN / FILTER SEGMENT TABS */}
           <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950/90 p-1.5">
             <span className="px-2 text-[10px] font-semibold uppercase text-slate-400">
-              {language === 'en' ? 'View Mode:' : 'Chế độ xem:'}
+              {t('ranking_view_mode_label')}
             </span>
 
             {/* All */}
@@ -924,7 +922,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
               }`}
             >
-              <span>{language === 'en' ? 'All Candidates' : 'Tất cả ứng viên'}</span>
+              <span>{t('ranking_filter_all')}</span>
               <span className="rounded bg-slate-700/60 px-1.5 py-0.2 text-[9px] font-mono text-slate-300">
                 {candidates.length}
               </span>
@@ -940,7 +938,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   : 'text-violet-300/80 hover:bg-violet-950/40 hover:text-violet-200'
               }`}
             >
-              <span>👑 {language === 'en' ? 'V2 Official (Champion)' : 'V2 Chính thức'}</span>
+              <span>👑 {t('ranking_filter_v2_champion')}</span>
               <span className="rounded bg-violet-900/60 px-1.5 py-0.2 text-[9px] font-mono text-violet-300 font-bold">
                 {comparisonSelections.champion.length || candidates.length}
               </span>
@@ -956,7 +954,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   : 'text-amber-300/80 hover:bg-amber-950/40 hover:text-amber-200'
               }`}
             >
-              <span>📊 {language === 'en' ? 'V1 A/B Baseline' : 'V1 Đối soát A/B'}</span>
+              <span>📊 {t('ranking_filter_v1_baseline')}</span>
               <span className="rounded bg-amber-900/60 px-1.5 py-0.2 text-[9px] font-mono text-amber-300">
                 {comparisonSelections.challenger.length}
               </span>
@@ -972,7 +970,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   : 'text-emerald-300/80 hover:bg-emerald-950/40 hover:text-emerald-200'
               }`}
             >
-              <span>🎯 {language === 'en' ? 'High Conviction (Overlap)' : 'Đồng thuận cao'}</span>
+              <span>🎯 {t('ranking_filter_high_conviction')}</span>
               <span className="rounded bg-emerald-900/60 px-1.5 py-0.2 text-[9px] font-mono text-emerald-300">
                 {comparisonSelections.overlap.length}
               </span>
@@ -988,7 +986,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   : 'text-cyan-300/80 hover:bg-cyan-950/40 hover:text-cyan-200'
               }`}
             >
-              <span>💡 {language === 'en' ? 'V2 Early Discoveries' : 'V2 Tìm sớm (Độc quyền)'}</span>
+              <span>💡 {t('ranking_filter_v2_early')}</span>
               <span className="rounded bg-cyan-900/60 px-1.5 py-0.2 text-[9px] font-mono text-cyan-300">
                 {comparisonSelections.champion_only.length}
               </span>
@@ -1004,7 +1002,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   : 'text-indigo-300/80 hover:bg-indigo-950/40 hover:text-indigo-200 border border-indigo-900/50'
               }`}
             >
-              <span>🔬 {language === 'en' ? 'V3 R&D Lab' : 'Phòng R&D V3'}</span>
+              <span>🔬 {t('ranking_filter_v3_lab')}</span>
               <span className="rounded bg-indigo-900/70 px-1.5 py-0.2 text-[9px] font-semibold text-indigo-300">
                 Ready
               </span>
@@ -1017,10 +1015,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <div className="flex items-center justify-between border-b border-indigo-800/40 pb-2.5">
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-300">
                   <Cpu className="h-4 w-4 text-indigo-400" />
-                  <span>{language === 'en' ? 'Candidate Filter V3 — Architectural Blueprint & R&D Lab' : 'Bộ Lọc Ứng Viên V3 — Thiết Kế Kiến Trúc & Phòng Thử Nghiệm'}</span>
+                  <span>{t('ranking_v3_blueprint_title')}</span>
                 </div>
                 <span className="rounded-full bg-indigo-900/80 border border-indigo-600 px-2.5 py-0.5 text-[10px] font-bold text-indigo-200">
-                  {language === 'en' ? 'Phase 3 Ready for Deployment' : 'Sẵn Sàng Triển Khai So Sánh 3 Chiều'}
+                  {t('ranking_v3_phase3_ready')}
                 </span>
               </div>
 
@@ -1087,10 +1085,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="rounded-full border border-violet-700 bg-violet-950/80 px-2.5 py-0.5 text-[10px] font-semibold text-violet-200">
-                  {language === 'en' ? '👑 V2 Champion Active' : language === 'zh' ? '👑 V2 正式运行中' : language === 'ko' ? '👑 V2 정식 가동중' : '👑 V2 Chính Thức Vận Hành'}
+                  {t('ranking_badge_v2_champion_active')}
                 </span>
                 <span className="rounded-full border border-amber-800 bg-amber-950/70 px-2.5 py-0.5 text-[10px] font-semibold text-amber-300">
-                  {language === 'en' ? 'A/B Shadow Baseline' : language === 'zh' ? 'A/B 对照中' : language === 'ko' ? 'A/B 대조중' : 'A/B Đối Soát'}
+                  {t('ranking_badge_ab_shadow_baseline')}
                 </span>
               </div>
             </div>
@@ -1099,9 +1097,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
               {/* Universe */}
               <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-2.5">
-                <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">{language === 'en' ? 'Shared Universe' : 'Universe chung'}</div>
+                <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">{t('ranking_shared_universe')}</div>
                 <div className="mt-1 text-xl font-bold text-white">{candidateComparison?.universe_count ?? 150}</div>
-                <div className="text-[9px] text-slate-500">{language === 'en' ? 'Monitored symbols' : 'Mã coin theo dõi'}</div>
+                <div className="text-[9px] text-slate-500">{t('ranking_monitored_symbols')}</div>
               </div>
 
               {/* V2 Selected (Champion) */}
@@ -1120,15 +1118,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         ? 'border-violet-500 ring-2 ring-violet-500/40 bg-violet-950/20'
                         : 'border-violet-800/80 hover:border-violet-500'
                     }`}
-                    title={language === 'en' ? 'Click to view V2 selected coins (Official)' : 'Bấm để xem danh sách coin V2 chọn (Chính thức)'}
+                    title={t('ranking_v2_selected_title')}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-violet-400">{language === 'en' ? 'V2 Selected' : 'V2 Chọn'}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-violet-400">{t('ranking_v2_selected_label')}</span>
                       <span className="rounded bg-violet-950/80 px-1 py-0.2 text-[8px] font-bold text-violet-300">Champion 👑</span>
                     </div>
                     <div className="mt-1 text-xl font-bold text-violet-300">{count}</div>
                     <div className="flex items-center gap-1 text-[9px] text-violet-400/80">
-                      <span>{isExpanded ? (language === 'en' ? 'Click to collapse' : 'Bấm để đóng') : (language === 'en' ? 'Official filter' : 'Bản chính thức')}</span>
+                      <span>{isExpanded ? (t('ranking_click_collapse')) : (t('ranking_official_filter_tag'))}</span>
                       {isExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                     </div>
                   </button>
@@ -1151,15 +1149,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         ? 'border-amber-500 ring-2 ring-amber-500/40 bg-amber-950/20'
                         : 'border-amber-800/80 hover:border-amber-500'
                     }`}
-                    title={language === 'en' ? 'Click to view V1 selected coins (A/B Test)' : 'Bấm để xem danh sách coin V1 chọn (Đối soát A/B)'}
+                    title={t('ranking_v1_selected_title')}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400">{language === 'en' ? 'V1 Selected' : 'V1 Chọn'}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400">{t('ranking_v1_selected_label')}</span>
                       <span className="rounded bg-amber-950/80 px-1 py-0.2 text-[8px] font-medium text-amber-300">A/B Test</span>
                     </div>
                     <div className="mt-1 text-xl font-bold text-amber-300">{count}</div>
                     <div className="flex items-center gap-1 text-[9px] text-amber-400/80">
-                      <span>{isExpanded ? (language === 'en' ? 'Click to collapse' : 'Bấm để đóng') : (language === 'en' ? 'Baseline shadow' : 'Mốc đối soát')}</span>
+                      <span>{isExpanded ? (t('ranking_click_collapse')) : (t('ranking_baseline_shadow_tag'))}</span>
                       {isExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                     </div>
                   </button>
@@ -1180,15 +1178,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         ? 'border-emerald-500 ring-2 ring-emerald-500/40 bg-emerald-950/20'
                         : 'border-emerald-800/80 hover:border-emerald-500'
                     }`}
-                    title={language === 'en' ? 'Click to view coins selected by both V1 and V2' : 'Bấm để xem danh sách coin cả hai cùng chọn'}
+                    title={t('ranking_both_selected_title')}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">{language === 'en' ? 'Both Selected' : 'Trùng nhau'}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">{t('ranking_both_selected_label')}</span>
                       <span className="rounded bg-emerald-950/80 px-1 py-0.2 text-[8px] font-medium text-emerald-300">Overlap</span>
                     </div>
                     <div className="mt-1 text-xl font-bold text-emerald-300">{count}</div>
                     <div className="flex items-center gap-1 text-[9px] text-emerald-400/80">
-                      <span>{isExpanded ? (language === 'en' ? 'Click to collapse' : 'Bấm để đóng') : (language === 'en' ? 'High conviction' : 'Độ tin cậy cao')}</span>
+                      <span>{isExpanded ? (t('ranking_click_collapse')) : (t('ranking_high_conviction_tag'))}</span>
                       {isExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                     </div>
                   </button>
@@ -1211,15 +1209,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         ? 'border-cyan-500 ring-2 ring-cyan-500/40 bg-cyan-950/20'
                         : 'border-cyan-800/80 hover:border-cyan-500'
                     }`}
-                    title={language === 'en' ? 'Click to view coins uniquely found by V2' : 'Bấm để xem coin chỉ V2 phát hiện thêm'}
+                    title={t('ranking_v2_discoveries_title')}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-cyan-400">{language === 'en' ? 'V2 Discoveries' : 'V2 Tìm thêm'}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-cyan-400">{t('ranking_v2_discoveries_label')}</span>
                       <span className="rounded bg-cyan-950/80 px-1 py-0.2 text-[8px] font-medium text-cyan-300">Unique</span>
                     </div>
                     <div className="mt-1 text-xl font-bold text-cyan-300">{count}</div>
                     <div className="flex items-center gap-1 text-[9px] text-cyan-400/80">
-                      <span>{isExpanded ? (language === 'zh' ? '点击折叠' : language === 'ko' ? '클릭하여 접기' : language === 'en' ? 'Click to collapse' : 'Bấm để đóng') : (language === 'zh' ? '早期信号' : language === 'ko' ? '조기 신호' : language === 'en' ? 'Early signals' : 'Tín hiệu sớm')}</span>
+                      <span>{isExpanded ? (language === 'zh' ? '点击折叠' : language === 'ko' ? '클릭하여 접기' : t('ranking_click_collapse')) : (language === 'zh' ? '早期信号' : language === 'ko' ? '조기 신호' : t('ranking_early_signals_tag'))}</span>
                       {isExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
                     </div>
                   </button>
@@ -1228,9 +1226,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
               {/* Neither */}
               <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-2.5">
-                <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">{language === 'zh' ? '双方排除' : language === 'ko' ? '양측 제외' : language === 'en' ? 'Both Excluded' : 'Cả hai loại'}</div>
+                <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">{language === 'zh' ? '双方排除' : language === 'ko' ? '양측 제외' : t('ranking_both_excluded_label')}</div>
                 <div className="mt-1 text-xl font-bold text-slate-400">{candidateComparison?.neither ?? 111}</div>
-                <div className="text-[9px] text-slate-500">{language === 'zh' ? '无派发特征' : language === 'ko' ? '분산 신호 없음' : language === 'en' ? 'No distribution' : 'Không có tín hiệu xả'}</div>
+                <div className="text-[9px] text-slate-500">{language === 'zh' ? '无派发特征' : language === 'ko' ? '분산 신호 없음' : t('ranking_no_distribution_tag')}</div>
               </div>
             </div>
 
@@ -1243,7 +1241,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       {expandedComparisonLabel} ({expandedComparisonItems.length} coin)
                     </span>
                     <span className="text-[10px] text-slate-400">
-                      {language === 'zh' ? '— 点击任意币种查看 K 线图表与量化指标' : language === 'ko' ? '— 차트 및 지표를 확인하려면 코인을 클릭하세요' : language === 'en' ? '— Click any coin to inspect candlestick chart & live orderflow' : '— Bấm vào mã coin để xem biểu đồ nến và chỉ số phân tích'}
+                      {language === 'zh' ? '— 点击任意币种查看 K 线图表与量化指标' : language === 'ko' ? '— 차트 및 지표를 확인하려면 코인을 클릭하세요' : t('ranking_inspect_coin_hint')}
                     </span>
                   </div>
                   <button
@@ -1293,7 +1291,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   </div>
                 ) : (
                   <div className="py-2 text-center text-xs text-slate-500">
-                    {language === 'zh' ? '该分组暂无币种。' : language === 'ko' ? '이 그룹에 코인이 없습니다.' : language === 'en' ? 'No coin symbols in this segment.' : 'Chưa có mã coin nào trong nhóm này.'}
+                    {language === 'zh' ? '该分组暂无币种。' : language === 'ko' ? '이 그룹에 코인이 없습니다.' : t('ranking_no_coins_in_segment')}
                   </div>
                 )}
               </div>
@@ -1306,7 +1304,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="mb-2 flex items-center justify-between border-b border-slate-800 pb-1.5">
                   <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-200">
                     <Award className="h-3.5 w-3.5 text-violet-400" />
-                    <span>{language === 'zh' ? '对决战报: V2 冠军模型 vs V1 基准模型' : language === 'ko' ? '맞대결 스코어카드: V2 챔피언 vs V1 베이스라인' : language === 'en' ? 'Head-to-Head Scorecard: V2 Champion vs V1 Baseline' : 'Hiệu quả đối đầu: V2 Chính thức vs V1 Đối soát'}</span>
+                    <span>{language === 'zh' ? '对决战报: V2 冠军模型 vs V1 基准模型' : language === 'ko' ? '맞대결 스코어카드: V2 챔피언 vs V1 베이스라인' : t('h2h_scorecard_title')}</span>
                   </div>
                   <span className="text-[10px] text-violet-300 font-mono">
                     Δ V2 − V1 (95% CI Bootstrap)
@@ -1317,18 +1315,18 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-slate-800/80 text-[10px] uppercase text-slate-400 font-mono">
-                        <th className="pb-1.5 font-semibold">{language === 'zh' ? '评估指标' : language === 'ko' ? '평가 지표' : language === 'en' ? 'Metric' : 'Chỉ số đánh giá'}</th>
+                        <th className="pb-1.5 font-semibold">{language === 'zh' ? '评估指标' : language === 'ko' ? '평가 지표' : t('h2h_col_metric')}</th>
                         <th className="pb-1.5 font-semibold text-violet-400">V2 (Quant 👑)</th>
                         <th className="pb-1.5 font-semibold text-amber-400">V1 (Pump)</th>
                         <th className="pb-1.5 font-semibold text-cyan-300">Chênh lệch Δ</th>
-                        <th className="pb-1.5 text-right font-semibold">{language === 'zh' ? '优势' : language === 'ko' ? '우위 평가' : language === 'en' ? 'Advantage' : 'Đánh giá'}</th>
+                        <th className="pb-1.5 text-right font-semibold">{language === 'zh' ? '优势' : language === 'ko' ? '우위 평가' : t('h2h_col_advantage')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-900 text-[11px]">
                       {/* P@10 */}
                       <tr className="hover:bg-slate-900/40">
                         <td className="py-1.5 font-medium text-slate-300">
-                          {language === 'zh' ? 'Top 10 精准率 (P@10)' : language === 'ko' ? '상위 10개 정밀도 (P@10)' : language === 'en' ? 'Precision @ Top 10' : 'Độ chính xác Top 10 (P@10)'}
+                          {language === 'zh' ? 'Top 10 精准率 (P@10)' : language === 'ko' ? '상위 10개 정밀도 (P@10)' : t('h2h_p10_label')}
                         </td>
                         <td className="py-1.5 font-mono font-bold text-violet-300">
                           {metricPercent(championMetrics?.precision_at_10 ?? 0.712)}
@@ -1347,7 +1345,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       {/* Event Recall */}
                       <tr className="hover:bg-slate-900/40">
                         <td className="py-1.5 font-medium text-slate-300">
-                          {language === 'zh' ? '暴跌捕获率 (Event Recall)' : language === 'ko' ? '급락 포착률 (Event Recall)' : language === 'en' ? 'Event Recall (Catching Dumps)' : 'Độ bao phủ nhịp xả (Event Recall)'}
+                          {language === 'zh' ? '暴跌捕获率 (Event Recall)' : language === 'ko' ? '급락 포착률 (Event Recall)' : t('h2h_recall_label')}
                         </td>
                         <td className="py-1.5 font-mono font-bold text-violet-300">
                           {metricPercent(championMetrics?.event_recall ?? 0.648)}
@@ -1366,7 +1364,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       {/* False Alarms */}
                       <tr className="hover:bg-slate-900/40">
                         <td className="py-1.5 font-medium text-slate-300">
-                          {language === 'zh' ? '每日误报候选数' : language === 'ko' ? '일일 오경보 후보 수' : language === 'en' ? 'False Candidates / Day' : 'Tần suất báo động sai / ngày'}
+                          {language === 'zh' ? '每日误报候选数' : language === 'ko' ? '일일 오경보 후보 수' : t('h2h_false_alarm_label')}
                         </td>
                         <td className="py-1.5 font-mono text-violet-300 font-bold">
                           {championMetrics?.false_candidates_per_day?.toFixed(1) ?? '2.2'} coin/d
@@ -1411,11 +1409,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <div className="mb-2 flex items-center justify-between border-b border-slate-800 pb-1.5">
                     <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-200">
                       <Target className="h-3.5 w-3.5 text-violet-400" />
-                      <span>{language === 'zh' ? '运行状态: V2 冠军版' : language === 'ko' ? '운영 상태: V2 챔피언' : language === 'en' ? 'Operating Status: V2 Champion' : 'Trạng thái: V2 Bản Chính Thức'}</span>
+                      <span>{language === 'zh' ? '运行状态: V2 冠军版' : language === 'ko' ? '운영 상태: V2 챔피언' : t('candidate_operating_status_title')}</span>
                     </div>
                     <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3" />
-                      {language === 'zh' ? '已启用 (主力运行)' : language === 'ko' ? '활성화됨 (실서버)' : language === 'en' ? 'Promoted (Active)' : 'Đã thăng hạng'}
+                      {language === 'zh' ? '已启用 (主力运行)' : language === 'ko' ? '활성화됨 (실서버)' : t('candidate_promoted_active')}
                     </span>
                   </div>
 
@@ -1426,7 +1424,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         <span>👑 V2 Quantitative Filter (Champion):</span>
                       </div>
                       <p className="mt-0.5 text-slate-300">
-                        {language === 'en' ? 'V2 is actively scanning all symbols, ranking candidates by multi-stage exhaustion, and dispatching live Telegram cycle alerts.' : 'V2 trực tiếp quét toàn thị trường, phân loại động lượng suy kiệt và gửi cảnh báo chu kỳ Telegram.'}
+                        {t('candidate_v2_operational_desc')}
                       </p>
                     </div>
 
@@ -1435,7 +1433,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         <span>📊 V1 Pump Baseline (A/B Test):</span>
                       </div>
                       <p className="mt-0.5 text-slate-300">
-                        {language === 'en' ? 'V1 continues running in shadow mode to ensure continuous performance tracking without drift.' : 'V1 tiếp tục chạy đối soát ngầm để kiểm tra độ trôi hiệu suất và đảm bảo dữ liệu so sánh luôn liên tục.'}
+                        {t('candidate_v1_shadow_desc')}
                       </p>
                     </div>
 
@@ -1444,7 +1442,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         <span>🔬 V3 Next-Gen AI Integration:</span>
                       </div>
                       <p className="mt-0.5 text-slate-300">
-                        {language === 'en' ? 'Framework is ready for 3-way multi-version comparison (V2 Champion vs V1 Baseline vs V3 R&D).' : 'Hệ thống đã chuẩn bị sẵn module để cắm V3 vào so sánh 3 chiều ngay khi hoàn tất phát triển.'}
+                        {t('candidate_v3_roadmap_desc')}
                       </p>
                     </div>
                   </div>
@@ -1454,10 +1452,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="mt-2.5 rounded-md border border-violet-900/60 bg-violet-950/30 p-2 text-[10px] leading-relaxed text-violet-200">
                   <div className="font-bold flex items-center gap-1 text-violet-300">
                     <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                    <span>{language === 'zh' ? '实盘总结: V2 准确率领先 +18.5%' : language === 'ko' ? '실서버 요약: V2 정확도 +18.5% 우위' : language === 'en' ? 'Production Summary: V2 Leads by +18.5% Accuracy' : 'Tóm lược: V2 vượt trội +18.5% độ chính xác'}</span>
+                    <span>{language === 'zh' ? '实盘总结: V2 准确率领先 +18.5%' : language === 'ko' ? '실서버 요약: V2 정확도 +18.5% 우위' : t('candidate_conclusion_title')}</span>
                   </div>
                   <p className="mt-0.5 text-slate-300">
-                    {language === 'en' ? 'V2 delivers fewer false alarms (-29%) and earlier warning (+42m) than V1. You can filter the table below by any filter arm.' : 'V2 giúp giảm 29% báo động sai và cảnh báo sớm hơn 42 phút. Bạn có thể dùng các nút lọc bên trên để xem từng nhóm ứng viên.'}
+                    {t('candidate_conclusion_desc')}
                   </p>
                 </div>
               </div>
@@ -1466,7 +1464,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
           {filteredCandidates.some((candidate) => candidate.is_stale) && (
             <div className="mb-2 rounded-lg border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-[11px] text-amber-300">
-              {language === 'en' ? 'Displaying latest scan cache because scanner has not completed a new cycle yet. Click "Refresh" to re-scan; do not treat these rows as live mark prices.' : 'Đang hiển thị dữ liệu quét gần nhất vì bộ quét chưa phát hành chu kỳ mới. Bấm “Cập nhật” để quét lại; không dùng các dòng này như giá thị trường hiện tại.'}
+              {t('candidate_cache_notice')}
             </div>
           )}
 
@@ -1475,10 +1473,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-mono text-[10px] uppercase">
                 <tr>
                   <th className="p-2.5">{t('col_coin')}</th>
-                  <th className="p-2.5">{language === 'zh' ? '筛选源 & 阶段' : language === 'ko' ? '필터링 출처 및 단계' : language === 'en' ? 'Source & Stage' : 'Nguồn lọc & Giai đoạn'}</th>
+                  <th className="p-2.5">{language === 'zh' ? '筛选源 & 阶段' : language === 'ko' ? '필터링 출처 및 단계' : t('ranking_col_source_stage')}</th>
                   <th className="p-2.5">{t('col_price')}</th>
                   <th className="p-2.5">{t('col_score')}</th>
-                  <th className="p-2.5">{language === 'zh' ? '风险等级' : language === 'ko' ? '위험 등급' : language === 'en' ? 'Risk Tier' : 'Mức rủi ro'}</th>
+                  <th className="p-2.5">{language === 'zh' ? '风险等级' : language === 'ko' ? '위험 등급' : t('ranking_col_risk_tier')}</th>
                   <th className="p-2.5">OI 24h</th>
                   <th className="p-2.5">{t('metric_funding')}</th>
                   <th className="p-2.5">{t('metric_taker_sell')}</th>
@@ -1491,7 +1489,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <tr>
                     <td colSpan={10} className="p-8 text-center font-sans text-slate-500">
                       {isRefreshingCandidates
-                        ? (language === 'zh' ? '扫描器正在处理数据管道，请等待当前周期完成。' : language === 'ko' ? '스캐너가 데이터 파이프라인을 처리 중입니다. 현재 주기가 완료될 때까지 기다려주세요.' : language === 'en' ? 'Scanner is processing data pipeline, please wait for current cycle to complete.' : 'Bộ quét đang xử lý dữ liệu, vui lòng chờ chu kỳ hiện tại hoàn tất.') : (language === 'zh' ? '该分类暂无候选。请切换到“全部候选”或点击“刷新”。' : language === 'ko' ? '이 그룹에 후보가 없습니다. "전체 후보"로 전환하거나 "새로고침"을 누르세요.' : language === 'en' ? 'No candidates in this segment. Switch to "All Candidates" or click "Refresh".' : 'Chưa có ứng viên trong nhóm này. Hãy chuyển sang "Tất cả ứng viên" hoặc bấm “Cập nhật”.')}
+                        ? t('candidate_filter_pipeline_loading') : t('candidate_empty_segment_notice')}
                     </td>
                   </tr>
                 )}
@@ -1535,7 +1533,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       </td>
                       <td className="p-2.5 text-amber-400 font-bold">${c.price}</td>
                       <td className="p-2.5">
-                        <span className="font-bold text-red-400">{c.score.toFixed(1)} {language === 'zh' ? '分' : language === 'ko' ? '점' : language === 'en' ? 'pts' : 'điểm'}</span>
+                        <span className="font-bold text-red-400">{c.score.toFixed(1)} {language === 'zh' ? '分' : language === 'ko' ? '점' : t('unit_points')}</span>
                       </td>
                       <td className="p-2.5">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1599,7 +1597,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   {t('sys_telemetry_title')}
                 </h3>
                 <p className="text-[11px] text-slate-400">
-                  {language === 'zh' ? '监控扫描频率、Binance API 延迟及后台守护进程执行日志' : language === 'ko' ? '스캔 주기, 바이낸스 API 지연 시간 및 백그라운드 작업 로그 모니터링' : language === 'en' ? 'Monitor scan cadence, Binance API latency, and background worker logs' : 'Theo dõi thời gian quét, độ trễ API Binance và nhật ký thực thi ngầm'}
+                  {language === 'zh' ? '监控扫描频率、Binance API 延迟及后台守护进程执行日志' : language === 'ko' ? '스캔 주기, 바이낸스 API 지연 시간 및 백그라운드 작업 로그 모니터링' : t('telemetry_subtitle_desc')}
                 </p>
               </div>
 
@@ -1609,7 +1607,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
               >
                 <Play className="w-3.5 h-3.5 fill-current" />
-                {isTriggeringScan ? (language === 'zh' ? '正在扫描 48 个币种...' : language === 'ko' ? '48개 코인 스캔 중...' : language === 'en' ? 'Scanning 48 pairs...' : 'Đang quét 48 coin...') : (language === 'zh' ? '⚡ 立即执行手动扫描' : language === 'ko' ? '⚡ 수동 스캔 즉시 실행' : language === 'en' ? '⚡ Run Manual Scan' : '⚡ Chạy quét ngay')}
+                {isTriggeringScan ? t('telemetry_scanning_coins_progress').replace('{count}', '48') : t('telemetry_manual_scan_btn')}
               </button>
             </div>
 
@@ -1623,18 +1621,18 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             {/* Live Metrics Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">{language === 'zh' ? '引擎状态' : language === 'ko' ? '엔진 상태' : language === 'en' ? 'ENGINE STATUS' : 'TRẠNG THÁI BỘ MÁY'}</div>
+                <div className="text-[10px] text-slate-400">{t('telemetry_engine_status')}</div>
                 <div className="text-sm font-bold text-emerald-400 font-mono mt-0.5 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                   {scannerStatusLabels[telemetryData.scanner_engine_status] ?? telemetryData.scanner_engine_status}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  `${language === 'zh' ? '周期:' : language === 'ko' ? '주기:' : language === 'en' ? 'Interval:' : 'Chu kỳ:'} ${telemetryData.poll_interval_minutes}${language === 'zh' ? '分/轮' : language === 'ko' ? '분/회' : language === 'en' ? 'm/cycle' : ' phút/lần'}`
+                  `${t('telemetry_interval_prefix')} ${telemetryData.poll_interval_minutes} ${t('telemetry_cycles_unit')}`
                 </div>
               </div>
 
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">{language === 'zh' ? '下次扫描倒计时' : language === 'ko' ? '다음 스캔까지' : language === 'en' ? 'NEXT SCAN IN' : 'LẦN QUẾT TIẾP THEO'}</div>
+                <div className="text-[10px] text-slate-400">{t('telemetry_next_scan_countdown')}</div>
                 <div className="text-sm font-bold text-amber-400 font-mono mt-0.5 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
                   {telemetryData.next_scan_in_seconds != null
@@ -1648,25 +1646,25 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     : (t('metric_insufficient_data'))}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  {language === 'zh' ? '模式: ' : language === 'ko' ? '모드: ' : language === 'en' ? 'Mode: ' : 'Chế độ: '}{scanModeLabels[telemetryData.active_scan_mode] ?? telemetryData.active_scan_mode.toUpperCase()}
+                  {t('telemetry_mode_prefix')}{scanModeLabels[telemetryData.active_scan_mode] ?? telemetryData.active_scan_mode.toUpperCase()}
                 </div>
               </div>
 
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">{language === 'zh' ? 'BINANCE API 延迟' : language === 'ko' ? '바이낸스 API 지연' : language === 'en' ? 'BINANCE API LATENCY' : 'ĐỘ TRỄ API BINANCE'}</div>
+                <div className="text-[10px] text-slate-400">{t('telemetry_binance_latency')}</div>
                 <div className="text-sm font-bold text-sky-400 font-mono mt-0.5">
                   {telemetryData.average_api_latency_ms} ms
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">{language === 'zh' ? 'Binance U本位合约' : language === 'ko' ? '바이낸스 USD-M 선물' : language === 'en' ? 'Binance USD-M Futures' : 'Hợp đồng tương lai Binance USD-M'}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">{t('telemetry_binance_usdm')}</div>
               </div>
 
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400">{language === 'zh' ? '已扫描币种 / 触发警报' : language === 'ko' ? '스캔된 페어 / 발령 경보' : language === 'en' ? 'SCANNED PAIRS / ALERTS' : 'COIN ĐÃ QUẾT / CẢNH BÁO'}</div>
+                <div className="text-[10px] text-slate-400">{t('telemetry_scanned_alerts')}</div>
                 <div className="text-sm font-bold text-slate-100 font-mono mt-0.5">
-                  {telemetryData.scanned_pairs_count} {language === 'zh' ? '个' : language === 'ko' ? '개' : language === 'en' ? 'pairs' : 'cặp'} / <span className="text-red-400">{telemetryData.signals_triggered_count} {language === 'zh' ? '条警报' : language === 'ko' ? '개 경보' : language === 'en' ? 'alerts' : 'cảnh báo'}</span>
+                  {telemetryData.scanned_pairs_count} {t('telemetry_pairs_unit')} / <span className="text-red-400">{telemetryData.signals_triggered_count} {t('telemetry_alerts_unit')}</span>
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  `${language === 'zh' ? '已排除稳定币:' : language === 'ko' ? '제외된 스테이블코인:' : language === 'en' ? 'Excluded:' : 'Bỏ qua:'} ${telemetryData.stablecoins_excluded_count ?? (language === 'zh' ? '无' : language === 'ko' ? '없음' : language === 'en' ? 'N/A' : 'Chưa có')} ${language === 'zh' ? '个' : language === 'ko' ? '개' : language === 'en' ? 'stablecoins' : 'đồng ổn định'}`
+                  `${t('telemetry_excluded_prefix')} ${telemetryData.stablecoins_excluded_count ?? 'N/A'} ${t('telemetry_stablecoins_unit')}`
                 </div>
               </div>
             </div>
@@ -1674,19 +1672,19 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             {/* Model + Runtime Info */}
             <div className="mt-2.5 grid grid-cols-2 md:grid-cols-4 gap-2 text-[10px] font-mono">
               <div className="bg-slate-900/60 px-2 py-1.5 rounded border border-slate-800">
-                <span className="text-slate-500">{language === 'zh' ? '模型: ' : language === 'ko' ? '모델: ' : language === 'en' ? 'Model: ' : 'Mô hình: '}</span>
+                <span className="text-slate-500">{t('telemetry_model_prefix')}</span>
                 <span className="text-cyan-400">{telemetryData.model_id || (t('metric_insufficient_data'))}</span>
               </div>
               <div className="bg-slate-900/60 px-2 py-1.5 rounded border border-slate-800">
-                <span className="text-slate-500">{language === 'zh' ? '周期: ' : language === 'ko' ? '주기: ' : language === 'en' ? 'Cycle: ' : 'Chu kỳ: '}</span>
+                <span className="text-slate-500">{t('telemetry_cycle_prefix')}</span>
                 <span className="text-amber-400">{telemetryData.cycle ?? (t('metric_insufficient_data'))}</span>
               </div>
               <div className="bg-slate-900/60 px-2 py-1.5 rounded border border-slate-800">
-                <span className="text-slate-500">{language === 'zh' ? '最大币种数: ' : language === 'ko' ? '최대 코인 수: ' : language === 'en' ? 'Max Coins: ' : 'Số coin tối đa: '}</span>
+                <span className="text-slate-500">{t('telemetry_max_coins_prefix')}</span>
                 <span className="text-slate-300">{telemetryData.max_coins ?? (t('metric_insufficient_data'))}</span>
               </div>
               <div className="bg-slate-900/60 px-2 py-1.5 rounded border border-slate-800">
-                <span className="text-slate-500">{language === 'zh' ? '最近扫描: ' : language === 'ko' ? '최근 스캔: ' : language === 'en' ? 'Last Scan: ' : 'Lần quét cuối: '}</span>
+                <span className="text-slate-500">{t('telemetry_latest_scan_prefix')}</span>
                 <span className="text-slate-300">{telemetryData.last_scan_timestamp ? formatSystemTime(telemetryData.last_scan_timestamp) : (t('metric_insufficient_data'))}</span>
               </div>
             </div>
@@ -1696,7 +1694,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
             <h4 className="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5 uppercase font-mono">
               <Terminal className="w-3.5 h-3.5 text-amber-400" />
-              `${language === 'zh' ? '实时执行日志 —' : language === 'ko' ? '실시간 실행 로그 —' : language === 'en' ? 'REAL-TIME EXECUTION LOGS —' : 'NHẬT KÝ THỰC THI THỜI GIAN THỰC —'} ${telemetryData.logs.length} ${language === 'zh' ? '条记录' : language === 'ko' ? '개 기록' : language === 'en' ? 'records' : 'bản ghi'}`
+              `${t('telemetry_realtime_logs_title')} ${telemetryData.logs.length} ${t('telemetry_records_count')}`
             </h4>
 
             <div className="overflow-x-auto border border-slate-800 rounded-lg max-h-72 overflow-y-auto">
@@ -1705,10 +1703,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <tr>
                     <th className="p-2">{t('col_timestamp')}</th>
                     <th className="p-2">{t('col_coin')}</th>
-                    <th className="p-2">{language === 'zh' ? '处理步骤' : language === 'ko' ? '처리 단계' : language === 'en' ? 'Pipeline Step' : 'Bước xử lý'}</th>
+                    <th className="p-2">{t('telemetry_col_step')}</th>
                     <th className="p-2">{t('col_status')}</th>
-                    <th className="p-2">{language === 'zh' ? '耗时 (ms)' : language === 'ko' ? '소요 시간 (ms)' : language === 'en' ? 'Duration (ms)' : 'Thời lượng (ms)'}</th>
-                    <th className="p-2">{language === 'zh' ? '详情' : language === 'ko' ? '세부 정보' : language === 'en' ? 'Details' : 'Chi Tiết'}</th>
+                    <th className="p-2">{t('telemetry_col_duration')}</th>
+                    <th className="p-2">{t('telemetry_col_details')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-[11px]">
@@ -1734,9 +1732,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   {telemetryData.logs.length === 0 && (
                     <tr>
                       <td colSpan={6} className="p-6 text-center text-slate-500 text-[11px]">
-                        {language === 'en' ? 'No logs recorded yet. Scanner is running — logs will appear after next scan cycle.' : 'Chưa có nhật ký nào. Bộ quét đang chạy — nhật ký sẽ xuất hiện sau lần quét tiếp theo.'}
+                        {t('telemetry_no_logs_yet')}
                         <br />
-                        <span className="text-[10px]">{language === 'zh' ? '最近扫描: ' : language === 'ko' ? '최근 스캔: ' : language === 'en' ? 'Last scan: ' : 'Lần quét cuối: '}{telemetryData.last_scan_timestamp || (t('metric_insufficient_data'))}</span>
+                        <span className="text-[10px]">{t('telemetry_latest_scan_prefix')}{telemetryData.last_scan_timestamp || (t('metric_insufficient_data'))}</span>
                       </td>
                     </tr>
                   )}
@@ -1809,7 +1807,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   {auditData.metrics.precision !== null ? `${(auditData.metrics.precision * 100).toFixed(1)}%` : (t('metric_insufficient_data'))}
                 </div>
                 <div className="text-[10px] text-emerald-400 font-bold mt-0.5">
-                  {auditData.metrics.precision_uplift ?? (language === 'zh' ? `基于 ${auditData.sample_size} 条已验证信号` : language === 'ko' ? `${auditData.sample_size}개 검증된 신호 기반` : language === 'en' ? `based on ${auditData.sample_size} evaluated signals` : `dựa trên ${auditData.sample_size} tín hiệu đã kiểm chứng`)}
+                  {auditData.metrics.precision_uplift ?? t('audit_based_on_samples').replace('{sample}', String(auditData.sample_size))}
                 </div>
               </div>
 
@@ -1836,7 +1834,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <div className="bg-slate-900 p-2.5 rounded-lg border border-slate-800">
                 <div className="text-[10px] text-slate-400">{t('audit_mean_lead_time')}</div>
                 <div className="text-xl font-black text-amber-300 font-mono mt-0.5">
-                  {auditData.lead_time.mean_hours !== null ? `~${auditData.lead_time.mean_hours} ${language === 'en' ? 'hours' : 'giờ'}` : (t('metric_insufficient_data'))}
+                  {auditData.lead_time.mean_hours !== null ? `~${auditData.lead_time.mean_hours} ${t('unit_hours')}` : t('metric_insufficient_data')}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
                   {t('audit_lead_note')}
@@ -1854,7 +1852,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       <span className="text-slate-300">{riskLabels[level] ?? level}</span>
                       <span className="font-mono text-slate-200">
                         {s.precision !== null ? `${(s.precision * 100).toFixed(1)}%` : (t('metric_insufficient_data'))}
-                        <span className="text-slate-500"> ({s.n_hit}/{s.n_judged} {language === 'en' ? 'judged' : 'đã đánh giá'})</span>
+                        <span className="text-slate-500"> ({t('audit_judged_count').replace('{hit}', String(s.n_hit)).replace('{judged}', String(s.n_judged))})</span>
                       </span>
                     </div>
                   ))}
@@ -1905,7 +1903,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 </h4>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-slate-400">
-                    `${language === 'zh' ? '更新于: ' : language === 'ko' ? '업데이트: ' : language === 'en' ? 'Updated: ' : 'Cập nhật: '}${marketData.binance_listing.date}`
+                    `${t('market_updated_prefix')}${marketData.binance_listing.date}`
                   </span>
                   <button
                     onClick={handleRefreshListing}
@@ -1917,33 +1915,33 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 </div>
               </div>
               <p className="text-[11px] text-slate-400 mb-2.5">
-                {language === 'en' ? 'Spot: api.binance.com · USD-M: fapi · COIN-M: dapi. Scanned once daily (UTC+7).' : 'Giao ngay: api.binance.com · USD-M: fapi · COIN-M: dapi. Quét 1 lần/ngày (Hà Nội, UTC+7).'}
+                {t('market_listings_scan_note')}
               </p>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                 <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
                   <div className="text-[9px] text-slate-400 uppercase">{t('market_spot')}</div>
                   <div className="text-lg font-black text-amber-400 font-mono">{marketData.binance_listing.spot_coins.toLocaleString()}</div>
-                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.spot_usdt_pairs} {language === 'en' ? 'USDT pairs' : 'cặp USDT'}</div>
+                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.spot_usdt_pairs} {t('market_usdt_pairs_unit')}</div>
                 </div>
                 <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
                   <div className="text-[9px] text-slate-400 uppercase">USD-M</div>
                   <div className="text-lg font-black text-sky-400 font-mono">{marketData.binance_listing.usdm_coins.toLocaleString()}</div>
-                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.usdm_usdt_pairs} {language === 'en' ? 'USDT pairs' : 'cặp USDT'}</div>
+                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.usdm_usdt_pairs} {t('market_usdt_pairs_unit')}</div>
                 </div>
                 <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
                   <div className="text-[9px] text-slate-400 uppercase">COIN-M</div>
                   <div className="text-lg font-black text-purple-400 font-mono">{marketData.binance_listing.coinm_coins.toLocaleString()}</div>
-                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.coinm_symbols} {language === 'en' ? 'symbols' : 'mã'}</div>
+                  <div className="text-[9px] text-slate-500">{marketData.binance_listing.coinm_symbols} {t('market_symbols_unit')}</div>
                 </div>
                 <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
                   <div className="text-[9px] text-slate-400 uppercase">{t('market_futures')}</div>
                   <div className="text-lg font-black text-emerald-400 font-mono">{marketData.binance_listing.futures_coins.toLocaleString()}</div>
-                  <div className="text-[9px] text-slate-500">{language === 'en' ? '≥1 futures market' : '≥1 thị trường hợp đồng'}</div>
+                  <div className="text-[9px] text-slate-500">{t('market_at_least_1_futures')}</div>
                 </div>
                 <div className="bg-slate-900 p-2 rounded-lg border border-slate-800">
                   <div className="text-[9px] text-slate-400 uppercase">{t('market_total_binance')}</div>
                   <div className="text-lg font-black text-white font-mono">{marketData.binance_listing.all_coins.toLocaleString()}</div>
-                  <div className="text-[9px] text-slate-500">{language === 'en' ? 'Spot ∪ Futures' : 'Giao ngay ∪ hợp đồng'}</div>
+                  <div className="text-[9px] text-slate-500">{t('market_spot_futures_union')}</div>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2 mt-2">
@@ -2019,7 +2017,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <div className="text-2xl font-black text-amber-400 font-mono mt-0.5">
                 {marketData.binance_listing_total}
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">{language === 'zh' ? '全网监控的合约交易对总数' : language === 'ko' ? '추적 중인 전체 선물 종목 수' : language === 'en' ? 'Total tracked futures instruments' : 'Tổng số coin hợp đồng theo dõi'}</p>
+              <p className="text-[11px] text-slate-400 mt-1">{t('market_total_pairs_monitored')}</p>
             </div>
 
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
@@ -2027,15 +2025,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <div className="text-2xl font-black text-sky-400 font-mono mt-0.5">
                 {marketData.scanned_volatile_top}
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">{language === 'zh' ? 'AI 24/7 全天候监控的高波动交易对' : language === 'ko' ? 'AI가 24/7 모니터링하는 고변동성 페어' : language === 'en' ? 'Top high-volatility pairs monitored 24/7' : 'Top coin có biến động lớn được AI quét 24/7'}</p>
+              <p className="text-[11px] text-slate-400 mt-1">{t('market_ai_monitored_pairs')}</p>
             </div>
 
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
-              <div className="text-[10px] text-slate-400">{language === 'zh' ? '全市场派发压力指数' : language === 'ko' ? '시장 분산 지수' : language === 'en' ? 'MARKET DISTRIBUTION INDEX' : 'CHỈ SỐ PHÂN PHỐI THỊ TRƯỜNG'}</div>
+              <div className="text-[10px] text-slate-400">{t('market_distribution_pressure_index')}</div>
               <div className="text-2xl font-black text-red-400 font-mono mt-0.5">
                 {marketData.distribution_index} / 100
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">{language === 'zh' ? '全网多空与出货综合压力' : language === 'ko' ? '시장 전반의 덤프 압력 지수' : language === 'en' ? 'Aggregate market-wide dump pressure' : 'Áp lực xả chung toàn thị trường'}</p>
+              <p className="text-[11px] text-slate-400 mt-1">{t('market_distribution_pressure_desc')}</p>
             </div>
           </div>
 
@@ -2128,7 +2126,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     <Tooltip
                       contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 11 }}
                       labelStyle={{ color: '#94a3b8' }}
-                      formatter={(v: any) => [`$${Number(v).toFixed(6)}`, language === 'en' ? 'Close Price' : 'Giá đóng cửa']}
+                      formatter={(v: any) => [`$${Number(v).toFixed(6)}`, t('chart_close_price')]}
                     />
                     <Area type="monotone" dataKey="close" stroke="#f59e0b" strokeWidth={2} fill="url(#priceGradient)" />
                   </AreaChart>

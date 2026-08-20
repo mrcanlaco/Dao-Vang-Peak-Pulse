@@ -26,6 +26,9 @@ env.bak/
 venv.bak/
 configs/live.yaml
 configs/*.local.yaml
+cloudflared/*.json
+cloudflared/config.yml
+!cloudflared/config.example.yml
 
 # IDEs & Editor configs
 .vscode/

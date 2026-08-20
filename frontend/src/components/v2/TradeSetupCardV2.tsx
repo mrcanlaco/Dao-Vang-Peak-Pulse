@@ -1,24 +1,30 @@
-import React from 'react';
-import { Target, ShieldAlert, TrendingDown } from 'lucide-react';
+import React, { useState } from 'react';
+import { Target, ShieldAlert, TrendingDown, Zap } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 
-interface TradeSetupCardProps {
+interface TradeSetupCardV2Props {
+  symbol?: string;
   currentPrice: number;
   signalPrice?: number | null;
   targetPrice?: number | null;
   peakPrice?: number | null;
   invalidationPrice?: number | null;
+  onOpenOrderModal?: () => void;
 }
 
-export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
+export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
+  symbol: _symbol,
   currentPrice,
   signalPrice,
   targetPrice,
   peakPrice,
   invalidationPrice,
+  onOpenOrderModal,
 }) => {
   const { t } = useTranslation();
-  
+  const [marginUsd, setMarginUsd] = useState<number>(100);
+  const [leverage, setLeverage] = useState<number>(5);
+
   const entry = signalPrice && signalPrice > 0 ? signalPrice : currentPrice;
   if (!entry || entry <= 0) return null;
 
@@ -35,8 +41,11 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
   const slPct = ((sl - entry) / entry) * 100;
   const tp1Pct = ((entry - tp1) / entry) * 100;
   const tp2Pct = ((entry - tp2) / entry) * 100;
-
   const rrRatio = slPct > 0 ? (tp2Pct / slPct) : 2.0;
+
+  const totalPos = marginUsd * leverage;
+  const maxLoss = totalPos * (slPct / 100);
+  const maxProfitTp2 = totalPos * (tp2Pct / 100);
 
   const formatPrice = (p: number) => {
     if (p < 0.001) return p.toFixed(6);
@@ -46,15 +55,18 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
   };
 
   return (
-    <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 sm:p-3.5 shadow-md">
-      <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-800/80">
-        <div className="flex items-center gap-1.5">
-          <Target className="w-4 h-4 text-amber-400" />
+    <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 sm:p-3.5 shadow-lg space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+            <Target className="w-3.5 h-3.5" />
+          </div>
           <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
             {t('trade_setup_plan_title')}
           </h3>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <span className="text-[10px] text-slate-400 font-mono">
             {t('trade_rr_ratio')}
           </span>
@@ -138,6 +150,44 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
             {t('trade_ai_target_8')}
           </div>
         </div>
+      </div>
+
+      {/* Quick Interactive Sizing Summary & Button */}
+      <div className="bg-slate-900/80 rounded-xl p-2.5 border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        <div className="flex items-center gap-3 text-xs font-mono">
+          <div className="flex items-center gap-1.5 text-slate-300">
+            <span className="text-slate-400">Margin:</span>
+            <button
+              onClick={() => setMarginUsd(m => m === 50 ? 100 : m === 100 ? 250 : 50)}
+              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold border border-slate-700"
+            >
+              ${marginUsd}
+            </button>
+          </div>
+          <div className="flex items-center gap-1.5 text-slate-300">
+            <span className="text-slate-400">Lev:</span>
+            <button
+              onClick={() => setLeverage(l => l === 3 ? 5 : l === 5 ? 10 : 3)}
+              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-sky-300 font-bold border border-slate-700"
+            >
+              {leverage}x
+            </button>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 text-[11px]">
+            <span className="text-red-400">SL: -${maxLoss.toFixed(1)}</span>
+            <span className="text-emerald-400">TP2: +${maxProfitTp2.toFixed(1)}</span>
+          </div>
+        </div>
+
+        {onOpenOrderModal && (
+          <button
+            onClick={onOpenOrderModal}
+            className="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-slate-950 font-black rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-md shadow-red-600/20 active:scale-95 transition"
+          >
+            <Zap className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>{t('sticky_action_short')} (Binance / OKX)</span>
+          </button>
+        )}
       </div>
     </div>
   );

@@ -326,7 +326,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           lineWidth: 1,
           lineStyle: 2,
           axisLabelVisible: true,
-          title: language === 'zh' ? '入场点' : language === 'ko' ? '진입가' : language === 'en' ? 'ENTRY' : 'VÀO LỆNH',
+          title: t('chart_entry_label'),
         });
       }
       // Stop Loss Line
@@ -337,7 +337,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           lineWidth: 2,
           lineStyle: 2,
           axisLabelVisible: true,
-          title: `${language === 'zh' ? '止损' : language === 'ko' ? '손절' : language === 'en' ? 'SL' : 'CẮT LỖ'} (+${tradeSetup.stopLossPct.toFixed(1)}%)`,
+          title: `${t('trade_stop_loss')} (+${tradeSetup.stopLossPct.toFixed(1)}%)`,
         });
       }
       // TP1 Line
@@ -348,7 +348,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           lineWidth: 1,
           lineStyle: 2,
           axisLabelVisible: true,
-          title: language === 'zh' ? '止盈1 (-4%)' : language === 'ko' ? '익절1 (-4%)' : language === 'en' ? 'TP1 (-4%)' : 'CHỐT LỜI 1 (-4%)',
+          title: `${t('trade_target_1')} (-4%)`,
         });
       }
       // TP2 Line
@@ -359,7 +359,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           lineWidth: 2,
           lineStyle: 0,
           axisLabelVisible: true,
-          title: language === 'zh' ? '止盈2 (-8%)' : language === 'ko' ? '익절2 (-8%)' : language === 'en' ? 'TP2 (-8%)' : 'CHỐT LỜI 2 (-8%)',
+          title: `${t('trade_target_2')} (-8%)`,
         });
       }
     } else if (targetPrice && targetPrice > 0) {
@@ -369,7 +369,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         lineWidth: 2,
         lineStyle: 2,
         axisLabelVisible: true,
-        title: language === 'zh' ? '目标 -8%' : language === 'ko' ? '목표 -8%' : language === 'en' ? 'Target -8%' : 'Mục tiêu -8%',
+        title: t('trade_ai_target_8'),
       });
     }
 
@@ -410,7 +410,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
         const probabilityText = signal.probability != null && Number.isFinite(signal.probability)
           ? `${formatSignalTime(signal.time, true)} · ${(signal.probability).toFixed(1)}%`
-          : `${formatSignalTime(signal.time, true)} · ${language === 'zh' ? '派发' : language === 'ko' ? '분산' : language === 'en' ? 'DISTRIB' : 'XẢ'}`;
+          : `${formatSignalTime(signal.time, true)} · ${t('chart_distrib_label')}`;
 
         return [{
           id: signal.id || `${signalTimestamp}-${index}`,
@@ -458,7 +458,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         <div ref={alertMenuRef} className="relative">
           <button
             type="button"
-            aria-label={language === 'en' ? 'Filter chart alerts' : language === 'zh' ? '过滤图表警报' : language === 'ko' ? '차트 경보 필터' : 'Lọc cảnh báo trên biểu đồ'}
+            aria-label={t('chart_filter_alerts_aria')}
             className={`${toolButtonClass} ${alertMenuOpen ? 'border-amber-500/80 text-amber-300' : ''}`}
             title={t('chart_filter_title')}
             onClick={() => setAlertMenuOpen(value => !value)}
