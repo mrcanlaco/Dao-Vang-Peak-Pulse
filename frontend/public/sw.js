@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dao-vang-pwa-v1.1';
+const CACHE_NAME = 'dao-vang-pwa-v1.2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -13,6 +13,7 @@ const STATIC_ASSETS = [
 
 // Install Event - Pre-cache core shell
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch((err) => {
@@ -20,7 +21,6 @@ self.addEventListener('install', (event) => {
       });
     })
   );
-  self.skipWaiting();
 });
 
 // Activate Event - Clean old caches and claim clients immediately
@@ -30,11 +30,13 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames
           .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
+          .map((name) => {
+            console.log('[SW] Deleting old cache:', name);
+            return caches.delete(name);
+          })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 // Fetch Event
@@ -42,7 +44,7 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 1. API calls & WebSocket requests: Always bypass cache or Network-First (Never serve stale market data)
+  // 1. API calls & non-GET: Pure Network (Never cache financial data)
   if (url.pathname.startsWith('/api/') || request.method !== 'GET') {
     event.respondWith(
       fetch(request).catch(() => {
@@ -55,28 +57,41 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Static Assets & App Shell: Stale-While-Revalidate
+  // 2. Navigation (HTML pages): Network-First (Ensures instant deployment updates)
+  if (request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => caches.match(request) || caches.match('/index.html') || caches.match('/'))
+    );
+    return;
+  }
+
+  // 3. Static Assets (/assets/*, icons): Cache-First / Stale-While-Revalidate
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      const fetchPromise = fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseToCache);
-            });
+      if (cachedResponse) {
+        // Fetch in background to update cache for next time
+        fetch(request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse));
           }
-          return networkResponse;
-        })
-        .catch(() => {
-          // If offline and request is HTML navigation, fallback to cached index.html
-          if (request.mode === 'navigate') {
-            return caches.match('/index.html') || caches.match('/');
-          }
-          return null;
-        });
-
-      return cachedResponse || fetchPromise;
+        }).catch(() => {});
+        return cachedResponse;
+      }
+      return fetch(request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        }
+        return networkResponse;
+      });
     })
   );
 });
