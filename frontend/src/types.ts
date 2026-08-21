@@ -36,6 +36,7 @@ export interface SignalItem {
   evidence_n_judged?: number | null;
   hit?: boolean | null;
   telegram_sent?: boolean;
+  two_tier_state?: 'ARMED' | 'FIRED' | 'NORMAL' | 'WATCH' | 'STANDBY';
 }
 
 export interface WatchlistPreset {

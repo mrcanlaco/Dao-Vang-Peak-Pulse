@@ -389,18 +389,30 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                     : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900/90'
                 }`}
               >
-                {/* Top Row: Symbol, Name, Risk Badge */}
+                {/* Top Row: Symbol, Name, 2-Tier Badge & Risk Badge */}
                 <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <CoinLink symbol={sig.symbol} onClick={() => onSelectSignal(sig)} className="text-sm group-hover:text-amber-300 transition" />
+                  <div className="flex items-center gap-1.5">
+                    <CoinLink symbol={sig.symbol} onClick={() => onSelectSignal(sig)} className="text-sm font-bold group-hover:text-amber-300 transition" />
                     <span className="text-[11px] text-slate-400">({sig.name})</span>
                     {count > 1 && (
-                      <span className="ml-1 px-1.5 py-0.5 bg-slate-800 text-amber-400 text-[10px] rounded font-bold border border-amber-500/30">
+                      <span className="px-1.5 py-0.2 bg-slate-800 text-amber-400 text-[10px] rounded font-bold border border-amber-500/30">
                         x{count}
                       </span>
                     )}
                   </div>
-                  {getRiskBadge(sig.risk_level)}
+                  <div className="flex items-center gap-1.5">
+                    {sig.two_tier_state === 'FIRED' ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-black font-mono bg-red-950 text-amber-300 border border-red-600 animate-pulse flex items-center gap-0.5 shadow-sm shadow-red-900/50">
+                        <Zap className="w-2.5 h-2.5 text-amber-400 stroke-[3]" />
+                        FIRED
+                      </span>
+                    ) : sig.two_tier_state === 'ARMED' ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-600/80 flex items-center gap-0.5">
+                        🧭 ARMED
+                      </span>
+                    ) : null}
+                    {getRiskBadge(sig.risk_level)}
+                  </div>
                 </div>
 
                 {/* Middle Row: Probability Gauge Bar & Price */}

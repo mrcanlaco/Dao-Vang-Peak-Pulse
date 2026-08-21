@@ -1323,12 +1323,21 @@ class APIHandler(BaseHTTPRequestHandler):
             target_drawdown = -8.0
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
 
+            prob_val = float(r.get("probability") or 0.0)
+            is_fired = (
+                prob_val >= 0.55
+                or (taker_sell is not None and taker_sell >= 0.58)
+                or r.get("risk_level") in {"CAO", "HIGH", "CRITICAL"}
+            )
+            two_tier_state = "FIRED" if is_fired else "ARMED" if prob_val >= 0.35 else "NORMAL"
+
             signals.append({
                 "id": f"{r['symbol']}-{_system_history_timestamp(sig_time)}",
                 "symbol": r["symbol"],
                 "name": r["symbol"].replace("USDT", ""),
                 "probability": r["probability"],
                 "risk_level": _risk_bucket(r["probability"] * 100.0),
+                "two_tier_state": two_tier_state,
                 "signal_time": _system_history_timestamp(sig_time),
                 "event_time": _system_history_timestamp(event_dt),
                 "telegram_sent_at": _system_history_timestamp(r.get("telegram_sent_at")),
