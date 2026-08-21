@@ -83,7 +83,7 @@ services:
     network_mode: host
     volumes:
       - ./cloudflared:/etc/cloudflared
-    command: tunnel --config /etc/cloudflared/config.yml run
+    command: tunnel --protocol http2 --config /etc/cloudflared/config.yml run
     depends_on:
       - web
     logging:

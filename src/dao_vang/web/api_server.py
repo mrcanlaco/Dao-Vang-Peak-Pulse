@@ -416,11 +416,14 @@ class APIHandler(BaseHTTPRequestHandler):
     # response, which lets clients detect end-of-body via connection close.
     protocol_version = 'HTTP/1.0'
 
-    def _set_headers(self, status=200, content_type='application/json; charset=utf-8', cache_control='no-store, no-cache, must-revalidate, max-age=0'):
+    def _set_headers(self, status=200, content_type='application/json; charset=utf-8', cache_control='no-store, no-cache, must-revalidate, max-age=0', content_length=None):
         self.send_response(status)
         self.send_header('Content-Type', content_type)
         if cache_control:
             self.send_header('Cache-Control', cache_control)
+        if content_length is not None:
+            self.send_header('Content-Length', str(content_length))
+        self.send_header('Connection', 'close')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, DELETE, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
@@ -441,15 +444,12 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             logger.warning("api_get_failed path=%s error=%s", self.path, exc)
             try:
-                self._set_headers(503)
-                self.wfile.write(
-                    json.dumps(
-                        {
-                            "error": "service temporarily unavailable",
-                            "detail": str(exc),
-                        }
-                    ).encode("utf-8")
-                )
+                err_body = json.dumps({
+                    "error": "service temporarily unavailable",
+                    "detail": str(exc),
+                }).encode("utf-8")
+                self._set_headers(503, content_length=len(err_body))
+                self.wfile.write(err_body)
             except (BrokenPipeError, ConnectionResetError, OSError):
                 pass
 
@@ -469,34 +469,43 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.get_signals()
             elif path == '/api/candidates':
                 self.get_candidates()
-            elif path in ('/api/candidate-filter-comparison', '/api/candidates/compare'):
-                self.get_candidate_filter_comparison()
+            elif path == '/api/candidates/compare':
+                self.get_candidate_comparison()
+            elif path.startswith('/api/coin/'):
+                parts = path.split('/')
+                if len(parts) >= 4 and parts[3] == 'deep-analysis':
+                    symbol = parts[2]
+                    self.get_deep_analysis(symbol)
+                elif len(parts) >= 4 and parts[3] == 'shap':
+                    symbol = parts[2]
+                    self.get_shap_analysis(symbol)
+                elif len(parts) >= 4 and parts[3] == 'klines':
+                    symbol = parts[2]
+                    interval = '5m'
+                    limit = 100
+                    if parsed.query:
+                        query_params = parse_qs(parsed.query)
+                        interval = query_params.get('interval', ['5m'])[0]
+                        try:
+                            limit = int(query_params.get('limit', ['100'])[0])
+                        except ValueError:
+                            limit = 100
+                    self.get_coin_klines(symbol, interval=interval, limit=limit)
+                elif len(parts) >= 3:
+                    symbol = parts[2]
+                    self.get_coin_detail(symbol)
+            elif path == '/api/market-overview':
+                self.get_market_overview()
+            elif path == '/api/watchlist-presets':
+                self.get_watchlist_presets()
             elif path == '/api/watchlist':
                 self.get_watchlist()
             elif path == '/api/tracking-watchlist':
                 self.get_tracking_watchlist()
-            elif path == '/api/scanner/telemetry':
+            elif path == '/api/model-audit':
+                self.get_model_audit()
+            elif path == '/api/scanner-telemetry':
                 self.get_scanner_telemetry()
-            elif path.startswith('/api/coin/'):
-                parts = path.replace('/api/coin/', '').split('/')
-                symbol = parts[0].upper()
-                if len(parts) > 1 and parts[1] == 'deep-analysis':
-                    self.get_deep_analysis(symbol)
-                elif len(parts) > 1 and parts[1] == 'chart':
-                    self.get_coin_chart(symbol)
-                else:
-                    self.get_coin_detail(symbol)
-            elif path == '/api/audit':
-                self.get_audit()
-            elif path == '/api/market':
-                self.get_market()
-            elif path == '/api/scan/multi-coin':
-                self.get_multi_coin_scan()
-            elif path == '/api/experiments':
-                self.get_experiments()
-            elif path.startswith('/api/experiments/'):
-                artifact_id = path.replace('/api/experiments/', '')
-                self.get_experiment_detail(artifact_id)
             elif path == '/api/forward-test/models':
                 self.get_frozen_models()
             elif path.startswith('/api/forward-test/evaluate/'):
@@ -515,8 +524,9 @@ class APIHandler(BaseHTTPRequestHandler):
             elif path == '/api/alpha-lab/summary':
                 self.get_alpha_lab_summary()
             else:
-                self._set_headers(404)
-                self.wfile.write(json.dumps({"error": "API endpoint not found"}).encode('utf-8'))
+                err_body = json.dumps({"error": "API endpoint not found"}).encode('utf-8')
+                self._set_headers(404, content_length=len(err_body))
+                self.wfile.write(err_body)
         else:
             self.serve_static(path)
 
@@ -544,12 +554,20 @@ class APIHandler(BaseHTTPRequestHandler):
                 ctype = 'application/octet-stream'
 
             cache_control = 'no-cache, must-revalidate' if str(file_path).endswith(('index.html', 'sw.js', 'manifest.json')) else 'public, max-age=86400'
-            self._set_headers(200, content_type=ctype, cache_control=cache_control)
-            with open(file_path, 'rb') as f:
-                self.wfile.write(f.read())
+            try:
+                with open(file_path, 'rb') as f:
+                    content = f.read()
+                self._set_headers(200, content_type=ctype, cache_control=cache_control, content_length=len(content))
+                self.wfile.write(content)
+            except Exception as exc:
+                logger.warning("serve_static_read_failed error=%s", exc)
+                err = b"Internal file read error"
+                self._set_headers(500, content_type='text/plain', content_length=len(err))
+                self.wfile.write(err)
         else:
-            self._set_headers(404, content_type='text/plain')
-            self.wfile.write(b"Dist folder not built yet.")
+            err = b"Dist folder not built yet."
+            self._set_headers(404, content_type='text/plain', content_length=len(err))
+            self.wfile.write(err)
 
     def do_POST(self):
         parsed = urlparse(self.path)
