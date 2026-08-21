@@ -459,82 +459,134 @@ class TelegramNotifier:
         mode_prefix = f" `[{mode_label}]`" if operating_mode != "production" else ""
         formatted_time = _display_time(scan_time, self._lang) if scan_time else ""
 
+        # Categorize into FIRED vs ARMED
+        fired_alerts = []
+        armed_alerts = []
+        for a in alerts:
+            rec = a.get("recommendation", "")
+            prob = a.get("model_probability") or 0.0
+            score = a.get("total_score") or 0.0
+            if rec in {"SHORT_CANDIDATE", "HIGH_CONFIDENCE"} or prob >= 0.55 or score >= 50.0:
+                fired_alerts.append(a)
+            else:
+                armed_alerts.append(a)
+
         if self._lang == "en":
             lines = [
-                f"📊 *RADAR CYCLE DIGEST* ({len(alerts)} coins){mode_prefix}",
+                f"📊 *RADAR CYCLE DIGEST (2-TIER CLIMAX)* ({len(alerts)} coins){mode_prefix}",
             ]
             if formatted_time:
-                lines.append(f"*Time:* {formatted_time}")
-            lines.extend([
-                f"*BTC Context:* {_btc_regime_label(btc_regime, 'en')}",
-                "",
-                f"Detected *{len(alerts)} distribution candidates*:",
-            ])
-            for i, a in enumerate(alerts, 1):
-                sym = a["symbol"]
-                prob = a.get("model_probability")
-                score_val = a.get("total_score")
-                rec_val = a.get("recommendation", "")
-                c_stars, c_badge, c_title = _signal_grade(
-                    probability=prob,
-                    total_score=score_val,
-                    recommendation=rec_val,
-                    lang=self._lang,
-                )
-                prob_str = f"{prob:.1%}" if prob is not None else "N/A"
-                price = a.get("close_price")
-                price_str = f"${price:,.4f}" if price else "N/A"
-                pump_pct = a.get("pump_pct", 0.0)
-                pump_days = a.get("pump_days", 0)
-                pump_str = f"+{pump_pct:.0%} ({pump_days}d)" if pump_days > 0 else f"+{pump_pct:.0%}"
-                top_sigs = a.get("top_signals", [])
-                sig_names = [_signal_label(s[0], "en") for s in top_sigs[:2]]
-                sig_str = ", ".join(sig_names) if sig_names else "High probability"
-                detail_url = a.get("web_url") or _coin_url(self._web_base_url, sym)
-                link_md = f" [🔗 Open]({detail_url})" if detail_url else ""
+                lines.append(f"• *Time:* {formatted_time}")
+            lines.append(f"• *BTC Context:* {_btc_regime_label(btc_regime, 'en')}")
+            lines.append(f"• *Status Summary:* ⚡ *{len(fired_alerts)} FIRED* (Immediate Short) | 🧭 *{len(armed_alerts)} ARMED* (Watchlist)")
+            lines.append("")
 
-                lines.append(f"{i}. {c_badge} `{sym}` {c_stars} — {price_str} ({pump_str})")
-                lines.append(f"   • Prob: *{prob_str}* (`{c_title}`) | Signals: {sig_str}{link_md}")
+            if fired_alerts:
+                lines.append("⚡ *[IMMEDIATE SHORT CANDIDATES — FIRED]*")
+                for i, a in enumerate(fired_alerts, 1):
+                    sym = a["symbol"]
+                    prob = a.get("model_probability")
+                    score_val = a.get("total_score") or 0.0
+                    c_stars, _, _ = _signal_grade(probability=prob, total_score=score_val, recommendation="HIGH_CONFIDENCE", lang="en")
+                    prob_str = f"{prob:.1%}" if prob is not None else "N/A"
+                    price = a.get("close_price") or 0.0
+                    price_str = f"${price:,.4f}" if price > 0 else "N/A"
+                    pump_pct = a.get("pump_pct", 0.0)
+                    pump_days = a.get("pump_days", 0)
+                    pump_str = f"+{pump_pct:.0%} ({pump_days}d)" if pump_days > 0 else f"+{pump_pct:.0%}"
+                    top_sigs = a.get("top_signals", [])
+                    sig_names = [_signal_label(s[0], "en") for s in top_sigs[:2]]
+                    sig_str = ", ".join(sig_names) if sig_names else "Order flow dump confirmed"
+                    detail_url = a.get("web_url") or _coin_url(self._web_base_url, sym)
+                    binance_url = f"https://www.binance.com/en/futures/{sym}"
+                    okx_sym = sym.replace("USDT", "-USDT-SWAP").lower() if sym.endswith("USDT") else f"{sym}-SWAP".lower()
+                    okx_url = f"https://www.okx.com/trade-swap/{okx_sym}"
 
-            lines.extend(["", "_Reference report; DYOR before making any trading decisions._"])
+                    sl_price = price * 1.035 if price > 0 else 0.0
+                    tp1_price = price * 0.96 if price > 0 else 0.0
+
+                    lines.append(f"{i}. ⚡ `{sym}` {c_stars} — Entry: `{price_str}` ({pump_str})")
+                    lines.append(f"   • Score: *{score_val:.0f}/100* | Prob: *{prob_str}* | Signals: {sig_str}")
+                    lines.append(f"   • SL: `${sl_price:,.4f}` (+3.5%) | TP1: `${tp1_price:,.4f}` (-4.0%) | TP2: -8.0%")
+                    lines.append(f"   • [Binance]({binance_url}) | [OKX]({okx_url}) | [🔗 Cockpit]({detail_url})")
+                    lines.append("")
+
+            if armed_alerts:
+                lines.append("🧭 *[OVERBOUGHT WATCHLIST — ARMED]*")
+                for i, a in enumerate(armed_alerts, 1):
+                    sym = a["symbol"]
+                    prob = a.get("model_probability")
+                    score_val = a.get("total_score") or 0.0
+                    c_stars, _, _ = _signal_grade(probability=prob, total_score=score_val, recommendation="WATCH", lang="en")
+                    prob_str = f"{prob:.1%}" if prob is not None else "N/A"
+                    price = a.get("close_price") or 0.0
+                    price_str = f"${price:,.4f}" if price > 0 else "N/A"
+                    pump_pct = a.get("pump_pct", 0.0)
+                    pump_str = f"+{pump_pct:.0%}"
+                    detail_url = a.get("web_url") or _coin_url(self._web_base_url, sym)
+
+                    lines.append(f"{i}. 🧭 `{sym}` {c_stars} — `{price_str}` ({pump_str})")
+                    lines.append(f"   • HTF Overbought reached (Score: {score_val:.0f}/100). Waiting for 5m trigger. [🔗 Chart]({detail_url})")
+
+            lines.extend(["", "_Reference report from Dao Vang AI; manage trade risk carefully._"])
         else:
             lines = [
-                f"📊 *TỔNG HỢP CẢNH BÁO CHU KỲ* ({len(alerts)} coin){mode_prefix}",
+                f"📊 *TỔNG HỢP CẢNH BÁO CHU KỲ (2-TIER CLIMAX)* ({len(alerts)} coin){mode_prefix}",
             ]
             if formatted_time:
-                lines.append(f"*Thời điểm:* {formatted_time}")
-            lines.extend([
-                f"*Bối cảnh BTC:* {_btc_regime_label(btc_regime, 'vi')}",
-                "",
-                f"Phát hiện *{len(alerts)} ứng viên* phân phối nổi bật:",
-            ])
-            for i, a in enumerate(alerts, 1):
-                sym = a["symbol"]
-                prob = a.get("model_probability")
-                score_val = a.get("total_score")
-                rec_val = a.get("recommendation", "")
-                c_stars, c_badge, c_title = _signal_grade(
-                    probability=prob,
-                    total_score=score_val,
-                    recommendation=rec_val,
-                    lang=self._lang,
-                )
-                prob_str = f"{prob:.1%}" if prob is not None else "N/A"
-                price = a.get("close_price")
-                price_str = f"${price:,.4f}" if price else "N/A"
-                pump_pct = a.get("pump_pct", 0.0)
-                pump_days = a.get("pump_days", 0)
-                pump_str = f"+{pump_pct:.0%} ({pump_days} ngày)" if pump_days > 0 else f"+{pump_pct:.0%}"
-                top_sigs = a.get("top_signals", [])
-                sig_names = [_signal_label(s[0], "vi") for s in top_sigs[:2]]
-                sig_str = ", ".join(sig_names) if sig_names else "Tín hiệu phân phối"
-                detail_url = a.get("web_url") or _coin_url(self._web_base_url, sym)
-                link_md = f" [🔗 Xem chart]({detail_url})" if detail_url else ""
+                lines.append(f"• *Thời điểm:* {formatted_time}")
+            lines.append(f"• *Bối cảnh BTC:* {_btc_regime_label(btc_regime, 'vi')}")
+            lines.append(f"• *Tổng quan:* ⚡ *{len(fired_alerts)} coin FIRED* (Vào lệnh ngay) | 🧭 *{len(armed_alerts)} coin ARMED* (Canh đỉnh)")
+            lines.append("")
 
-                lines.append(f"{i}. {c_badge} `{sym}` {c_stars} — {price_str} ({pump_str})")
-                lines.append(f"   • Xác suất: *{prob_str}* (`{c_title}`) | Tín hiệu: {sig_str}{link_md}")
+            if fired_alerts:
+                lines.append("⚡ *[DANH SÁCH VÀO LỆNH NGAY — FIRED]* 🚨")
+                for i, a in enumerate(fired_alerts, 1):
+                    sym = a["symbol"]
+                    prob = a.get("model_probability")
+                    score_val = a.get("total_score") or 0.0
+                    c_stars, _, _ = _signal_grade(probability=prob, total_score=score_val, recommendation="HIGH_CONFIDENCE", lang="vi")
+                    prob_str = f"{prob:.1%}" if prob is not None else "N/A"
+                    price = a.get("close_price") or 0.0
+                    price_str = f"${price:,.4f}" if price > 0 else "N/A"
+                    pump_pct = a.get("pump_pct", 0.0)
+                    pump_days = a.get("pump_days", 0)
+                    pump_str = f"+{pump_pct:.0%} ({pump_days} ngày)" if pump_days > 0 else f"+{pump_pct:.0%}"
+                    top_sigs = a.get("top_signals", [])
+                    sig_names = [_signal_label(s[0], "vi") for s in top_sigs[:2]]
+                    sig_str = ", ".join(sig_names) if sig_names else "Xác nhận áp lực xả 5m"
+                    detail_url = a.get("web_url") or _coin_url(self._web_base_url, sym)
+                    binance_url = f"https://www.binance.com/en/futures/{sym}"
+                    okx_sym = sym.replace("USDT", "-USDT-SWAP").lower() if sym.endswith("USDT") else f"{sym}-SWAP".lower()
+                    okx_url = f"https://www.okx.com/trade-swap/{okx_sym}"
 
-            lines.extend(["", "_Báo cáo tham khảo; hãy tự kiểm tra trước khi quyết định._"])
+                    sl_price = price * 1.035 if price > 0 else 0.0
+                    tp1_price = price * 0.96 if price > 0 else 0.0
+
+                    lines.append(f"{i}. ⚡ `{sym}` {c_stars} — Entry: `{price_str}` (Đã tăng {pump_str})")
+                    lines.append(f"   • Điểm 2 Tầng: *{score_val:.0f}/100* | Xác suất: *{prob_str}* | Tín hiệu: {sig_str}")
+                    lines.append(f"   • SL: `${sl_price:,.4f}` (+3.5%) | TP1: `${tp1_price:,.4f}` (-4.0%) | TP2: -8.0%")
+                    lines.append(f"   • [Mở Binance]({binance_url}) | [Mở OKX]({okx_url}) | [🔗 Bảng vào lệnh]({detail_url})")
+                    lines.append("")
+
+            if armed_alerts:
+                lines.append("🧭 *[DANH SÁCH CANH VỊ THẾ — ARMED]*")
+                for i, a in enumerate(armed_alerts, 1):
+                    sym = a["symbol"]
+                    prob = a.get("model_probability")
+                    score_val = a.get("total_score") or 0.0
+                    c_stars, _, _ = _signal_grade(probability=prob, total_score=score_val, recommendation="WATCH", lang="vi")
+                    prob_str = f"{prob:.1%}" if prob is not None else "N/A"
+                    price = a.get("close_price") or 0.0
+                    price_str = f"${price:,.4f}" if price > 0 else "N/A"
+                    pump_pct = a.get("pump_pct", 0.0)
+                    pump_str = f"+{pump_pct:.0%}"
+                    detail_url = a.get("web_url") or _coin_url(self._web_base_url, sym)
+
+                    lines.append(f"{i}. 🧭 `{sym}` {c_stars} — `{price_str}` (Đã tăng {pump_str})")
+                    lines.append(f"   • Đã vào vùng đỉnh khung lớn (Điểm: {score_val:.0f}/100). Đang chờ cò xả 5m. [🔗 Xem chart]({detail_url})")
+
+            lines.extend(["", "_Báo cáo tự động từ Đảo Vàng AI — Luôn tuân thủ kỷ luật quản lý vốn._"])
 
         text = "\n".join(lines)
         return self.send_message(text)
