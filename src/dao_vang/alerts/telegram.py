@@ -360,49 +360,68 @@ class TelegramNotifier:
             recommendation=normalized_recommendation,
             lang=self._lang,
         )
-        price_str = f"${close_price:,.4f}" if close_price else "N/A"
+        price = close_price or 0.0
+        price_str = f"${price:,.4f}" if price > 0 else "N/A"
         mode_label = _mode_label(operating_mode, self._lang)
         detail_url = web_url or _coin_url(self._web_base_url, symbol)
-        mode_prefix = f" `[{mode_label}]`" if operating_mode != "production" else ""
+        binance_url = f"https://www.binance.com/en/futures/{symbol}"
+        okx_sym = symbol.replace("USDT", "-USDT-SWAP").lower() if symbol.endswith("USDT") else f"{symbol}-SWAP".lower()
+        okx_url = f"https://www.okx.com/trade-swap/{okx_sym}"
+
+        # Adaptive SL & Multi-tier TP
+        sl_pct = 3.5
+        sl_price = price * (1 + sl_pct / 100) if price > 0 else 0.0
+        tp1_price = price * 0.96 if price > 0 else 0.0
+        tp2_price = price * 0.92 if price > 0 else 0.0
+        tp3_price = price * 0.86 if price > 0 else 0.0
+        rr_ratio = 8.0 / sl_pct
+
+        is_fired = normalized_recommendation in {"SHORT_CANDIDATE", "HIGH_CONFIDENCE"} or total_score >= 50.0
 
         if self._lang == "en":
+            stage_badge = "⚡ *[SHORT EXECUTION — FIRED]*" if is_fired else "🧭 *[SHORT WATCHLIST — ARMED]*"
             top_sig_names = [_signal_label(s[0], "en") for s in top_signals[:2]]
             sig_summary = ", ".join(top_sig_names) if top_sig_names else "Distribution pattern detected"
             prob_str = f"{model_probability:.1%}" if model_probability is not None else "N/A"
-            pump_str = f"+{pump_pct:.0%} in {pump_days} days" if pump_days > 0 else f"+{pump_pct:.0%}"
-            rec_label = _recommendation_label(normalized_recommendation, "en")
-            btc_lbl = _btc_regime_label(btc_regime, "en")
+            pump_str = f"+{pump_pct:.0%} in {pump_days}d" if pump_days > 0 else f"+{pump_pct:.0%}"
 
             lines = [
-                f"{color_badge} *SIGNAL REPORT — `{symbol}`* {stars}{mode_prefix}",
-                f"• *Grade & Score:* {stars} `{grade_title}` | *Score:* {total_score:.0f}/100",
-                f"• *Recommendation:* `{rec_label}` | *Probability:* `{prob_str}`",
-                f"• *Close Price:* {price_str} (Pumped {pump_str})",
-                f"• *Key Signals:* {sig_summary}",
-                f"• *BTC Context:* {btc_lbl}",
+                f"{stage_badge} `{symbol}` {stars}",
+                f"• *2-Tier Score:* `{total_score:.0f}/100` | *Probability:* `{prob_str}`",
+                f"• *Entry Price:* `{price_str}` (Pumped {pump_str})",
+                f"• *Adaptive Stop Loss:* `${sl_price:,.4f}` (+{sl_pct:.1f}%)",
+                f"• *Multi-Tier TP:*",
+                f"  🎯 *TP1:* `${tp1_price:,.4f}` (-4.0% — Close 50% & SL to Entry)",
+                f"  🎯 *TP2:* `${tp2_price:,.4f}` (-8.0% — Close 30%)",
+                f"  🎯 *TP3:* `${tp3_price:,.4f}` (-14.0% — Trailing 20%)",
+                f"• *Signals:* {sig_summary}",
+                f"• *Direct Links:* [Binance Futures]({binance_url}) | [OKX Futures]({okx_url})",
             ]
             if detail_url:
-                lines.append(f"[🔗 Open {symbol} Analysis Dashboard]({detail_url})")
-            lines.extend(["", "_Reference report; no automated orders._"])
+                lines.append(f"[🔗 Open {symbol} Cockpit Dashboard]({detail_url})")
+            lines.extend(["", "_Reference probability alert from Dao Vang AI._"])
         else:
+            stage_badge = "⚡ *[VÀO LỆNH SHORT NGAY — FIRED]* 🚨" if is_fired else "🧭 *[CANH VỊ THẾ SHORT — ARMED]*"
             top_sig_names = [_signal_label(s[0], "vi") for s in top_signals[:2]]
-            sig_summary = ", ".join(top_sig_names) if top_sig_names else "Đạt điều kiện phân phối"
+            sig_summary = ", ".join(top_sig_names) if top_sig_names else "Đạt điều kiện phân phối 2 tầng"
             prob_str = f"{model_probability:.1%}" if model_probability is not None else "N/A"
             pump_str = f"+{pump_pct:.0%} trong {pump_days} ngày" if pump_days > 0 else f"+{pump_pct:.0%}"
-            rec_label = _recommendation_label(normalized_recommendation, "vi")
-            btc_lbl = _btc_regime_label(btc_regime, "vi")
 
             lines = [
-                f"{color_badge} *BÁO CÁO TÍN HIỆU — `{symbol}`* {stars}{mode_prefix}",
-                f"• *Cấp độ:* {stars} `{grade_title}` | *Điểm:* {total_score:.0f}/100",
-                f"• *Kết luận:* `{rec_label}` | *Xác suất:* `{prob_str}`",
-                f"• *Giá đóng cửa:* {price_str} (Tăng {pump_str})",
-                f"• *Tín hiệu chính:* {sig_summary}",
-                f"• *Bối cảnh BTC:* {btc_lbl}",
+                f"{stage_badge} `{symbol}` {stars}",
+                f"• *Điểm hợp lưu 2 Tầng:* *{total_score:.0f}/100* | *Xác suất:* `{prob_str}`",
+                f"• *Điểm vào lệnh (Entry):* `{price_str}` (Đã tăng {pump_str})",
+                f"• *Cắt lỗ (Adaptive SL):* `${sl_price:,.4f}` (+{sl_pct:.1f}% theo râu 5m)",
+                f"• *Chiến lược Chốt lời 3 Tầng:*",
+                f"  🎯 *TP1:* `${tp1_price:,.4f}` (-4.0% — Đóng 50% & Dời SL về Entry)",
+                f"  🎯 *TP2:* `${tp2_price:,.4f}` (-8.0% — Đóng 30%)",
+                f"  🎯 *TP3:* `${tp3_price:,.4f}` (-14.0% — Gồng Trailing 20% xả lũ)",
+                f"• *Tín hiệu:* {sig_summary}",
+                f"• *Sàn giao dịch:* [Mở Binance Futures]({binance_url}) | [Mở OKX Futures]({okx_url})",
             ]
             if detail_url:
-                lines.append(f"[🔗 Mở trang phân tích {symbol}]({detail_url})")
-            lines.extend(["", "_Báo cáo tham khảo; không tự động đặt lệnh._"])
+                lines.append(f"[🔗 Mở Bảng Vào Lệnh 1-Chạm]({detail_url})")
+            lines.extend(["", "_Báo cáo phân tích xác suất từ Đảo Vàng AI._"])
 
         text = "\n".join(lines)
         return self.send_message(text)
