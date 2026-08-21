@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="30%" stop-color="#f59e0b"/>
+      <stop offset="70%" stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  <rect width="504" height="504" x="4" y="4" rx="108" fill="none" stroke="#334155" stroke-width="2" stroke-opacity="0.6"/>
+
+  <!-- Radar Rings -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="#f59e0b" stroke-width="2" stroke-opacity="0.15" stroke-dasharray="8 6"/>
+  <circle cx="256" cy="256" r="140" fill="none" stroke="#f59e0b" stroke-width="2" stroke-opacity="0.25"/>
+  <circle cx="256" cy="256" r="85" fill="none" stroke="#f59e0b" stroke-width="2" stroke-opacity="0.35"/>
+
+  <!-- Radar Axis Crosshairs -->
+  <line x1="256" y1="56" x2="256" y2="456" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.2" stroke-dasharray="6 6"/>
+  <line x1="56" y1="256" x2="456" y2="256" stroke="#f59e0b" stroke-width="1.5" stroke-opacity="0.2" stroke-dasharray="6 6"/>
+
+  <!-- Center Golden Climax Crystal / Lightning Pulse -->
+  <g filter="url(#glow)">
+    <!-- Golden Diamond Core -->
+    <path d="M 256 120 L 370 256 L 256 392 L 142 256 Z" fill="url(#goldGrad)" />
+    <!-- Inner faceted highlights -->
+    <path d="M 256 120 L 256 392 L 142 256 Z" fill="#000000" fill-opacity="0.15" />
+    <path d="M 256 170 L 320 256 L 256 342 L 192 256 Z" fill="#ffffff" fill-opacity="0.25" />
+    
+    <!-- Central Lightning Pulse (Climax Trigger) -->
+    <path d="M 266 180 L 230 260 L 264 260 L 246 332 L 290 246 L 256 246 Z" fill="#020617" />
+    <path d="M 264 186 L 234 258 L 262 258 L 248 322 L 284 248 L 254 248 Z" fill="#ffffff" />
+  </g>
+
+  <!-- Small Glowing Blips -->
+  <circle cx="340" cy="180" r="8" fill="#ef4444" filter="url(#glow)"/>
+  <circle cx="170" cy="320" r="6" fill="#38bdf8" filter="url(#glow)"/>
+  <circle cx="360" cy="330" r="5" fill="#f59e0b"/>
+</svg>

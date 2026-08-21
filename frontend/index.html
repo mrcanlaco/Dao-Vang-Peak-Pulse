@@ -2,17 +2,45 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Đảo Vàng AI Radar</title>
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="alternate icon" type="image/png" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="manifest" href="/manifest.json" />
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#030712" />
+    <meta name="color-scheme" content="dark" />
+
+    <!-- Apple iOS PWA tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Đảo Vàng AI" />
+
+    <!-- Open Graph & Meta -->
+    <meta name="description" content="Hệ thống AI Radar 24/7 phát hiện sớm đỉnh phân phối và bắt nhịp xả coin bơm xả." />
+    <meta property="og:title" content="Đảo Vàng AI — 2-Tier Climax Radar" />
+    <meta property="og:description" content="AI Radar 24/7 bắt đỉnh coin bơm xả với Kiến trúc 2 Tầng và Adaptive SL" />
+    <meta property="og:image" content="/icon-512.png" />
+
+    <title>Đảo Vàng AI — 2-Tier Climax Radar</title>
   </head>
-  <body>
+  <body class="bg-slate-950 text-slate-100 select-none overflow-x-hidden antialiased">
     <div id="root">
-      <div style="background:#080c14;color:#f59e0b;font-family:monospace;padding:24px;text-align:center;min-h-screen:100vh;">
-        <h2>⚡ ĐẢO VÀNG RADAR — ĐANG KHỞI ĐỘNG GIAO DIỆN...</h2>
-        <p style="color:#94a3b8;font-size:14px;margin-top:8px;">Vui lòng chờ ứng dụng kết nối tới máy chủ API và Binance</p>
+      <div style="background:#030712;color:#f59e0b;font-family:monospace;padding:32px 16px;text-align:center;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div style="font-size:32px;margin-bottom:12px;">⚡</div>
+        <h2 style="font-size:16px;font-weight:bold;letter-spacing:0.05em;margin:0;">ĐẢO VÀNG AI RADAR</h2>
+        <p style="color:#94a3b8;font-size:12px;margin-top:8px;">Đang kết nối dữ liệu thời gian thực và Binance...</p>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('[PWA] Service Worker registered:', reg.scope))
+            .catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+        });
+      }
+    </script>
   </body>
 </html>

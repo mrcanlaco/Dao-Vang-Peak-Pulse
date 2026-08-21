@@ -532,9 +532,19 @@ class APIHandler(BaseHTTPRequestHandler):
 
         if file_path.exists():
             ctype, _ = mimetypes.guess_type(str(file_path))
-            if not ctype:
+            if str(file_path).endswith('manifest.json') or str(file_path).endswith('.webmanifest'):
+                ctype = 'application/manifest+json; charset=utf-8'
+            elif str(file_path).endswith('sw.js'):
+                ctype = 'application/javascript; charset=utf-8'
+            elif str(file_path).endswith('.svg'):
+                ctype = 'image/svg+xml'
+            elif str(file_path).endswith('.png'):
+                ctype = 'image/png'
+            elif not ctype:
                 ctype = 'application/octet-stream'
-            self._set_headers(200, content_type=ctype)
+
+            cache_control = 'no-cache, must-revalidate' if str(file_path).endswith(('index.html', 'sw.js', 'manifest.json')) else 'public, max-age=86400'
+            self._set_headers(200, content_type=ctype, cache_control=cache_control)
             with open(file_path, 'rb') as f:
                 self.wfile.write(f.read())
         else:

@@ -25,6 +25,7 @@ import {
   getModelLabel,
   getModelDescription,
 } from '../i18n/translations';
+import { PwaInstallButton } from './PwaInstallButton';
 
 interface HeaderProps {
   status: SystemStatus | null;
@@ -233,6 +234,8 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Header Action buttons */}
           <div className="flex items-center justify-end gap-2 lg:shrink-0">
+            <PwaInstallButton />
+
             <button
               type="button"
               onClick={onOpenTracking}

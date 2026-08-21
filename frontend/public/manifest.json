@@ -1,0 +1,75 @@
+{
+  "name": "Đảo Vàng AI — 2-Tier Climax Radar",
+  "short_name": "Đảo Vàng AI",
+  "description": "Hệ thống AI Radar 24/7 phát hiện sớm đỉnh phân phối và bắt nhịp xả coin bơm xả.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#030712",
+  "theme_color": "#030712",
+  "orientation": "any",
+  "lang": "vi",
+  "categories": ["finance", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Radar Trực Tiếp",
+      "short_name": "Radar",
+      "description": "Xem danh sách tín hiệu bơm xả thời gian thực",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Theo Dõi Live",
+      "short_name": "Tracking",
+      "description": "Theo dõi hiệu năng PnL của các lệnh đang chạy",
+      "url": "/?tab=tracking",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Ứng Viên Phân Phối",
+      "short_name": "Candidates",
+      "description": "Bảng tổng hợp xếp hạng dòng tiền tất cả các coin",
+      "url": "/?tab=candidates",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
