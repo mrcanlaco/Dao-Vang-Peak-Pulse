@@ -1414,7 +1414,7 @@ class APIHandler(BaseHTTPRequestHandler):
         # Also include top candidates from scan_results that haven't triggered
         # alerts, so the RADAR shows what the scanner is seeing even when no
         # alert threshold has been crossed.
-        scan_rows = _scan_store.latest_per_symbol(limit=50)
+        scan_rows = latest_scans_list[:50]
         for sr in scan_rows:
             sym = sr.get("symbol", "")
             calibrated_probability = sr.get("calibrated_probability")
