@@ -1878,20 +1878,26 @@ class APIHandler(BaseHTTPRequestHandler):
                 # to get OHLC + volume for candlestick chart
                 rows = conn.execute(
                     """
+                    WITH f AS (
+                        SELECT feature_time, symbol, oi_change_24h, funding_rate_raw,
+                               taker_buy_ratio, price_ret_5m, volume_percentile_24h
+                        FROM feature_results
+                        WHERE symbol = ?
+                        ORDER BY feature_time DESC
+                        LIMIT 1500
+                    )
                     SELECT f.feature_time, k.open, k.high, k.low, k.close,
                            k.volume_base, k.taker_buy_base,
                            f.oi_change_24h, f.funding_rate_raw,
                            f.taker_buy_ratio, f.price_ret_5m, f.volume_percentile_24h
-                    FROM feature_results f
+                    FROM f
                     LEFT JOIN kline k
-                        ON k.symbol = f.symbol
-                        AND k.close_time = f.feature_time
+                        ON k.symbol = ?
                         AND k.interval = '5m'
-                    WHERE f.symbol = ?
+                        AND k.close_time = f.feature_time
                     ORDER BY f.feature_time DESC
-                    LIMIT 1500
                     """,
-                    [symbol],
+                    [symbol, symbol],
                 ).fetchall()
             finally:
                 conn.close()
@@ -2152,18 +2158,21 @@ class APIHandler(BaseHTTPRequestHandler):
             try:
                 df = conn.execute(
                     """
+                    WITH f AS (
+                        SELECT * FROM feature_results
+                        WHERE symbol = ?
+                          AND feature_time <= ?
+                        ORDER BY feature_time DESC LIMIT 1
+                    )
                     SELECT f.*, k.close, k.high as kline_high, k.low as kline_low,
                            k.volume_quote AS volume_24h
-                    FROM feature_results f
+                    FROM f
                     LEFT JOIN kline k
-                        ON k.symbol = f.symbol
+                        ON k.symbol = ?
                         AND k.close_time = f.feature_time
                         AND k.interval = '5m'
-                    WHERE f.symbol = ?
-                      AND f.feature_time <= ?
-                    ORDER BY f.feature_time DESC LIMIT 1
                     """,
-                    [symbol, latest_closed_5m_end],
+                    [symbol, latest_closed_5m_end, symbol],
                 ).df()
                 if not df.empty:
                     # ORDER BY DESC means row 0 is the same latest snapshot

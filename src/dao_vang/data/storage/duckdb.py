@@ -137,13 +137,17 @@ def open_read_only_connection(
 ) -> duckdb.DuckDBPyConnection:
     """Open a read-only connection with a bounded lock fallback.
 
-    The web process uses ``prefer_snapshot`` so it never holds the live
-    database configuration open on Windows and prevents the scanner writer
-    from restarting later.
+    Always attempts a direct read-only connection first (instantaneous on Linux
+    and multi-reader POSIX environments). Falls back to a process-local snapshot
+    copy only when a lock collision occurs (e.g. Windows exclusive file locks).
     """
 
     path = str(db_path)
-    if prefer_snapshot:
+    try:
+        conn = duckdb.connect(path, read_only=True)
+        configure_connection(conn, path)
+        return conn
+    except (duckdb.IOException, duckdb.Error, OSError):
         source = Path(path)
         try:
             snapshot = _get_read_snapshot(source)
@@ -151,9 +155,6 @@ def open_read_only_connection(
             configure_connection(conn, str(snapshot))
             return conn
         except (OSError, duckdb.Error):
-            # If the live writer currently owns the file, use the last
-            # published snapshot rather than opening the live DB and blocking
-            # the scanner.
             fallback_candidates = [
                 _snapshot_path(source),
                 source.with_name(f"{source.name}.ro_copy"),
@@ -173,31 +174,6 @@ def open_read_only_connection(
                 except (OSError, duckdb.Error):
                     continue
             raise
-
-    try:
-        conn = duckdb.connect(path, read_only=True)
-    except duckdb.IOException:
-        source = Path(path)
-        try:
-            snapshot = _get_read_snapshot(source)
-        except (OSError, duckdb.Error):
-            # On Windows DuckDB can hold an exclusive file handle for the
-            # entire scanner cycle, which also prevents copying the live DB.
-            # Keep the API usable from the last known-good snapshot instead
-            # of turning every read into HTTP 503 (which used to blank the UI
-            # when the frontend received an error object instead of an array).
-            snapshot = source.with_name(f"{source.name}.ro_copy")
-            if not snapshot.exists():
-                raise
-            key = str(source.resolve())
-            if key not in _SNAPSHOT_FALLBACK_WARNED:
-                _SNAPSHOT_FALLBACK_WARNED.add(key)
-        conn = duckdb.connect(str(snapshot), read_only=True)
-        configure_connection(conn, str(snapshot))
-        return conn
-
-    configure_connection(conn, path)
-    return conn
 
 
 class DuckDBQueryLayer:
