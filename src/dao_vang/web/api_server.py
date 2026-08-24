@@ -469,8 +469,8 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.get_signals()
             elif path == '/api/candidates':
                 self.get_candidates()
-            elif path == '/api/candidates/compare':
-                self.get_candidate_comparison()
+            elif path in ('/api/candidates/compare', '/api/candidates/comparison'):
+                self.get_candidate_filter_comparison()
             elif path.startswith('/api/coin/'):
                 parts = path.split('/')
                 if len(parts) >= 4 and parts[3] == 'deep-analysis':
@@ -479,6 +479,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 elif len(parts) >= 4 and parts[3] == 'shap':
                     symbol = parts[2]
                     self.get_shap_analysis(symbol)
+                elif len(parts) >= 4 and parts[3] == 'chart':
+                    symbol = parts[2]
+                    self.get_coin_chart(symbol)
                 elif len(parts) >= 4 and parts[3] == 'klines':
                     symbol = parts[2]
                     interval = '5m'
@@ -494,18 +497,25 @@ class APIHandler(BaseHTTPRequestHandler):
                 elif len(parts) >= 3:
                     symbol = parts[2]
                     self.get_coin_detail(symbol)
-            elif path == '/api/market-overview':
-                self.get_market_overview()
+            elif path in ('/api/market-overview', '/api/market'):
+                self.get_market()
             elif path == '/api/watchlist-presets':
                 self.get_watchlist_presets()
             elif path == '/api/watchlist':
                 self.get_watchlist()
             elif path == '/api/tracking-watchlist':
                 self.get_tracking_watchlist()
-            elif path == '/api/model-audit':
-                self.get_model_audit()
-            elif path == '/api/scanner-telemetry':
+            elif path in ('/api/model-audit', '/api/audit'):
+                self.get_audit()
+            elif path in ('/api/scanner-telemetry', '/api/scanner/telemetry'):
                 self.get_scanner_telemetry()
+            elif path in ('/api/scan/multi-coin', '/api/multiscan'):
+                self.get_multi_coin_scan()
+            elif path == '/api/experiments':
+                self.get_experiments()
+            elif path.startswith('/api/experiments/'):
+                artifact_id = path.replace('/api/experiments/', '')
+                self.get_experiment_detail(artifact_id)
             elif path == '/api/forward-test/models':
                 self.get_frozen_models()
             elif path.startswith('/api/forward-test/evaluate/'):
@@ -675,6 +685,13 @@ class APIHandler(BaseHTTPRequestHandler):
                 _alert_store.dismiss(sig_time, symbol)
                 self._set_headers(200)
                 self.wfile.write(json.dumps({"status": "success", "symbol": symbol, "signal_time": signal_time_str}).encode('utf-8'))
+            except Exception as exc:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(exc)}).encode('utf-8'))
+        elif parsed.path == '/api/candidates/refresh':
+            try:
+                _request_scan()
+                self.get_candidates()
             except Exception as exc:
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"error": str(exc)}).encode('utf-8'))
@@ -908,6 +925,12 @@ class APIHandler(BaseHTTPRequestHandler):
                 value = (current_price - source_price) / (target_price - source_price)
             return round(max(0.0, min(1.0, value)) * 100.0, 1)
 
+        try:
+            latest_scans_list = _scan_store.latest_per_symbol(limit=500, max_age_hours=48)
+            latest_scans = {s["symbol"]: s for s in latest_scans_list}
+        except Exception:
+            latest_scans = {}
+
         enriched: list[dict[str, Any]] = []
         for entry in entries:
             symbol = normalize_symbol(entry.get("symbol"))
@@ -937,7 +960,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 hit = alert.get("hit")
                 hit_time = _system_history_timestamp(alert.get("hit_time"))
 
-            latest_scan = _scan_store.latest_for_symbol(symbol, max_age_hours=48)
+            latest_scan = latest_scans.get(symbol)
             ticker = ticker_by_symbol.get(symbol, {})
             current_price = None
             try:
@@ -1298,6 +1321,11 @@ class APIHandler(BaseHTTPRequestHandler):
         now = datetime.now(timezone.utc)
         rows = _alert_store.query(days=7, include_dismissed=False, limit=100)
         lead_stats = _alert_store.lead_time_stats(days=30)
+        try:
+            latest_scans_list = _scan_store.latest_per_symbol(limit=500, max_age_hours=48)
+            latest_scans = {s["symbol"]: s for s in latest_scans_list}
+        except Exception:
+            latest_scans = {}
         signals = []
         alert_event_times: dict[str, datetime] = {}
         for r in rows:
@@ -1337,7 +1365,7 @@ class APIHandler(BaseHTTPRequestHandler):
 
             close_price = r.get("close_price")
 
-            scan = _scan_store.latest_for_symbol(r["symbol"], max_age_hours=48)
+            scan = latest_scans.get(r["symbol"])
             oi_change = scan.get("oi_change_24h") if scan else None
             funding = scan.get("funding_rate") if scan else None
             taker_sell = scan.get("taker_sell_ratio") if scan else None

@@ -112,25 +112,25 @@ export const SystemHistoryTab: React.FC = () => {
     return `${(n * 100).toFixed(1)}%`;
   };
 
-  const hb = data.scanner.heartbeat || {};
+  const hb = data.scanner?.heartbeat || {};
   const isOnline = hb.status === 'running';
-  const lastCycle = data.scanner.last_cycle || {};
+  const lastCycle = data.scanner?.last_cycle || {};
 
-  const signalsChart = [...data.signals_per_day].reverse().map(d => ({
-    day: d.day.slice(5),
-    signals: d.n_signals,
-    telegram: d.n_telegram,
-    hits: d.n_hit,
+  const signalsChart = (data.signals_per_day || []).slice().reverse().map(d => ({
+    day: (d.day || '').slice(5) || d.day || '',
+    signals: d.n_signals ?? 0,
+    telegram: d.n_telegram ?? 0,
+    hits: d.n_hit ?? 0,
   }));
 
-  const scanChart = [...data.scanner.scan_per_day].reverse().map(d => ({
-    day: d.day.slice(5),
-    cycles: d.n_cycles,
-    symbols: d.n_symbols,
+  const scanChart = (data.scanner?.scan_per_day || []).slice().reverse().map(d => ({
+    day: (d.day || '').slice(5) || d.day || '',
+    cycles: d.n_cycles ?? 0,
+    symbols: d.n_symbols ?? 0,
   }));
 
-  const totalRows = data.data_stats.reduce((s, d) => s + d.rows, 0);
-  const latestDataTime = data.data_stats
+  const totalRows = (data.data_stats || []).reduce((s, d) => s + (d.rows || 0), 0);
+  const latestDataTime = (data.data_stats || [])
     .map(d => d.max_time)
     .filter(Boolean)
     .sort()
@@ -404,7 +404,7 @@ export const SystemHistoryTab: React.FC = () => {
           />
           <StatCard
             label={t('history_tables_count')}
-            value={data.data_stats.length}
+            value={(data.data_stats || []).length}
             valueClass="text-slate-200"
           />
           <StatCard
@@ -431,7 +431,7 @@ export const SystemHistoryTab: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {data.data_stats.map(d => {
+              {(data.data_stats || []).map(d => {
                 const isImportant = ['feature_results', 'labels', 'kline', 'aligned_5m', 'scan_results', 'alert_history'].includes(d.table);
                 return (
                   <tr key={d.table} className="hover:bg-slate-900/60">
@@ -496,7 +496,7 @@ export const SystemHistoryTab: React.FC = () => {
           </div>
           <div className="bg-slate-900 p-1.5 rounded flex items-center gap-1">
             <span className="text-slate-500">{t('history_scan_mode')}:</span>{' '}
-            <span className="text-amber-400 font-mono uppercase font-bold">{getScanModeLabel(data.scanner.scan_mode, language)}</span>
+            <span className="text-amber-400 font-mono uppercase font-bold">{getScanModeLabel(data.scanner?.scan_mode || 'volatile', language)}</span>
           </div>
           <div className="bg-slate-900 p-1.5 rounded flex items-center gap-1">
             <span className="text-slate-500">{t('history_poll_interval')}:</span>{' '}
@@ -536,12 +536,12 @@ export const SystemHistoryTab: React.FC = () => {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
           <StatCard
             label={t('history_frozen_models')}
-            value={data.models.length}
+            value={(data.models || []).length}
             valueClass="text-amber-400"
           />
           <StatCard
             label={t('history_total_experiments')}
-            value={data.experiments.total}
+            value={data.experiments?.total ?? 0}
             valueClass="text-sky-400"
             highlight
           />
@@ -553,15 +553,15 @@ export const SystemHistoryTab: React.FC = () => {
           />
           <StatCard
             label={t('history_latest_artifact')}
-            value={<span className="text-[10px]">{data.experiments.latest?.artifact_id?.slice(-12) || '—'}</span>}
+            value={<span className="text-[10px]">{data.experiments?.latest?.artifact_id?.slice(-12) || '—'}</span>}
             valueClass="text-slate-300"
           />
         </div>
 
         {/* Models list */}
-        {data.models.length > 0 && (
+        {(data.models || []).length > 0 && (
           <div className="space-y-2">
-            {data.models.map(m => (
+            {(data.models || []).map(m => (
               <div key={m.model_id} className={`bg-slate-900 border rounded-lg p-2.5 ${m.is_scanner_model ? 'border-emerald-500/40 ring-1 ring-emerald-500/20' : 'border-slate-800'}`}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-1.5 min-w-0">
@@ -575,7 +575,7 @@ export const SystemHistoryTab: React.FC = () => {
                   </div>
                   <span className="text-[9px] text-slate-500 font-mono shrink-0">{m.label_version}</span>
                 </div>
-                <p className="text-[10px] text-slate-400 mb-1.5 leading-relaxed">{getModelDescription(m.description, language)}</p>
+                <p className="text-[10px] text-slate-400 mb-1.5 leading-relaxed">{m.description || getModelDescription(m.friendly_name || m.model_id, language)}</p>
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 text-[10px]">
                   <div className="bg-slate-950 p-1 rounded">
                     <div className="text-slate-500 uppercase text-[8px]">{t('forward_train_size')}</div>
@@ -619,17 +619,17 @@ export const SystemHistoryTab: React.FC = () => {
             <div className="grid grid-cols-3 gap-2 mb-3">
               <StatCard
                 label={t('history_total_signals')}
-                value={data.signals_per_day.reduce((s, d) => s + d.n_signals, 0)}
+                value={(data.signals_per_day || []).reduce((s, d) => s + (d.n_signals || 0), 0)}
                 valueClass="text-amber-400"
               />
               <StatCard
                 label={t('history_tg_sent')}
-                value={data.signals_per_day.reduce((s, d) => s + d.n_telegram, 0)}
+                value={(data.signals_per_day || []).reduce((s, d) => s + (d.n_telegram || 0), 0)}
                 valueClass="text-sky-400"
               />
               <StatCard
                 label={t('history_actual_hits')}
-                value={data.signals_per_day.reduce((s, d) => s + d.n_hit, 0)}
+                value={(data.signals_per_day || []).reduce((s, d) => s + (d.n_hit || 0), 0)}
                 valueClass="text-emerald-400"
                 highlight
               />

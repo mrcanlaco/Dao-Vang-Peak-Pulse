@@ -12,6 +12,7 @@ import { BacktestExperiments } from './BacktestExperiments';
 import { ForwardTest } from './ForwardTest';
 import { SystemHistoryTab } from './SystemHistoryTab';
 import { TrackingWatchlist } from './TrackingWatchlist';
+import { ErrorBoundary } from './ErrorBoundary';
 
 import { CandlestickChart } from './CandlestickChart';
 import type { CandlestickSignalMarker } from './CandlestickChart';
@@ -2159,7 +2160,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
       {/* TAB: SYSTEM HISTORY & DATA */}
       {activeTab === 'HISTORY' && (
-        <SystemHistoryTab />
+        <ErrorBoundary fallbackTitle="Lỗi hiển thị Lịch sử & Dữ liệu">
+          <SystemHistoryTab />
+        </ErrorBoundary>
       )}
 
     </div>
