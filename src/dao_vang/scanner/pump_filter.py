@@ -43,7 +43,7 @@ def fetch_daily_klines(
     volume, quote_volume.
     """
     try:
-        with httpx.Client(timeout=15.0) as client:
+        with httpx.Client(timeout=2.5) as client:
             resp = client.get(
                 f"{base_url}/fapi/v1/klines",
                 params={
