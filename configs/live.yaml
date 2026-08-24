@@ -1,0 +1,98 @@
+# Single source of truth for the live scanner service.
+# Telegram credentials remain in .env and are loaded by AppSettings.
+
+paths:
+  data_dir: data_live
+  raw_dir: data_live/raw
+  normalized_dir: data_live/normalized
+
+web:
+  # Link mở thẳng trang phân tích của coin trong Telegram.
+  public_url: https://trade.comaygiauco.com
+
+collection:
+  # Keep network workers bounded so collector responses do not accumulate in
+  # memory while DuckDB is rebuilding the derived tables.
+  max_concurrency: 6
+
+scanner:
+  enabled: true
+  # Telegram is enabled as a reference/reporting channel. No order execution
+  # exists in this application; the user makes all decisions manually.
+  # Operating mode for live radar reporting.
+  operating_mode: shadow
+  poll_interval_minutes: 5
+  # Keep the live cycle bounded so DuckDB is not held by a long collector
+  # batch. Increase only after measuring a larger watchlist separately.
+  max_coins: 150
+  min_volume_usd: 1000000
+  # Cooldown prevents spamming duplicate alerts for the same coin.
+  cooldown_minutes: 120
+  telegram_cooldown_minutes: 120
+  alert_levels: ["CAO", "TRUNG BÌNH"]
+  frozen_model_id: frozen_20260811_082824_96df7ec9
+  db_path: data_live/live.duckdb
+  artifact_dir: artifacts
+  watchlist_path: data_live/watchlist.json
+  kill_switch_path: data_live/scanner_kill_switch.json
+  rollback_state_path: data_live/scanner_rollback.json
+  health_report_path: data_live/scanner_health.json
+  threshold_policy_version: "1.0"
+  max_heartbeat_age_minutes: 15
+  history_days: 30
+  # Shadow Telegram delivery: respects cooldown, probability threshold, and volume gates.
+  shadow_telegram_enabled: true
+  # Only send signals with calibrated probability strictly above 75%.
+  telegram_min_probability: 0.75
+  # Minimum 24h volume for Telegram alerts (avoids low liquidity spam).
+  telegram_min_volume_usd: 500000
+  # Only send high confidence signals to avoid weak signal noise.
+  telegram_tiers: ["HIGH_CONFIDENCE"]
+  # Send 1 clean digest message per cycle when multiple coins are detected.
+  telegram_digest_mode: true
+  global_daily_alert_limit: 15
+  coin_daily_alert_limit: 2
+  max_feature_age_minutes: 10
+  min_data_quality_score: 0.8
+  scan_mode: gainers
+  min_price_change_pct: 5.0
+  include_btc: true
+  exclude_stablecoins: true
+
+self_learning:
+  enabled: true
+  check_interval_cycles: 12
+  recent_window_days: 14
+  recent_sample_weight: 2.0
+  historical_max_rows: 100000
+  state_path: artifacts/self_learning/live_state.json
+  report_dir: artifacts/self_learning/live_runs
+
+# Candidate Filter v1 remains the production/Telegram lane.  V2 runs in
+# shadow so its recall and precision can be measured before manual promotion.
+candidate_comparison:
+  enabled: true
+  champion_version: pump_filter_v1
+  challenger_version: candidate_filter_v2
+  universe_size: 150
+  max_candidates: 30
+  max_workers: 4
+  decision_interval_minutes: 60
+  outcome_check_interval_cycles: 12
+  horizon_hours: 24
+  target_drawdown: 0.08
+  max_adverse_excursion: 0.04
+  gap_tolerance_minutes: 15
+  metrics_window_days: 30
+  min_resolved: 200
+  min_positive_events: 50
+  min_evaluation_days: 14
+  truth_event_gap_minutes: 240
+  min_challenger_event_recall: 0.80
+  precision_at_10_relative_gain: 0.10
+  max_recall_regression: 0.05
+  snapshot_path: data_live/candidate_filter_comparison.json
+  state_path: data_live/candidate_filter_v2_state.json
+
+scoring:
+  alert_score_threshold: 40.0
