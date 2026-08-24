@@ -1870,39 +1870,59 @@ class APIHandler(BaseHTTPRequestHandler):
         chart_source = "api"
 
         try:
+            from concurrent.futures import ThreadPoolExecutor
             from dao_vang.data.collectors.binance_client import BinanceClient
-            client = BinanceClient(timeout_seconds=3.0, max_retries=1)
-            try:
-                data = client.get("fapi/v1/klines", {
-                    "symbol": symbol,
-                    "interval": "5m",
-                    "limit": 96,
-                }) or []
-            except Exception:
+
+            client = BinanceClient(timeout_seconds=2.0, max_retries=1)
+
+            def _fetch_klines() -> list[Any]:
                 try:
-                    spot_client = BinanceClient(base_url="https://api.binance.com", timeout_seconds=3.0, max_retries=1)
-                    data = spot_client.get("api/v3/klines", {
-                        "symbol": symbol,
-                        "interval": "5m",
-                        "limit": 96,
-                    }) or []
+                    return client.get("fapi/v1/klines", {"symbol": symbol, "interval": "5m", "limit": 96}) or []
+                except Exception:
+                    try:
+                        spot_client = BinanceClient(base_url="https://api.binance.com", timeout_seconds=2.0, max_retries=1)
+                        return spot_client.get("api/v3/klines", {"symbol": symbol, "interval": "5m", "limit": 96}) or []
+                    except Exception:
+                        return []
+
+            def _fetch_funding() -> list[Any]:
+                try:
+                    return client.get("fapi/v1/fundingRate", {"symbol": symbol, "limit": 96}) or []
+                except Exception:
+                    return []
+
+            def _fetch_oi() -> list[Any]:
+                try:
+                    return client.get("fapi/v1/openInterestHist", {"symbol": symbol, "period": "5m", "limit": 96}) or []
+                except Exception:
+                    return []
+
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                f_k = executor.submit(_fetch_klines)
+                f_f = executor.submit(_fetch_funding)
+                f_o = executor.submit(_fetch_oi)
+                try:
+                    data = f_k.result(timeout=2.5)
                 except Exception:
                     data = []
+                try:
+                    funding_raw = f_f.result(timeout=2.5)
+                except Exception:
+                    funding_raw = []
+                try:
+                    oi_raw = f_o.result(timeout=2.5)
+                except Exception:
+                    oi_raw = []
 
-            # Enrich fallback candles with funding rate + OI history from Binance
             funding_by_time: dict[int, float] = {}
-            try:
-                for item in client.get("fapi/v1/fundingRate", {"symbol": symbol, "limit": 96}) or []:
-                    funding_by_time[int(item["fundingTime"])] = float(item["fundingRate"])
-            except Exception as exc:
-                logger.warning(f"coin_detail_funding_fetch_failed symbol={symbol} error={exc}")
+            for item in funding_raw:
+                if isinstance(item, dict) and "fundingTime" in item:
+                    funding_by_time[int(item["fundingTime"])] = float(item.get("fundingRate", 0.0))
 
             oi_snapshots: list[tuple[int, float]] = []
-            try:
-                for item in client.get("fapi/v1/openInterestHist", {"symbol": symbol, "period": "5m", "limit": 96}) or []:
-                    oi_snapshots.append((int(item["timestamp"]), float(item["sumOpenInterest"])))
-            except Exception as exc:
-                logger.warning(f"coin_detail_oi_fetch_failed symbol={symbol} error={exc}")
+            for item in oi_raw:
+                if isinstance(item, dict) and "timestamp" in item:
+                    oi_snapshots.append((int(item["timestamp"]), float(item.get("sumOpenInterest", 0.0))))
             oi_first = oi_snapshots[0][1] if oi_snapshots else 0.0
 
             for k in data:
