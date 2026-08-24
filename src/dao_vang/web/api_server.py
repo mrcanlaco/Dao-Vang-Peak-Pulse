@@ -1069,14 +1069,10 @@ class APIHandler(BaseHTTPRequestHandler):
         # heartbeat as the live source of truth for liveness.
         try:
             recent_alerts = _alert_store.query(
-                days=1, include_dismissed=False, limit=1
+                days=1, include_dismissed=False, limit=500
             )
             top_risk_symbol = recent_alerts[0]["symbol"] if recent_alerts else None
-            active_signals = len(
-                _alert_store.query(
-                    days=1, include_dismissed=False, limit=500
-                )
-            )
+            active_signals = len(recent_alerts)
         except Exception as exc:
             db_read_errors.append("alert_history")
             logger.warning("status_alert_history_unavailable error=%s", exc)
@@ -1875,12 +1871,23 @@ class APIHandler(BaseHTTPRequestHandler):
 
         try:
             from dao_vang.data.collectors.binance_client import BinanceClient
-            client = BinanceClient()
-            data = client.get("fapi/v1/klines", {
-                "symbol": symbol,
-                "interval": "5m",
-                "limit": 96,
-            }) or []
+            client = BinanceClient(timeout_seconds=3.0, max_retries=1)
+            try:
+                data = client.get("fapi/v1/klines", {
+                    "symbol": symbol,
+                    "interval": "5m",
+                    "limit": 96,
+                }) or []
+            except Exception:
+                try:
+                    spot_client = BinanceClient(base_url="https://api.binance.com", timeout_seconds=3.0, max_retries=1)
+                    data = spot_client.get("api/v3/klines", {
+                        "symbol": symbol,
+                        "interval": "5m",
+                        "limit": 96,
+                    }) or []
+                except Exception:
+                    data = []
 
             # Enrich fallback candles with funding rate + OI history from Binance
             funding_by_time: dict[int, float] = {}
@@ -2237,7 +2244,7 @@ class APIHandler(BaseHTTPRequestHandler):
         rsi_data: dict[str, Any] = {}
         try:
             from dao_vang.data.collectors.binance_client import BinanceClient
-            b_client = BinanceClient()
+            b_client = BinanceClient(timeout_seconds=3.0, max_retries=1)
             k_data = b_client.get("fapi/v1/klines", {"symbol": symbol, "interval": "5m", "limit": 100}) or []
             if len(k_data) >= 14:
                 close_vals = [float(k[4]) for k in k_data]
