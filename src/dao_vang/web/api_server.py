@@ -1869,163 +1869,74 @@ class APIHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(payload, default=str).encode("utf-8"))
 
     def get_coin_detail(self, symbol: str):
-        rows: list[tuple[Any, ...]] = []
-        try:
-            conn = _ro_duckdb_connect(str(_settings.scanner.db_path))
-            try:
-                # feature_results doesn't have close price — JOIN with kline
-                # on close_time (feature_time = end of candle = kline.close_time)
-                # to get OHLC + volume for candlestick chart
-                rows = conn.execute(
-                    """
-                    WITH f AS (
-                        SELECT feature_time, symbol, oi_change_24h, funding_rate_raw,
-                               taker_buy_ratio, price_ret_5m, volume_percentile_24h
-                        FROM feature_results
-                        WHERE symbol = ?
-                        ORDER BY feature_time DESC
-                        LIMIT 1500
-                    )
-                    SELECT f.feature_time, k.open, k.high, k.low, k.close,
-                           k.volume_base, k.taker_buy_base,
-                           f.oi_change_24h, f.funding_rate_raw,
-                           f.taker_buy_ratio, f.price_ret_5m, f.volume_percentile_24h
-                    FROM f
-                    LEFT JOIN kline k
-                        ON k.symbol = ?
-                        AND k.interval = '5m'
-                        AND k.close_time = f.feature_time
-                    ORDER BY f.feature_time DESC
-                    """,
-                    [symbol, symbol],
-                ).fetchall()
-            finally:
-                conn.close()
-        except Exception as exc:
-            logger.warning(f"coin_detail_query_failed symbol={symbol} error={exc}")
-
-        chart_points = []
+        chart_points: list[dict[str, Any]] = []
         closes: list[float] = []
-        chart_source = "db"
-        for feature_time, k_open, k_high, k_low, close, vol_base, taker_buy_base, oi_change, funding, taker_buy, _price_ret_5m, _vol_pct in reversed(rows):
-            c = float(close) if close is not None else 0.0
-            closes.append(c)
-            display_time = _system_display_datetime(feature_time)
-            chart_points.append({
-                "time": display_time.strftime("%H:%M") if display_time else str(feature_time),
-                "time_iso": _system_history_timestamp(feature_time) or str(feature_time),
-                "price": c,
-                "open": float(k_open) if k_open is not None else c,
-                "high": float(k_high) if k_high is not None else c,
-                "low": float(k_low) if k_low is not None else c,
-                "close": c,
-                "volume": float(vol_base) if vol_base is not None else 0.0,
-                "oi": float(oi_change) if oi_change is not None else 0.0,
-                "funding": float(funding) if funding is not None else 0.0,
-                "taker_ratio": 1.0 - float(taker_buy) if taker_buy is not None else 0.5,
-                "is_signal_point": False,
-            })
+        chart_source = "api"
 
-        # Verify local data is fresh and sane against Binance futures API; otherwise use API directly.
-        use_api = not chart_points or chart_points[-1]["price"] == 0.0
-        if chart_points and not use_api:
+        try:
+            from dao_vang.data.collectors.binance_client import BinanceClient
+            client = BinanceClient()
+            data = client.get("fapi/v1/klines", {
+                "symbol": symbol,
+                "interval": "5m",
+                "limit": 96,
+            }) or []
+
+            # Enrich fallback candles with funding rate + OI history from Binance
+            funding_by_time: dict[int, float] = {}
             try:
-                from dao_vang.data.collectors.binance_client import BinanceClient
-                client = BinanceClient()
-                api_check = client.get("fapi/v1/klines", {
-                    "symbol": symbol,
-                    "interval": "5m",
-                    "limit": 1,
-                })
-                if api_check:
-                    api_price = float(api_check[0][4])
-                    api_time = datetime.fromtimestamp(int(api_check[0][0]) / 1000, tz=timezone.utc)
-                    latest_local_price = chart_points[-1]["price"]
-                    latest_local_time_str = chart_points[-1].get("time_iso")
-                    if latest_local_time_str:
-                        latest_local_time = datetime.fromisoformat(latest_local_time_str)
-                        if latest_local_time.tzinfo is None:
-                            latest_local_time = latest_local_time.replace(tzinfo=timezone.utc)
-                        stale_seconds = (api_time - latest_local_time).total_seconds()
-                        price_diff_ratio = abs(api_price - latest_local_price) / max(latest_local_price, 1e-12)
-                        if stale_seconds > 1800 or price_diff_ratio > 0.15:
-                            use_api = True
-                            logger.info(
-                                f"coin_detail_api_fallback symbol={symbol} "
-                                f"reason={'stale' if stale_seconds > 1800 else 'mismatch'} "
-                                f"stale_s={int(stale_seconds)} local_price={latest_local_price} api_price={api_price}"
-                            )
+                for item in client.get("fapi/v1/fundingRate", {"symbol": symbol, "limit": 96}) or []:
+                    funding_by_time[int(item["fundingTime"])] = float(item["fundingRate"])
             except Exception as exc:
-                logger.warning(f"coin_detail_api_check_failed symbol={symbol} error={exc}")
+                logger.warning(f"coin_detail_funding_fetch_failed symbol={symbol} error={exc}")
 
-        if use_api:
+            oi_snapshots: list[tuple[int, float]] = []
             try:
-                from dao_vang.data.collectors.binance_client import BinanceClient
-                client = BinanceClient()
-                chart_points.clear()
-                closes.clear()
-                data = client.get("fapi/v1/klines", {
-                    "symbol": symbol,
-                    "interval": "5m",
-                    "limit": 96,
-                })
-
-                # Enrich fallback candles with funding rate + OI history from Binance
-                funding_by_time: dict[int, float] = {}
-                try:
-                    for item in client.get("fapi/v1/fundingRate", {"symbol": symbol, "limit": 96}):
-                        funding_by_time[int(item["fundingTime"])] = float(item["fundingRate"])
-                except Exception as exc:
-                    logger.warning(f"coin_detail_funding_fetch_failed symbol={symbol} error={exc}")
-
-                oi_snapshots: list[tuple[int, float]] = []
-                try:
-                    for item in client.get("fapi/v1/openInterestHist", {"symbol": symbol, "period": "5m", "limit": 96}):
-                        oi_snapshots.append((int(item["timestamp"]), float(item["sumOpenInterest"])))
-                except Exception as exc:
-                    logger.warning(f"coin_detail_oi_fetch_failed symbol={symbol} error={exc}")
-                oi_first = oi_snapshots[0][1] if oi_snapshots else 0.0
-
-                chart_source = "api"
-                for k in data:
-                    ts = int(k[0])
-                    dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
-                    display_dt = as_system_timezone(dt)
-                    c = float(k[4])
-                    closes.append(c)
-
-                    # nearest funding (within 8h)
-                    funding = 0.0
-                    if funding_by_time:
-                        nearest = min(funding_by_time.keys(), key=lambda x: abs(x - ts))
-                        if abs(nearest - ts) <= 28_800_000:
-                            funding = funding_by_time[nearest]
-
-                    # nearest OI snapshot (within 5m)
-                    oi_val = 0.0
-                    if oi_snapshots:
-                        nearest_ts = min((t for t, _ in oi_snapshots), key=lambda x: abs(x - ts))
-                        if abs(nearest_ts - ts) <= 300_000:
-                            oi_val = next(v for t, v in oi_snapshots if t == nearest_ts)
-                    # Show OI as % change vs first OI in the fetched window
-                    oi_pct = round((oi_val / oi_first - 1.0) * 100.0, 2) if oi_first > 0 and oi_val > 0 else 0.0
-
-                    chart_points.append({
-                        "time": display_dt.strftime("%H:%M"),
-                        "time_iso": display_dt.isoformat(),
-                        "price": c,
-                        "open": float(k[1]),
-                        "high": float(k[2]),
-                        "low": float(k[3]),
-                        "close": c,
-                        "volume": float(k[5]),
-                        "oi": oi_pct,
-                        "funding": funding,
-                        "taker_ratio": 0.5,
-                        "is_signal_point": False,
-                    })
+                for item in client.get("fapi/v1/openInterestHist", {"symbol": symbol, "period": "5m", "limit": 96}) or []:
+                    oi_snapshots.append((int(item["timestamp"]), float(item["sumOpenInterest"])))
             except Exception as exc:
-                logger.warning(f"coin_detail_api_fallback_failed symbol={symbol} error={exc}")
+                logger.warning(f"coin_detail_oi_fetch_failed symbol={symbol} error={exc}")
+            oi_first = oi_snapshots[0][1] if oi_snapshots else 0.0
+
+            for k in data:
+                ts = int(k[0])
+                dt = datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+                display_dt = as_system_timezone(dt)
+                c = float(k[4])
+                closes.append(c)
+
+                # nearest funding (within 8h)
+                funding = 0.0
+                if funding_by_time:
+                    nearest = min(funding_by_time.keys(), key=lambda x: abs(x - ts))
+                    if abs(nearest - ts) <= 28_800_000:
+                        funding = funding_by_time[nearest]
+
+                # nearest OI snapshot (within 5m)
+                oi_val = 0.0
+                if oi_snapshots:
+                    nearest_ts = min((t for t, _ in oi_snapshots), key=lambda x: abs(x - ts))
+                    if abs(nearest_ts - ts) <= 300_000:
+                        oi_val = next(v for t, v in oi_snapshots if t == nearest_ts)
+                # Show OI as % change vs first OI in the fetched window
+                oi_pct = round((oi_val / oi_first - 1.0) * 100.0, 2) if oi_first > 0 and oi_val > 0 else 0.0
+
+                chart_points.append({
+                    "time": display_dt.strftime("%H:%M"),
+                    "time_iso": display_dt.isoformat(),
+                    "price": c,
+                    "open": float(k[1]),
+                    "high": float(k[2]),
+                    "low": float(k[3]),
+                    "close": c,
+                    "volume": float(k[5]),
+                    "oi": oi_pct,
+                    "funding": funding,
+                    "taker_ratio": 0.5,
+                    "is_signal_point": False,
+                })
+        except Exception as exc:
+            logger.warning(f"coin_detail_api_fetch_failed symbol={symbol} error={exc}")
 
         # Compute RSI-14 on 5m closes (standard Wilder's RSI)
         rsi_15m: float | None = None
@@ -2155,39 +2066,31 @@ class APIHandler(BaseHTTPRequestHandler):
         feature_time: datetime | None = None
         try:
             conn = _ro_duckdb_connect(str(_settings.scanner.db_path))
-            try:
                 df = conn.execute(
                     """
-                    WITH f AS (
-                        SELECT * FROM feature_results
-                        WHERE symbol = ?
-                          AND feature_time <= ?
-                        ORDER BY feature_time DESC LIMIT 1
-                    )
-                    SELECT f.*, k.close, k.high as kline_high, k.low as kline_low,
-                           k.volume_quote AS volume_24h
-                    FROM f
-                    LEFT JOIN kline k
-                        ON k.symbol = ?
-                        AND k.close_time = f.feature_time
-                        AND k.interval = '5m'
+                    SELECT * FROM feature_results
+                    WHERE symbol = ?
+                      AND feature_time <= ?
+                    ORDER BY feature_time DESC LIMIT 1
                     """,
-                    [symbol, latest_closed_5m_end, symbol],
+                    [symbol, latest_closed_5m_end],
                 ).df()
                 if not df.empty:
-                    # ORDER BY DESC means row 0 is the same latest snapshot
-                    # used by ScannerDaemon._score_and_alert_composite.
                     latest = df.iloc[0]
                     for col in df.columns:
                         val = latest[col]
                         if pd.notna(val):
                             feature_dict[col] = val
-                    close_price = float(latest.get("close", 0)) if pd.notna(latest.get("close")) else None
                     ft_raw = latest.get("feature_time")
                     if pd.notna(ft_raw):
                         feature_time = pd.Timestamp(ft_raw).to_pydatetime()
             finally:
                 conn.close()
+
+            # Retrieve price from latest scan or alert store
+            latest_scan = _scan_store.latest_for_symbol(symbol, max_age_hours=24)
+            if latest_scan and latest_scan.get("close_price"):
+                close_price = float(latest_scan["close_price"])
         except Exception as exc:
             logger.warning(f"deep_analysis_feature_query_failed symbol={symbol} error={exc}")
 
@@ -2330,38 +2233,31 @@ class APIHandler(BaseHTTPRequestHandler):
             for c in score.components
         ]
 
-        # 6. Build RSI multi-timeframe from feature data
+        # 6. Build RSI multi-timeframe from live closes
         rsi_data: dict[str, Any] = {}
         try:
-            conn = _ro_duckdb_connect(str(_settings.scanner.db_path))
-            try:
-                closes = conn.execute(
-                    """
-                    SELECT k.close FROM kline k
-                    WHERE k.symbol = ? AND k.close IS NOT NULL AND k.interval = '5m'
-                    ORDER BY k.open_time DESC LIMIT 100
-                    """,
-                    [symbol],
-                ).fetchall()
-                if len(closes) >= 14:
-                    close_vals = [float(r[0]) for r in reversed(closes)]
-                    for period, label in [(14, "rsi_14"), (7, "rsi_7")]:
-                        if len(close_vals) >= period:
-                            gains = []
-                            losses = []
-                            for i in range(1, len(close_vals)):
-                                diff = close_vals[i] - close_vals[i - 1]
-                                gains.append(max(diff, 0))
-                                losses.append(max(-diff, 0))
-                            avg_gain = sum(gains[-period:]) / period
-                            avg_loss = sum(losses[-period:]) / period
-                            if avg_loss == 0:
-                                rsi_data[label] = 100.0
-                            else:
-                                rs = avg_gain / avg_loss
-                                rsi_data[label] = round(100 - (100 / (1 + rs)), 1)
-            finally:
-                conn.close()
+            from dao_vang.data.collectors.binance_client import BinanceClient
+            b_client = BinanceClient()
+            k_data = b_client.get("fapi/v1/klines", {"symbol": symbol, "interval": "5m", "limit": 100}) or []
+            if len(k_data) >= 14:
+                close_vals = [float(k[4]) for k in k_data]
+                if close_price is None and close_vals:
+                    close_price = close_vals[-1]
+                for period, label in [(14, "rsi_14"), (7, "rsi_7")]:
+                    if len(close_vals) >= period:
+                        gains = []
+                        losses = []
+                        for i in range(1, len(close_vals)):
+                            diff = close_vals[i] - close_vals[i - 1]
+                            gains.append(max(diff, 0))
+                            losses.append(max(-diff, 0))
+                        avg_gain = sum(gains[-period:]) / period
+                        avg_loss = sum(losses[-period:]) / period
+                        if avg_loss == 0:
+                            rsi_data[label] = 100.0
+                        else:
+                            rs = avg_gain / avg_loss
+                            rsi_data[label] = round(100 - (100 / (1 + rs)), 1)
         except Exception as exc:
             logger.warning(f"deep_analysis_rsi_failed symbol={symbol} error={exc}")
 
