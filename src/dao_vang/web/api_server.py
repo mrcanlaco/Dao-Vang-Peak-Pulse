@@ -2119,6 +2119,7 @@ class APIHandler(BaseHTTPRequestHandler):
         feature_time: datetime | None = None
         try:
             conn = _ro_duckdb_connect(str(_settings.scanner.db_path))
+            try:
                 df = conn.execute(
                     """
                     SELECT * FROM feature_results
