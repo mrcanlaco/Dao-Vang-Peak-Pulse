@@ -99,6 +99,10 @@ _notifier = TelegramNotifier(
 )
 _STATUS_CACHE_LOCK = threading.Lock()
 _STATUS_CACHE: dict[str, Any] = {}
+_STATUS_RESP_CACHE: dict[str, Any] = {}
+_STATUS_RESP_TIME: float = 0.0
+_SIGNALS_RESP_CACHE: list[dict[str, Any]] = []
+_SIGNALS_RESP_TIME: float = 0.0
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -1039,6 +1043,14 @@ class APIHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(enriched, ensure_ascii=False, default=str).encode('utf-8'))
 
     def get_status(self):
+        global _STATUS_RESP_TIME, _STATUS_RESP_CACHE
+        now_monotonic = time.monotonic()
+        with _STATUS_CACHE_LOCK:
+            if _STATUS_RESP_CACHE and (now_monotonic - _STATUS_RESP_TIME) < 3.0:
+                self._set_headers(200)
+                self.wfile.write(json.dumps(_STATUS_RESP_CACHE, default=str).encode('utf-8'))
+                return
+
         hb = _read_json(HEARTBEAT_PATH)
         scan_mode = _current_scan_mode()
         now = datetime.now(timezone.utc)
@@ -1132,6 +1144,9 @@ class APIHandler(BaseHTTPRequestHandler):
             "threshold": _settings.scoring.alert_score_threshold / 100.0,
             "db_read_status": "degraded" if db_read_errors else "ok",
         }
+        with _STATUS_CACHE_LOCK:
+            _STATUS_RESP_CACHE = res
+            _STATUS_RESP_TIME = now_monotonic
         self._set_headers(200)
         self.wfile.write(json.dumps(res, default=str).encode('utf-8'))
 
@@ -1314,6 +1329,14 @@ class APIHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(res).encode('utf-8'))
 
     def get_signals(self):
+        global _SIGNALS_RESP_TIME, _SIGNALS_RESP_CACHE
+        now_monotonic = time.monotonic()
+        with _STATUS_CACHE_LOCK:
+            if _SIGNALS_RESP_CACHE and (now_monotonic - _SIGNALS_RESP_TIME) < 3.0:
+                self._set_headers(200)
+                self.wfile.write(json.dumps(_SIGNALS_RESP_CACHE, default=str).encode('utf-8'))
+                return
+
         now = datetime.now(timezone.utc)
         rows = _alert_store.query(days=7, include_dismissed=False, limit=100)
         lead_stats = _alert_store.lead_time_stats(days=30)
@@ -1561,6 +1584,9 @@ class APIHandler(BaseHTTPRequestHandler):
             key=lambda s: s.get("event_time") or s.get("signal_time") or "",
             reverse=True,
         )
+        with _STATUS_CACHE_LOCK:
+            _SIGNALS_RESP_CACHE = signals
+            _SIGNALS_RESP_TIME = now_monotonic
         self._set_headers(200)
         self.wfile.write(json.dumps(signals, default=str).encode('utf-8'))
 
