@@ -134,10 +134,20 @@ export const SystemHistoryTab: React.FC = () => {
     .map(d => d.max_time)
     .filter(Boolean)
     .sort()
-    .pop();
-
-  const getTableTooltip = (table: string, lang: Language): string => {
+    .pop();  const getTableTooltip = (table: string, lang: Language): string => {
     const map: Record<string, Record<string, string>> = {
+      raw_timeline: {
+        vi: 'Dòng thời gian nến 5m và phái sinh hợp nhất — dữ liệu thị trường gốc (OHLCV + OI + Funding).',
+        en: 'Raw 5m timeline and unified derivatives (OHLCV + OI + Funding).',
+        zh: '已对齐时间戳的 5 分钟 K 线与合约衍生品原始时序。',
+        ko: '통합 5분봉 및 파생상품 시계열 데이터 (OHLCV + OI + Funding).',
+      },
+      raw_timeline_pre_quality: {
+        vi: 'Dữ liệu trước khi lọc kiểm định chất lượng — ghi nhận tức thời từ Binance.',
+        en: 'Pre-quality check timeline recorded in real time from Binance.',
+        zh: '质量检验前的实时币安快照。',
+        ko: '품질 검증 전 바이낸스 실시간 수집 데이터.',
+      },
       kline: {
         vi: 'Nến 5 phút từ Binance — dữ liệu thị trường gốc (OHLCV). Mỗi dòng = 1 nến của 1 mã.',
         en: '5-minute candles from Binance (OHLCV raw market data).',
@@ -174,6 +184,24 @@ export const SystemHistoryTab: React.FC = () => {
         zh: '超过阈值的雷达警报记录及后续验证结果。',
         ko: '임계값을 초과한 레이더 경보 이력 및 실현 결과.',
       },
+      candidate_market_observations: {
+        vi: 'Dữ liệu phái sinh quan sát theo thời gian thực (OI, Funding, Taker Ratio).',
+        en: 'Real-time candidate market observations (OI, Funding, Taker Ratio).',
+        zh: '实时衍生品观测数据（持仓量、费率、主动吃单比）。',
+        ko: '실시간 파생상품 관측 데이터 (OI, Funding, Taker Ratio).',
+      },
+      candidate_filter_decisions: {
+        vi: 'Quyết định và điểm số bộ lọc ứng viên xả mỗi chu kỳ.',
+        en: 'Candidate filter decisions and scores per cycle.',
+        zh: '每轮候选做空筛选决策与打分。',
+        ko: '주기별 덤프 후보 필터 의사결정 및 점수.',
+      },
+      predictions: {
+        vi: 'Dự báo xác suất phân phối từ mô hình Machine Learning.',
+        en: 'Distribution probability predictions from ML model.',
+        zh: '机器学习模型输出的见顶派发概率预测。',
+        ko: 'ML 모델의 분산 확률 예측 결과.',
+      },
       funding: {
         vi: 'Tỷ lệ funding theo thời gian — tín hiệu áp lực mua/bán trên hợp đồng tương lai.',
         en: 'Funding rate time series from Binance USD-M futures.',
@@ -198,15 +226,17 @@ export const SystemHistoryTab: React.FC = () => {
 
   const getPipelineSpec = () => [
     {
-      table: 'kline',
+      table: 'raw_timeline',
+      fallbackTable: 'kline',
       label: t('pipe_candle_collector'),
-      expectedMin: 5,
+      expectedMin: 15,
       desc: t('pipe_candle_desc'),
     },
     {
-      table: 'aligned_5m',
+      table: 'raw_timeline_pre_quality',
+      fallbackTable: 'aligned_5m',
       label: t('pipe_aligner'),
-      expectedMin: 5,
+      expectedMin: 15,
       desc: t('pipe_aligner_desc'),
     },
     {
@@ -224,26 +254,29 @@ export const SystemHistoryTab: React.FC = () => {
     {
       table: 'scan_results',
       label: t('pipe_scanner'),
-      expectedMin: 5,
+      expectedMin: 15,
       desc: t('pipe_scanner_desc'),
     },
     {
-      table: 'funding',
-      label: t('pipe_funding'),
-      expectedMin: 480,
+      table: 'candidate_market_observations',
+      fallbackTable: 'funding',
+      label: t('pipe_funding') + ' & OI',
+      expectedMin: 15,
       desc: t('pipe_funding_desc'),
     },
     {
-      table: 'open_interest',
-      label: 'OI',
+      table: 'candidate_filter_decisions',
+      fallbackTable: 'open_interest',
+      label: language === 'zh' ? '候选决策' : language === 'ko' ? '후보 결정' : language === 'en' ? 'Candidate Filter' : 'Bộ Lọc Ứng Viên',
       expectedMin: 15,
-      desc: t('pipe_oi_desc'),
+      desc: language === 'zh' ? '实时做空候选筛选打分' : language === 'ko' ? '실시간 덤프 후보 필터링 및 점수화' : language === 'en' ? 'Real-time candidate dump scoring' : 'Bộ lọc và chấm điểm ứng viên xả thời gian thực',
     },
     {
-      table: 'taker_volume',
-      label: t('pipe_taker'),
+      table: 'predictions',
+      fallbackTable: 'taker_volume',
+      label: language === 'zh' ? 'AI 预测' : language === 'ko' ? 'AI 예측' : language === 'en' ? 'AI Predictions' : 'Dự Báo AI',
       expectedMin: 15,
-      desc: t('pipe_taker_desc'),
+      desc: language === 'zh' ? '机器学习模型见顶概率预测' : language === 'ko' ? 'ML 모델 분산 확률 예측' : language === 'en' ? 'Distribution probabilities from ML model' : 'Xác suất dự báo phân phối từ mô hình AI',
     },
     {
       table: 'alert_history',
@@ -300,7 +333,10 @@ export const SystemHistoryTab: React.FC = () => {
   const pipelineSpec = getPipelineSpec();
   const dataStatsMap = new Map((data?.data_stats || []).map(d => [d.table, d]));
   const freshnessRows = pipelineSpec.map(spec => {
-    const tableData = data?.freshness?.[spec.table] || dataStatsMap.get(spec.table);
+    const tableData =
+      data?.freshness?.[spec.table] ||
+      dataStatsMap.get(spec.table) ||
+      (spec.fallbackTable ? data?.freshness?.[spec.fallbackTable] || dataStatsMap.get(spec.fallbackTable) : undefined);
     const maxTime = tableData?.max_time;
     const rowCount = 'row_count' in (tableData || {}) ? (tableData as any).row_count : (tableData as any)?.rows;
     const ageMin = computeAgeMin(maxTime, data?.generated_at || '');
