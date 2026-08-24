@@ -3202,14 +3202,13 @@ class APIHandler(BaseHTTPRequestHandler):
         scan_per_day: list[dict[str, Any]] = stats_snapshot.get("scan_per_day", [])
         signals_per_day: list[dict[str, Any]] = stats_snapshot.get("signals_per_day", [])
 
-        # Fallback to direct read-only query if snapshot is missing/empty or lacks pipeline views
-        has_views = any(d.get("table") in ("kline", "aligned_5m", "funding") for d in data_stats)
-        if not data_stats or not scan_per_day or not signals_per_day or not has_views:
+        # Fallback to direct read-only query ONLY if snapshot is missing/empty
+        if not data_stats or not scan_per_day or not signals_per_day:
             db_path = str(_settings.scanner.db_path)
             conn = None
             try:
                 conn = _ro_duckdb_connect(db_path)
-                if not data_stats or not has_views:
+                if not data_stats:
                     data_stats = []
                     tables = [r[0] for r in conn.execute(
                         "SELECT table_name FROM information_schema.tables "
