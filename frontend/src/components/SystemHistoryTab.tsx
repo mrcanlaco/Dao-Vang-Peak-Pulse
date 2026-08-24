@@ -218,7 +218,7 @@ export const SystemHistoryTab: React.FC = () => {
     {
       table: 'labels',
       label: t('pipe_label'),
-      expectedMin: 1440,
+      expectedMin: 20160,
       desc: t('pipe_label_desc'),
     },
     {
