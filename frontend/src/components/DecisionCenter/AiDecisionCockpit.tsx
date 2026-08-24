@@ -332,31 +332,31 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
           <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1">
-                {deepAnalysis.pump_analysis.detected ? (
+                {deepAnalysis?.pump_analysis?.detected ? (
                   <Flame className="w-3.5 h-3.5 text-orange-400" />
                 ) : (
                   <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
                 )}
                 {t('cockpit_parabolic_detection')}
               </span>
-              <span className={`font-mono font-bold text-xs ${deepAnalysis.pump_analysis.detected ? 'text-orange-400' : 'text-slate-400'}`}>
-                {deepAnalysis.pump_analysis.detected ? `+${deepAnalysis.pump_analysis.pump_pct}% (${deepAnalysis.pump_analysis.pump_days}d)` : (t('metric_insufficient_data'))}
+              <span className={`font-mono font-bold text-xs ${deepAnalysis?.pump_analysis?.detected ? 'text-orange-400' : 'text-slate-400'}`}>
+                {deepAnalysis?.pump_analysis?.detected ? `+${deepAnalysis.pump_analysis.pump_pct}% (${deepAnalysis.pump_analysis.pump_days}d)` : (t('metric_insufficient_data'))}
               </span>
             </div>
 
-            {deepAnalysis.pump_analysis.detected ? (
+            {deepAnalysis?.pump_analysis?.detected ? (
               <div className="mt-2 space-y-1.5">
                 <div className="flex justify-between text-[10px] font-mono text-slate-300">
-                  <span>{t('cockpit_pump_peak')} ${deepAnalysis.pump_analysis.peak_price.toFixed(4)}</span>
-                  <span className={deepAnalysis.pump_analysis.current_vs_peak < -20 ? 'text-red-400 font-bold' : 'text-slate-300'}>
-                    {deepAnalysis.pump_analysis.current_vs_peak}% {t('cockpit_pump_from_peak')}
+                  <span>{t('cockpit_pump_peak')} ${deepAnalysis.pump_analysis.peak_price?.toFixed(4) ?? '0.0000'}</span>
+                  <span className={(deepAnalysis.pump_analysis.current_vs_peak ?? 0) < -20 ? 'text-red-400 font-bold' : 'text-slate-300'}>
+                    {deepAnalysis.pump_analysis.current_vs_peak ?? 0}% {t('cockpit_pump_from_peak')}
                   </span>
                 </div>
                 {/* Progress bar from peak */}
                 <div className="relative h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
                   <div
                     className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-600 to-orange-400"
-                    style={{ width: `${Math.max(0, Math.min(100, 100 + deepAnalysis.pump_analysis.current_vs_peak))}%` }}
+                    style={{ width: `${Math.max(0, Math.min(100, 100 + (deepAnalysis.pump_analysis.current_vs_peak ?? 0)))}%` }}
                   />
                 </div>
               </div>
