@@ -814,3 +814,126 @@ export interface SystemHistoryData {
   current_scanner_model_id: string;
   self_learning: SelfLearningStatus;
 }
+
+export interface CommitStats {
+  files_changed: number;
+  insertions: number;
+  deletions: number;
+}
+
+export interface GitCommitItem {
+  hash: string;
+  short_hash: string;
+  author: string;
+  author_email: string;
+  date: string;
+  subject: string;
+  type: 'feat' | 'fix' | 'perf' | 'refactor' | 'build' | 'chore' | 'docs' | 'test' | 'ci' | 'style' | 'other' | string;
+  scope: string | null;
+  description: string;
+  ref_names: string;
+  stats: CommitStats;
+  github_url: string;
+}
+
+export interface MilestoneItem {
+  id: string;
+  tag: string;
+  title: string;
+  date: string;
+  status: 'COMPLETED' | 'IN_PROGRESS' | 'PLANNED';
+  description: string;
+  highlights: string[];
+}
+
+export interface DailyVelocityItem {
+  date: string;
+  commits: number;
+  feat: number;
+  fix: number;
+  perf: number;
+  other: number;
+}
+
+export interface ScopeCountItem {
+  scope: string;
+  count: number;
+}
+
+export interface AuthorCountItem {
+  name: string;
+  commits: number;
+}
+
+export interface VersionHistoryData {
+  repo: {
+    name: string;
+    owner: string;
+    url: string;
+    branch: string;
+    current_tag: string;
+    head_hash: string;
+  };
+  stats: {
+    total_commits: number;
+    total_insertions: number;
+    total_deletions: number;
+    total_files_changed: number;
+    last_commit_date: string;
+    type_counts: Record<string, number>;
+    active_days: number;
+  };
+  top_scopes: ScopeCountItem[];
+  top_authors: AuthorCountItem[];
+  daily_velocity: DailyVelocityItem[];
+  milestones: MilestoneItem[];
+  changelog_raw: string;
+  commits: GitCommitItem[];
+  cached_at: string;
+}
+
+export interface SystemUpdateStatus {
+  update_available: boolean;
+  current_branch: string;
+  local_commit: string;
+  local_commit_short: string;
+  local_commit_message: string;
+  remote_commit: string;
+  remote_commit_short: string;
+  remote_commit_message: string;
+  commits_behind: number;
+  commits_ahead: number;
+  new_commits: Array<{
+    hash: string;
+    short_hash: string;
+    author: string;
+    date: string;
+    message: string;
+    type: string;
+    scope: string;
+  }>;
+  has_dependency_changes: boolean;
+  has_frontend_changes: boolean;
+  last_checked_at: string;
+  is_updating: boolean;
+  error?: string | null;
+  last_update_result?: {
+    success: boolean;
+    message: string;
+    previous_commit: string;
+    current_commit: string;
+    dependencies_updated: boolean;
+    frontend_rebuilt: boolean;
+    services_restarted: boolean;
+    logs: string[];
+    completed_at: string;
+    error?: string | null;
+  } | null;
+}
+
+export interface SystemUpdateLogs {
+  logs: string[];
+  is_updating: boolean;
+  last_result?: SystemUpdateStatus['last_update_result'];
+}
+

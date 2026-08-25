@@ -249,8 +249,23 @@ class WebConfig(BaseModel):
     # through a domain or tunnel.
     public_url: str = Field(default="http://127.0.0.1:8000")
 
+
+class UpdaterConfig(BaseModel):
+    """Configuration for automatic and manual git updates."""
+
+    enabled: bool = Field(default=True)
+    poll_interval_minutes: int = Field(default=10, ge=1)
+    remote_name: str = Field(default="origin")
+    branch_name: str = Field(default="main")
+    auto_restart_services: bool = Field(default=True)
+    rebuild_frontend: bool = Field(default=True)
+    telegram_notify: bool = Field(default=True)
+    auto_deploy_remote: bool = Field(default=False)
+
+
 class AppSettings(BaseSettings):
     web: WebConfig = WebConfig()
+    updater: UpdaterConfig = UpdaterConfig()
     binance: BinanceConfig = BinanceConfig()
     collection: CollectionPolicy = CollectionPolicy()
     paths: PathsConfig = PathsConfig()

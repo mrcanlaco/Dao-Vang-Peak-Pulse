@@ -5,12 +5,13 @@ import {
 } from 'recharts';
 import {
   ShieldCheck, Activity, BarChart3,
-  Layers, ArrowUpRight, ArrowDownRight, Eye, CheckCircle2, Zap, Radio, Terminal, Send, Clock, Play, Loader2, FlaskConical, LineChart as LineChartIcon, Lock, XCircle, RefreshCw, Target, Award, ChevronDown, ChevronUp, Cpu
+  Layers, ArrowUpRight, ArrowDownRight, Eye, CheckCircle2, Zap, Radio, Terminal, Send, Clock, Play, Loader2, FlaskConical, LineChart as LineChartIcon, Lock, XCircle, RefreshCw, Target, Award, ChevronDown, ChevronUp, Cpu, GitPullRequest
 } from 'lucide-react';
 import { MultiCoinScan } from './MultiCoinScan';
 import { BacktestExperiments } from './BacktestExperiments';
 import { ForwardTest } from './ForwardTest';
 import { SystemHistoryTab } from './SystemHistoryTab';
+import { VersionHistoryTab } from './VersionHistoryTab';
 import { TrackingWatchlist } from './TrackingWatchlist';
 import { ErrorBoundary } from './ErrorBoundary';
 
@@ -64,8 +65,8 @@ interface MainWorkspaceProps {
   onSelectTrackingCoin: (symbol: string) => void;
   onUpdateTracking: (id: string, patch: Record<string, unknown>) => Promise<boolean>;
   onRemoveTracking: (id: string) => Promise<boolean>;
-  activeTab: 'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY';
-  setActiveTab: (tab: 'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY') => void;
+  activeTab: 'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY' | 'UPDATES';
+  setActiveTab: (tab: 'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY' | 'UPDATES') => void;
   onOpenOrderModal?: () => void;
   guiVersion?: 'v1' | 'v2';
 }
@@ -633,6 +634,18 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           >
             <Activity className="w-3.5 h-3.5" />
             {t('ws_tab_history')}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('UPDATES')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
+              activeTab === 'UPDATES'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+            }`}
+          >
+            <GitPullRequest className="w-3.5 h-3.5 text-amber-400" />
+            {t('ws_tab_updates')}
           </button>
         </div>
       </div>
@@ -2162,6 +2175,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       {activeTab === 'HISTORY' && (
         <ErrorBoundary fallbackTitle="Lỗi hiển thị Lịch sử & Dữ liệu">
           <SystemHistoryTab />
+        </ErrorBoundary>
+      )}
+
+      {/* TAB: VERSION UPDATES & GITHUB TIMELINE */}
+      {activeTab === 'UPDATES' && (
+        <ErrorBoundary fallbackTitle="Lỗi hiển thị Cập nhật Phiên bản">
+          <VersionHistoryTab />
         </ErrorBoundary>
       )}
 

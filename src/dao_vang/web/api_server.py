@@ -535,6 +535,12 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.get_alpha_lab_drift()
             elif path == '/api/alpha-lab/summary':
                 self.get_alpha_lab_summary()
+            elif path in ('/api/version-history', '/api/updates', '/api/changelog'):
+                self.get_version_history()
+            elif path in ('/api/system/update-status', '/api/updater/status'):
+                self.get_system_update_status()
+            elif path in ('/api/system/update-logs', '/api/updater/logs'):
+                self.get_system_update_logs()
             else:
                 err_body = json.dumps({"error": "API endpoint not found"}).encode('utf-8')
                 self._set_headers(404, content_length=len(err_body))
@@ -817,6 +823,10 @@ class APIHandler(BaseHTTPRequestHandler):
                 logger.warning(f"freeze_model_failed error={exc}")
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"error": str(exc)}).encode('utf-8'))
+        elif parsed.path in ('/api/version-history/refresh', '/api/updates/refresh'):
+            self.post_version_history_refresh()
+        elif parsed.path in ('/api/system/update-apply', '/api/updater/apply', '/api/system/update'):
+            self.post_system_update_apply()
         else:
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode('utf-8'))
@@ -3390,6 +3400,106 @@ class APIHandler(BaseHTTPRequestHandler):
         }
         self._set_headers(200)
         self.wfile.write(json.dumps(res, default=str).encode('utf-8'))
+
+    def get_version_history(self):
+        """Serve complete version history, milestones, development velocity, and GitHub commits."""
+        from dao_vang.web.version_history import compute_version_history_data
+        try:
+            repo_root = Path(".").resolve()
+            data = compute_version_history_data(repo_root)
+            body = json.dumps(data, default=str).encode("utf-8")
+            self._set_headers(200, cache_control="public, max-age=60", content_length=len(body))
+            self.wfile.write(body)
+        except Exception as exc:
+            logger.error("get_version_history_failed error=%s", exc)
+            err = json.dumps({"error": "Failed to load version history", "detail": str(exc)}).encode("utf-8")
+            self._set_headers(500, content_length=len(err))
+            self.wfile.write(err)
+
+    def post_version_history_refresh(self):
+        """Force refresh version history cache."""
+        from dao_vang.web.version_history import refresh_version_history
+        try:
+            repo_root = Path(".").resolve()
+            data = refresh_version_history(repo_root)
+            body = json.dumps({
+                "status": "success",
+                "message": "Đã làm mới lịch sử phiên bản và commits thành công.",
+                "data": data,
+            }, default=str).encode("utf-8")
+            self._set_headers(200, content_length=len(body))
+            self.wfile.write(body)
+        except Exception as exc:
+            logger.error("post_version_history_refresh_failed error=%s", exc)
+            err = json.dumps({"error": "Failed to refresh version history", "detail": str(exc)}).encode("utf-8")
+            self._set_headers(500, content_length=len(err))
+            self.wfile.write(err)
+
+    def get_system_update_status(self):
+        """Serve current git update check status."""
+        try:
+            from dao_vang.updater.manager import get_update_status
+            data = get_update_status()
+            body = json.dumps(data, default=str).encode("utf-8")
+            self._set_headers(200, cache_control="no-cache", content_length=len(body))
+            self.wfile.write(body)
+        except Exception as exc:
+            logger.error("get_system_update_status_failed error=%s", exc)
+            err = json.dumps({"error": "Failed to get update status", "detail": str(exc)}).encode("utf-8")
+            self._set_headers(500, content_length=len(err))
+            self.wfile.write(err)
+
+    def get_system_update_logs(self):
+        """Serve live update execution logs."""
+        try:
+            from dao_vang.updater.manager import _IS_UPDATING, _LAST_UPDATE_RESULT, get_update_logs
+            data = {
+                "logs": get_update_logs(),
+                "is_updating": _IS_UPDATING,
+                "last_result": _LAST_UPDATE_RESULT,
+            }
+            body = json.dumps(data, default=str).encode("utf-8")
+            self._set_headers(200, cache_control="no-cache", content_length=len(body))
+            self.wfile.write(body)
+        except Exception as exc:
+            logger.error("get_system_update_logs_failed error=%s", exc)
+            err = json.dumps({"error": "Failed to get update logs", "detail": str(exc)}).encode("utf-8")
+            self._set_headers(500, content_length=len(err))
+            self.wfile.write(err)
+
+    def post_system_update_apply(self):
+        """Trigger update process in background thread."""
+        try:
+            import threading
+            from dao_vang.updater.manager import UpdateManager, _IS_UPDATING
+            if _IS_UPDATING:
+                body = json.dumps({
+                    "status": "in_progress",
+                    "message": "Tiến trình cập nhật đang chạy, vui lòng theo dõi log.",
+                }).encode("utf-8")
+                self._set_headers(409, content_length=len(body))
+                self.wfile.write(body)
+                return
+
+            manager = UpdateManager()
+            thread = threading.Thread(
+                target=manager.apply_update,
+                kwargs={"force": False, "restart_services": True, "rebuild_frontend": True, "notify_telegram": True},
+                daemon=True,
+            )
+            thread.start()
+
+            body = json.dumps({
+                "status": "started",
+                "message": "Đã bắt đầu tiến trình cập nhật hệ thống thành công.",
+            }).encode("utf-8")
+            self._set_headers(200, content_length=len(body))
+            self.wfile.write(body)
+        except Exception as exc:
+            logger.error("post_system_update_apply_failed error=%s", exc)
+            err = json.dumps({"error": "Failed to trigger update", "detail": str(exc)}).encode("utf-8")
+            self._set_headers(500, content_length=len(err))
+            self.wfile.write(err)
 
 class ReusableThreadingHTTPServer(ThreadingHTTPServer):
     allow_reuse_address = True

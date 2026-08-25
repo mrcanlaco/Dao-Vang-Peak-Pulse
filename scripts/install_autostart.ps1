@@ -83,4 +83,12 @@ Register-ScheduledTask -TaskName "DaoVangWebUI" -Action $action2 -Trigger $trigg
 Start-ScheduledTask -TaskName "DaoVangWebUI"
 Write-Host "DaoVangWebUI task registered + started." -ForegroundColor Green
 
-Write-Host "`nDone. Both tasks + the service will auto-start on boot and auto-restart on crash." -ForegroundColor Cyan
+Write-Host "`n== 4. Scheduled Task: DaoVangAutoUpdater ==" -ForegroundColor Cyan
+$action3 = New-ScheduledTaskAction -Execute "powershell.exe" `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$root\scripts\service_auto_updater.ps1`""
+Register-ScheduledTask -TaskName "DaoVangAutoUpdater" -Action $action3 -Trigger $trigger `
+    -Settings $settings -User "SYSTEM" -RunLevel Highest -Force | Out-Null
+Start-ScheduledTask -TaskName "DaoVangAutoUpdater"
+Write-Host "DaoVangAutoUpdater task registered + started." -ForegroundColor Green
+
+Write-Host "`nDone. All tasks + the Cloudflared service will auto-start on boot and auto-restart on crash." -ForegroundColor Cyan

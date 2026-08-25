@@ -18,6 +18,7 @@ import {
   Check,
   Sparkles,
   Scale,
+  GitPullRequest,
 } from 'lucide-react';
 import {
   getRiskLabel,
@@ -41,6 +42,7 @@ interface HeaderProps {
   onOpenWatchlistModal: () => void;
   onOpenTracking: () => void;
   onOpenModelComparison?: () => void;
+  onOpenUpdates?: () => void;
   trackingCount: number;
   activeScanMode: string;
   autoTelegramEnabled: boolean;
@@ -69,6 +71,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenWatchlistModal,
   onOpenTracking,
   onOpenModelComparison,
+  onOpenUpdates,
   trackingCount,
   activeScanMode,
   autoTelegramEnabled,
@@ -85,6 +88,33 @@ export const Header: React.FC<HeaderProps> = ({
   const { language, setLanguage, t } = useTranslation();
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [commitsBehind, setCommitsBehind] = useState(0);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const checkUpdate = async () => {
+      try {
+        const res = await fetch('/api/system/update-status');
+        if (res.ok) {
+          const json = await res.json();
+          if (isMounted) {
+            setUpdateAvailable(Boolean(json.update_available));
+            setCommitsBehind(Number(json.commits_behind || 0));
+          }
+        }
+      } catch {
+        // silent
+      }
+    };
+    checkUpdate();
+    const interval = setInterval(checkUpdate, 60000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   const selectedModel = availableModels.find((model) => model.key === selectedModelKey);
   const isScannerActive = Boolean(scannerModelId && selectedModel?.frozen_model_id === scannerModelId);
 
@@ -318,6 +348,32 @@ export const Header: React.FC<HeaderProps> = ({
               >
                 <Scale className="h-3.5 w-3.5 text-violet-400" />
                 <span className="hidden text-xs font-bold sm:inline font-mono">A/B Engine</span>
+              </button>
+            )}
+
+            {/* Version Updates Button */}
+            {onOpenUpdates && (
+              <button
+                type="button"
+                onClick={onOpenUpdates}
+                className={`relative inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1 shadow-sm transition active:scale-95 ${
+                  updateAvailable
+                    ? 'border-emerald-500/60 bg-emerald-950/60 text-emerald-300 hover:bg-emerald-900/70 hover:border-emerald-400'
+                    : 'border-amber-500/40 bg-amber-950/40 text-amber-300 hover:bg-amber-900/50 hover:border-amber-400'
+                }`}
+                title={updateAvailable ? `Có ${commitsBehind} commit mới trên GitHub` : t('ws_tab_updates')}
+                aria-label="Open Version Updates"
+              >
+                <GitPullRequest className={`h-3.5 w-3.5 ${updateAvailable ? 'text-emerald-400' : 'text-amber-400'}`} />
+                <span className="hidden text-xs font-bold sm:inline font-mono">
+                  {updateAvailable ? `⚡ Update (${commitsBehind})` : 'v2.0-pro'}
+                </span>
+                {updateAvailable && (
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                )}
               </button>
             )}
 

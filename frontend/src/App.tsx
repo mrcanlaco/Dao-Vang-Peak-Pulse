@@ -77,7 +77,7 @@ export function App() {
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
   const [telegramSentSuccess, setTelegramSentSuccess] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY'>('DECISION');
+  const [activeTab, setActiveTab] = useState<'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY' | 'UPDATES'>('DECISION');
   const [isActionDrawerOpen, setIsActionDrawerOpen] = useState(false);
   const [isRadarCollapsed, setIsRadarCollapsed] = useState(false);
 
@@ -705,6 +705,7 @@ export function App() {
         guiVersion={guiVersion}
         onSelectGuiVersion={handleSelectGuiVersion}
         onOpenModelComparison={() => setIsModelComparisonOpen(true)}
+        onOpenUpdates={() => setActiveTab('UPDATES')}
       />
 
       {/* Main Workspace Layout */}

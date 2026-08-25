@@ -42,6 +42,9 @@ scanner_app = typer.Typer(help="24/7 scanner + Telegram alerts (post-MVP, ADR 00
 alpha_lab_app = typer.Typer(
     help="Alpha Quality Lab — Signal Intelligence & Meta-Labeling commands"
 )
+system_app = typer.Typer(
+    help="System management, update, and auto-updater commands"
+)
 
 app.add_typer(data_app, name="data")
 app.add_typer(labels_app, name="labels")
@@ -50,6 +53,7 @@ app.add_typer(experiment_app, name="experiment")
 app.add_typer(report_app, name="report")
 app.add_typer(scanner_app, name="scanner")
 app.add_typer(alpha_lab_app, name="alpha-lab")
+app.add_typer(system_app, name="system")
 
 
 @data_app.command("collect")
@@ -1346,3 +1350,108 @@ def alpha_lab_drift() -> None:
     if report.ece is not None:
         typer.echo(f"  • ECE (Lỗi hiệu chuẩn) : {report.ece:.4f}")
     typer.echo("=" * 55 + "\n")
+
+
+# ==============================================================================
+# SYSTEM MANAGEMENT & UPDATER COMMANDS
+# ==============================================================================
+
+
+@system_app.command("status")
+def system_status(
+    remote: str = typer.Option("origin", help="Git remote name"),
+    branch: str = typer.Option("main", help="Git branch name"),
+) -> None:
+    """Xem trạng thái phiên bản hiện tại, commit hash và kiểm tra bản cập nhật trên GitHub."""
+    from dao_vang.updater.manager import UpdateManager
+
+    typer.echo("🔍 Đang kiểm tra trạng thái hệ thống và Git repository...")
+    manager = UpdateManager()
+    status = manager.check_for_updates(remote=remote, branch=branch)
+    health = manager.check_system_health()
+
+    typer.echo("\n" + "=" * 65)
+    typer.echo("  🌟 TRẠNG THÁI HỆ THỐNG ĐẢO VÀNG PEAKPULSE")
+    typer.echo("=" * 65)
+    typer.echo(f"  • Nhánh Git hiện tại       : {status.current_branch}")
+    typer.echo(f"  • Commit cục bộ (Local)    : {status.local_commit_short} - {status.local_commit_message}")
+    typer.echo(f"  • Commit trên Git (Remote) : {status.remote_commit_short} - {status.remote_commit_message}")
+    typer.echo(f"  • Lệch commit (Behind/Ahead): Chậm {status.commits_behind} commit | Nhanh hơn {status.commits_ahead} commit")
+    typer.echo("-" * 65)
+    typer.echo(f"  • DuckDB Database           : {health.get('duckdb', 'N/A')}")
+    typer.echo(f"  • Scanner Daemon Heartbeat  : {health.get('scanner_heartbeat', 'N/A')}")
+    typer.echo("-" * 65)
+
+    if status.error:
+        typer.secho(f"  ⚠️ Cảnh báo kiểm tra Git: {status.error}", fg=typer.colors.YELLOW)
+    elif status.update_available:
+        typer.secho(f"  🚀 Có bản cập nhật mới ({status.commits_behind} commit) trên GitHub!", fg=typer.colors.GREEN, bold=True)
+        typer.echo("     Chạy lệnh 'dao-vang system update' để cập nhật ngay.")
+    else:
+        typer.secho("  ✅ Hệ thống đang ở phiên bản mới nhất.", fg=typer.colors.GREEN)
+    typer.echo("=" * 65 + "\n")
+
+
+@system_app.command("update")
+def system_update(
+    check_only: bool = typer.Option(False, "--check-only", help="Chỉ kiểm tra cập nhật mà không thực hiện kéo code"),
+    force: bool = typer.Option(False, "--force", help="Bắt buộc cập nhật và tự động stash các thay đổi cục bộ"),
+    no_restart: bool = typer.Option(False, "--no-restart", help="Không tự động khởi động lại dịch vụ"),
+    no_frontend: bool = typer.Option(False, "--no-frontend", help="Không tự động build lại giao diện frontend"),
+    remote_deploy: bool = typer.Option(False, "--remote-deploy", help="Đồng thời cập nhật server Ubuntu MSI từ xa"),
+    remote: str = typer.Option("origin", "--remote", help="Tên git remote"),
+    branch: str = typer.Option("main", "--branch", help="Tên git branch"),
+) -> None:
+    """Cập nhật hệ thống Đảo Vàng lên phiên bản mới nhất từ GitHub."""
+    from dao_vang.updater.manager import UpdateManager
+
+    manager = UpdateManager()
+
+    if check_only:
+        typer.echo(f"🔍 Đang kiểm tra bản cập nhật mới từ {remote}/{branch}...")
+        status = manager.check_for_updates(remote=remote, branch=branch)
+        if status.update_available:
+            typer.secho(
+                f"🚀 Phát hiện {status.commits_behind} commit mới trên GitHub ({status.remote_commit_short}):",
+                fg=typer.colors.GREEN,
+                bold=True,
+            )
+            for c in status.new_commits:
+                typer.echo(f"   • [{c['short_hash']}] {c['message']} ({c['author']})")
+        else:
+            typer.secho("✅ Hệ thống đã ở phiên bản mới nhất.", fg=typer.colors.GREEN)
+        return
+
+    typer.echo("🚀 Bắt đầu quá trình cập nhật Đảo Vàng PeakPulse...")
+    res = manager.apply_update(
+        force=force,
+        restart_services=not no_restart,
+        rebuild_frontend=not no_frontend,
+        notify_telegram=True,
+        remote_deploy=remote_deploy,
+    )
+
+    if res.success:
+        typer.secho(f"\n✅ {res.message}", fg=typer.colors.GREEN, bold=True)
+    else:
+        typer.secho(f"\n❌ {res.message}", fg=typer.colors.RED, bold=True)
+        if res.error:
+            typer.secho(f"   Chi tiết: {res.error}", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+
+@system_app.command("auto-updater")
+def system_auto_updater(
+    interval: int | None = typer.Option(
+        None, "--interval", "-i", help="Chu kỳ kiểm tra GitHub (tính theo phút, mặc định theo cấu hình)"
+    ),
+) -> None:
+    """Khởi chạy daemon giám sát GitHub 24/7 và tự động cập nhật hệ thống khi có bản mới."""
+    from dao_vang.updater.auto_updater import run_auto_updater
+
+    run_auto_updater(interval_minutes=interval)
+
+
+if __name__ == "__main__":
+    app()
+
