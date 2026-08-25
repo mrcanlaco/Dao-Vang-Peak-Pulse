@@ -39,7 +39,7 @@ cloudflared/config.yml
 
 # Node / Frontend
 frontend/node_modules/
-frontend/dist/
+# frontend/dist/ (tracked for self-contained web server delivery)
 frontend/.turbo/
 frontend/.next/
 frontend/*.log
