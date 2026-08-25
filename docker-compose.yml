@@ -21,7 +21,7 @@ services:
       - ./data:/app/data_live
       - ./artifacts:/app/artifacts
       - ./configs:/app/configs
-      - ./.git:/app/.git:ro
+      - ./.git:/app/.git
     command: >
       dao-vang scanner start --config configs/live.yaml
     healthcheck:
@@ -63,7 +63,7 @@ services:
       - ./data:/app/data_live
       - ./artifacts:/app/artifacts
       - ./configs:/app/configs
-      - ./.git:/app/.git:ro
+      - ./.git:/app/.git
     depends_on:
       - scanner
     healthcheck:
