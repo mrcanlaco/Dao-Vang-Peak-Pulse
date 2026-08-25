@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dao-vang-pwa-v1.2';
+const CACHE_NAME = 'dao-vang-pwa-v1.3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -60,7 +60,7 @@ self.addEventListener('fetch', (event) => {
   // 2. Navigation (HTML pages): Network-First (Ensures instant deployment updates)
   if (request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-cache' })
         .then((response) => {
           if (response && response.status === 200) {
             const copy = response.clone();

@@ -556,6 +556,13 @@ class APIHandler(BaseHTTPRequestHandler):
             file_path = DIST_DIR / rel_path
 
         if not file_path.exists() or file_path.is_dir():
+            # If requesting a missing static asset or chunk, return 404 instead of index.html
+            static_exts = ('.js', '.css', '.map', '.png', '.jpg', '.jpeg', '.svg', '.json', '.woff', '.woff2', '.ico', '.webp')
+            if req_path.startswith('/assets/') or any(req_path.lower().endswith(ext) for ext in static_exts):
+                err = b"Asset not found"
+                self._set_headers(404, content_type='text/plain', cache_control='no-cache', content_length=len(err))
+                self.wfile.write(err)
+                return
             file_path = DIST_DIR / 'index.html'
 
         if file_path.exists():
