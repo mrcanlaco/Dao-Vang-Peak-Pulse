@@ -71,7 +71,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isAllCopied, setIsAllCopied] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Initialize welcome message when symbol changes
@@ -92,12 +92,15 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
     setMessages([welcomeMsg]);
   }, [symbol, currentPrice, prob, riskLevel, isEn, isZh, isKo]);
 
-  // Scroll to bottom when messages update
+  // Scroll internal chat container to bottom when user sends questions or AI responds (not on initial mount/symbol switch)
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isOpen && messages.length > 1 && chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
     }
-  }, [messages, isOpen]);
+  }, [messages, isLoading, isOpen]);
 
   const handleSaveConfig = (newConfig: LlmConfig) => {
     setLlmConfig(newConfig);
@@ -342,7 +345,10 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
             </div>
 
             {/* Chat Messages Log */}
-            <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 sm:p-4 max-h-80 overflow-y-auto space-y-3.5 font-sans">
+            <div
+              ref={chatContainerRef}
+              className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 sm:p-4 max-h-80 overflow-y-auto space-y-3.5 font-sans"
+            >
               {messages.map((msg) => {
                 const isUser = msg.role === 'user';
                 return (
@@ -431,8 +437,6 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
                   </div>
                 </div>
               )}
-
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Input Box */}
