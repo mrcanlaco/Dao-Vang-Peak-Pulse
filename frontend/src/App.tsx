@@ -6,6 +6,7 @@ import { GlossaryModal } from './components/GlossaryModal';
 import { WatchlistModal } from './components/WatchlistModal';
 import { ModelComparisonModal } from './components/ModelComparisonModal';
 import { CoinSelectorModal } from './components/CoinSelectorModal';
+import { LockScreen } from './components/LockScreen';
 import { MobileBottomNav, type MobileTabType } from './components/v2/MobileBottomNav';
 import { StickyActionBar } from './components/v2/StickyActionBar';
 import { OrderExecutionModal } from './components/v2/OrderExecutionModal';
@@ -15,10 +16,31 @@ import type {
 } from './types';
 import { isSignalFired, isSignalArmed } from './types';
 import { parseSystemDate } from './utils/time';
+import { getStoredPassword, clearStoredPassword } from './utils/auth';
 import { useTranslation, type Language } from './i18n/LanguageContext';
 
 export function App() {
   const { language, t } = useTranslation();
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return getStoredPassword() !== null;
+  });
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleAuthError = () => {
+      setIsAuthenticated(false);
+      setAuthError(t('auth_session_expired'));
+    };
+    window.addEventListener('dao_vang_auth_error', handleAuthError);
+    return () => window.removeEventListener('dao_vang_auth_error', handleAuthError);
+  }, [t]);
+
+  const handleLogout = () => {
+    clearStoredPassword();
+    setIsAuthenticated(false);
+    setAuthError(null);
+  };
 
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [signals, setSignals] = useState<SignalItem[]>([]);
@@ -284,6 +306,7 @@ export function App() {
   };
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     fetchData();
 
     const timer = setInterval(async () => {
@@ -298,7 +321,7 @@ export function App() {
       if (freshComparison !== null) setCandidateComparison(freshComparison);
     }, 30_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [isAuthenticated]);
 
   // Load coin from URL hash on mount
   useEffect(() => {
@@ -688,6 +711,19 @@ export function App() {
 
   const activeScanMode = activeScanModes.join(' + ');
 
+  if (!isAuthenticated) {
+    return (
+      <LockScreen
+        initialError={authError}
+        onAuthenticated={() => {
+          setIsAuthenticated(true);
+          setAuthError(null);
+          fetchData();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#080c14] text-slate-100 flex flex-col font-sans">
       
@@ -718,6 +754,7 @@ export function App() {
           setActiveTab('RADAR');
           if (guiVersion === 'v2') setMobileTab('RADAR');
         }}
+        onLogout={handleLogout}
         trackingCount={trackingItems.filter(item => item.status !== 'CLOSED').length}
         activeScanMode={activeScanMode}
         autoTelegramEnabled={automationSettings.autoTelegramPush}
@@ -816,6 +853,7 @@ export function App() {
             setThreshold={setThreshold}
             activeScanModes={activeScanModes}
             onOpenWatchlistModal={() => setIsWatchlistModalOpen(true)}
+            onLogout={handleLogout}
           />
         </div>
 

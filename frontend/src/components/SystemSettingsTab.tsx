@@ -3,7 +3,7 @@ import {
   Settings, Key, Cpu, Globe, CheckCircle2,
   AlertTriangle, Loader2, Eye, EyeOff, Sparkles, RefreshCw,
   Sliders, ShieldCheck, Zap, HardDrive, Check,
-  Bot, Server
+  Bot, Server, Lock
 } from 'lucide-react';
 import { useTranslation, LANGUAGES } from '../i18n/LanguageContext';
 import type { LlmConfig, LlmProvider } from '../types';
@@ -15,6 +15,7 @@ interface SystemSettingsTabProps {
   setThreshold?: (val: number) => void;
   activeScanModes?: string[];
   onOpenWatchlistModal?: () => void;
+  onLogout?: () => void;
 }
 
 const STORAGE_CONFIG_KEY = 'dao_vang_llm_config';
@@ -70,8 +71,9 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
   setThreshold,
   activeScanModes = ['volatile'],
   onOpenWatchlistModal,
+  onLogout,
 }) => {
-  const { language, setLanguage } = useTranslation();
+  const { language, setLanguage, t } = useTranslation();
   const isEn = language === 'en';
   const isZh = language === 'zh';
   const isKo = language === 'ko';
@@ -85,10 +87,10 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
       // fallback
     }
     return {
-      provider: 'gemini',
+      provider: 'openai',
       apiKey: '',
-      modelId: 'gemini-1.5-flash',
-      baseUrl: '',
+      modelId: 'antigravity/gemini-3.7-flash-tiered',
+      baseUrl: 'https://proxy-ai.comaygiauco.com/v1',
       enabled: true,
     };
   });
@@ -184,10 +186,10 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
   };
 
   const handleResetDefaults = () => {
-    setProvider('gemini');
+    setProvider('openai');
     setApiKey('');
-    setModelId('gemini-1.5-flash');
-    setBaseUrl('');
+    setModelId('antigravity/gemini-3.7-flash-tiered');
+    setBaseUrl('https://proxy-ai.comaygiauco.com/v1');
     setEnabled(true);
     setTestResult(null);
   };
@@ -252,6 +254,15 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
                   className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 bg-slate-900 w-4 h-4"
                 />
               </label>
+            </div>
+
+            {/* Server Default AI Info Banner */}
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 text-xs">
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-slate-300 leading-relaxed text-[11px]">
+                <span className="font-semibold text-amber-300">Model Mặc Định Máy Chủ: </span>
+                Hệ thống máy chủ đã được cấu hình sẵn <strong>Gemini 3.7 Flash Tiered</strong>. Người dùng có thể hỏi đáp AI trực tiếp mà không cần cấu hình key, hoặc nhập cấu hình bên dưới để sử dụng key cá nhân riêng.
+              </div>
             </div>
 
             {/* Provider Options Grid */}
@@ -547,6 +558,32 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Access Security & Logout */}
+            <div className="pt-3 border-t border-slate-800/80 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-300">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{t('auth_status_title')}</span>
+                </div>
+                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  PROTECTED
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                {t('auth_status_desc')}
+              </p>
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="w-full mt-1.5 py-2 px-3 bg-red-950/30 hover:bg-red-950/50 border border-red-500/30 hover:border-red-500/50 text-red-300 hover:text-red-200 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5 text-red-400" />
+                  <span>{t('auth_logout')}</span>
+                </button>
+              )}
             </div>
 
             {/* Local Storage & Cache Reset */}

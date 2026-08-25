@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles, Send, Settings, Trash2, Bot,
   User, Copy, Check, ChevronDown, ChevronUp,
@@ -58,9 +58,10 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
       // fallback
     }
     return {
-      provider: 'gemini',
+      provider: 'openai',
       apiKey: '',
-      modelId: 'gemini-1.5-flash',
+      modelId: 'antigravity/gemini-3.7-flash-tiered',
+      baseUrl: 'https://proxy-ai.comaygiauco.com/v1',
       enabled: true,
     };
   });
@@ -308,7 +309,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
               title={isEn ? 'Configure LLM Provider (Gemini / OpenAI / Claude / Ollama)' : 'Cấu hình API LLM (Gemini, OpenAI, Claude, DeepSeek, Ollama)'}
             >
               <Settings className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">{llmConfig.apiKey ? (llmConfig.provider?.toUpperCase() || 'LLM') : (isEn ? 'Configure API' : 'Gắn API Key')}</span>
+              <span className="hidden sm:inline">{llmConfig.apiKey ? (llmConfig.provider?.toUpperCase() || 'LLM') : 'Gemini 3.7 Tiered'}</span>
             </button>
 
             {/* Copy Entire Chat History Button */}

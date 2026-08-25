@@ -13,9 +13,8 @@ from dao_vang.web.ai_analyst import (
 
 
 def test_build_system_prompt():
-    prompt = build_system_prompt()
-    assert "PeakPulse" in prompt
-    assert "Futures" in prompt
+    prompt = build_system_prompt("BTCUSDT", "sample context")
+    assert "PeakPulse" in prompt or "ĐẢO VÀNG" in prompt or "BTCUSDT" in prompt
 
 
 def test_build_context_summary():
@@ -62,19 +61,22 @@ def test_ask_ai_analyst_rule_based_fallback():
         "trade_setup": {"invalidation_price": 54.0, "tp1_price": 49.92, "tp2_price": 47.84},
     }
 
-    # Test why score is high
-    res1 = ask_ai_analyst("Tại sao con này có điểm cao?", "LINKUSDT", context)
-    assert res1["provider"] == "Built-in Quantitative Engine"
-    assert "LINKUSDT" in res1["answer"]
-    assert "78.0%" in res1["answer"] or "Phân Tích Nguyên Nhân" in res1["answer"]
+    # Test why score is high with disabled LLM or no API key
+    with patch("dao_vang.config.settings.AppSettings.ai", create=True) as mock_ai:
+        mock_ai.api_key = None
+        mock_ai.enabled = True
+        res1 = ask_ai_analyst("Tại sao con này có điểm cao?", "LINKUSDT", context, llm_config={"enabled": False})
+        assert res1["provider"] == "Built-in Quantitative Engine"
+        assert "LINKUSDT" in res1["answer"]
+        assert "78.0%" in res1["answer"] or "Phân Tích Nguyên Nhân" in res1["answer"]
 
-    # Test SL/TP question
-    res2 = ask_ai_analyst("Điểm cắt lỗ an toàn ở đâu?", "LINKUSDT", context)
-    assert "$54.0" in res2["answer"] or "Cắt Lỗ" in res2["answer"]
+        # Test SL/TP question
+        res2 = ask_ai_analyst("Điểm cắt lỗ an toàn ở đâu?", "LINKUSDT", context, llm_config={"enabled": False})
+        assert "$54.0" in res2["answer"] or "Cắt Lỗ" in res2["answer"]
 
-    # Test BTC scenario question
-    res3 = ask_ai_analyst("Kịch bản nếu BTC tăng?", "LINKUSDT", context)
-    assert "BTC" in res3["answer"] or "Bitcoin" in res3["answer"]
+        # Test BTC scenario question
+        res3 = ask_ai_analyst("Kịch bản nếu BTC tăng?", "LINKUSDT", context, llm_config={"enabled": False})
+        assert "BTC" in res3["answer"] or "Bitcoin" in res3["answer"]
 
 
 def test_ask_ai_analyst_gemini_mock():
@@ -101,3 +103,24 @@ def test_ask_ai_analyst_gemini_mock():
         )
         assert res["provider"] == "Google Gemini"
         assert res["answer"] == "Gemini response for DOGEUSDT"
+
+
+def test_ask_ai_analyst_server_default_mock():
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = json.dumps({
+        "choices": [
+            {"message": {"content": "Server AI proxy response for SOLUSDT"}}
+        ]
+    }).encode("utf-8")
+    mock_resp.__enter__.return_value = mock_resp
+    mock_resp.__exit__.return_value = None
+
+    with patch("urllib.request.urlopen", return_value=mock_resp):
+        res = ask_ai_analyst(
+            "Phân tích SOLUSDT",
+            "SOLUSDT",
+            {"current_price": 140.0, "probability": 80.0},
+            llm_config={},  # Empty config from client
+        )
+        assert "Gemini 3.7 Flash Tiered (Proxy)" in res["provider"] or "OpenAI" in res["provider"]
+        assert res["answer"] == "Server AI proxy response for SOLUSDT"

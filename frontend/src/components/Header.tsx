@@ -21,6 +21,7 @@ import {
   GitPullRequest,
   Settings,
   Radio,
+  Lock,
 } from 'lucide-react';
 import {
   getRiskLabel,
@@ -48,6 +49,7 @@ interface HeaderProps {
   onOpenSettings?: () => void;
   onOpenCoinSelector?: () => void;
   onOpenRadar?: () => void;
+  onLogout?: () => void;
   trackingCount: number;
   activeScanMode: string;
   autoTelegramEnabled: boolean;
@@ -87,6 +89,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSettings,
   onOpenCoinSelector,
   onOpenRadar,
+  onLogout,
   trackingCount,
   activeScanMode,
   autoTelegramEnabled: _autoTelegramEnabled,
@@ -743,6 +746,21 @@ export const Header: React.FC<HeaderProps> = ({
                         </button>
                       )}
 
+                      {/* Lock / Logout */}
+                      {onLogout && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onLogout();
+                            setMoreToolsDropdownOpen(false);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-950/40 hover:text-red-300 transition"
+                        >
+                          <Lock className="w-3.5 h-3.5 text-red-400" />
+                          <span>{t('auth_logout')}</span>
+                        </button>
+                      )}
+
                       {/* PWA Install */}
                       <div className="px-1 py-1">
                         <PwaInstallButton />
@@ -805,6 +823,19 @@ export const Header: React.FC<HeaderProps> = ({
                 </>
               )}
             </div>
+
+            {/* Top Bar Lock / Logout Button */}
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700/80 bg-slate-800 text-slate-400 shadow-sm transition hover:border-red-500/50 hover:bg-red-950/30 hover:text-red-400 active:scale-95 cursor-pointer"
+                title={t('auth_logout')}
+                aria-label={t('auth_logout')}
+              >
+                <Lock className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         </div>
       </div>

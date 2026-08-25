@@ -93,6 +93,7 @@ interface MainWorkspaceProps {
   setThreshold?: (val: number) => void;
   activeScanModes?: string[];
   onOpenWatchlistModal?: () => void;
+  onLogout?: () => void;
 }
 
 export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
@@ -150,6 +151,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   setThreshold,
   activeScanModes,
   onOpenWatchlistModal,
+  onLogout,
 }) => {
   const { language, t } = useTranslation();  
   const riskLabels: Record<string, string> = {
@@ -2211,6 +2213,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             setThreshold={setThreshold}
             activeScanModes={activeScanModes}
             onOpenWatchlistModal={onOpenWatchlistModal}
+            onLogout={onLogout}
           />
         </ErrorBoundary>
       )}

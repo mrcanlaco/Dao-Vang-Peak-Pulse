@@ -422,23 +422,120 @@ class APIHandler(BaseHTTPRequestHandler):
     # response, which lets clients detect end-of-body via connection close.
     protocol_version = 'HTTP/1.0'
 
-    def _set_headers(self, status=200, content_type='application/json; charset=utf-8', cache_control='no-store, no-cache, must-revalidate, max-age=0', content_length=None):
+    def _set_headers(self, status=200, content_type='application/json; charset=utf-8', cache_control='no-store, no-cache, must-revalidate, max-age=0', content_length=None, extra_headers=None):
         self.send_response(status)
         self.send_header('Content-Type', content_type)
         if cache_control:
             self.send_header('Cache-Control', cache_control)
         if content_length is not None:
             self.send_header('Content-Length', str(content_length))
+        if extra_headers:
+            for k, v in extra_headers.items():
+                self.send_header(k, v)
         self.send_header('Connection', 'close')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Access-Password, X-Auth-Token')
         self.end_headers()
+
+    def _check_auth(self) -> bool:
+        """Verify if the request has a valid password/token when access password is configured."""
+        expected = (_settings.web.access_password or "").strip()
+        if not expected:
+            return True
+
+        # 1. Check X-Access-Password or X-Auth-Token header
+        x_pass = self.headers.get('X-Access-Password', '') or self.headers.get('X-Auth-Token', '')
+        if x_pass and x_pass.strip() == expected:
+            return True
+
+        # 2. Check Authorization header
+        auth_header = self.headers.get('Authorization', '')
+        if auth_header:
+            if auth_header.startswith('Bearer '):
+                token = auth_header[7:].strip()
+                if token == expected:
+                    return True
+            elif auth_header.strip() == expected:
+                return True
+
+        # 3. Check Cookie header
+        cookie_header = self.headers.get('Cookie', '')
+        if cookie_header:
+            from http.cookies import SimpleCookie
+            try:
+                cookie = SimpleCookie(cookie_header)
+                if 'dao_vang_password' in cookie and cookie['dao_vang_password'].value == expected:
+                    return True
+            except Exception:
+                pass
+
+        # 4. Check query params (optional fallback)
+        try:
+            parsed = urlparse(self.path)
+            if parsed.query:
+                qs = parse_qs(parsed.query)
+                token_param = qs.get('token', [''])[0] or qs.get('password', [''])[0]
+                if token_param and token_param == expected:
+                    return True
+        except Exception:
+            pass
+
+        return False
+
+    def _send_unauthorized(self):
+        err_body = json.dumps({
+            "error": "Unauthorized",
+            "auth_required": True,
+            "message": "Vui lòng nhập mật khẩu hợp lệ để truy cập hệ thống.",
+        }, ensure_ascii=False).encode("utf-8")
+        self._set_headers(401, content_length=len(err_body))
+        self.wfile.write(err_body)
+
+    def get_auth_status(self):
+        expected = bool((_settings.web.access_password or "").strip())
+        is_authenticated = self._check_auth()
+        resp = {
+            "auth_required": expected,
+            "authenticated": is_authenticated,
+        }
+        body = json.dumps(resp).encode("utf-8")
+        self._set_headers(200, content_length=len(body))
+        self.wfile.write(body)
+
+    def verify_auth_password(self, data: dict[str, Any]):
+        password = str(data.get("password") or "").strip()
+        expected = (_settings.web.access_password or "").strip()
+        if not expected or password == expected:
+            resp = {
+                "ok": True,
+                "authenticated": True,
+                "token": password or expected,
+                "message": "Xác thực thành công",
+            }
+            body = json.dumps(resp, ensure_ascii=False).encode("utf-8")
+            cookie_val = f"dao_vang_password={password or expected}; Path=/; SameSite=Lax; Max-Age=31536000"
+            self._set_headers(200, content_length=len(body), extra_headers={"Set-Cookie": cookie_val})
+            self.wfile.write(body)
+        else:
+            resp = {
+                "ok": False,
+                "authenticated": False,
+                "error": "Mật khẩu không chính xác. Vui lòng thử lại.",
+            }
+            body = json.dumps(resp, ensure_ascii=False).encode("utf-8")
+            self._set_headers(401, content_length=len(body))
+            self.wfile.write(body)
 
     def do_OPTIONS(self):
         self._set_headers(200)
 
     def do_HEAD(self):
+        parsed = urlparse(self.path)
+        if parsed.path.startswith('/api/') and parsed.path not in ('/api/auth/status', '/api/auth/check', '/api/health'):
+            if not self._check_auth():
+                self._set_headers(401)
+                return
         self._set_headers(200)
 
     def do_GET(self):
@@ -469,6 +566,18 @@ class APIHandler(BaseHTTPRequestHandler):
         path = unquote(parsed.path)
 
         if path.startswith('/api/'):
+            if path in ('/api/auth/status', '/api/auth/check'):
+                self.get_auth_status()
+                return
+            elif path == '/api/health':
+                body = json.dumps({"status": "ok", "time": system_now().isoformat()}).encode('utf-8')
+                self._set_headers(200, content_length=len(body))
+                self.wfile.write(body)
+                return
+            elif not self._check_auth():
+                self._send_unauthorized()
+                return
+
             if path == '/api/status':
                 self.get_status()
             elif path == '/api/signals':
@@ -603,6 +712,15 @@ class APIHandler(BaseHTTPRequestHandler):
             data = json.loads(body.decode('utf-8')) if body else {}
         except json.JSONDecodeError:
             data = {}
+
+        if parsed.path in ('/api/auth/verify', '/api/auth/login'):
+            self.verify_auth_password(data)
+            return
+
+        if parsed.path.startswith('/api/'):
+            if not self._check_auth():
+                self._send_unauthorized()
+                return
 
         if parsed.path == '/api/ai/ask':
             question = data.get('question', '').strip()
@@ -860,6 +978,11 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def do_PATCH(self):
         parsed = urlparse(self.path)
+        if parsed.path.startswith('/api/'):
+            if not self._check_auth():
+                self._send_unauthorized()
+                return
+
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length) if content_length > 0 else b'{}'
         try:
@@ -898,6 +1021,11 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         parsed = urlparse(self.path)
+        if parsed.path.startswith('/api/'):
+            if not self._check_auth():
+                self._send_unauthorized()
+                return
+
         prefix = '/api/tracking-watchlist/'
         if not parsed.path.startswith(prefix):
             self._set_headers(404)

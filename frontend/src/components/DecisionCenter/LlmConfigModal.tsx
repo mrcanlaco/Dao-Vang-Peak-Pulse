@@ -148,10 +148,10 @@ export const LlmConfigModal: React.FC<LlmConfigModalProps> = ({
   };
 
   const handleReset = () => {
-    setProvider('gemini');
+    setProvider('openai');
     setApiKey('');
-    setModelId('gemini-1.5-flash');
-    setBaseUrl('');
+    setModelId('antigravity/gemini-3.7-flash-tiered');
+    setBaseUrl('https://proxy-ai.comaygiauco.com/v1');
     setEnabled(true);
     setTestResult(null);
   };
@@ -185,6 +185,15 @@ export const LlmConfigModal: React.FC<LlmConfigModalProps> = ({
 
         {/* Content Body */}
         <div className="p-5 space-y-4 overflow-y-auto flex-1 text-xs">
+          {/* Server Default AI Info Banner */}
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 text-xs">
+            <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="text-slate-300 leading-relaxed text-[11px]">
+              <span className="font-semibold text-amber-300">Model Mặc Định Hệ Thống: </span>
+              Hệ thống đã cấu hình sẵn <strong>Gemini 3.7 Flash Tiered</strong> chạy qua Server. Bạn có thể sử dụng ngay mà không cần nhập key, hoặc nhập key riêng dưới đây nếu muốn.
+            </div>
+          </div>
+
           {/* Provider Selection */}
           <div>
             <label className="block text-[11px] font-bold text-slate-300 uppercase tracking-wider mb-2">

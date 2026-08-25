@@ -349,12 +349,29 @@ def ask_ai_analyst(
     history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Process an AI question with real-time coin context and multi-turn chat history."""
+    from dao_vang.config.settings import AppSettings
+    _app_settings = AppSettings()
+
     cfg = llm_config or {}
     provider = (cfg.get("provider") or "").lower().strip()
     api_key = (cfg.get("apiKey") or cfg.get("api_key") or "").strip()
     model_id = (cfg.get("modelId") or cfg.get("model_id") or "").strip()
     base_url = (cfg.get("baseUrl") or cfg.get("base_url") or "").strip()
-    enabled = cfg.get("enabled", True)
+
+    # If client did not specify custom credentials, fall back to server-side default AI
+    if not provider and not api_key:
+        provider = (_app_settings.ai.provider or "openai").lower().strip()
+        api_key = (_app_settings.ai.api_key or "").strip()
+        model_id = model_id or (_app_settings.ai.model_id or "antigravity/gemini-3.7-flash-tiered").strip()
+        base_url = base_url or (_app_settings.ai.base_url or "https://proxy-ai.comaygiauco.com/v1").strip()
+    elif not api_key and provider in ("openai", "proxy", "custom"):
+        api_key = (_app_settings.ai.api_key or "").strip()
+        if not base_url:
+            base_url = (_app_settings.ai.base_url or "https://proxy-ai.comaygiauco.com/v1").strip()
+        if not model_id:
+            model_id = (_app_settings.ai.model_id or "antigravity/gemini-3.7-flash-tiered").strip()
+
+    enabled = cfg.get("enabled", _app_settings.ai.enabled)
 
     context_str = build_context_summary(symbol, context)
     system_prompt = build_system_prompt(symbol, context_str)
@@ -366,16 +383,19 @@ def ask_ai_analyst(
 
     if enabled and api_key and provider:
         try:
-            if provider == "gemini":
+            if provider == "gemini" and not base_url:
                 used_provider = "Google Gemini"
                 used_model = model_id or "gemini-1.5-flash"
                 answer = _call_gemini(api_key, used_model, system_prompt, user_prompt, history=history)
-            elif provider == "openai":
-                used_provider = "OpenAI"
-                used_model = model_id or "gpt-4o-mini"
+            elif provider in ("openai", "proxy", "custom"):
+                if "proxy" in base_url or "proxy" in provider or "tiered" in model_id:
+                    used_provider = "Gemini 3.7 Flash Tiered (Proxy)"
+                else:
+                    used_provider = "OpenAI"
+                used_model = model_id or "antigravity/gemini-3.7-flash-tiered"
                 answer = _call_openai_compatible(
                     api_key,
-                    base_url or "https://api.openai.com/v1",
+                    base_url or "https://proxy-ai.comaygiauco.com/v1",
                     used_model,
                     system_prompt,
                     user_prompt,

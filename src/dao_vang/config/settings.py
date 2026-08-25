@@ -248,6 +248,11 @@ class WebConfig(BaseModel):
     # `host`: the web server may bind locally while users open the dashboard
     # through a domain or tunnel.
     public_url: str = Field(default="http://127.0.0.1:8000")
+    # Access password for dashboard and APIs to prevent unauthorized quota consumption
+    access_password: str = Field(
+        default="Hailong200%",
+        description="Password required to access the dashboard and APIs",
+    )
 
 
 class UpdaterConfig(BaseModel):
@@ -263,8 +268,17 @@ class UpdaterConfig(BaseModel):
     auto_deploy_remote: bool = Field(default=False)
 
 
+class AiConfig(BaseModel):
+    provider: str = Field(default="openai", description="Default LLM provider (openai, gemini, claude, deepseek, ollama)")
+    api_key: str | None = Field(default=None, exclude=True, description="Default API key for AI analyst")
+    model_id: str = Field(default="antigravity/gemini-3.7-flash-tiered", description="Default model ID")
+    base_url: str = Field(default="https://proxy-ai.comaygiauco.com/v1", description="Default OpenAI-compatible base URL")
+    enabled: bool = Field(default=True, description="Enable AI analyst by default")
+
+
 class AppSettings(BaseSettings):
     web: WebConfig = WebConfig()
+    ai: AiConfig = AiConfig()
     updater: UpdaterConfig = UpdaterConfig()
     binance: BinanceConfig = BinanceConfig()
     collection: CollectionPolicy = CollectionPolicy()
