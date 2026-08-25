@@ -20,6 +20,9 @@ echo "==> [$(date '+%Y-%m-%d %H:%M:%S')] B?t d?u quy trình Backup lên Google Dri
 
 mkdir -p "${BACKUP_DIR}"
 
+# C?p quy?n d?c cho t?t c? file d? li?u du?c docker container t?o ra
+sudo chmod -R a+r "${DATA_DIR}" 2>/dev/null || true
+
 if ! rclone listremotes | grep -q "^gdrive:"; then
     echo "[L?I] Chua c?u hình remote 'gdrive' trong rclone!" >> "${LOG_FILE}"
     echo "Vui lòng ch?y 'rclone config' d? k?t n?i tài kho?n Google Drive." >> "${LOG_FILE}"
