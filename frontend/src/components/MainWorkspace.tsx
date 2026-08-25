@@ -325,10 +325,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       signal_timestamp: selectedSignal.signal_time,
       score_source: 'signal' as const,
       metrics: {
-        ...coinDetail.metrics,
-        oi_change_24h: selectedSignal.oi_change_24h ?? coinDetail.metrics.oi_change_24h,
-        funding_rate: selectedSignal.funding_rate ?? coinDetail.metrics.funding_rate,
-        taker_sell_ratio: selectedSignal.taker_sell_ratio ?? coinDetail.metrics.taker_sell_ratio,
+        ...(coinDetail.metrics || {}),
+        oi_change_24h: selectedSignal.oi_change_24h ?? coinDetail.metrics?.oi_change_24h ?? 'N/A',
+        funding_rate: selectedSignal.funding_rate ?? coinDetail.metrics?.funding_rate ?? 'N/A',
+        taker_sell_ratio: selectedSignal.taker_sell_ratio ?? coinDetail.metrics?.taker_sell_ratio ?? 0.5,
       },
     };
   }, [coinDetail, selectedSignal]);
@@ -803,30 +803,30 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   {/* Metrics grid — 6 cols */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 [&>div]:min-w-0">
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="text-[9px] text-slate-400 uppercase">OI 24h</div>
-                      <div className="font-mono font-bold text-xs sm:text-sm text-red-400 truncate" title={displayDetail.metrics.oi_change_24h}>{displayDetail.metrics.oi_change_24h}</div>
+                      <div className="text-[9px] text-slate-400 uppercase">{t('metric_oi_24h')}</div>
+                      <div className="font-mono font-bold text-xs sm:text-sm text-red-400 truncate" title={displayDetail.metrics?.oi_change_24h ?? 'N/A'}>{displayDetail.metrics?.oi_change_24h ?? 'N/A'}</div>
                     </div>
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
                       <div className="text-[9px] text-slate-400 uppercase">{t('metric_funding')}</div>
-                      <div className="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate" title={displayDetail.metrics.funding_rate}>{displayDetail.metrics.funding_rate}</div>
+                      <div className="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate" title={displayDetail.metrics?.funding_rate ?? 'N/A'}>{displayDetail.metrics?.funding_rate ?? 'N/A'}</div>
                     </div>
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
                       <div className="text-[9px] text-slate-400 uppercase">{t('metric_taker_sell')}</div>
-                      <div className="font-mono font-bold text-xs sm:text-sm text-slate-200 truncate">{(displayDetail.metrics.taker_sell_ratio * 100).toFixed(1)}%</div>
+                      <div className="font-mono font-bold text-xs sm:text-sm text-slate-200 truncate">{displayDetail.metrics?.taker_sell_ratio != null ? `${(displayDetail.metrics.taker_sell_ratio * 100).toFixed(1)}%` : 'N/A'}</div>
                     </div>
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="text-[9px] text-slate-400 uppercase">RSI 15m</div>
+                      <div className="text-[9px] text-slate-400 uppercase">{t('metric_rsi_15m')}</div>
                       <div className={`font-mono font-bold text-xs sm:text-sm truncate ${
-                        displayDetail.metrics.rsi_15m == null ? 'text-slate-500' :
+                        displayDetail.metrics?.rsi_15m == null ? 'text-slate-500' :
                         displayDetail.metrics.rsi_15m > 70 ? 'text-red-400' :
                         displayDetail.metrics.rsi_15m < 30 ? 'text-emerald-400' : 'text-amber-300'
                       }`}>
-                        {displayDetail.metrics.rsi_15m != null ? displayDetail.metrics.rsi_15m.toFixed(1) : (t('metric_insufficient_data'))}
+                        {displayDetail.metrics?.rsi_15m != null ? displayDetail.metrics.rsi_15m.toFixed(1) : (t('metric_insufficient_data'))}
                       </div>
                     </div>
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
                       <div className="text-[9px] text-slate-400 uppercase">{t('chart_vol_delta_24h')}</div>
-                      <div className="font-mono font-bold text-xs sm:text-sm text-sky-400 truncate" title={displayDetail.metrics.volume_delta_24h}>{displayDetail.metrics.volume_delta_24h}</div>
+                      <div className="font-mono font-bold text-xs sm:text-sm text-sky-400 truncate" title={displayDetail.metrics?.volume_delta_24h ?? 'N/A'}>{displayDetail.metrics?.volume_delta_24h ?? 'N/A'}</div>
                     </div>
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
                       <div className="text-[9px] text-slate-400 uppercase">{t('feed_target_drawdown')}</div>
@@ -961,7 +961,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               </span>
             </button>
 
-            {/* Overlap */}
+            {/* {t('cand_badge_overlap')} */}
             <button
               type="button"
               onClick={() => setCandidateFilterSegment('OVERLAP')}
@@ -1027,7 +1027,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="rounded-lg border border-indigo-900/80 bg-slate-950/80 p-3">
                   <div className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
                     <Zap className="h-3.5 w-3.5 text-amber-400" />
-                    <span>1. Sổ Lệnh Microstructure L2/L3</span>
+                    <span>{t('cand_tab_microstructure')}</span>
                   </div>
                   <p className="mt-1 text-[11px] text-slate-300 leading-relaxed">
                     Phân tích Orderbook Bid/Ask Depth Imbalance trực tiếp từ luồng WebSocket 100ms. Đo lường lực hấp thụ âm thầm (iceberg orders) trước khi giá đảo chiều.
@@ -1037,7 +1037,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="rounded-lg border border-indigo-900/80 bg-slate-950/80 p-3">
                   <div className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
                     <Layers className="h-3.5 w-3.5 text-cyan-400" />
-                    <span>2. Học Sâu Multi-Horizon Transformer</span>
+                    <span>{t('cand_tab_deep_learning')}</span>
                   </div>
                   <p className="mt-1 text-[11px] text-slate-300 leading-relaxed">
                     Đồng bộ 3 khung thời gian (1m, 5m, 1h) để nhận diện mô hình tích lũy giả và bẫy thanh khoản (Liquidity sweeps) của Market Maker với độ trễ thấp hơn.
@@ -1047,7 +1047,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="rounded-lg border border-indigo-900/80 bg-slate-950/80 p-3">
                   <div className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
                     <Award className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>3. So Sánh Đa Chiều (V2 vs V1 vs V3)</span>
+                    <span>{t('cand_tab_comparison')}</span>
                   </div>
                   <p className="mt-1 text-[11px] text-slate-300 leading-relaxed">
                     Kiến trúc hệ thống cho phép cắm trực tiếp V3 vào làm Challenger thứ 2. Tự động đối chiếu P@10, Recall và False Alarms giữa cả 3 phiên bản đồng thời.
@@ -1123,7 +1123,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-bold uppercase tracking-wider text-violet-400">{t('ranking_v2_selected_label')}</span>
-                      <span className="rounded bg-violet-950/80 px-1 py-0.2 text-[8px] font-bold text-violet-300">Champion 👑</span>
+                      <span className="rounded bg-violet-950/80 px-1 py-0.2 text-[8px] font-bold text-violet-300">{t('cand_badge_champion')}</span>
                     </div>
                     <div className="mt-1 text-xl font-bold text-violet-300">{count}</div>
                     <div className="flex items-center gap-1 text-[9px] text-violet-400/80">
@@ -1165,7 +1165,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 );
               })()}
 
-              {/* Overlap */}
+              {/* {t('cand_badge_overlap')} */}
               {(() => {
                 const isExpanded = expandedComparisonGroup === 'overlap';
                 const count = candidateComparison?.overlap ?? comparisonSelections.overlap.length;
@@ -1183,7 +1183,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">{t('ranking_both_selected_label')}</span>
-                      <span className="rounded bg-emerald-950/80 px-1 py-0.2 text-[8px] font-medium text-emerald-300">Overlap</span>
+                      <span className="rounded bg-emerald-950/80 px-1 py-0.2 text-[8px] font-medium text-emerald-300">{t('cand_badge_overlap')}</span>
                     </div>
                     <div className="mt-1 text-xl font-bold text-emerald-300">{count}</div>
                     <div className="flex items-center gap-1 text-[9px] text-emerald-400/80">
@@ -1319,7 +1319,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         <th className="pb-1.5 font-semibold">{language === 'zh' ? '评估指标' : language === 'ko' ? '평가 지표' : t('h2h_col_metric')}</th>
                         <th className="pb-1.5 font-semibold text-violet-400">V2 (Quant 👑)</th>
                         <th className="pb-1.5 font-semibold text-amber-400">V1 (Pump)</th>
-                        <th className="pb-1.5 font-semibold text-cyan-300">Chênh lệch Δ</th>
+                        <th className="pb-1.5 font-semibold text-cyan-300">{t('cand_diff_delta')}</th>
                         <th className="pb-1.5 text-right font-semibold">{language === 'zh' ? '优势' : language === 'ko' ? '우위 평가' : t('h2h_col_advantage')}</th>
                       </tr>
                     </thead>
@@ -1422,7 +1422,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <div className="space-y-2 text-[10px]">
                     <div className="rounded border border-violet-900/60 bg-violet-950/30 p-2 text-violet-200">
                       <div className="font-bold text-violet-300 flex items-center gap-1">
-                        <span>👑 V2 Quantitative Filter (Champion):</span>
+                        <span>{t('cand_v2_quant_desc')}</span>
                       </div>
                       <p className="mt-0.5 text-slate-300">
                         {t('candidate_v2_operational_desc')}
@@ -1440,7 +1440,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
                     <div className="rounded border border-indigo-900/60 bg-indigo-950/20 p-2 text-indigo-200">
                       <div className="font-bold text-indigo-300 flex items-center gap-1">
-                        <span>🔬 V3 Next-Gen AI Integration:</span>
+                        <span>{t('cand_v3_ai_desc')}</span>
                       </div>
                       <p className="mt-0.5 text-slate-300">
                         {t('candidate_v3_roadmap_desc')}
@@ -1478,7 +1478,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <th className="p-2.5">{t('col_price')}</th>
                   <th className="p-2.5">{t('col_score')}</th>
                   <th className="p-2.5">{language === 'zh' ? '风险等级' : language === 'ko' ? '위험 등급' : t('ranking_col_risk_tier')}</th>
-                  <th className="p-2.5">OI 24h</th>
+                  <th className="p-2.5">{t('metric_oi_24h')}</th>
                   <th className="p-2.5">{t('metric_funding')}</th>
                   <th className="p-2.5">{t('metric_taker_sell')}</th>
                   <th className="p-2.5">{t('metric_volume_24h')}</th>
@@ -1500,9 +1500,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   const isV1Only = comparisonSelections.challenger_only.some((item) => item.symbol === c.symbol);
                   const isV2Selected = comparisonSelections.champion.some((item) => item.symbol === c.symbol);
                   const stageName = isOverlap
-                    ? 'OVERLAP'
+                    ? t('cand_badge_overlap')
                     : isV2Only
-                    ? 'V2 UNIQUE'
+                    ? t('cand_badge_unique')
                     : isV1Only
                     ? 'V1 PUMP'
                     : isV2Selected
@@ -2042,7 +2042,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             {/* Top Gainers */}
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
               <h4 className="text-xs font-bold text-emerald-400 mb-2 flex items-center gap-1">
-                <ArrowUpRight className="w-3.5 h-3.5" /> `${t('market_top_gainers_title')} (${marketData.top_gainers.length})`
+                <ArrowUpRight className="w-3.5 h-3.5" /> {`${t('market_top_gainers_title')} (${marketData.top_gainers.length})`}
               </h4>
               <div className="space-y-1 text-xs max-h-[420px] overflow-y-auto pr-1">
                 {marketData.top_gainers.map((g, i) => (
@@ -2066,7 +2066,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             {/* Top Losers */}
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
               <h4 className="text-xs font-bold text-red-400 mb-2 flex items-center gap-1">
-                <ArrowDownRight className="w-3.5 h-3.5" /> `${t('market_top_losers_title')} (${marketData.top_losers.length})`
+                <ArrowDownRight className="w-3.5 h-3.5" /> {`${t('market_top_losers_title')} (${marketData.top_losers.length})`}
               </h4>
               <div className="space-y-1 text-xs max-h-[420px] overflow-y-auto pr-1">
                 {marketData.top_losers.map((l, i) => (

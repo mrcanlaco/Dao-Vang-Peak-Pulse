@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import ZoneInfo
 
 import duckdb
@@ -477,31 +477,28 @@ class APIHandler(BaseHTTPRequestHandler):
             elif path in ('/api/candidates/compare', '/api/candidates/comparison'):
                 self.get_candidate_filter_comparison()
             elif path.startswith('/api/coin/'):
-                parts = path.split('/')
-                if len(parts) >= 4 and parts[3] == 'deep-analysis':
+                parts = path.strip('/').split('/')
+                if len(parts) >= 3:
                     symbol = parts[2]
-                    self.get_deep_analysis(symbol)
-                elif len(parts) >= 4 and parts[3] == 'shap':
-                    symbol = parts[2]
-                    self.get_shap_analysis(symbol)
-                elif len(parts) >= 4 and parts[3] == 'chart':
-                    symbol = parts[2]
-                    self.get_coin_chart(symbol)
-                elif len(parts) >= 4 and parts[3] == 'klines':
-                    symbol = parts[2]
-                    interval = '5m'
-                    limit = 100
-                    if parsed.query:
-                        query_params = parse_qs(parsed.query)
-                        interval = query_params.get('interval', ['5m'])[0]
-                        try:
-                            limit = int(query_params.get('limit', ['100'])[0])
-                        except ValueError:
-                            limit = 100
-                    self.get_coin_klines(symbol, interval=interval, limit=limit)
-                elif len(parts) >= 3:
-                    symbol = parts[2]
-                    self.get_coin_detail(symbol)
+                    if len(parts) >= 4 and parts[3] == 'deep-analysis':
+                        self.get_deep_analysis(symbol)
+                    elif len(parts) >= 4 and parts[3] == 'shap':
+                        self.get_shap_analysis(symbol)
+                    elif len(parts) >= 4 and parts[3] == 'chart':
+                        self.get_coin_chart(symbol)
+                    elif len(parts) >= 4 and parts[3] == 'klines':
+                        interval = '5m'
+                        limit = 100
+                        if parsed.query:
+                            query_params = parse_qs(parsed.query)
+                            interval = query_params.get('interval', ['5m'])[0]
+                            try:
+                                limit = int(query_params.get('limit', ['100'])[0])
+                            except ValueError:
+                                limit = 100
+                        self.get_coin_klines(symbol, interval=interval, limit=limit)
+                    else:
+                        self.get_coin_detail(symbol)
             elif path in ('/api/market-overview', '/api/market'):
                 self.get_market()
             elif path == '/api/watchlist-presets':
@@ -2012,12 +2009,14 @@ class APIHandler(BaseHTTPRequestHandler):
             else:
                 rsi_15m = 100.0
 
-        # Volume delta: use volume_percentile_24h from latest row (0-1 scale)
-        # rows[0][11] is volume_percentile_24h; rows[0][6] is taker_buy_base.
-        latest_vol_pct = rows[0][11] if rows else None
-        if latest_vol_pct is not None:
-            latest_vol_pct = min(1.0, max(0.0, float(latest_vol_pct)))
-        vol_delta_str = f"{float(latest_vol_pct) * 100:.0f}%" if latest_vol_pct is not None else "N/A"
+        # Volume delta: calculate from chart_points if available
+        vol_delta_str = "N/A"
+        if len(chart_points) >= 2:
+            recent_vols = [p["volume"] for p in chart_points[-12:]]  # last 1h
+            earlier_vols = [p["volume"] for p in chart_points[:12]]
+            if earlier_vols and sum(earlier_vols) > 0:
+                v_ratio = (sum(recent_vols) / sum(earlier_vols) - 1.0)
+                vol_delta_str = f"{v_ratio:+.0%}"
 
         alert_rows = _alert_store.query(symbol=symbol, days=2, include_dismissed=True, limit=1)
         latest_alert = alert_rows[0] if alert_rows else None

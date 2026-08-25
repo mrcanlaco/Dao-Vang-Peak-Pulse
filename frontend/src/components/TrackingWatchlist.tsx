@@ -124,9 +124,9 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
 
   const getSignalStatusLabel = (status: string, lang: Language): string => {
     const map: Record<string, Record<string, string>> = {
-      ACTIVE: { vi: 'Radar còn hiệu lực', en: 'Radar Active', zh: '雷达有效', ko: '레이더 유효' },
-      HIT: { vi: 'Radar đã trúng mục tiêu', en: 'Target Hit (-8%)', zh: '已达回撤目标(-8%)', ko: '목표 도달 (-8%)' },
-      EXPIRED: { vi: 'Radar hết hạn', en: 'Radar Expired', zh: '雷达已过期', ko: '레이더 만료' },
+      ACTIVE: { vi: 'Radar còn hiệu lực', en: t('track_status_radar_active'), zh: '雷达有效', ko: '레이더 유효' },
+      HIT: { vi: 'Radar đã trúng mục tiêu', en: t('track_status_target_hit'), zh: '已达回撤目标(-8%)', ko: '목표 도달 (-8%)' },
+      EXPIRED: { vi: 'Radar hết hạn', en: t('track_status_radar_expired'), zh: '雷达已过期', ko: '레이더 만료' },
       NO_SIGNAL: { vi: 'Theo dõi thủ công', en: 'Manual Track', zh: '手动跟踪', ko: '수동 추적' },
     };
     return map[status]?.[lang] ?? map[status]?.['en'] ?? status;
@@ -360,10 +360,10 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
                       <label className="text-[10px] text-slate-400">{t('track_form_side')}<select value={form.position_side} onChange={event => setForm(prev => ({ ...prev, position_side: event.target.value as 'LONG' | 'SHORT' }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200"><option value="SHORT">SHORT</option><option value="LONG">LONG</option></select></label>
                       <label className="text-[10px] text-slate-400">{t('track_form_entry')}<input required type="number" step="any" min="0" value={form.entry_price} onChange={event => setForm(prev => ({ ...prev, entry_price: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
                       <label className="text-[10px] text-slate-400">{t('track_form_qty')}<input type="number" step="any" min="0" value={form.quantity} onChange={event => setForm(prev => ({ ...prev, quantity: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
-                      <label className="text-[10px] text-slate-400">Notional USDT<input type="number" step="any" min="0" value={form.notional} onChange={event => setForm(prev => ({ ...prev, notional: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
+                      <label className="text-[10px] text-slate-400">{t('track_notional_usdt')}<input type="number" step="any" min="0" value={form.notional} onChange={event => setForm(prev => ({ ...prev, notional: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
                       <label className="text-[10px] text-slate-400">{t('track_form_leverage')}<input type="number" step="any" min="0" value={form.leverage} onChange={event => setForm(prev => ({ ...prev, leverage: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
-                      <label className="text-[10px] text-slate-400">Stop Loss<input type="number" step="any" min="0" value={form.stop_loss} onChange={event => setForm(prev => ({ ...prev, stop_loss: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
-                      <label className="text-[10px] text-slate-400">Take Profit<input type="number" step="any" min="0" value={form.take_profit} onChange={event => setForm(prev => ({ ...prev, take_profit: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
+                      <label className="text-[10px] text-slate-400">{t('track_stop_loss_label')}<input type="number" step="any" min="0" value={form.stop_loss} onChange={event => setForm(prev => ({ ...prev, stop_loss: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
+                      <label className="text-[10px] text-slate-400">{t('track_take_profit_label')}<input type="number" step="any" min="0" value={form.take_profit} onChange={event => setForm(prev => ({ ...prev, take_profit: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
                       <label className="text-[10px] text-slate-400 sm:col-span-1">{t('track_form_notes')}<input value={form.notes} onChange={event => setForm(prev => ({ ...prev, notes: event.target.value }))} className="mt-1 h-8 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-xs text-slate-200" /></label>
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2">

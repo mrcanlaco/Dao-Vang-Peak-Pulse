@@ -2,6 +2,28 @@ export type Language = 'vi' | 'en' | 'zh' | 'ko';
 
 export const translations = {
   vi: {
+    "done": "Hoàn tất",
+    "cand_badge_overlap": "Trùng khớp Cả Hai",
+    "cand_badge_unique": "Chỉ V2 Phát Hiện",
+    "cand_tab_microstructure": "1. Sổ Lệnh Microstructure L2/L3",
+    "cand_tab_deep_learning": "2. Học Sâu Multi-Horizon Transformer",
+    "cand_tab_comparison": "3. So Sánh Đa Chiều (V2 vs V1 vs V3)",
+    "cand_badge_ab_test": "Mô hình Đối chứng (A/B Test)",
+    "cand_badge_champion": "Mô hình Quán quân 👑",
+    "cand_diff_delta": "Chênh lệch Δ",
+    "cand_v2_quant_desc": "👑 Mô hình Lọc Định lượng V2 (Champion):",
+    "cand_v3_ai_desc": "🔬 Tích hợp AI Thế hệ Mới V3:",
+    "cand_v1_pump_desc": "📊 Mô hình Cơ sở V1 Bơm Xả (A/B Test):",
+    "track_status_radar_active": "Radar Đang chạy",
+    "track_status_target_hit": "Đạt Mục tiêu (-8%)",
+    "track_status_radar_expired": "Hết hạn Radar",
+    "track_notional_usdt": "Quy mô vốn USDT",
+    "track_stop_loss_label": "Mức cắt lỗ (SL)",
+    "track_take_profit_label": "Mức chốt lời (TP)",
+    "trade_sub_signal_current": "Giá tín hiệu / Giá hiện tại",
+    "trade_sub_invalidation": "Ngưỡng hủy cấu trúc giảm",
+    "trade_sub_quick_drawdown": "Mục tiêu hồi quy nhanh -4%",
+    "trade_sub_ai_target": "Mục tiêu xả cốt lõi Radar -8%",
     "active_coins": "Coins quét",
     "app_subtitle": "PeakPulse AI",
     "app_tagline": "Hệ thống Radar cảnh báo sớm phân phối & tạo đỉnh thị trường Crypto bằng Máy học",
@@ -863,8 +885,99 @@ export const translations = {
     "metric_mae": "Mức Trượt Giá Ngược (MAE)",
     "metric_lead_time": "Báo Trước Đỉnh Trung Bình",
     "model_architecture_why": "Tại sao Kiến trúc 2 Tầng (V2) đạt độ chính xác cao hơn?",
+    trade_setup_rr_title: 'KẾ HOẠCH GIAO DỊCH SHORT (TỶ LỆ LỜI/LỖ)',
+    trade_rr_label: 'Tỷ lệ Lời/Lỗ (R:R):',
+    trade_sub_signal_current: 'Giá tín hiệu / Giá hiện tại',
+    trade_sub_invalidation: 'Ngưỡng hủy cấu trúc giảm',
+    trade_sub_quick_drawdown: 'Mục tiêu hồi quy nhanh -4%',
+    trade_sub_ai_target: 'Mục tiêu xả cốt lõi Radar -8%',
+    trade_enter_short_btn: 'Vào Lệnh Short (Binance / OKX)',
+    trade_enter_short_futures_btn: 'Vào Lệnh Short (Hợp đồng Binance / OKX)',
+    ws_radar_parity: '(Đồng bộ theo Radar)',
+    ws_calibration_title: 'Hiệu chuẩn Xác suất AI (Phép hiệu chuẩn Isotonic)',
+    ws_calibrated_prob_label: 'Xác suất chuẩn:',
+    ws_raw_score_label: 'Điểm gốc:',
+    ws_calibration_desc: 'Mô hình XGBoost + Bộ hiệu chuẩn Isotonic (Điểm Brier: {brier})',
+    ws_btc_pump_title: 'BỐI CẢNH BTC & BƠM XẢ',
+    ws_pump_pattern_label: 'Mẫu hình Tăng Nóng (Bơm Dựng Đứng)',
+    ws_pump_peak_label: 'Đỉnh:',
+    ws_pump_from_peak_label: 'từ đỉnh',
+    ws_pump_none: 'Không có',
+    ws_pump_not_detected_desc: '✓ Không có dấu hiệu tăng quá nóng trong 1-5 ngày gần nhất.',
+    ws_pump_detected_desc: '⚠️ Đã tăng nóng +{pct}% trong {days} ngày qua. Đang ở vùng phân phối áp lực cao.',
+    ws_shap_factors_count: '{count} yếu tố',
+    ws_shap_collapse_btn: 'Thu gọn bảng phân rã 8 thành phần',
+    ws_shap_expand_btn: 'Xem chi tiết phân rã toàn diện 8 thành phần',
+    ws_shap_col_factor: 'Thành phần / Chỉ số',
+    ws_shap_col_weight_score: 'Trọng số → Điểm đóng góp',
+    ws_shap_weight_label: 'trọng số',
+    cand_tab_microstructure: '1. Sổ Lệnh Microstructure L2/L3',
+    cand_tab_deep_learning: '2. Học Sâu Multi-Horizon Transformer',
+    cand_tab_comparison: '3. So Sánh Đa Chiều (V2 vs V1 vs V3)',
+    cand_badge_champion: 'Mô hình Quán quân 👑',
+    cand_badge_ab_test: 'Mô hình Đối chứng (A/B Test)',
+    cand_badge_overlap: 'Trùng khớp Cả Hai',
+    cand_badge_unique: 'Chỉ V2 Phát Hiện',
+    cand_diff_delta: 'Chênh lệch Δ',
+    cand_v2_quant_desc: '👑 Mô hình Lọc Định lượng V2 (Champion):',
+    cand_v1_pump_desc: '📊 Mô hình Cơ sở V1 Bơm Xả (A/B Test):',
+    cand_v3_ai_desc: '🔬 Tích hợp AI Thế hệ Mới V3:',
+    track_notional_usdt: 'Quy mô vốn USDT',
+    track_stop_loss_label: 'Mức cắt lỗ (SL)',
+    track_take_profit_label: 'Mức chốt lời (TP)',
+    track_status_radar_active: 'Radar Đang chạy',
+    track_status_target_hit: 'Đạt Mục tiêu (-8%)',
+    track_status_radar_expired: 'Hết hạn Radar',
+    done: 'Hoàn tất',
+    metric_oi_24h: 'Hợp đồng mở OI (24h)',
+    metric_rsi_15m: 'Chỉ số RSI (15m)',
+    trade_signal_current: 'Giá tín hiệu / Giá hiện tại',
+    trade_invalidation_level: 'Ngưỡng hủy cấu trúc giảm',
+    trade_quick_drawdown_4: 'Mục tiêu hồi quy nhanh -4%',
+    shap_collapse_8_factors: 'Thu gọn bảng phân rã 8 thành phần',
+    shap_expand_8_factors: 'Xem chi tiết phân rã toàn diện 8 thành phần',
+    shap_col_component: 'Thành phần / Chỉ số',
+    shap_col_weight_contribution: 'Trọng số → Điểm đóng góp',
+    shap_weight_unit: 'trọng số',
+    cockpit_parabolic_detection: 'Mẫu hình Tăng Nóng (Bơm Dựng Đứng)',
+    cockpit_pump_peak: 'Đỉnh:',
+    cockpit_pump_from_peak: 'từ đỉnh',
+    cockpit_no_pump_detected: '✓ Không có dấu hiệu tăng quá nóng trong 1-5 ngày gần nhất.',
+    cockpit_no_telegram_signal: 'Chưa có tín hiệu Telegram',
+    cockpit_market_regime_pump: 'BỐI CẢNH BTC & BƠM XẢ',
+    cockpit_quick_actions: 'THAO TÁC NHANH',
+    two_tier_title: 'Kiến Trúc 2 Tầng (2-Tier Climax & Orderflow)',
+    two_tier_htf: 'Tầng 1 (Khung lớn)',
+    two_tier_ltf: 'Tầng 2 (Dòng tiền 5m)',
+    two_tier_htf_armed: 'Đã bơm nóng cực hạn',
+    two_tier_htf_normal: 'Biên độ bình thường',
+    two_tier_ltf_fired: 'Lực xả 5m kích hoạt',
+    two_tier_ltf_watch: 'Đang chờ áp lực bán',
+    sticky_action_short: 'Vào Lệnh Short',
   },
   en: {
+    "done": "Done",
+    "cand_badge_overlap": "Model Overlap",
+    "cand_badge_unique": "V2 Unique Discovery",
+    "cand_tab_microstructure": "1. Orderbook Microstructure L2/L3",
+    "cand_tab_deep_learning": "2. Multi-Horizon Deep Learning",
+    "cand_tab_comparison": "3. Multi-Model Matrix (V2 vs V1 vs V3)",
+    "cand_badge_ab_test": "A/B Test Baseline",
+    "cand_badge_champion": "Champion Model 👑",
+    "cand_diff_delta": "Difference Δ",
+    "cand_v2_quant_desc": "👑 V2 Quantitative Filter (Champion):",
+    "cand_v3_ai_desc": "🔬 V3 Next-Gen AI Integration:",
+    "cand_v1_pump_desc": "📊 V1 Pump Baseline (A/B Test):",
+    "track_status_radar_active": "Radar Active",
+    "track_status_target_hit": "Target Hit (-8%)",
+    "track_status_radar_expired": "Radar Expired",
+    "track_notional_usdt": "Notional USDT",
+    "track_stop_loss_label": "Stop Loss (SL)",
+    "track_take_profit_label": "Take Profit (TP)",
+    "trade_sub_signal_current": "Signal Price / Current Price",
+    "trade_sub_invalidation": "Structure Invalidation Level",
+    "trade_sub_quick_drawdown": "Quick Mean-Reversion -4%",
+    "trade_sub_ai_target": "Core Radar Dump Target -8%",
     "active_coins": "Active Coins",
     "app_subtitle": "PeakPulse AI",
     "app_tagline": "Crypto Distribution & Peak Detection Early Warning Radar powered by Machine Learning",
@@ -1726,8 +1839,73 @@ export const translations = {
     "metric_mae": "Max Adverse Excursion (MAE)",
     "metric_lead_time": "Mean Lead Time",
     "model_architecture_why": "Why does the 2-Tier Architecture achieve higher precision?",
+    trade_setup_rr_title: 'SHORT TRADE SETUP (PLAN & R:R)',
+    trade_rr_label: 'Risk:Reward (R:R):',
+    trade_sub_signal_current: 'Signal Price / Current Price',
+    trade_sub_invalidation: 'Structure Invalidation Level',
+    trade_sub_quick_drawdown: 'Quick Mean-Reversion -4%',
+    trade_sub_ai_target: 'Core Radar Dump Target -8%',
+    trade_enter_short_btn: 'Enter Short (Binance / OKX)',
+    trade_enter_short_futures_btn: 'Enter Short (Binance / OKX Futures)',
+    ws_radar_parity: '(Radar Parity)',
+    ws_calibration_title: 'AI Probability Calibration (Isotonic)',
+    ws_calibrated_prob_label: 'Calibrated Prob:',
+    ws_raw_score_label: 'Raw Score:',
+    ws_calibration_desc: 'XGBoost Model + Isotonic Calibrator (Brier Score: {brier})',
+    ws_btc_pump_title: 'MARKET REGIME & PUMP PATTERN',
+    ws_pump_pattern_label: 'Parabolic Pump Pattern',
+    ws_pump_peak_label: 'Peak:',
+    ws_pump_from_peak_label: 'from peak',
+    ws_pump_none: 'None',
+    ws_pump_not_detected_desc: '✓ No parabolic surge detected in last 1-5 days.',
+    ws_pump_detected_desc: '⚠️ Parabolic surge detected (+{pct}% in {days}d). Located in high-pressure distribution zone.',
+    ws_shap_factors_count: '{count} factors',
+    ws_shap_collapse_btn: 'Collapse 8-Component Score Breakdown',
+    ws_shap_expand_btn: 'Expand Full 8-Component Decomposition',
+    ws_shap_col_factor: 'Component / Factor',
+    ws_shap_col_weight_score: 'Weight → Contribution',
+    ws_shap_weight_label: 'weight',
+    cand_tab_microstructure: '1. Orderbook Microstructure L2/L3',
+    cand_tab_deep_learning: '2. Multi-Horizon Deep Learning',
+    cand_tab_comparison: '3. Multi-Model Matrix (V2 vs V1 vs V3)',
+    cand_badge_champion: 'Champion Model 👑',
+    cand_badge_ab_test: 'A/B Test Baseline',
+    cand_badge_overlap: 'Model Overlap',
+    cand_badge_unique: 'V2 Unique Discovery',
+    cand_diff_delta: 'Difference Δ',
+    cand_v2_quant_desc: '👑 V2 Quantitative Filter (Champion):',
+    cand_v1_pump_desc: '📊 V1 Pump Baseline (A/B Test):',
+    cand_v3_ai_desc: '🔬 V3 Next-Gen AI Integration:',
+    track_notional_usdt: 'Notional USDT',
+    track_stop_loss_label: 'Stop Loss (SL)',
+    track_take_profit_label: 'Take Profit (TP)',
+    track_status_radar_active: 'Radar Active',
+    track_status_target_hit: 'Target Hit (-8%)',
+    track_status_radar_expired: 'Radar Expired',
   },
   zh: {
+    "done": "完成",
+    "cand_badge_overlap": "双模型重合",
+    "cand_badge_unique": "V2 独家发现",
+    "cand_tab_microstructure": "1. 订单簿微观结构 L2/L3",
+    "cand_tab_deep_learning": "2. 多周期深度学习 Transformer",
+    "cand_tab_comparison": "3. 多模型矩阵对比 (V2 vs V1 vs V3)",
+    "cand_badge_ab_test": "A/B 对照基准",
+    "cand_badge_champion": "冠军模型 👑",
+    "cand_diff_delta": "差异 Δ",
+    "cand_v2_quant_desc": "👑 V2 量化多因子过滤 (Champion):",
+    "cand_v3_ai_desc": "🔬 V3 下一代 AI 集成:",
+    "cand_v1_pump_desc": "📊 V1 暴涨基准模型 (A/B Test):",
+    "track_status_radar_active": "雷达生效中",
+    "track_status_target_hit": "已达目标 (-8%)",
+    "track_status_radar_expired": "雷达已过期",
+    "track_notional_usdt": "名义本金 USDT",
+    "track_stop_loss_label": "止损点 (SL)",
+    "track_take_profit_label": "止盈点 (TP)",
+    "trade_sub_signal_current": "信号价 / 当前现价",
+    "trade_sub_invalidation": "结构破坏失效止损线",
+    "trade_sub_quick_drawdown": "首轮快速回踩 -4%",
+    "trade_sub_ai_target": "AI 雷达核心目标 -8%",
     "active_coins": "监控币种",
     "app_subtitle": "PeakPulse AI",
     "app_tagline": "基于机器学习的加密资产派发与见顶早期预警雷达系统",
@@ -2589,8 +2767,73 @@ export const translations = {
     "metric_mae": "最大不利偏离度 (MAE)",
     "metric_lead_time": "平均提前见顶时间",
     "model_architecture_why": "为什么双层架构具有更高的精确度与胜率？",
+    trade_setup_rr_title: '做空交易研判计划 (R:R 盈亏比)',
+    trade_rr_label: '盈亏比 (R:R):',
+    trade_sub_signal_current: '信号价 / 当前现价',
+    trade_sub_invalidation: '结构破坏失效止损线',
+    trade_sub_quick_drawdown: '首轮快速回踩 -4%',
+    trade_sub_ai_target: 'AI 雷达核心目标 -8%',
+    trade_enter_short_btn: '快捷开空 (Binance / OKX)',
+    trade_enter_short_futures_btn: '记录开空 (Binance / OKX 合约)',
+    ws_radar_parity: '(与雷达同源)',
+    ws_calibration_title: 'AI 概率校准 (保序回归)',
+    ws_calibrated_prob_label: '校准概率:',
+    ws_raw_score_label: '原始得分:',
+    ws_calibration_desc: 'XGBoost 模型 + 保序校准器 (Brier 分数: {brier})',
+    ws_btc_pump_title: 'BTC 宏观环境与暴涨形态',
+    ws_pump_pattern_label: '抛物线暴涨形态',
+    ws_pump_peak_label: '峰值:',
+    ws_pump_from_peak_label: '距峰值',
+    ws_pump_none: '无',
+    ws_pump_not_detected_desc: '✓ 近 1-5 天内未检测到极端异常拉升。',
+    ws_pump_detected_desc: '⚠️ 近 {days} 天内异常暴涨 +{pct}%。目前处于高压派发区间。',
+    ws_shap_factors_count: '{count} 个归因因子',
+    ws_shap_collapse_btn: '收起 8 因子得分分解',
+    ws_shap_expand_btn: '展开完整 8 因子归因分解',
+    ws_shap_col_factor: '因子 / 特征分项',
+    ws_shap_col_weight_score: '权重 → 贡献得分',
+    ws_shap_weight_label: '权重',
+    cand_tab_microstructure: '1. 订单簿微观结构 L2/L3',
+    cand_tab_deep_learning: '2. 多周期深度学习 Transformer',
+    cand_tab_comparison: '3. 多模型矩阵对比 (V2 vs V1 vs V3)',
+    cand_badge_champion: '冠军模型 👑',
+    cand_badge_ab_test: 'A/B 对照基准',
+    cand_badge_overlap: '双模型重合',
+    cand_badge_unique: 'V2 独家发现',
+    cand_diff_delta: '差异 Δ',
+    cand_v2_quant_desc: '👑 V2 量化多因子过滤 (Champion):',
+    cand_v1_pump_desc: '📊 V1 暴涨基准模型 (A/B Test):',
+    cand_v3_ai_desc: '🔬 V3 下一代 AI 集成:',
+    track_notional_usdt: '名义本金 USDT',
+    track_stop_loss_label: '止损点 (SL)',
+    track_take_profit_label: '止盈点 (TP)',
+    track_status_radar_active: '雷达生效中',
+    track_status_target_hit: '已达目标 (-8%)',
+    track_status_radar_expired: '雷达已过期',
   },
   ko: {
+    "done": "완료",
+    "cand_badge_overlap": "양측 모델 일치",
+    "cand_badge_unique": "V2 단독 포착",
+    "cand_tab_microstructure": "1. 오더북 미시구조 L2/L3",
+    "cand_tab_deep_learning": "2. 다주기 딥러닝 트랜스포머",
+    "cand_tab_comparison": "3. 다차원 모델 비교 (V2 vs V1 vs V3)",
+    "cand_badge_ab_test": "A/B 테스트 대조군",
+    "cand_badge_champion": "챔피언 모델 👑",
+    "cand_diff_delta": "차이 Δ",
+    "cand_v2_quant_desc": "👑 V2 퀀트 멀티팩터 필터 (Champion):",
+    "cand_v3_ai_desc": "🔬 V3 차세대 AI 통합:",
+    "cand_v1_pump_desc": "📊 V1 펌핑 기준 모델 (A/B Test):",
+    "track_status_radar_active": "레이더 활성",
+    "track_status_target_hit": "목표 달성 (-8%)",
+    "track_status_radar_expired": "레이더 만료",
+    "track_notional_usdt": "원금 규모 USDT",
+    "track_stop_loss_label": "손절가 (SL)",
+    "track_take_profit_label": "익절가 (TP)",
+    "trade_sub_signal_current": "신호가 / 현재가",
+    "trade_sub_invalidation": "구조 무효화 기준선",
+    "trade_sub_quick_drawdown": "1차 빠른 되돌림 -4%",
+    "trade_sub_ai_target": "AI 레이더 핵심 목표 -8%",
     "active_coins": "스캔 코인",
     "app_subtitle": "PeakPulse AI",
     "app_tagline": "머신러닝 기반 암호화폐 세력 분산 및 고점 조기 경보 레이더 시스템",
@@ -3452,6 +3695,49 @@ export const translations = {
     "metric_mae": "최대 불리한 이탈 (MAE)",
     "metric_lead_time": "평균 사전 경고 시간",
     "model_architecture_why": "왜 2-티어 아키텍처가 더 높은 정밀도를 달성합니까?",
+    trade_setup_rr_title: '숏 거래 셋업 계획 (R:R)',
+    trade_rr_label: '손익비 (R:R):',
+    trade_sub_signal_current: '신호가 / 현재가',
+    trade_sub_invalidation: '구조 무효화 기준선',
+    trade_sub_quick_drawdown: '1차 빠른 되돌림 -4%',
+    trade_sub_ai_target: 'AI 레이더 핵심 목표 -8%',
+    trade_enter_short_btn: '숏 주문 기록 (바이낸스 / OKX)',
+    trade_enter_short_futures_btn: '숏 진입 (바이낸스 / OKX 선물)',
+    ws_radar_parity: '(레이더 동기화)',
+    ws_calibration_title: 'AI 확률 보정 (등위 회귀)',
+    ws_calibrated_prob_label: '보정 확률:',
+    ws_raw_score_label: '원시 점수:',
+    ws_calibration_desc: 'XGBoost 모델 + 보정기 (Brier 점수: {brier})',
+    ws_btc_pump_title: 'BTC 시장 환경 및 펌핑 패턴',
+    ws_pump_pattern_label: '포물선 급등 패턴',
+    ws_pump_peak_label: '고점:',
+    ws_pump_from_peak_label: '고점 대비',
+    ws_pump_none: '없음',
+    ws_pump_not_detected_desc: '✓ 최근 1-5일 내 비정상 급등 감지되지 않음.',
+    ws_pump_detected_desc: '⚠️ 최근 {days}일간 +{pct}% 급등. 고압 분산 구간에 위치.',
+    ws_shap_factors_count: '{count}개 위험 요인',
+    ws_shap_collapse_btn: '8개 요인 점수 분해 접기',
+    ws_shap_expand_btn: '전체 8개 요인 분해 펼치기',
+    ws_shap_col_factor: '지표 성분 / 요인',
+    ws_shap_col_weight_score: '가중치 → 기여 점수',
+    ws_shap_weight_label: '가중치',
+    cand_tab_microstructure: '1. 오더북 미시구조 L2/L3',
+    cand_tab_deep_learning: '2. 다주기 딥러닝 트랜스포머',
+    cand_tab_comparison: '3. 다차원 모델 비교 (V2 vs V1 vs V3)',
+    cand_badge_champion: '챔피언 모델 👑',
+    cand_badge_ab_test: 'A/B 테스트 대조군',
+    cand_badge_overlap: '양측 모델 일치',
+    cand_badge_unique: 'V2 단독 포착',
+    cand_diff_delta: '차이 Δ',
+    cand_v2_quant_desc: '👑 V2 퀀트 멀티팩터 필터 (Champion):',
+    cand_v1_pump_desc: '📊 V1 펌핑 기준 모델 (A/B Test):',
+    cand_v3_ai_desc: '🔬 V3 차세대 AI 통합:',
+    track_notional_usdt: '원금 규모 USDT',
+    track_stop_loss_label: '손절가 (SL)',
+    track_take_profit_label: '익절가 (TP)',
+    track_status_radar_active: '레이더 활성',
+    track_status_target_hit: '목표 달성 (-8%)',
+    track_status_radar_expired: '레이더 만료',
   },
 };
 
@@ -3655,3 +3941,161 @@ export const formatTelegramSignalText = (
   }
   return `🚨 [CẢNH BÁO ĐẢO VÀNG AI]\n🪙 Coin: ${symbol}\n📊 Xác suất xả: ${probPct}%\n🎯 Mức rủi ro: ${tier}\n💡 Khuyến nghị: Canh Short vùng đỉnh (-8% TP, 24h)`;
 };
+
+export function getShapFeatureLabel(rawName: string, lang: SupportedLanguage): string {
+  const norm = rawName.toLowerCase().replace(/[\s_-]+/g, '_');
+  
+  const dict: Record<string, Record<SupportedLanguage, string>> = {
+    distance_from_high: {
+      vi: 'Khoảng cách từ đỉnh 24h',
+      en: 'Distance from 24h High',
+      zh: '距24h最高点偏离度',
+      ko: '24시간 고점 대비 거리',
+    },
+    rsi_overbought: {
+      vi: 'RSI Quá Mua (15m)',
+      en: 'RSI Overbought (15m)',
+      zh: 'RSI 超买状态 (15m)',
+      ko: 'RSI 과매수 (15분)',
+    },
+    price_volume_divergence: {
+      vi: 'Phân kỳ Giá - Khối lượng',
+      en: 'Price-Volume Divergence',
+      zh: '量价背离信号',
+      ko: '가격-거래량 괴리',
+    },
+    momentum_exhaustion: {
+      vi: 'Cạn kiệt Động lượng Tăng',
+      en: 'Momentum Exhaustion',
+      zh: '上涨动能衰竭',
+      ko: '상승 모멘텀 소진',
+    },
+    oi_divergence: {
+      vi: 'Phân kỳ Hợp đồng mở (OI)',
+      en: 'Open Interest (OI) Divergence',
+      zh: '持仓量 (OI) 顶背离',
+      ko: '미결제약정(OI) 괴리',
+    },
+    funding_spike: {
+      vi: 'Tỷ lệ Funding Tăng Vọt',
+      en: 'Funding Rate Spike',
+      zh: '资金费率异常飙升',
+      ko: '펀딩비 급등',
+    },
+    taker_sell_pressure: {
+      vi: 'Áp lực Bán Chủ Động (Taker)',
+      en: 'Taker Sell Pressure',
+      zh: '主动卖盘抛压 (Taker)',
+      ko: '테이커 매도 압력',
+    },
+    taker_ratio_limit: {
+      vi: 'Tỷ lệ Lệnh Bán Thị Trường',
+      en: 'Market Sell Order Ratio',
+      zh: '主动卖单成交占比',
+      ko: '시장가 매도 비율',
+    },
+    btc_context: {
+      vi: 'Bối cảnh Thị trường BTC',
+      en: 'BTC Market Context',
+      zh: 'BTC 宏观环境背景',
+      ko: 'BTC 시장 환경',
+    },
+    parabolic_pump: {
+      vi: 'Mô hình Tăng Nóng Cực Đại',
+      en: 'Parabolic Pump Pattern',
+      zh: '极端抛物线拉升',
+      ko: '극단적 포물선 펌핑',
+    },
+    order_flow_imbalance: {
+      vi: 'Mất cân bằng Dòng lệnh (CVD)',
+      en: 'Order Flow Imbalance (CVD)',
+      zh: '订单流失衡 (CVD)',
+      ko: '주문 흐름 불균형 (CVD)',
+    },
+  };
+
+  for (const key of Object.keys(dict)) {
+    if (norm.includes(key) || key.includes(norm)) {
+      return dict[key][lang] ?? dict[key].vi;
+    }
+  }
+
+  // Fallback to title-cased name
+  return rawName.replace(/[_-]+/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+export function formatShapExplanation(rawName: string, explanation: string, rawValue: any, lang: SupportedLanguage): string {
+  if (!explanation) return '';
+  if (lang === 'en') return explanation;
+
+  const norm = rawName.toLowerCase().replace(/[\s_-]+/g, '_');
+
+  // 1. Distance from high
+  if (norm.includes('distance') || norm.includes('high')) {
+    const pct = typeof rawValue === 'number' ? (rawValue <= 1 ? rawValue * 100 : rawValue).toFixed(1) : '2.5';
+    if (lang === 'vi') return `Cách đỉnh 24h: ${pct}% (Sát vùng đỉnh trong phạm vi 5%, vùng xả hàng lý tưởng của phe Short).`;
+    if (lang === 'zh') return `距离24h高点 ${pct}% (处于高点 5% 狭窄区间，属于主力做空绝佳派发区)。`;
+    if (lang === 'ko') return `24시간 고점 대비 거리: ${pct}% (고점 5% 이내 근접, 이상적인 숏 분산 구간).`;
+  }
+
+  // 2. RSI Overbought
+  if (norm.includes('rsi')) {
+    const rsiVal = typeof rawValue === 'number' ? rawValue.toFixed(1) : '78.4';
+    if (lang === 'vi') return `Chỉ số RSI 15m đạt ${rsiVal} (vùng quá mua > 70, áp lực đảo chiều giảm mạnh).`;
+    if (lang === 'zh') return `RSI 15m 达到 ${rsiVal} (超买区间 > 70，向下均值回归动能强劲)。`;
+    if (lang === 'ko') return `15분 RSI ${rsiVal} 도달 (과매수 구간 > 70, 강한 하락 반전 압력).`;
+  }
+
+  // 3. Price volume divergence
+  if (norm.includes('divergence') && (norm.includes('volume') || norm.includes('price'))) {
+    if (lang === 'vi') return 'Giá tăng mạnh nhưng khối lượng sụt giảm (dấu hiệu xả hàng ngầm của dòng tiền thông minh).';
+    if (lang === 'zh') return '价格上涨但成交量显著萎缩 (主力资金隐蔽派发典型特征)。';
+    if (lang === 'ko') return '가격은 상승했으나 거래량 감소 (스마트 머니의 은밀한 물량 정리 징후).';
+  }
+
+  // 4. Momentum exhaustion
+  if (norm.includes('momentum') || norm.includes('exhaustion')) {
+    if (lang === 'vi') return 'Động lượng tăng trưởng suy giảm rõ rệt trên các khung thời gian 15m/1h.';
+    if (lang === 'zh') return '15m/1h 周期多头拉升动能出现明显衰竭减速。';
+    if (lang === 'ko') return '15분/1시간 주기에서 상승 탄력이 뚜렷하게 둔화 소진됨.';
+  }
+
+  // 5. OI divergence
+  if (norm.includes('oi')) {
+    if (lang === 'vi') return 'Hợp đồng mở OI sụt giảm khi giá tăng/đi ngang (dấu hiệu tổ chức đang tất toán vị thế).';
+    if (lang === 'zh') return '持仓量 OI 下降但价格滞涨 (机构主力正在平多撤退)。';
+    if (lang === 'ko') return '가격 횡보 중 미결제약정(OI) 감소 (기관의 포지션 청산 징후).';
+  }
+
+  // 6. Funding spike
+  if (norm.includes('funding')) {
+    if (lang === 'vi') return 'Phí funding tăng vọt (phe Long đang dùng đòn bẩy quá mức, đối mặt rủi ro thanh lý chuỗi).';
+    if (lang === 'zh') return '资金费率异常飙升 (多头杠杆严重拥挤，面临连锁踩踏清算风险)。';
+    if (lang === 'ko') return '펀딩비 급등 (롱 레버리지 과열, 연쇄 청산 위험).';
+  }
+
+  // 7. Taker sell pressure
+  if (norm.includes('taker') || norm.includes('sell')) {
+    if (lang === 'vi') return 'Khối lượng lệnh bán chủ động áp đảo phe mua (lực bán tháo mạnh trên sổ lệnh).';
+    if (lang === 'zh') return '市场主动吃单卖盘量显著超过买盘 (盘口涌现强烈抛售压力)。';
+    if (lang === 'ko') return '시장가 매도 거래량이 매수를 압도 (오더북 상 강한 매도세).';
+  }
+
+  // Fallback translation if contains common phrases
+  let translated = explanation;
+  if (lang === 'vi') {
+    translated = translated
+      .replace(/Price \+([0-9.]+%) 24h but volume at ([0-9.]+%) of 24h range/g, 'Giá tăng +$1 trong 24h nhưng khối lượng chỉ đạt $2 biên độ')
+      .replace(/Divergence — pump without real demand\./g, 'Phân kỳ — Bơm không có lực cầu thực.')
+      .replace(/Volume supports price move\./g, 'Khối lượng hỗ trợ đà tăng.')
+      .replace(/Funding rate ([+\-0-9.]+%) \(z-score ([0-9.]+), ([a-z0-9% ]+)\)\./g, 'Tỷ lệ funding $1 (z-score $2, $3).')
+      .replace(/Longs paying high premium — unwind risk\./g, 'Phe Long chịu phí cao — Rủi ro tháo chạy vị thế.')
+      .replace(/Momentum accelerating/g, 'Động lượng đang gia tốc')
+      .replace(/pump still strong\./g, 'đà tăng vẫn mạnh.')
+      .replace(/Price not up 4h — no momentum to exhaust\./g, 'Giá không tăng trong 4h — không có động lượng để cạn kiệt.')
+      .replace(/Parabolic pump detected: \+([0-9.]+)% in ([0-9]+) days/g, 'Phát hiện tăng nóng: +$1% trong $2 ngày')
+      .replace(/Extreme dump risk\./g, 'Rủi ro xả hàng cực cao.');
+  }
+
+  return translated;
+}

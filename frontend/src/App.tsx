@@ -266,9 +266,12 @@ export function App() {
     }
     try {
       const res = await fetch(`/api/coin/${symbol}`);
+      if (!res.ok) return;
       const data = await res.json();
-      coinDetailCache.current.set(symbol, data);
-      setCoinDetail(data);
+      if (data && !data.error && data.metrics) {
+        coinDetailCache.current.set(symbol, data);
+        setCoinDetail(data);
+      }
     } catch (err) {
       console.error(`Error loading detail for ${symbol}:`, err);
     }

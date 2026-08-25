@@ -84,7 +84,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
             ${formatPrice(entry)}
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {t('trade_signal_current')}
+            {t('trade_sub_signal_current')}
           </div>
         </div>
 
@@ -101,7 +101,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
             ${formatPrice(sl)}
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {t('trade_invalidation_level')}
+            {t('trade_sub_invalidation')}
           </div>
         </div>
 
@@ -118,7 +118,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
             ${formatPrice(tp1)}
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {t('trade_quick_drawdown_4')}
+            {t('trade_sub_quick_drawdown')}
           </div>
         </div>
 
@@ -135,7 +135,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
             ${formatPrice(tp2)}
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            {t('trade_ai_target_8')}
+            {t('trade_sub_ai_target')}
           </div>
         </div>
       </div>

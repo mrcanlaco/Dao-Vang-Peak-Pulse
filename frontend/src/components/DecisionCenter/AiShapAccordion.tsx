@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AlertOctagon, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
+import { getShapFeatureLabel, formatShapExplanation } from '../../i18n/translations';
 import type { DeepAnalysis, ShapDriver } from '../../types';
 
 interface AiShapAccordionProps {
@@ -12,7 +13,7 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
   shapDrivers,
   deepAnalysis,
 }) => {
-  const { t } = useTranslation();
+  const { language, t } = useTranslation();
   
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -59,8 +60,8 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
                       #{idx + 1}
                     </span>
                     <div className="min-w-0 truncate">
-                      <div className="text-xs font-bold text-slate-200 truncate">{driver.feature}</div>
-                      <div className="text-[10px] text-slate-400 truncate">{driver.description}</div>
+                      <div className="text-xs font-bold text-slate-200 truncate">{getShapFeatureLabel(driver.feature, language)}</div>
+                      <div className="text-[10px] text-slate-400 truncate">{formatShapExplanation(driver.feature, driver.description, driver.impact_score, language)}</div>
                     </div>
                   </div>
                   <span className={`px-2 py-0.5 font-mono font-bold text-xs rounded border shrink-0 ${
@@ -121,7 +122,7 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
                         {idx + 1}
                       </span>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200">{comp.name}</span>
+                        <span className="text-xs font-bold text-slate-200">{getShapFeatureLabel(comp.raw_name || comp.name, language)}</span>
                         <span className="text-[9px] text-slate-500 font-mono ml-1.5">
                           ({comp.weight}% {t('shap_weight_unit')})
                         </span>
@@ -146,7 +147,7 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
                       style={{ width: `${comp.score}%` }}
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500 leading-tight">{comp.explanation}</p>
+                  <p className="text-[10px] text-slate-500 leading-tight">{formatShapExplanation(comp.raw_name || comp.name, comp.explanation, comp.raw_value, language)}</p>
                 </div>
               ))}
             </div>
