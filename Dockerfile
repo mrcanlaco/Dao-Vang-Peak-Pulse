@@ -37,7 +37,9 @@ FROM python:3.12-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    git \
+    && rm -rf /var/lib/apt/lists/* \
+    && git config --global --add safe.directory '*'
 
 WORKDIR /app
 
