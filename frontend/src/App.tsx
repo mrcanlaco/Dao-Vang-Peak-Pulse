@@ -648,12 +648,16 @@ export function App() {
       || (telegramFilter === 'SENT' ? sig.telegram_sent === true : sig.telegram_sent !== true);
 
     let matchesTag = true;
-    if (activeFilterTag === 'HOT_RISK') {
+    if (activeFilterTag === 'FIRED') {
+      matchesTag = sig.two_tier_state === 'FIRED' || sig.risk_level === 'CRITICAL';
+    } else if (activeFilterTag === 'ARMED') {
+      matchesTag = sig.two_tier_state === 'ARMED' || sig.risk_level === 'HIGH';
+    } else if (activeFilterTag === 'HOT_RISK') {
       matchesTag = sig.probability >= 0.75;
     } else if (activeFilterTag === 'EXPIRING') {
-      matchesTag = sig.validity_hours_left <= 22.0;
+      matchesTag = sig.validity_hours_left <= 2.0 || (sig.validity_hours_left <= 22.0 && sig.validity_hours_left > 0);
     } else if (activeFilterTag === 'VOLUME_SPIKE') {
-      matchesTag = sig.is_volume_spike || sig.taker_sell_ratio < 0.42;
+      matchesTag = Boolean(sig.is_volume_spike || sig.taker_sell_ratio < 0.42);
     } else if (activeFilterTag === 'ACTIVE') {
       matchesTag = sig.validity_hours_left > 0;
     } else if (activeFilterTag === 'EXPIRED') {
@@ -668,6 +672,7 @@ export function App() {
 
     if (signalSort === 'NEWEST') return safeTime(bTime) - safeTime(aTime);
     if (signalSort === 'EXPIRING_SOON') return a.validity_hours_left - b.validity_hours_left;
+    if (signalSort === 'LARGEST_DRAWDOWN') return Math.abs(b.target_drawdown || 0) - Math.abs(a.target_drawdown || 0);
     if (signalSort === 'HIGHEST_RISK') {
       const riskRank: Record<SignalItem['risk_level'], number> = {
         CRITICAL: 4,

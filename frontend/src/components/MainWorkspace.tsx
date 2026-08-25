@@ -614,11 +614,17 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
       {/* TAB: RADAR SIGNAL FEED */}
       {activeTab === 'RADAR' && (
-        <div className="flex-1 overflow-y-auto pr-1 min-h-[500px] h-[calc(100vh-140px)]">
+        <div className="flex-1 overflow-hidden h-full min-h-[500px]">
           <SignalFeed
             signals={filteredSignals || signals}
             selectedSignalId={selectedSignal?.id || null}
             onSelectSignal={onSelectSignal || ((sig: SignalItem) => onSelectCandidate(sig.symbol))}
+            onGoToDecision={(sig: SignalItem) => {
+              if (onSelectSignal) onSelectSignal(sig);
+              else onSelectCandidate(sig.symbol);
+              setActiveTab('DECISION');
+            }}
+            onOpenOrderModal={onOpenOrderModal}
             onPushTelegram={onPushTelegram}
             onTrackSignal={onTrackSignal}
             onUntrackSignal={onUntrackSignal}

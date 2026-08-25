@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import {
   Sparkles, Send, Settings, Trash2, Bot,
   User, Copy, Check, ChevronDown, ChevronUp,
-  HelpCircle
+  HelpCircle, Maximize2, Minimize2, X
 } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import type {
@@ -71,9 +71,21 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isAllCopied, setIsAllCopied] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Close full screen on ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isExpanded) {
+        setIsExpanded(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isExpanded]);
 
   // Initialize welcome message when symbol changes
   useEffect(() => {
@@ -95,19 +107,19 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
 
   const prevSymbolRef = useRef(symbol);
 
-  // Scroll internal chat container to bottom when user sends questions or AI responds (not on initial mount/symbol switch)
+  // Scroll internal chat container to bottom when user sends questions or AI responds
   useEffect(() => {
     if (prevSymbolRef.current !== symbol) {
       prevSymbolRef.current = symbol;
       return;
     }
-    if (isOpen && messages.length > 1 && chatContainerRef.current) {
+    if ((isOpen || isExpanded) && messages.length > 1 && chatContainerRef.current) {
       chatContainerRef.current.scrollTo({
         top: chatContainerRef.current.scrollHeight,
         behavior: 'smooth',
       });
     }
-  }, [messages, isLoading, isOpen, symbol]);
+  }, [messages, isLoading, isOpen, isExpanded, symbol]);
 
   const handleSaveConfig = (newConfig: LlmConfig) => {
     setLlmConfig(newConfig);
@@ -201,7 +213,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
     const dateStr = new Date().toLocaleString();
     let text = `=== HỘI THOẠI VỚI TRỢ LÝ AI ĐẢO VÀNG — ${symbol} (${dateStr}) ===\n`;
     text += `Bối cảnh thị trường: Giá Mark $${currentPrice} | Xác suất xả AI: ${prob.toFixed(1)}% (${riskLevel}) | Trạng thái BTC: ${btcRegime}\n`;
-    text += `Chỉ số: OI 24h: ${metrics.oi_change_24h || 'N/A'} | Funding: ${metrics.funding_rate || 'N/A'} | Taker Sell: ${((metrics.taker_sell_ratio || 0.5) * 100).toFixed(0)}%\n`;
+    text += `Chỉ số: OI 24h: ${metrics.oi_change_24h || 'N/A'} | Funding: ${metrics.funding_rate || 'N/A'} | Taker Buy/Sell: ${(metrics.taker_sell_ratio || 0.5) * 100}%\n`;
     text += `================================================================================\n\n`;
 
     messages.forEach((m) => {
@@ -244,9 +256,23 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
 
   return (
     <>
-      <div className="bg-slate-950/90 border border-slate-800 rounded-xl overflow-hidden shadow-2xl transition-all duration-200">
+      {/* Backdrop overlay when in Fullscreen / Expanded view */}
+      {isExpanded && (
+        <div
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 transition-opacity"
+          onClick={() => setIsExpanded(false)}
+        />
+      )}
+
+      <div
+        className={`transition-all duration-200 ${
+          isExpanded
+            ? 'fixed inset-2 sm:inset-4 md:inset-6 lg:inset-8 z-50 bg-slate-950/98 border border-slate-700/90 rounded-2xl shadow-2xl flex flex-col backdrop-blur-2xl overflow-hidden'
+            : 'bg-slate-950/90 border border-slate-800 rounded-xl overflow-hidden shadow-2xl'
+        }`}
+      >
         {/* Assistant Header */}
-        <div className="flex items-center justify-between px-3.5 sm:px-4 py-3 border-b border-slate-800/80 bg-slate-900/60">
+        <div className="flex items-center justify-between px-3.5 sm:px-4 py-3 border-b border-slate-800/80 bg-slate-900/60 shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-600 to-amber-400 text-slate-950 flex items-center justify-center font-bold shrink-0 shadow-sm">
               <Bot className="w-4 h-4" />
@@ -257,6 +283,15 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
                 <span className="text-[10px] font-mono text-cyan-400 font-bold px-1.5 py-0.2 bg-cyan-500/10 rounded border border-cyan-500/20">
                   {symbol}
                 </span>
+                {isExpanded && (
+                  <span className="hidden md:inline-flex items-center gap-1.5 text-[10px] font-mono text-amber-400/90 px-2 py-0.5 bg-amber-500/10 rounded border border-amber-500/20">
+                    <span>${currentPrice}</span>
+                    <span>•</span>
+                    <span>Xác suất xả: {prob.toFixed(1)}% ({riskLevel})</span>
+                    <span>•</span>
+                    <span>BTC: {btcRegime}</span>
+                  </span>
+                )}
               </h3>
               <p className="text-[10px] text-slate-400 truncate">
                 {isZh ? '实时注入行情、订单流与 SHAP 特征的多模型问答助理' : isKo ? '실시간 오더플로우 및 SHAP 지표가 주입된 다중 모델 AI 어시스턴트' : isEn ? 'Real-time context-injected quant assistant for deep analysis' : 'Trợ lý phân tích có nạp toàn bộ dữ liệu dòng tiền & SHAP của coin'}
@@ -314,8 +349,44 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
               </button>
             )}
 
-            {/* Minimize / Expand Toggle Button */}
-            {onToggleOpen && (
+            {/* Fullscreen / Expand Window Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsExpanded(prev => !prev)}
+              className={`p-1 sm:px-2 sm:py-1 rounded-md border text-[11px] font-medium flex items-center gap-1 transition ${
+                isExpanded
+                  ? 'border-amber-500/60 bg-amber-500/20 text-amber-300'
+                  : 'border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-amber-300'
+              }`}
+              title={isExpanded ? (isEn ? 'Exit Fullscreen (Esc)' : 'Thu nhỏ cửa sổ (Esc)') : (isEn ? 'Expand Fullscreen' : 'Mở rộng toàn màn hình')}
+            >
+              {isExpanded ? (
+                <>
+                  <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">{isEn ? 'Minimize' : 'Thu nhỏ'}</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">{isEn ? 'Expand Full' : 'Mở rộng'}</span>
+                </>
+              )}
+            </button>
+
+            {/* Close button if expanded */}
+            {isExpanded && (
+              <button
+                type="button"
+                onClick={() => setIsExpanded(false)}
+                className="p-1 rounded-md text-slate-400 hover:text-rose-300 hover:bg-rose-950/40 border border-transparent hover:border-rose-800/50 transition"
+                title={isEn ? 'Close Fullscreen' : 'Đóng toàn màn hình'}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Minimize / Expand Toggle Button for Accordion */}
+            {!isExpanded && onToggleOpen && (
               <button
                 type="button"
                 onClick={onToggleOpen}
@@ -328,10 +399,10 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
         </div>
 
         {/* Expandable Chat Body */}
-        {isOpen && (
-          <div className="p-3 sm:p-4 space-y-3.5">
+        {(isOpen || isExpanded) && (
+          <div className={`p-3 sm:p-4 space-y-3.5 flex flex-col ${isExpanded ? 'flex-1 min-h-0' : ''}`}>
             {/* Quick Suggestion Chips */}
-            <div>
+            <div className="shrink-0">
               <div className="text-[10px] text-slate-500 font-mono uppercase mb-1.5 flex items-center gap-1">
                 <HelpCircle className="w-3 h-3 text-amber-400" />
                 <span>{isZh ? '快捷提问建议:' : isKo ? '빠른 질문 제안:' : isEn ? 'Quick Suggestion Prompts:' : 'Câu hỏi gợi ý nhanh 1-chạm:'}</span>
@@ -354,7 +425,9 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
             {/* Chat Messages Log */}
             <div
               ref={chatContainerRef}
-              className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 sm:p-4 max-h-80 overflow-y-auto space-y-3.5 font-sans"
+              className={`bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 sm:p-4 overflow-y-auto space-y-3.5 font-sans ${
+                isExpanded ? 'flex-1 min-h-0' : 'max-h-[460px] sm:max-h-[520px]'
+              }`}
             >
               {messages.map((msg) => {
                 const isUser = msg.role === 'user';
@@ -370,7 +443,9 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
                     )}
 
                     <div
-                      className={`max-w-[90%] sm:max-w-[85%] rounded-xl p-3 sm:p-3.5 text-xs leading-relaxed ${
+                      className={`rounded-xl p-3 sm:p-3.5 text-xs leading-relaxed ${
+                        isExpanded ? 'max-w-[94%] sm:max-w-[90%]' : 'max-w-[90%] sm:max-w-[85%]'
+                      } ${
                         isUser
                           ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-medium rounded-tr-none shadow-md'
                           : msg.isError
@@ -451,7 +526,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
             </div>
 
             {/* Input Box */}
-            <div className="relative flex items-center gap-2">
+            <div className="relative flex items-center gap-2 shrink-0">
               <div className="relative flex-1">
                 <textarea
                   ref={inputRef}
@@ -463,15 +538,15 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
                       handleSendQuestion();
                     }
                   }}
-                  rows={2}
+                  rows={isExpanded ? 3 : 2}
                   placeholder={
                     isZh
-                      ? `输入有关 ${symbol} 的任何问题 (按 Enter 发送)...`
+                      ? `输入有关 ${symbol} 的任何问题 (按 Enter 发送, Shift+Enter 换行)...`
                       : isKo
-                      ? `${symbol}에 대해 궁금한 점을 입력하세요 (Enter로 전송)...`
+                      ? `${symbol}에 대해 궁금한 점을 입력하세요 (Enter 전송, Shift+Enter 줄바꿈)...`
                       : isEn
-                      ? `Ask anything about ${symbol} (Press Enter to send)...`
-                      : `Hỏi bất kỳ điều gì về ${symbol} (Nhấn Enter để gửi)...`
+                      ? `Ask anything about ${symbol} (Press Enter to send, Shift+Enter for newline)...`
+                      : `Hỏi bất kỳ điều gì về ${symbol} (Nhấn Enter để gửi, Shift+Enter để xuống dòng)...`
                   }
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 pr-10 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition resize-none leading-relaxed"
                 />
@@ -481,7 +556,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
                 type="button"
                 onClick={() => handleSendQuestion()}
                 disabled={!inputQuestion.trim() || isLoading}
-                className="px-4 py-3 bg-amber-500 hover:bg-amber-400 disabled:bg-slate-800 text-slate-950 disabled:text-slate-500 font-bold rounded-xl text-xs flex items-center justify-center transition shadow-md shadow-amber-500/20 disabled:cursor-not-allowed shrink-0 h-full"
+                className="px-4 sm:px-5 py-3 bg-amber-500 hover:bg-amber-400 disabled:bg-slate-800 text-slate-950 disabled:text-slate-500 font-bold rounded-xl text-xs flex items-center justify-center transition shadow-md shadow-amber-500/20 disabled:cursor-not-allowed shrink-0 h-full"
               >
                 <Send className="w-4 h-4" />
               </button>

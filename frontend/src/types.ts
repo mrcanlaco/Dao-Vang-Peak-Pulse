@@ -1,6 +1,6 @@
 export type RiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'SAFE';
-export type FilterTag = 'ALL' | 'HOT_RISK' | 'EXPIRING' | 'VOLUME_SPIKE' | 'ACTIVE' | 'EXPIRED';
-export type SignalSort = 'NEWEST' | 'HIGHEST_PROBABILITY' | 'HIGHEST_RISK' | 'EXPIRING_SOON';
+export type FilterTag = 'ALL' | 'FIRED' | 'ARMED' | 'HOT_RISK' | 'EXPIRING' | 'VOLUME_SPIKE' | 'ACTIVE' | 'EXPIRED';
+export type SignalSort = 'NEWEST' | 'HIGHEST_PROBABILITY' | 'HIGHEST_RISK' | 'EXPIRING_SOON' | 'LARGEST_DRAWDOWN';
 export type TelegramFilter = 'ALL' | 'SENT' | 'UNSENT';
 
 export interface SignalDriver {
