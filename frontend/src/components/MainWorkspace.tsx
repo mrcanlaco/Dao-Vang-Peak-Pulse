@@ -505,7 +505,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         onSelectCandidate={onSelectCandidate}
         trackingCount={trackingItems.filter(item => item.status !== 'CLOSED').length}
         candidateCount={candidates.length}
-        isTelemetryActive={Boolean(telemetryData?.is_running ?? true)}
+        isTelemetryActive={telemetryData ? telemetryData.scanner_engine_status !== 'ERROR' : true}
       />
 
       {activeTab === 'WATCHLIST' && (

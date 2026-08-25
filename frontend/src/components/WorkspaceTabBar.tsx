@@ -248,7 +248,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
                 >
                   <Icon className="w-3.5 h-3.5" />
                   <span>{t(tab.labelKey)}</span>
-                  {tab.badge !== undefined && tab.badge !== null && tab.badge > 0 ? (
+                  {tab.badge !== undefined && tab.badge !== null && (typeof tab.badge === 'number' ? tab.badge > 0 : Boolean(tab.badge)) ? (
                     <span
                       className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold transition ${
                         isActive
@@ -532,7 +532,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
                   } ${tab.pulse && !isSelected ? 'animate-pulse' : ''}`}
                 />
                 <span>{t(tab.labelKey)}</span>
-                {tab.badge !== undefined && tab.badge !== null && tab.badge > 0 ? (
+                {tab.badge !== undefined && tab.badge !== null && (typeof tab.badge === 'number' ? tab.badge > 0 : Boolean(tab.badge)) ? (
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
                       isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-800 text-slate-300'
