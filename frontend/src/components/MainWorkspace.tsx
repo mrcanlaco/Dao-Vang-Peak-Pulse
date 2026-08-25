@@ -596,8 +596,32 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         onSelectCandidate={onSelectCandidate}
         trackingCount={trackingItems.filter(item => item.status !== 'CLOSED').length}
         candidateCount={candidates.length}
+        signalCount={signals.length}
         isTelemetryActive={telemetryData ? telemetryData.scanner_engine_status !== 'ERROR' : true}
       />
+
+      {/* TAB: RADAR SIGNAL FEED */}
+      {activeTab === 'RADAR' && (
+        <div className="flex-1 overflow-y-auto pr-1 min-h-[500px] h-[calc(100vh-140px)]">
+          <SignalFeed
+            signals={filteredSignals || signals}
+            selectedSignalId={selectedSignal?.id || null}
+            onSelectSignal={onSelectSignal || ((sig: SignalItem) => onSelectCandidate(sig.symbol))}
+            onPushTelegram={onPushTelegram}
+            onTrackSignal={onTrackSignal}
+            onUntrackSignal={onUntrackSignal}
+            isSignalTracked={isSignalTracked}
+            audioAlertEnabled={audioAlertEnabled}
+            onDismissSignal={onDismissSignal}
+            activeFilterTag={activeFilterTag}
+            setActiveFilterTag={setActiveFilterTag || (() => {})}
+            signalSort={signalSort}
+            setSignalSort={setSignalSort || (() => {})}
+            telegramFilter={telegramFilter}
+            setTelegramFilter={setTelegramFilter || (() => {})}
+          />
+        </div>
+      )}
 
       {activeTab === 'WATCHLIST' && (
         <TrackingWatchlist
@@ -626,6 +650,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 candidates={candidates}
                 onSelectCandidate={onSelectCandidate}
                 isDeepAnalyzing={isDeepAnalyzing}
+                onOpenCoinSelector={onOpenCoinSelector}
               />
 
               {/* 2. Main 2-Column Split-View Grid */}

@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
-import { SignalFeed } from './components/SignalFeed';
 import { MainWorkspace } from './components/MainWorkspace';
 import { ActionDrawer } from './components/ActionDrawer';
 import { GlossaryModal } from './components/GlossaryModal';
 import { WatchlistModal } from './components/WatchlistModal';
 import { ModelComparisonModal } from './components/ModelComparisonModal';
+import { CoinSelectorModal } from './components/CoinSelectorModal';
 import { MobileBottomNav, type MobileTabType } from './components/v2/MobileBottomNav';
 import { StickyActionBar } from './components/v2/StickyActionBar';
 import { OrderExecutionModal } from './components/v2/OrderExecutionModal';
@@ -80,7 +80,6 @@ export function App() {
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('DECISION');
   const [isActionDrawerOpen, setIsActionDrawerOpen] = useState(false);
-  const [isRadarCollapsed, setIsRadarCollapsed] = useState(false);
 
   // GUI Version: 'v1' (Classic 3-column) | 'v2' (Pro Mobile / Binance-OKX Style)
   const [guiVersion, setGuiVersion] = useState<'v1' | 'v2'>(() => {
@@ -106,6 +105,7 @@ export function App() {
   const [mobileTab, setMobileTab] = useState<MobileTabType>('RADAR');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isModelComparisonOpen, setIsModelComparisonOpen] = useState(false);
+  const [isCoinSelectorOpen, setIsCoinSelectorOpen] = useState(false);
 
   const getStepText = (stepKey: string, _lang: Language) => {
     return t(`loading_${stepKey}`);
@@ -713,6 +713,11 @@ export function App() {
           setActiveTab('WATCHLIST');
           if (guiVersion === 'v2') setMobileTab('TRACKING');
         }}
+        onOpenCoinSelector={() => setIsCoinSelectorOpen(true)}
+        onOpenRadar={() => {
+          setActiveTab('RADAR');
+          if (guiVersion === 'v2') setMobileTab('RADAR');
+        }}
         trackingCount={trackingItems.filter(item => item.status !== 'CLOSED').length}
         activeScanMode={activeScanMode}
         autoTelegramEnabled={automationSettings.autoTelegramPush}
@@ -720,7 +725,7 @@ export function App() {
         onToggleActionDrawer={() => setIsActionDrawerOpen(v => !v)}
         onGoHome={() => {
           setActiveTab('DECISION');
-          if (guiVersion === 'v2') setMobileTab('RADAR');
+          if (guiVersion === 'v2') setMobileTab('ANALYSIS');
           setSelectedSignal(null);
           setSelectedSignalId(null);
           setCoinDetail(null);
@@ -739,55 +744,23 @@ export function App() {
         mobileTab={mobileTab}
         onBackToRadar={() => {
           setMobileTab('RADAR');
-          setActiveTab('DECISION');
+          setActiveTab('RADAR');
         }}
-        activeCoinSymbol={selectedSignal?.symbol || (candidates.length > 0 ? candidates[0].symbol : null)}
+        activeCoinSymbol={selectedSignal?.symbol || coinDetail?.symbol || (candidates.length > 0 ? candidates[0].symbol : null)}
         activeCoinPrice={coinDetail?.current_price || selectedSignal?.signal_price || (candidates.length > 0 ? candidates[0].price : null)}
         activeCoinProbability={selectedSignal?.probability || coinDetail?.probability || null}
         activeCoinRisk={selectedSignal?.risk_level || coinDetail?.risk_level || null}
         signalCount={signals.length}
       />
 
-      {/* Main Workspace Layout */}
-      <main className={`flex-1 max-w-[1700px] w-full mx-auto p-2.5 sm:p-3.5 grid grid-cols-1 lg:grid-cols-12 gap-2.5 lg:gap-3.5 lg:overflow-hidden ${
+      {/* Main Workspace Layout - Full 12 columns by default (or 9 cols if Action Drawer open) */}
+      <main className={`flex-1 max-w-[1750px] w-full mx-auto p-2.5 sm:p-3.5 grid grid-cols-1 lg:grid-cols-12 gap-2.5 lg:gap-3.5 lg:overflow-hidden ${
         guiVersion === 'v2' ? 'pb-24 sm:pb-3.5' : ''
       }`}>
-        
-        {/* Left Column: Signal Feed Radar (3 cols) */}
-        <div className={`lg:col-span-3 ${
-          guiVersion === 'v2'
-            ? mobileTab === 'RADAR'
-              ? 'block h-[calc(100vh-140px)] min-h-[500px]'
-              : 'hidden lg:block lg:h-[calc(100vh-120px)] lg:min-h-[600px]'
-            : isRadarCollapsed
-            ? 'h-auto'
-            : 'h-[min(68vh,620px)]'
-        } lg:h-[calc(100vh-120px)] lg:min-h-[600px]`}>
-          <SignalFeed
-            signals={filteredSignals}
-            selectedSignalId={selectedSignalId}
-            onSelectSignal={handleSelectSignal}
-            onPushTelegram={handlePushTelegram}
-            audioAlertEnabled={automationSettings.audioAlertEnabled}
-            onDismissSignal={handleDismissSignal}
-            onTrackSignal={handleTrackSignal}
-            onUntrackSignal={handleUntrackSignal}
-            isSignalTracked={(sig) => trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === sig.symbol && (item.source_signal_time === sig.signal_time || !item.source_signal_time))}
-            activeFilterTag={activeFilterTag}
-            setActiveFilterTag={setActiveFilterTag}
-            signalSort={signalSort}
-            setSignalSort={setSignalSort}
-            telegramFilter={telegramFilter}
-            setTelegramFilter={setTelegramFilter}
-            isCollapsed={guiVersion === 'v1' ? isRadarCollapsed : false}
-            onToggleCollapse={() => setIsRadarCollapsed(value => !value)}
-          />
-        </div>
-
-        {/* Center Column: Main Workspace & Charts (6 or 9 cols depending on drawer) */}
-        <div className={`min-w-0 h-auto lg:h-[calc(100vh-120px)] lg:min-h-[600px] ${
-          guiVersion === 'v2' && mobileTab === 'RADAR' ? 'hidden lg:block' : 'block'
-        } ${isActionDrawerOpen ? 'lg:col-span-6' : 'lg:col-span-9'}`}>
+        {/* Main Workspace & Charts */}
+        <div className={`min-w-0 h-auto lg:h-[calc(100vh-120px)] lg:min-h-[600px] block ${
+          isActionDrawerOpen ? 'lg:col-span-9' : 'lg:col-span-12'
+        }`}>
           <MainWorkspace
             signals={signals}
             selectedSignal={selectedSignal}
@@ -824,6 +797,19 @@ export function App() {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             onOpenOrderModal={() => setIsOrderModalOpen(true)}
+            onOpenCoinSelector={() => setIsCoinSelectorOpen(true)}
+            onSelectSignal={handleSelectSignal}
+            onTrackSignal={handleTrackSignal}
+            onUntrackSignal={handleUntrackSignal}
+            isSignalTracked={(sig) => trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === sig.symbol && (item.source_signal_time === sig.signal_time || !item.source_signal_time))}
+            audioAlertEnabled={automationSettings.audioAlertEnabled}
+            activeFilterTag={activeFilterTag}
+            setActiveFilterTag={setActiveFilterTag}
+            signalSort={signalSort}
+            setSignalSort={setSignalSort}
+            telegramFilter={telegramFilter}
+            setTelegramFilter={setTelegramFilter}
+            filteredSignals={filteredSignals}
             guiVersion={guiVersion}
             onSelectGuiVersion={handleSelectGuiVersion}
             threshold={threshold}
@@ -857,7 +843,7 @@ export function App() {
           onSelectTab={(tab) => {
             setMobileTab(tab);
             if (tab === 'RADAR') {
-              // Switch to radar view on mobile
+              setActiveTab('RADAR');
             } else if (tab === 'ANALYSIS') {
               setActiveTab('DECISION');
             } else if (tab === 'ORDER') {
@@ -865,7 +851,7 @@ export function App() {
             } else if (tab === 'TRACKING') {
               setActiveTab('WATCHLIST');
             } else if (tab === 'TOOLS') {
-              if (activeTab === 'DECISION' || activeTab === 'WATCHLIST') {
+              if (activeTab === 'DECISION' || activeTab === 'WATCHLIST' || activeTab === 'RADAR') {
                 setActiveTab('RANKING');
               }
             }
@@ -910,6 +896,26 @@ export function App() {
           isTrackingLoading={isTrackingLoading}
         />
       )}
+
+      {/* Binance Futures Style Coin Selector Popover/Modal */}
+      <CoinSelectorModal
+        isOpen={isCoinSelectorOpen}
+        onClose={() => setIsCoinSelectorOpen(false)}
+        currentSymbol={coinDetail?.symbol || selectedSignal?.symbol || (candidates.length > 0 ? candidates[0].symbol : '')}
+        onSelectCoin={handleSelectCandidate}
+        signals={signals}
+        candidates={candidates}
+        marketData={marketData}
+        manualWatchlist={manualWatchlist}
+        trackingItems={trackingItems}
+        onToggleWatchlist={async (sym) => {
+          if (manualWatchlist.includes(sym)) {
+            return await handleRemoveManualCoin(sym);
+          } else {
+            return await handleAddManualCoin(sym);
+          }
+        }}
+      />
 
       {/* Glossary Modal */}
       <GlossaryModal
