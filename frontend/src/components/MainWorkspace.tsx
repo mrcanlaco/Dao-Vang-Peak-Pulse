@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import type { SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, ScannerTelemetry, DeepAnalysis, CandlePoint, TrackingWatchlistItem, TradeSetup } from '../types';
+import type { SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, ScannerTelemetry, DeepAnalysis, CandlePoint, TrackingWatchlistItem, TradeSetup, FilterTag, SignalSort, TelegramFilter } from '../types';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, AreaChart, Area, ComposedChart
 } from 'recharts';
@@ -7,6 +7,7 @@ import {
   ShieldCheck, Activity, BarChart3,
   Layers, ArrowUpRight, ArrowDownRight, Eye, CheckCircle2, Zap, Radio, Terminal, Send, Clock, Play, Loader2, FlaskConical, LineChart as LineChartIcon, XCircle, RefreshCw, Target, Award, ChevronDown, ChevronUp, Cpu
 } from 'lucide-react';
+import { SignalFeed } from './SignalFeed';
 import { MultiCoinScan } from './MultiCoinScan';
 import { BacktestExperiments } from './BacktestExperiments';
 import { ForwardTest } from './ForwardTest';
@@ -73,6 +74,19 @@ interface MainWorkspaceProps {
   activeTab: WorkspaceTab;
   setActiveTab: (tab: WorkspaceTab) => void;
   onOpenOrderModal?: () => void;
+  onOpenCoinSelector?: () => void;
+  onSelectSignal?: (sig: SignalItem) => void;
+  onTrackSignal?: (sig: SignalItem) => void;
+  onUntrackSignal?: (sig: SignalItem) => void;
+  isSignalTracked?: (sig: SignalItem) => boolean;
+  audioAlertEnabled?: boolean;
+  activeFilterTag?: FilterTag;
+  setActiveFilterTag?: (tag: FilterTag) => void;
+  signalSort?: SignalSort;
+  setSignalSort?: (sort: SignalSort) => void;
+  telegramFilter?: TelegramFilter;
+  setTelegramFilter?: (filter: TelegramFilter) => void;
+  filteredSignals?: SignalItem[];
   guiVersion?: 'v1' | 'v2';
   onSelectGuiVersion?: (version: 'v1' | 'v2') => void;
   threshold?: number;
@@ -117,6 +131,19 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   activeTab,
   setActiveTab,
   onOpenOrderModal,
+  onOpenCoinSelector,
+  onSelectSignal,
+  onTrackSignal,
+  onUntrackSignal,
+  isSignalTracked,
+  audioAlertEnabled = true,
+  activeFilterTag = 'ALL',
+  setActiveFilterTag,
+  signalSort = 'NEWEST',
+  setSignalSort,
+  telegramFilter = 'ALL',
+  setTelegramFilter,
+  filteredSignals,
   guiVersion = 'v2',
   onSelectGuiVersion,
   threshold,

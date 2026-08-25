@@ -116,11 +116,17 @@ def _call_openai_compatible(
     model_id: str,
     system_prompt: str,
     user_prompt: str,
-    timeout: int = 20,
+    timeout: int = 25,
 ) -> str:
-    url = base_url.rstrip("/") + "/chat/completions"
+    endpoint = base_url.rstrip("/")
+    if not endpoint.endswith("/chat/completions"):
+        url = endpoint + "/chat/completions"
+    else:
+        url = endpoint
+
     headers = {
         "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (compatible; DaoVangAI/2.0)",
     }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -133,6 +139,7 @@ def _call_openai_compatible(
         ],
         "temperature": 0.3,
         "max_tokens": 1024,
+        "stream": False,
     }
     req = urllib.request.Request(
         url,
@@ -141,10 +148,36 @@ def _call_openai_compatible(
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        body = json.loads(resp.read().decode("utf-8"))
-        choices = body.get("choices", [])
-        if choices:
-            return choices[0].get("message", {}).get("content", "").strip()
+        raw_text = resp.read().decode("utf-8")
+        try:
+            body = json.loads(raw_text)
+            choices = body.get("choices", [])
+            if choices:
+                msg = choices[0].get("message", {})
+                if isinstance(msg, dict):
+                    content = msg.get("content", "")
+                    if content:
+                        return content.strip()
+                delta = choices[0].get("delta", {})
+                if isinstance(delta, dict) and delta.get("content"):
+                    return delta.get("content", "").strip()
+        except json.JSONDecodeError:
+            # Handle SSE stream fallback if custom proxy responds in text/event-stream
+            collected = []
+            for line in raw_text.splitlines():
+                line = line.strip()
+                if line.startswith("data: ") and line != "data: [DONE]":
+                    try:
+                        chunk = json.loads(line[6:])
+                        choices = chunk.get("choices", [])
+                        if choices:
+                            delta = choices[0].get("delta", {})
+                            if isinstance(delta, dict) and delta.get("content"):
+                                collected.append(delta["content"])
+                    except Exception:
+                        pass
+            if collected:
+                return "".join(collected).strip()
     return "Không nhận được phản hồi từ AI API."
 
 

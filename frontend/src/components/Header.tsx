@@ -20,6 +20,7 @@ import {
   Scale,
   GitPullRequest,
   Settings,
+  Radio,
 } from 'lucide-react';
 import {
   getRiskLabel,
@@ -45,6 +46,8 @@ interface HeaderProps {
   onOpenModelComparison?: () => void;
   onOpenUpdates?: () => void;
   onOpenSettings?: () => void;
+  onOpenCoinSelector?: () => void;
+  onOpenRadar?: () => void;
   trackingCount: number;
   activeScanMode: string;
   autoTelegramEnabled: boolean;
@@ -82,6 +85,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenModelComparison,
   onOpenUpdates,
   onOpenSettings,
+  onOpenCoinSelector,
+  onOpenRadar,
   trackingCount,
   activeScanMode,
   autoTelegramEnabled: _autoTelegramEnabled,
@@ -209,10 +214,16 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Center: Coin Ticker & Live Price & AI Prob Badge */}
-            <div className="flex items-center gap-1.5 min-w-0 justify-center flex-1">
+            <button
+              type="button"
+              onClick={onOpenCoinSelector}
+              className="flex items-center gap-1.5 min-w-0 justify-center flex-1 py-1 px-2 rounded-lg bg-slate-900/90 border border-slate-800 hover:border-amber-500/40 active:scale-95 transition"
+              title={t('coin_selector_title')}
+            >
               <span className="font-black text-amber-400 font-mono text-sm tracking-tight truncate">
                 {activeCoinSymbol}
               </span>
+              <ChevronDown className="w-3 h-3 text-amber-400" />
               <span className="text-xs font-mono font-bold text-slate-100 shrink-0">
                 ${formatPrice(activeCoinPrice)}
               </span>
@@ -227,7 +238,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {probPct.toFixed(0)}%
                 </span>
               )}
-            </div>
+            </button>
 
             {/* Right: Quick actions (Refresh, Language) */}
             <div className="flex items-center gap-1.5 shrink-0">
@@ -384,6 +395,41 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
             </div>
 
+            {/* Binance-style Coin Selector Trigger Button */}
+            {activeCoinSymbol && (
+              <button
+                type="button"
+                onClick={onOpenCoinSelector}
+                className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-slate-900/90 hover:bg-slate-800 hover:border-amber-400 px-3 py-1.5 text-xs font-bold text-slate-100 shadow-md active:scale-95 transition group cursor-pointer"
+                title={t('coin_selector_title')}
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="font-black text-amber-400 font-mono text-sm tracking-tight group-hover:text-amber-300">
+                    {activeCoinSymbol}
+                  </span>
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                    {t('coin_badge_perpetual')}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-amber-400 group-hover:translate-y-0.5 transition" />
+                </div>
+                <div className="h-3.5 w-px bg-slate-700 mx-0.5" />
+                <span className="font-mono text-xs font-bold text-white">
+                  ${formatPrice(activeCoinPrice)}
+                </span>
+                {probPct !== null && (
+                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold font-mono border ${
+                    probPct >= 70
+                      ? 'bg-red-950 text-red-300 border-red-800'
+                      : probPct >= 50
+                      ? 'bg-amber-950 text-amber-300 border-amber-800'
+                      : 'bg-slate-800 text-slate-300 border-slate-700'
+                  }`}>
+                    {probPct.toFixed(0)}%
+                  </span>
+                )}
+              </button>
+            )}
+
             {/* AI Model Selector */}
             {availableModels.length > 0 && onSelectModel && (
               <div className="relative">
@@ -509,6 +555,24 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
                 <span>Live 24/7</span>
               </span>
+            )}
+
+            {/* Radar Tab Quick Button */}
+            {onOpenRadar && (
+              <button
+                type="button"
+                onClick={onOpenRadar}
+                className="relative inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/15 px-2.5 text-xs font-bold text-red-300 shadow-sm transition hover:bg-red-500/25 active:scale-95"
+                title={t('ws_tab_radar')}
+              >
+                <Radio className="h-3.5 w-3.5 text-red-400" />
+                <span className="hidden lg:inline">{t('ws_tab_radar')}</span>
+                {signalCount > 0 && (
+                  <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white animate-pulse">
+                    {signalCount}
+                  </span>
+                )}
+              </button>
             )}
 
             {/* Tracking Watchlist Button */}

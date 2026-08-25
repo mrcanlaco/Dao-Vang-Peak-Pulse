@@ -1,8 +1,7 @@
 import React from 'react';
-import { Flame, CheckCircle2, XCircle, Clock, Send, Activity } from 'lucide-react';
+import { Flame, CheckCircle2, XCircle, Clock, Send, Activity, ChevronDown } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import type { CandidateCoin, SignalItem } from '../../types';
-import { CoinLink } from '../CoinLink';
 
 interface DecisionHeaderProps {
   symbol: string;
@@ -13,6 +12,7 @@ interface DecisionHeaderProps {
   candidates: CandidateCoin[];
   onSelectCandidate: (symbol: string) => void;
   isDeepAnalyzing?: boolean;
+  onOpenCoinSelector?: () => void;
 }
 
 export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
@@ -24,6 +24,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
   candidates,
   onSelectCandidate,
   isDeepAnalyzing,
+  onOpenCoinSelector,
 }) => {
   const { t } = useTranslation();
 
@@ -37,15 +38,28 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3 min-w-0">
         {/* Left: Avatar & Ticker info & Price */}
         <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/40 flex items-center justify-center shrink-0 shadow-inner">
-            <span className="text-amber-400 font-black text-sm sm:text-base tracking-tight font-mono">
+          <button
+            type="button"
+            onClick={onOpenCoinSelector}
+            className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/40 hover:border-amber-400 flex items-center justify-center shrink-0 shadow-inner group transition active:scale-95 cursor-pointer"
+            title={t('coin_selector_title')}
+          >
+            <span className="text-amber-400 group-hover:text-amber-300 font-black text-sm sm:text-base tracking-tight font-mono">
               {symbol.replace('USDT', '').slice(0, 3)}
             </span>
-          </div>
+          </button>
 
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <CoinLink symbol={symbol} onClick={onSelectCandidate} className="text-base sm:text-lg font-black text-white hover:text-amber-300 tracking-tight" />
+              <button
+                type="button"
+                onClick={onOpenCoinSelector}
+                className="group flex items-center gap-1 text-base sm:text-lg font-black text-white hover:text-amber-300 tracking-tight transition"
+                title={t('coin_selector_title')}
+              >
+                <span>{symbol}</span>
+                <ChevronDown className="w-4 h-4 text-amber-400 group-hover:translate-y-0.5 transition" />
+              </button>
               <span className="text-xs font-normal text-slate-400">({name})</span>
 
               {/* Status Badges */}

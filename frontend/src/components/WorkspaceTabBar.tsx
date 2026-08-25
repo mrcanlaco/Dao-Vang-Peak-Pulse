@@ -23,6 +23,7 @@ import type { MobileTabType } from './v2/MobileBottomNav';
 
 export type WorkspaceTab =
   | 'DECISION'
+  | 'RADAR'
   | 'WATCHLIST'
   | 'RANKING'
   | 'MULTISCAN'
@@ -54,6 +55,7 @@ interface WorkspaceTabBarProps {
   onSelectCandidate: (symbol: string) => void;
   trackingCount: number;
   candidateCount: number;
+  signalCount?: number;
   isTelemetryActive?: boolean;
   guiVersion?: 'v1' | 'v2';
   mobileTab?: MobileTabType;
@@ -66,6 +68,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
   onSelectCandidate,
   trackingCount,
   candidateCount,
+  signalCount = 0,
   isTelemetryActive = true,
   guiVersion = 'v2',
   mobileTab = 'RADAR',
@@ -80,6 +83,15 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
       id: 'DECISION',
       labelKey: 'ws_tab_decision',
       icon: Activity,
+      category: 'TRADING',
+    },
+    {
+      id: 'RADAR',
+      labelKey: 'ws_tab_radar',
+      descKey: 'ws_tab_radar_desc',
+      icon: Radio,
+      badge: signalCount > 0 ? signalCount : null,
+      pulse: signalCount > 0,
       category: 'TRADING',
     },
     {
@@ -102,7 +114,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
       icon: Layers,
       category: 'TRADING',
     },
-  ], [trackingCount, candidateCount]);
+  ], [trackingCount, candidateCount, signalCount]);
 
   const labTabs: TabItemConfig[] = useMemo(() => [
     {
