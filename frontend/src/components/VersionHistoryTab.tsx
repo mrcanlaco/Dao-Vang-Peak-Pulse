@@ -91,7 +91,7 @@ export const VersionHistoryTab: React.FC = () => {
     setIsUpdating(true);
     setUpdateError(null);
     setUpdateSuccess(false);
-    setUpdateLogs(['[HỆ THỐNG] Đang gửi yêu cầu cập nhật tới máy chủ...']);
+    setUpdateLogs([t('updates_log_sending_request')]);
 
     try {
       const res = await fetch('/api/system/update-apply', { method: 'POST' });
@@ -138,7 +138,7 @@ export const VersionHistoryTab: React.FC = () => {
       }, 1000);
     } catch (err) {
       setIsUpdating(false);
-      setUpdateError(err instanceof Error ? err.message : 'Lỗi khi kích hoạt cập nhật');
+      setUpdateError(err instanceof Error ? err.message : t('updates_err_trigger'));
     }
   };
 
@@ -306,7 +306,7 @@ export const VersionHistoryTab: React.FC = () => {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8 gap-4">
         <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 font-mono text-xs max-w-md text-center">
-          {error || 'Không thể tải dữ liệu lịch sử phiên bản'}
+          {error || t('updates_err_load')}
         </div>
         <button
           onClick={() => fetchVersionHistory(false)}
@@ -395,7 +395,7 @@ export const VersionHistoryTab: React.FC = () => {
                 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 shadow-emerald-500/20 animate-pulse'
                 : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20'
             }`}
-            title="Cập nhật hệ thống 1-Click"
+            title={t('updates_one_click_tooltip')}
           >
             <Rocket className="w-3.5 h-3.5" />
             <span>{t('updates_btn_one_click_update')}</span>
@@ -421,7 +421,7 @@ export const VersionHistoryTab: React.FC = () => {
                   {t('updates_new_version_available')}
                 </span>
                 <span className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-mono font-bold text-emerald-300">
-                  {updateStatus.commits_behind} Commits mới ({updateStatus.remote_commit_short})
+                  {t('updates_commits_behind_count').replace('{count}', String(updateStatus.commits_behind))} ({updateStatus.remote_commit_short})
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5 font-mono">
@@ -502,7 +502,7 @@ export const VersionHistoryTab: React.FC = () => {
             <span className="text-2xl font-black font-mono text-violet-300">
               {stats.active_days}
             </span>
-            <span className="text-[11px] text-slate-400">ngày phát triển</span>
+            <span className="text-[11px] text-slate-400">{t('updates_dev_days_label')}</span>
           </div>
         </div>
       </div>
@@ -654,7 +654,7 @@ export const VersionHistoryTab: React.FC = () => {
                   onChange={(e) => setSelectedScope(e.target.value)}
                   className="bg-slate-950 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-300 focus:outline-none focus:border-amber-500"
                 >
-                  <option value="ALL">Module: Tất cả</option>
+                  <option value="ALL">{t('updates_module_all')}</option>
                   {top_scopes.map((s) => (
                     <option key={s.scope} value={s.scope}>
                       {s.scope} ({s.count})
@@ -679,7 +679,7 @@ export const VersionHistoryTab: React.FC = () => {
                     <Calendar className="w-3.5 h-3.5 text-amber-400" />
                     <span>{day}</span>
                     <span className="text-[10px] text-slate-400 font-normal">
-                      ({commitsOnDay.length} commits)
+                      {t('updates_commits_count').replace('{count}', String(commitsOnDay.length))}
                     </span>
                   </div>
 
@@ -811,21 +811,21 @@ export const VersionHistoryTab: React.FC = () => {
 
                 <div>
                   <h3 className="text-sm font-bold text-slate-100 group-hover:text-amber-300 transition">
-                    {m.title}
+                    {t(`milestone_${m.id.replace(/[-.]/g, '_')}_title`, m.title)}
                   </h3>
                   <div className="text-[10px] font-mono text-slate-400 mt-0.5 flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
                     {m.date}
                   </div>
                   <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                    {m.description}
+                    {t(`milestone_${m.id.replace(/[-.]/g, '_')}_desc`, m.description)}
                   </p>
 
                   {/* Highlights list */}
                   {m.highlights && m.highlights.length > 0 && (
                     <div className="mt-3 space-y-1 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
                       <div className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider">
-                        ✨ Điểm nổi bật:
+                        {t('updates_highlights_title')}
                       </div>
                       {m.highlights.map((h, i) => (
                         <div key={i} className="text-xs text-slate-300 flex items-start gap-1.5">
@@ -853,7 +853,7 @@ export const VersionHistoryTab: React.FC = () => {
                 {t('updates_velocity_chart_title')}
               </h3>
               <span className="text-[10px] font-mono text-slate-400">
-                {daily_velocity.length} ngày ghi nhận hoạt động
+                {t('updates_active_days_count').replace('{count}', String(daily_velocity.length))}
               </span>
             </div>
 
@@ -1011,24 +1011,28 @@ export const VersionHistoryTab: React.FC = () => {
               {/* Version Comparison Card */}
               <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl font-mono text-xs">
                 <div className="flex flex-col gap-1">
-                  <span className="text-slate-400 text-[10px] uppercase font-sans font-bold">Phiên bản cục bộ</span>
+                  <span className="text-slate-400 text-[10px] uppercase font-sans font-bold">
+                    {t('updates_local_version_label')}
+                  </span>
                   <div className="flex items-center gap-1.5 text-amber-300 font-bold">
                     <Tag className="w-3.5 h-3.5 text-amber-400" />
                     <span>{updateStatus?.local_commit_short || repo.head_hash}</span>
                   </div>
                   <span className="text-[11px] text-slate-400 truncate">
-                    {updateStatus?.local_commit_message || 'Bản chạy hiện tại'}
+                    {updateStatus?.local_commit_message || t('updates_current_running_version')}
                   </span>
                 </div>
 
                 <div className="flex flex-col gap-1 border-l border-slate-800 pl-3">
-                  <span className="text-slate-400 text-[10px] uppercase font-sans font-bold">Bản mới trên GitHub</span>
+                  <span className="text-slate-400 text-[10px] uppercase font-sans font-bold">
+                    {t('updates_remote_github_version')}
+                  </span>
                   <div className="flex items-center gap-1.5 text-emerald-300 font-bold">
                     <ArrowDownCircle className="w-3.5 h-3.5 text-emerald-400" />
                     <span>{updateStatus?.remote_commit_short || repo.current_tag}</span>
                   </div>
                   <span className="text-[11px] text-slate-400 truncate">
-                    {updateStatus?.remote_commit_message || 'Đang đồng bộ...'}
+                    {updateStatus?.remote_commit_message || t('updates_syncing')}
                   </span>
                 </div>
               </div>
@@ -1037,7 +1041,8 @@ export const VersionHistoryTab: React.FC = () => {
               <div className="flex items-center gap-2 flex-wrap text-xs">
                 {updateStatus?.update_available ? (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 font-bold">
-                    <Check className="w-3.5 h-3.5" /> Có {updateStatus.commits_behind} commit mới
+                    <Check className="w-3.5 h-3.5" />
+                    {t('updates_commits_behind_count').replace('{count}', String(updateStatus.commits_behind))}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-slate-300">
@@ -1047,13 +1052,13 @@ export const VersionHistoryTab: React.FC = () => {
 
                 {updateStatus?.has_dependency_changes && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300">
-                    <Box className="w-3.5 h-3.5" /> Có thay đổi thư viện Python (uv sync)
+                    <Box className="w-3.5 h-3.5" /> {t('updates_dep_changes_py')}
                   </span>
                 )}
 
                 {updateStatus?.has_frontend_changes && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-sky-500/10 border border-sky-500/30 text-sky-300">
-                    <Sparkles className="w-3.5 h-3.5" /> Có cập nhật giao diện (npm build)
+                    <Sparkles className="w-3.5 h-3.5" /> {t('updates_dep_changes_fe')}
                   </span>
                 )}
               </div>
@@ -1062,7 +1067,7 @@ export const VersionHistoryTab: React.FC = () => {
               {updateStatus?.new_commits && updateStatus.new_commits.length > 0 && (
                 <div className="flex flex-col gap-2">
                   <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                    Các thay đổi mới sẽ áp dụng ({updateStatus.new_commits.length} commits):
+                    {t('updates_new_changes_apply').replace('{count}', String(updateStatus.new_commits.length))}
                   </span>
                   <div className="max-h-36 overflow-y-auto flex flex-col gap-1.5 pr-1">
                     {updateStatus.new_commits.map((c) => (
@@ -1093,7 +1098,7 @@ export const VersionHistoryTab: React.FC = () => {
                     </span>
                     {isUpdating && (
                       <span className="text-amber-400 flex items-center gap-1 animate-pulse font-mono text-[11px]">
-                        <RefreshCw className="w-3 h-3 animate-spin" /> Đang cập nhật...
+                        <RefreshCw className="w-3 h-3 animate-spin" /> {t('updates_updating_in_progress')}
                       </span>
                     )}
                   </div>
@@ -1112,9 +1117,9 @@ export const VersionHistoryTab: React.FC = () => {
                 <div className="p-3.5 bg-emerald-950/80 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-medium flex items-center gap-2.5">
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                   <div>
-                    <div className="font-bold">Cập nhật thành công!</div>
+                    <div className="font-bold">{t('updates_update_success_title')}</div>
                     <div className="text-[11px] text-emerald-200/80">
-                      Hệ thống và các dịch vụ đã được khởi động lại. Tự động tải lại trang sau {countdown ?? 5}s...
+                      {t('updates_update_success_desc').replace('{seconds}', String(countdown ?? 5))}
                     </div>
                   </div>
                 </div>
@@ -1124,7 +1129,7 @@ export const VersionHistoryTab: React.FC = () => {
                 <div className="p-3.5 bg-red-950/80 border border-red-500/40 rounded-xl text-red-300 text-xs font-medium flex items-center gap-2.5">
                   <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
                   <div>
-                    <div className="font-bold">Cập nhật thất bại:</div>
+                    <div className="font-bold">{t('updates_update_failed_title')}</div>
                     <div className="text-[11px] text-red-200/80">{updateError}</div>
                   </div>
                 </div>
@@ -1140,7 +1145,7 @@ export const VersionHistoryTab: React.FC = () => {
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
-                <span>Kiểm tra lại</span>
+                <span>{t('updates_btn_recheck')}</span>
               </button>
 
               <div className="flex items-center gap-2">
@@ -1150,7 +1155,7 @@ export const VersionHistoryTab: React.FC = () => {
                   disabled={isUpdating}
                   className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition disabled:opacity-30"
                 >
-                  Đóng
+                  {t('btn_close')}
                 </button>
 
                 <button
