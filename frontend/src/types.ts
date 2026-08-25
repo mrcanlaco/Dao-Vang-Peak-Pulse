@@ -937,3 +937,52 @@ export interface SystemUpdateLogs {
   last_result?: SystemUpdateStatus['last_update_result'];
 }
 
+export type TradeReadinessStatus = 'READY_TO_ENTER' | 'WAIT_FOR_CONFIRM' | 'CHASED_ENTRY' | 'STANDBY';
+export type ConvictionGrade = 'A+' | 'A' | 'B' | 'C';
+
+export type LlmProvider = 'gemini' | 'openai' | 'claude' | 'deepseek' | 'ollama';
+
+export interface LlmConfig {
+  provider: LlmProvider;
+  apiKey?: string;
+  modelId?: string;
+  baseUrl?: string;
+  enabled?: boolean;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string;
+  isStreaming?: boolean;
+  isError?: boolean;
+  providerUsed?: string;
+}
+
+export interface AiAskRequest {
+  question: string;
+  symbol: string;
+  context?: {
+    current_price?: number;
+    signal_price?: number;
+    probability?: number;
+    risk_level?: string;
+    trade_setup?: TradeSetup;
+    shap_drivers?: ShapDriver[];
+    metrics?: Record<string, any>;
+    btc_regime?: string;
+    parabolic_pump?: boolean;
+  };
+  llm_config?: LlmConfig;
+}
+
+export interface AiAskResponse {
+  answer: string;
+  provider: string;
+  model: string;
+  timestamp: string;
+  tokens_used?: number;
+}
+
+

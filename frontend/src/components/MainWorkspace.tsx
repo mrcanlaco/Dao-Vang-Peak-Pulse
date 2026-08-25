@@ -23,6 +23,8 @@ import { TradeSetupCard } from './DecisionCenter/TradeSetupCard';
 import { TradeSetupCardV2 } from './v2/TradeSetupCardV2';
 import { AiDecisionCockpit } from './DecisionCenter/AiDecisionCockpit';
 import { AiShapAccordion } from './DecisionCenter/AiShapAccordion';
+import { AiExecutiveBriefing } from './DecisionCenter/AiExecutiveBriefing';
+import { InteractiveAiAssistant } from './DecisionCenter/InteractiveAiAssistant';
 import { CoinLink } from './CoinLink';
 import { formatSystemTime, parseSystemDate } from '../utils/time';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -173,6 +175,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const [candleDataOverride, setCandleDataOverride] = useState<CandlePoint[] | null>(null);
   const [expandedComparisonGroup, setExpandedComparisonGroup] = useState<'champion' | 'challenger' | 'overlap' | 'challenger_only' | 'champion_only' | null>(null);
   const [candidateFilterSegment, setCandidateFilterSegment] = useState<'ALL' | 'V2_CHAMPION' | 'V1_CHALLENGER' | 'OVERLAP' | 'V2_UNIQUE' | 'V3_PREVIEW'>('ALL');
+  const [isAiChatOpen, setIsAiChatOpen] = useState(true);
 
   const comparisonSelections = useMemo(() => {
     const champVer = (candidateComparison?.champion_version || '').toLowerCase();
@@ -735,6 +738,24 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   />
                 </div>
               </div>
+
+              {/* 3. Full-Width Executive AI Briefing Bar */}
+              <AiExecutiveBriefing
+                displayDetail={displayDetail}
+                selectedSignal={selectedSignal}
+                deepAnalysis={deepAnalysis}
+                tradeSetup={tradeSetup}
+                onOpenAiChat={() => setIsAiChatOpen(true)}
+              />
+
+              {/* 4. Interactive AI Assistant & Q&A Chat */}
+              <InteractiveAiAssistant
+                displayDetail={displayDetail}
+                deepAnalysis={deepAnalysis}
+                tradeSetup={tradeSetup}
+                isOpen={isAiChatOpen}
+                onToggleOpen={() => setIsAiChatOpen(prev => !prev)}
+              />
             </div>
           ) : (
             <div className="p-12 text-center text-slate-500 bg-slate-950/60 border border-slate-800 rounded-xl">

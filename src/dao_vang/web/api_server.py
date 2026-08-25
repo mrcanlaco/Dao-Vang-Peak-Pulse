@@ -603,7 +603,25 @@ class APIHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             data = {}
 
-        if parsed.path == '/api/telegram/send':
+        if parsed.path == '/api/ai/ask':
+            question = data.get('question', '').strip()
+            symbol = data.get('symbol', '').strip().upper() or 'BTCUSDT'
+            context = data.get('context', {})
+            llm_config = data.get('llm_config', {})
+            if not question:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": "Question is required"}).encode('utf-8'))
+                return
+            try:
+                from dao_vang.web.ai_analyst import ask_ai_analyst
+                result = ask_ai_analyst(question, symbol, context, llm_config)
+                self._set_headers(200)
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode('utf-8'))
+            except Exception as exc:
+                logger.exception("AI ask failed for symbol=%s error=%s", symbol, exc)
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(exc)}).encode('utf-8'))
+        elif parsed.path == '/api/telegram/send':
             symbol = data.get('symbol', 'UNKNOWN')
             message = data.get('message') or f"🔔 Kiểm tra thủ công: {symbol}"
             ok = _notifier.send_message(message)
