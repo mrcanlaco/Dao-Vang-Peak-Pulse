@@ -44,6 +44,7 @@ interface HeaderProps {
   onOpenTracking: () => void;
   onOpenModelComparison?: () => void;
   onOpenUpdates?: () => void;
+  onOpenSettings?: () => void;
   trackingCount: number;
   activeScanMode: string;
   autoTelegramEnabled: boolean;
@@ -80,6 +81,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenTracking,
   onOpenModelComparison,
   onOpenUpdates,
+  onOpenSettings,
   trackingCount,
   activeScanMode,
   autoTelegramEnabled: _autoTelegramEnabled,
@@ -631,6 +633,21 @@ export const Header: React.FC<HeaderProps> = ({
                         <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
                         <span>{t('glossary')}</span>
                       </button>
+
+                      {/* Settings & LLM Config */}
+                      {onOpenSettings && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onOpenSettings();
+                            setMoreToolsDropdownOpen(false);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 hover:bg-slate-800 hover:text-white transition"
+                        >
+                          <Settings className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Cài đặt & LLM API</span>
+                        </button>
+                      )}
                     </div>
 
                     <div className="py-1 space-y-0.5">

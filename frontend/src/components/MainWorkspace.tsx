@@ -13,7 +13,8 @@ import { ForwardTest } from './ForwardTest';
 import { SystemHistoryTab } from './SystemHistoryTab';
 import { VersionHistoryTab } from './VersionHistoryTab';
 import { TrackingWatchlist } from './TrackingWatchlist';
-import { WorkspaceTabBar } from './WorkspaceTabBar';
+import { WorkspaceTabBar, type WorkspaceTab } from './WorkspaceTabBar';
+import { SystemSettingsTab } from './SystemSettingsTab';
 import { ErrorBoundary } from './ErrorBoundary';
 
 import { CandlestickChart } from './CandlestickChart';
@@ -69,10 +70,15 @@ interface MainWorkspaceProps {
   onSelectTrackingCoin: (symbol: string) => void;
   onUpdateTracking: (id: string, patch: Record<string, unknown>) => Promise<boolean>;
   onRemoveTracking: (id: string) => Promise<boolean>;
-  activeTab: 'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY' | 'UPDATES';
-  setActiveTab: (tab: 'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY' | 'UPDATES') => void;
+  activeTab: WorkspaceTab;
+  setActiveTab: (tab: WorkspaceTab) => void;
   onOpenOrderModal?: () => void;
   guiVersion?: 'v1' | 'v2';
+  onSelectGuiVersion?: (version: 'v1' | 'v2') => void;
+  threshold?: number;
+  setThreshold?: (val: number) => void;
+  activeScanModes?: string[];
+  onOpenWatchlistModal?: () => void;
 }
 
 export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
@@ -112,6 +118,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   setActiveTab,
   onOpenOrderModal,
   guiVersion = 'v2',
+  onSelectGuiVersion,
+  threshold,
+  setThreshold,
+  activeScanModes,
+  onOpenWatchlistModal,
 }) => {
   const { language, t } = useTranslation();  
   const riskLabels: Record<string, string> = {
@@ -320,9 +331,57 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
   // When a signal from RADAR is selected, prefer its live values over the
   // independently-fetched coinDetail so the detail panel stays in sync with
-  // the radar card that the user clicked.
-  const displayDetail = useMemo(() => {
-    if (!coinDetail) return null;
+  // the radar card that the user clicked. Fallback to selectedSignal or first candidate
+  // if coinDetail has not loaded yet.
+  const displayDetail: CoinDetail | null = useMemo(() => {
+    if (!coinDetail) {
+      if (selectedSignal) {
+        return {
+          symbol: selectedSignal.symbol,
+          name: selectedSignal.name || selectedSignal.symbol,
+          current_price: selectedSignal.signal_price,
+          chart_source: 'api',
+          probability: selectedSignal.probability * 100,
+          risk_level: selectedSignal.risk_level,
+          target_drawdown: 0.05,
+          target_price: selectedSignal.target_price,
+          signal_timestamp: selectedSignal.signal_time,
+          chart_data: [],
+          metrics: {
+            oi_change_24h: selectedSignal.oi_change_24h ?? 'N/A',
+            taker_sell_ratio: selectedSignal.taker_sell_ratio ?? 0.5,
+            funding_rate: selectedSignal.funding_rate ?? 'N/A',
+            rsi_15m: 50,
+            volume_delta_24h: 'N/A',
+          },
+          shap_drivers: [],
+        };
+      }
+      if (candidates && candidates.length > 0) {
+        const c = candidates[0];
+        return {
+          symbol: c.symbol,
+          name: c.symbol,
+          current_price: c.price,
+          chart_source: 'api',
+          probability: c.score || 0,
+          risk_level: c.risk || 'MEDIUM',
+          target_drawdown: 0.05,
+          target_price: c.price * 0.95,
+          signal_timestamp: new Date().toISOString(),
+          chart_data: [],
+          metrics: {
+            oi_change_24h: c.oi_24h ?? 'N/A',
+            taker_sell_ratio: c.taker_ratio ?? 0.5,
+            funding_rate: c.funding ?? 'N/A',
+            rsi_15m: 50,
+            volume_delta_24h: c.volume_24h ?? 'N/A',
+          },
+          shap_drivers: [],
+        };
+      }
+      return null;
+    }
     if (!selectedSignal || selectedSignal.symbol !== coinDetail.symbol) return coinDetail;
     return {
       ...coinDetail,
@@ -338,7 +397,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         taker_sell_ratio: selectedSignal.taker_sell_ratio ?? coinDetail.metrics?.taker_sell_ratio ?? 0.5,
       },
     };
-  }, [coinDetail, selectedSignal]);
+  }, [coinDetail, selectedSignal, candidates]);
 
   // Compute trade setup levels (Entry, SL, TP1, TP2, R:R)
   const tradeSetup: TradeSetup | null = useMemo(() => {
@@ -2064,6 +2123,20 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       {activeTab === 'UPDATES' && (
         <ErrorBoundary fallbackTitle="Lỗi hiển thị Cập nhật Phiên bản">
           <VersionHistoryTab />
+        </ErrorBoundary>
+      )}
+
+      {/* TAB: SYSTEM SETTINGS & LLM CONFIG */}
+      {activeTab === 'SETTINGS' && (
+        <ErrorBoundary fallbackTitle="Lỗi hiển thị Cấu hình Hệ thống">
+          <SystemSettingsTab
+            guiVersion={guiVersion}
+            onSelectGuiVersion={onSelectGuiVersion}
+            threshold={threshold}
+            setThreshold={setThreshold}
+            activeScanModes={activeScanModes}
+            onOpenWatchlistModal={onOpenWatchlistModal}
+          />
         </ErrorBoundary>
       )}
 

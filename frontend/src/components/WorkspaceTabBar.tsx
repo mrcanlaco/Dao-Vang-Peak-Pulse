@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Check,
   Zap,
+  Settings,
 } from 'lucide-react';
 import { CoinLink } from './CoinLink';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -31,7 +32,8 @@ export type WorkspaceTab =
   | 'MARKET'
   | 'TELEMETRY'
   | 'HISTORY'
-  | 'UPDATES';
+  | 'UPDATES'
+  | 'SETTINGS';
 
 export type TabCategory = 'TRADING' | 'LAB' | 'SYSTEM';
 
@@ -154,6 +156,13 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
       labelKey: 'ws_tab_updates',
       descKey: 'ws_tab_updates_desc',
       icon: GitPullRequest,
+      category: 'SYSTEM',
+    },
+    {
+      id: 'SETTINGS',
+      labelKey: 'ws_tab_settings',
+      descKey: 'ws_tab_settings_desc',
+      icon: Settings,
       category: 'SYSTEM',
     },
   ], [isTelemetryActive]);

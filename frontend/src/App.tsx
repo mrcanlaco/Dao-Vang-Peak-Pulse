@@ -9,6 +9,7 @@ import { ModelComparisonModal } from './components/ModelComparisonModal';
 import { MobileBottomNav, type MobileTabType } from './components/v2/MobileBottomNav';
 import { StickyActionBar } from './components/v2/StickyActionBar';
 import { OrderExecutionModal } from './components/v2/OrderExecutionModal';
+import type { WorkspaceTab } from './components/WorkspaceTabBar';
 import type {
   SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, SystemStatus, FilterTag, SignalSort, TelegramFilter, AutomationSettings, ScannerTelemetry, WatchlistPreset, DeepAnalysis, ModelChoice, ModelsData, TrackingWatchlistItem
 } from './types';
@@ -77,7 +78,7 @@ export function App() {
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
   const [telegramSentSuccess, setTelegramSentSuccess] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'DECISION' | 'WATCHLIST' | 'RANKING' | 'MULTISCAN' | 'BACKTEST' | 'FORWARD' | 'AUDIT' | 'MARKET' | 'TELEMETRY' | 'HISTORY' | 'UPDATES'>('DECISION');
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('DECISION');
   const [isActionDrawerOpen, setIsActionDrawerOpen] = useState(false);
   const [isRadarCollapsed, setIsRadarCollapsed] = useState(false);
 
@@ -248,6 +249,10 @@ export function App() {
         setSelectedSignalId(sigRes[0].id);
         setSelectedSignal(sigRes[0]);
         fetchCoinDetail(sigRes[0].symbol);
+        handleRunDeepAnalysis(sigRes[0].symbol);
+      } else if (candRes && candRes.length > 0 && !selectedSignalId && !hashSymbol) {
+        fetchCoinDetail(candRes[0].symbol);
+        handleRunDeepAnalysis(candRes[0].symbol);
       }
     } catch (err) {
       console.error("Error loading API data:", err);
@@ -730,6 +735,7 @@ export function App() {
         onSelectGuiVersion={handleSelectGuiVersion}
         onOpenModelComparison={() => setIsModelComparisonOpen(true)}
         onOpenUpdates={() => setActiveTab('UPDATES')}
+        onOpenSettings={() => setActiveTab('SETTINGS')}
         mobileTab={mobileTab}
         onBackToRadar={() => {
           setMobileTab('RADAR');
@@ -819,6 +825,11 @@ export function App() {
             setActiveTab={setActiveTab}
             onOpenOrderModal={() => setIsOrderModalOpen(true)}
             guiVersion={guiVersion}
+            onSelectGuiVersion={handleSelectGuiVersion}
+            threshold={threshold}
+            setThreshold={setThreshold}
+            activeScanModes={activeScanModes}
+            onOpenWatchlistModal={() => setIsWatchlistModalOpen(true)}
           />
         </div>
 
