@@ -360,8 +360,27 @@ export const CoinSelectorModal: React.FC<CoinSelectorModalProps> = ({
             )}
           </div>
 
-          {/* Category Tabs (Binance Style Pill Buttons) */}
+          {/* Category Tabs (Binance Style Pill Buttons) - Favorites is 1st on the left */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            {/* Favorites / Tracking (First / Outermost Tab) */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('FAVORITES')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
+                activeTab === 'FAVORITES'
+                  ? 'bg-yellow-400 text-slate-950 font-black shadow-sm shadow-yellow-500/20'
+                  : 'bg-slate-800/80 text-yellow-300 hover:bg-slate-800 hover:text-yellow-200'
+              }`}
+            >
+              <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+              <span>{t('coin_tab_favorites')}</span>
+              {counts.favorites > 0 && (
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${activeTab === 'FAVORITES' ? 'bg-yellow-600 text-slate-950' : 'bg-yellow-500/20 text-yellow-300'}`}>
+                  {counts.favorites}
+                </span>
+              )}
+            </button>
+
             {/* All */}
             <button
               type="button"
@@ -441,25 +460,6 @@ export const CoinSelectorModal: React.FC<CoinSelectorModalProps> = ({
               <span className={`text-[10px] px-1 rounded font-mono ${activeTab === 'TOP' ? 'bg-amber-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
                 {counts.top}
               </span>
-            </button>
-
-            {/* Favorites / Tracking */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('FAVORITES')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
-                activeTab === 'FAVORITES'
-                  ? 'bg-yellow-400 text-slate-950 shadow-sm'
-                  : 'bg-slate-800/80 text-yellow-300 hover:bg-slate-800'
-              }`}
-            >
-              <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
-              <span>{t('coin_tab_favorites')}</span>
-              {counts.favorites > 0 && (
-                <span className={`text-[10px] px-1 rounded font-mono ${activeTab === 'FAVORITES' ? 'bg-yellow-600 text-white' : 'bg-slate-700 text-slate-300'}`}>
-                  {counts.favorites}
-                </span>
-              )}
             </button>
           </div>
         </div>

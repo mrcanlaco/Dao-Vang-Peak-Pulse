@@ -178,12 +178,12 @@ export const Header: React.FC<HeaderProps> = ({
     <button
       type="button"
       onClick={onOpenWatchlistModal}
-      className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 px-2.5 py-1.5 text-xs font-bold text-slate-950 shadow-md shadow-amber-500/15 transition hover:from-amber-400 hover:to-amber-500 active:scale-95 shrink-0"
+      className="inline-flex max-w-[120px] lg:max-w-[160px] items-center gap-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 px-2 py-1 text-xs font-bold text-slate-950 shadow-md shadow-amber-500/15 transition hover:from-amber-400 hover:to-amber-500 active:scale-95 shrink-0"
       title={t('select_coins_to_scan')}
     >
       <Target className="h-3.5 w-3.5 shrink-0 stroke-[2.5]" />
-      <span className="truncate whitespace-nowrap text-xs">
-        <strong className="font-mono uppercase">{scanLabel}</strong>
+      <span className="truncate whitespace-nowrap text-[11px] font-mono font-bold uppercase">
+        {scanLabel}
       </span>
     </button>
   );
@@ -365,9 +365,9 @@ export const Header: React.FC<HeaderProps> = ({
         {/* =========================================================
             2. DESKTOP UNIFIED 1-ROW PRO HEADER (md and up)
         ========================================================= */}
-        <div className="hidden md:flex items-center justify-between gap-3 min-w-0">
-          {/* Left Zone: Brand + Model Selector + Scan Watchlist */}
-          <div className="flex items-center gap-2.5 shrink-0">
+        <div className="hidden md:flex items-center justify-between gap-2 xl:gap-3 min-w-0">
+          {/* Left Zone: Brand + Coin Selector + AI Model + Scan Preset */}
+          <div className="flex items-center gap-2 min-w-0 shrink">
             {/* Brand Logo & Name */}
             <div
               role="button"
@@ -379,17 +379,17 @@ export const Header: React.FC<HeaderProps> = ({
                   onGoHome?.();
                 }
               }}
-              className="group flex items-center gap-2.5 cursor-pointer select-none"
+              className="group flex items-center gap-2 cursor-pointer select-none shrink-0"
               title={t('go_home')}
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 text-base font-bold text-slate-950 shadow-md shadow-amber-500/20 group-hover:scale-105 transition">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 text-sm font-bold text-slate-950 shadow-md shadow-amber-500/20 group-hover:scale-105 transition">
                 🪙
               </div>
-              <div>
-                <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-amber-400/80 leading-none">
+              <div className="hidden 2xl:block">
+                <div className="text-[8px] font-semibold uppercase tracking-[0.16em] text-amber-400/80 leading-none">
                   {t('app_subtitle')}
                 </div>
-                <h1 className="text-base font-black tracking-wide text-amber-300 group-hover:text-amber-200 leading-tight">
+                <h1 className="text-sm font-black tracking-wide text-amber-300 group-hover:text-amber-200 leading-tight">
                   RADAR
                 </h1>
               </div>
@@ -400,14 +400,14 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenCoinSelector}
-                className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-slate-900/90 hover:bg-slate-800 hover:border-amber-400 px-3 py-1.5 text-xs font-bold text-slate-100 shadow-md active:scale-95 transition group cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-slate-900/90 hover:bg-slate-800 hover:border-amber-400 px-2.5 py-1 text-xs font-bold text-slate-100 shadow-md active:scale-95 transition group cursor-pointer shrink-0"
                 title={t('coin_selector_title')}
               >
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1">
                   <span className="font-black text-amber-400 font-mono text-sm tracking-tight group-hover:text-amber-300">
                     {activeCoinSymbol}
                   </span>
-                  <span className="text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
+                  <span className="hidden xl:inline text-[9px] px-1 py-0.2 rounded bg-slate-800 text-slate-400 font-mono">
                     {t('coin_badge_perpetual')}
                   </span>
                   <ChevronDown className="w-3.5 h-3.5 text-amber-400 group-hover:translate-y-0.5 transition" />
@@ -432,11 +432,11 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* AI Model Selector */}
             {availableModels.length > 0 && onSelectModel && (
-              <div className="relative">
+              <div className="relative shrink-0">
                 <button
                   type="button"
                   onClick={() => setModelDropdownOpen((open) => !open)}
-                  className="inline-flex max-w-[12rem] lg:max-w-[14rem] items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2.5 py-1.5 text-[11px] font-bold text-sky-300 transition hover:bg-sky-500/20"
+                  className="inline-flex max-w-[110px] lg:max-w-[150px] items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[11px] font-bold text-sky-300 transition hover:bg-sky-500/20"
                   title={getModelDescription(selectedModel?.description || selectedModel?.key || '', language)}
                 >
                   <Cpu className="h-3.5 w-3.5 shrink-0" />
@@ -498,57 +498,27 @@ export const Header: React.FC<HeaderProps> = ({
             {watchlistButton}
           </div>
 
-          {/* Center Zone: Unified Search + Risk Filter + Threshold Slider */}
-          <div className="flex items-center gap-2 flex-1 max-w-xl justify-center min-w-0">
-            {/* Search Input */}
-            <div className="relative w-full max-w-xs">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder={`${t('search_placeholder')} (/)`}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-900/90 border border-slate-800 hover:border-slate-700 focus:border-amber-500/80 rounded-lg pl-8 pr-2 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition font-mono"
-              />
-            </div>
-
-            {/* Risk Filter Dropdown */}
-            <select
-              value={selectedRiskFilter}
-              onChange={(e) => setSelectedRiskFilter(e.target.value)}
-              className="h-8 bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-lg px-2 text-xs font-mono text-slate-300 focus:outline-none focus:border-amber-500 cursor-pointer shrink-0"
-              aria-label="Filter risk level"
+          {/* Quick Search Trigger Button (Opens CoinSelectorModal) */}
+          <div className="hidden xl:flex items-center justify-center min-w-0 shrink">
+            <button
+              type="button"
+              onClick={onOpenCoinSelector}
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-900/80 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 text-slate-400 hover:text-slate-200 text-xs font-mono transition cursor-pointer"
+              title={t('search_placeholder')}
             >
-              <option value="ALL">{t('risk_all')}</option>
-              <option value="CRITICAL">🔴 {getRiskLabel('CRITICAL', language)}</option>
-              <option value="HIGH">🟠 {getRiskLabel('HIGH', language)}</option>
-              <option value="MEDIUM">🟡 {getRiskLabel('MEDIUM', language)}</option>
-              <option value="SAFE">🟢 {getRiskLabel('SAFE', language)}</option>
-            </select>
-
-            {/* Alert Threshold Slider */}
-            <div className="hidden xl:flex items-center gap-1.5 bg-slate-900/80 border border-slate-800 rounded-lg px-2 py-1 text-xs shrink-0">
-              <Sliders className="w-3 h-3 text-amber-400 shrink-0" />
-              <span className="font-mono text-amber-400 font-bold text-[11px]">{(threshold * 100).toFixed(0)}%</span>
-              <input
-                type="range"
-                min="0.10"
-                max="0.85"
-                step="0.05"
-                value={threshold}
-                onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                className="w-12 cursor-pointer accent-amber-500"
-                aria-label="Alert threshold"
-              />
-            </div>
+              <Search className="w-3.5 h-3.5 text-amber-400" />
+              <span className="truncate max-w-[140px]">{t('search_placeholder')}</span>
+              <kbd className="px-1.5 py-0.2 text-[9px] bg-slate-800 border border-slate-700 rounded text-slate-400 font-sans font-semibold">
+                /
+              </kbd>
+            </button>
           </div>
 
           {/* Right Zone: Primary Actions + More Tools Menu + Language */}
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Live 24/7 Status Badge */}
             {(status?.scanner_status === 'ONLINE' || status?.scanner_status === 'ACTIVE') && (
-              <span className="hidden xl:inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+              <span className="hidden 2xl:inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -562,11 +532,11 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onOpenRadar}
-                className="relative inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/15 px-2.5 text-xs font-bold text-red-300 shadow-sm transition hover:bg-red-500/25 active:scale-95"
+                className="relative inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/15 px-2.5 text-xs font-bold text-red-300 shadow-sm transition hover:bg-red-500/25 active:scale-95 shrink-0"
                 title={t('ws_tab_radar')}
               >
                 <Radio className="h-3.5 w-3.5 text-red-400" />
-                <span className="hidden lg:inline">{t('ws_tab_radar')}</span>
+                <span className="hidden xl:inline">{t('ws_tab_radar')}</span>
                 {signalCount > 0 && (
                   <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white animate-pulse">
                     {signalCount}
@@ -579,11 +549,11 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onOpenTracking}
-              className="relative inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 text-xs font-bold text-amber-300 shadow-sm transition hover:bg-amber-500/25 active:scale-95"
+              className="relative inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 text-xs font-bold text-amber-300 shadow-sm transition hover:bg-amber-500/25 active:scale-95 shrink-0"
               title={t('tracking')}
             >
               <Eye className="h-3.5 w-3.5 text-amber-400" />
-              <span className="hidden lg:inline">{t('tracking')}</span>
+              <span className="hidden xl:inline">{t('tracking')}</span>
               {trackingCount > 0 && (
                 <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-black text-slate-950">
                   {trackingCount}
@@ -595,7 +565,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onToggleActionDrawer}
-              className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold shadow-sm transition active:scale-95 ${
+              className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold shadow-sm transition active:scale-95 shrink-0 ${
                 isActionDrawerOpen
                   ? 'border-amber-400 bg-amber-500 text-slate-950 shadow-amber-500/20'
                   : 'border-slate-700 bg-slate-800 text-slate-200 hover:border-amber-500/40 hover:bg-slate-700'
@@ -613,7 +583,7 @@ export const Header: React.FC<HeaderProps> = ({
               type="button"
               onClick={onRefresh}
               disabled={isRefreshing}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 active:scale-95 disabled:opacity-50"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 active:scale-95 disabled:opacity-50 shrink-0"
               title={t('refresh')}
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
@@ -712,6 +682,47 @@ export const Header: React.FC<HeaderProps> = ({
                           <span>Cài đặt & LLM API</span>
                         </button>
                       )}
+                    </div>
+
+                    {/* Quick Filters (Threshold & Risk) */}
+                    <div className="py-2 px-2.5 space-y-2 bg-slate-950/40 rounded-lg my-1">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">
+                        {t('settings')}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-slate-300 font-medium flex items-center gap-1">
+                          <Sliders className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span>Ngưỡng cảnh báo:</span>
+                        </span>
+                        <div className="flex items-center gap-1.5 font-mono text-amber-400 font-bold text-[11px]">
+                          <span>{(threshold * 100).toFixed(0)}%</span>
+                          <input
+                            type="range"
+                            min="0.10"
+                            max="0.85"
+                            step="0.05"
+                            value={threshold}
+                            onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                            className="w-16 cursor-pointer accent-amber-500"
+                            aria-label="Alert threshold"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-slate-300 font-medium">Mức rủi ro:</span>
+                        <select
+                          value={selectedRiskFilter}
+                          onChange={(e) => setSelectedRiskFilter(e.target.value)}
+                          className="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-200 focus:outline-none focus:border-amber-500 cursor-pointer"
+                          aria-label="Filter risk level"
+                        >
+                          <option value="ALL">{t('risk_all')}</option>
+                          <option value="CRITICAL">🔴 {getRiskLabel('CRITICAL', language)}</option>
+                          <option value="HIGH">🟠 {getRiskLabel('HIGH', language)}</option>
+                          <option value="MEDIUM">🟡 {getRiskLabel('MEDIUM', language)}</option>
+                          <option value="SAFE">🟢 {getRiskLabel('SAFE', language)}</option>
+                        </select>
+                      </div>
                     </div>
 
                     <div className="py-1 space-y-0.5">
