@@ -13,8 +13,10 @@ echo ====================================================
 echo [1/4] Dung Scheduled Tasks...
 schtasks /end /tn "DaoVangScanner" >nul 2>&1
 schtasks /end /tn "DaoVangWebUI" >nul 2>&1
+schtasks /end /tn "DaoVangAutoUpdater" >nul 2>&1
 schtasks /delete /tn "DaoVangScanner" /f >nul 2>&1
 schtasks /delete /tn "DaoVangWebUI" /f >nul 2>&1
+schtasks /delete /tn "DaoVangAutoUpdater" /f >nul 2>&1
 
 echo [2/4] Kill tat ca tien trinh Dao Vang...
 taskkill /F /IM dao-vang.exe >nul 2>&1

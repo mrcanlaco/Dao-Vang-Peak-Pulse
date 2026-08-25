@@ -363,6 +363,7 @@ class TelegramNotifier:
         price = close_price or 0.0
         price_str = f"${price:,.4f}" if price > 0 else "N/A"
         mode_label = _mode_label(operating_mode, self._lang)
+        mode_prefix = f" `[{mode_label}]`" if operating_mode != "production" else ""
         detail_url = web_url or _coin_url(self._web_base_url, symbol)
         binance_url = f"https://www.binance.com/en/futures/{symbol}"
         okx_sym = symbol.replace("USDT", "-USDT-SWAP").lower() if symbol.endswith("USDT") else f"{symbol}-SWAP".lower()
@@ -386,7 +387,7 @@ class TelegramNotifier:
             pump_str = f"+{pump_pct:.0%} in {pump_days}d" if pump_days > 0 else f"+{pump_pct:.0%}"
 
             lines = [
-                f"{stage_badge} `{symbol}` {stars}",
+                f"{stage_badge} `{symbol}` {stars}{mode_prefix}",
                 f"• *2-Tier Score:* `{total_score:.0f}/100` | *Probability:* `{prob_str}`",
                 f"• *Entry Price:* `{price_str}` (Pumped {pump_str})",
                 f"• *Adaptive Stop Loss:* `${sl_price:,.4f}` (+{sl_pct:.1f}%)",
@@ -408,7 +409,7 @@ class TelegramNotifier:
             pump_str = f"+{pump_pct:.0%} trong {pump_days} ngày" if pump_days > 0 else f"+{pump_pct:.0%}"
 
             lines = [
-                f"{stage_badge} `{symbol}` {stars}",
+                f"{stage_badge} `{symbol}` {stars}{mode_prefix}",
                 f"• *Điểm hợp lưu 2 Tầng:* *{total_score:.0f}/100* | *Xác suất:* `{prob_str}`",
                 f"• *Điểm vào lệnh (Entry):* `{price_str}` (Đã tăng {pump_str})",
                 f"• *Cắt lỗ (Adaptive SL):* `${sl_price:,.4f}` (+{sl_pct:.1f}% theo râu 5m)",

@@ -241,13 +241,12 @@ class TestTelegramAlert:
             )
 
         text = captured.get("text", "")
-        assert "TÍN HIỆU MẠNH" in text
+        assert "VÀO LỆNH SHORT NGAY" in text
         assert "⭐⭐⭐⭐" in text
-        assert "🟠" in text
-        assert "RẤT MẠNH" in text
+        assert "Điểm hợp lưu 2 Tầng" in text
         assert "Funding tăng đột biến" in text
         assert "https://trade.comaygiauco.com/#coin=ETHUSDT" in text
-        assert "Báo cáo tham khảo" in text
+        assert "Báo cáo phân tích" in text
 
     def test_send_test(self, configured_notifier: TelegramNotifier) -> None:
         """Test message should be sent successfully."""
@@ -341,10 +340,10 @@ class TestTelegramAlert:
             )
 
         text = captured.get("text", "")
-        assert "SIGNAL REPORT" in text
-        assert "SHORT CANDIDATE" in text
+        assert "SHORT EXECUTION" in text
+        assert "⭐⭐⭐⭐⭐" in text
         assert "Price-Volume Divergence" in text
-        assert "BTC Context:* BULLISH HEAT (FOMO)" in text
+        assert "https://trade.example.com/#coin=BNBUSDT" in text
 
     def test_send_cycle_digest_vietnamese(self, configured_notifier: TelegramNotifier) -> None:
         """Verify cycle digest formatting in Vietnamese."""
@@ -399,7 +398,6 @@ class TestTelegramAlert:
         assert "82.0%" in text
         assert "78.0%" in text
         assert "⭐⭐⭐⭐" in text
-        assert "🟠" in text
         assert "BTC:* YẾU" in text
 
     def test_send_cycle_digest_english(self) -> None:

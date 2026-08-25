@@ -36,9 +36,14 @@ Write-Host "Thoi gian: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundCol
 Write-Host ""
 
 $python = Join-Path $root ".venv\Scripts\python.exe"
+if (-not (Test-Path $python) -or (Test-Path (Join-Path $root ".venv_dev\Scripts\python.exe"))) {
+    if (Test-Path (Join-Path $root ".venv_dev\Scripts\python.exe")) {
+        $python = Join-Path $root ".venv_dev\Scripts\python.exe"
+    }
+}
 if (-not (Test-Path $python)) {
-    Write-Host "[ERROR] Khong tim thay Python virtual environment tai .venv\Scripts\python.exe" -ForegroundColor Red
-    Write-Host "Vui long khoi tao .venv truoc khi chay updater." -ForegroundColor Yellow
+    Write-Host "[ERROR] Khong tim thay Python virtual environment tai .venv hoac .venv_dev" -ForegroundColor Red
+    Write-Host "Vui long khoi tao moi truong ao truoc khi chay updater." -ForegroundColor Yellow
     exit 1
 }
 
