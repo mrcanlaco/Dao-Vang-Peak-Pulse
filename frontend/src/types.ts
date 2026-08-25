@@ -975,6 +975,7 @@ export interface AiAskRequest {
     parabolic_pump?: boolean;
   };
   llm_config?: LlmConfig;
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 export interface AiAskResponse {

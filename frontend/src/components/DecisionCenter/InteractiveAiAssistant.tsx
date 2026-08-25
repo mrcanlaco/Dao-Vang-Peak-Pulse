@@ -69,6 +69,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
   const [inputQuestion, setInputQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isAllCopied, setIsAllCopied] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -118,6 +119,11 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
+    const recentHistory = messages
+      .filter((m): m is ChatMessage & { role: 'user' | 'assistant' } => (m.role === 'user' || m.role === 'assistant') && !m.id.startsWith('welcome-') && !m.isError)
+      .slice(-8)
+      .map(m => ({ role: m.role, content: m.content }));
+
     setMessages(prev => [...prev, userMsg]);
     if (!overrideQuestion) {
       setInputQuestion('');
@@ -140,6 +146,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
           parabolic_pump: isPump,
         },
         llm_config: llmConfig,
+        history: recentHistory,
       };
 
       const res = await fetch('/api/ai/ask', {
@@ -177,6 +184,24 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleCopyEntireHistory = () => {
+    if (messages.length === 0) return;
+    const dateStr = new Date().toLocaleString();
+    let text = `=== HỘI THOẠI VỚI TRỢ LÝ AI ĐẢO VÀNG — ${symbol} (${dateStr}) ===\n`;
+    text += `Bối cảnh thị trường: Giá Mark $${currentPrice} | Xác suất xả AI: ${prob.toFixed(1)}% (${riskLevel}) | Trạng thái BTC: ${btcRegime}\n`;
+    text += `Chỉ số: OI 24h: ${metrics.oi_change_24h || 'N/A'} | Funding: ${metrics.funding_rate || 'N/A'} | Taker Sell: ${((metrics.taker_sell_ratio || 0.5) * 100).toFixed(0)}%\n`;
+    text += `================================================================================\n\n`;
+
+    messages.forEach((m) => {
+      const speaker = m.role === 'user' ? `[TRADER (${m.timestamp})]` : `[AI TRỢ LÝ - ${m.providerUsed || 'PeakPulse AI'} (${m.timestamp})]`;
+      text += `${speaker}:\n${m.content}\n\n--------------------------------------------------------------------------------\n\n`;
+    });
+
+    navigator.clipboard.writeText(text.trim());
+    setIsAllCopied(true);
+    setTimeout(() => setIsAllCopied(false), 2500);
   };
 
   const handleClearHistory = () => {
@@ -240,6 +265,32 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
               <Settings className="w-3.5 h-3.5 text-amber-400" />
               <span className="hidden sm:inline">{llmConfig.apiKey ? (llmConfig.provider?.toUpperCase() || 'LLM') : (isEn ? 'Configure API' : 'Gắn API Key')}</span>
             </button>
+
+            {/* Copy Entire Chat History Button */}
+            {messages.length > 1 && (
+              <button
+                type="button"
+                onClick={handleCopyEntireHistory}
+                className={`px-2 py-1 rounded-md border text-[11px] font-medium flex items-center gap-1 transition ${
+                  isAllCopied
+                    ? 'border-emerald-500/60 bg-emerald-500/20 text-emerald-300'
+                    : 'border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-slate-300'
+                }`}
+                title={isEn ? 'Copy entire conversation to clipboard' : 'Sao chép toàn bộ nội dung hội thoại'}
+              >
+                {isAllCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-300">{isEn ? 'Copied' : 'Đã chép'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">{isEn ? 'Copy All' : 'Chép hội thoại'}</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Clear Chat Button */}
             {messages.length > 1 && (
@@ -350,8 +401,18 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
                     </div>
 
                     {isUser && (
-                      <div className="w-6 h-6 rounded-md bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center shrink-0 mt-0.5">
-                        <User className="w-3.5 h-3.5" />
+                      <div className="flex flex-col items-center gap-1 shrink-0 mt-0.5">
+                        <div className="w-6 h-6 rounded-md bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center">
+                          <User className="w-3.5 h-3.5" />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyMessage(msg.id, msg.content)}
+                          className="text-slate-500 hover:text-slate-300 p-0.5 transition"
+                          title="Sao chép câu hỏi"
+                        >
+                          {copiedId === msg.id ? <Check className="w-2.5 h-2.5 text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
+                        </button>
                       </div>
                     )}
                   </div>

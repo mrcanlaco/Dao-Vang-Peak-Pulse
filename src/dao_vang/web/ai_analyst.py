@@ -17,14 +17,17 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def build_system_prompt() -> str:
+def build_system_prompt(symbol: str, context_str: str) -> str:
     return (
-        "Bạn là Đảo Vàng PeakPulse AI Assistant — trợ lý giao dịch định lượng chuyên nghiệp "
-        "về thị trường phái sinh Crypto (Binance USD-M Futures). Bạn chuyên phân tích các chỉ số "
-        "dòng tiền Open Interest (OI), tỷ lệ tài trợ (Funding Rate), áp lực mua bán chủ động (Taker Volume Delta), "
-        "phân rã SHAP và các dấu hiệu phân phối tạo đỉnh / bẫy giá (Bull Trap / Wyckoff Distribution). "
-        "Hãy trả lời súc tích, mạch lạc, có luận điểm thực tế, dùng định dạng Markdown rõ ràng, "
-        "và luôn kèm theo cảnh báo quản lý vốn/rủi ro."
+        f"Bạn là Đảo Vàng PeakPulse AI — Trợ lý Phân tích Định lượng & Cố vấn Chiến thuật Giao dịch Cấp cao (chuyên sâu thị trường Binance USD-M Futures).\n\n"
+        f"DƯỚI ĐÂY LÀ DỮ LIỆU ĐỊNH LƯỢNG THỰC TẾ CỦA {symbol} TRÊN SÀN BINANCE:\n"
+        f"{context_str}\n\n"
+        f"NGUYÊN TẮC GIAO TIẾP & PHẢN HỒI:\n"
+        f"1. GIAO TIẾP TỰ NHIÊN, CÓ HỒN: Hãy đối thoại tự nhiên, thân thiện và sắc bén như một Pro Trader / Quantitative Analyst dạn dày kinh nghiệm đang trò chuyện trực tiếp 1-1 với trader. Tránh xa lối nói văn mẫu, không lặp lại các tiêu đề mục cứng nhắc nếu người dùng chỉ hỏi một câu cụ thể.\n"
+        f"2. ĐI THẲNG VÀO TRỌNG TÂM: Trả lời trực diện câu hỏi của trader trước tiên, sau đó giải thích logic đằng sau (tại sao số liệu lại dẫn đến nhận định đó).\n"
+        f"3. PHÂN TÍCH BẢN CHẤT DÒNG TIỀN: Luôn liên kết các chỉ số (OI biến động, Funding Rate, Taker Volume Delta, SHAP drivers) với hành vi thực tế của Smart Money (cá mập) và đám đông FOMO (ví dụ: bẫy Long, cạn kiệt lực cầu, phân phối âm thầm, thanh lý dồn dập).\n"
+        f"4. LIÊN KẾT MẠCH HỘI THOẠI: Nếu đây là câu hỏi tiếp nối trong cuộc trò chuyện, hãy nhớ ngữ cảnh trước đó để trả lời mượt mà, không lặp lại những gì đã nói.\n"
+        f"5. ĐỊNH DẠNG RÕ RÀNG: Trình bày Markdown gọn gàng, dùng bullet points và in đậm mốc giá/chỉ số quan trọng để dễ đọc nhanh trong lúc giao dịch."
     )
 
 
@@ -82,15 +85,26 @@ def _call_gemini(
     model_id: str,
     system_prompt: str,
     user_prompt: str,
-    timeout: int = 20,
+    history: list[dict[str, str]] | None = None,
+    timeout: int = 25,
 ) -> str:
     model = model_id or "gemini-1.5-flash"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    
+    contents = []
+    if history:
+        for turn in history[-8:]:
+            r = "user" if turn.get("role") == "user" else "model"
+            c = (turn.get("content") or "").strip()
+            if c:
+                contents.append({"role": r, "parts": [{"text": c}]})
+    contents.append({"role": "user", "parts": [{"text": user_prompt}]})
+
     payload = {
         "systemInstruction": {"parts": [{"text": system_prompt}]},
-        "contents": [{"parts": [{"text": user_prompt}]}],
+        "contents": contents,
         "generationConfig": {
-            "temperature": 0.3,
+            "temperature": 0.4,
             "maxOutputTokens": 1024,
         },
     }
@@ -116,6 +130,7 @@ def _call_openai_compatible(
     model_id: str,
     system_prompt: str,
     user_prompt: str,
+    history: list[dict[str, str]] | None = None,
     timeout: int = 25,
 ) -> str:
     endpoint = base_url.rstrip("/")
@@ -131,13 +146,19 @@ def _call_openai_compatible(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        for turn in history[-8:]:
+            role = turn.get("role")
+            content = (turn.get("content") or "").strip()
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_prompt})
+
     payload = {
         "model": model_id or "gpt-4o-mini",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0.3,
+        "messages": messages,
+        "temperature": 0.4,
         "max_tokens": 1024,
         "stream": False,
     }
@@ -186,7 +207,8 @@ def _call_claude(
     model_id: str,
     system_prompt: str,
     user_prompt: str,
-    timeout: int = 20,
+    history: list[dict[str, str]] | None = None,
+    timeout: int = 25,
 ) -> str:
     url = "https://api.anthropic.com/v1/messages"
     headers = {
@@ -194,12 +216,21 @@ def _call_claude(
         "x-api-key": api_key,
         "anthropic-version": "2023-06-01",
     }
+    messages = []
+    if history:
+        for turn in history[-8:]:
+            role = turn.get("role")
+            content = (turn.get("content") or "").strip()
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+    messages.append({"role": "user", "content": user_prompt})
+
     payload = {
         "model": model_id or "claude-3-5-haiku-20241022",
         "system": system_prompt,
-        "messages": [{"role": "user", "content": user_prompt}],
+        "messages": messages,
         "max_tokens": 1024,
-        "temperature": 0.3,
+        "temperature": 0.4,
     }
     req = urllib.request.Request(
         url,
@@ -314,8 +345,9 @@ def ask_ai_analyst(
     symbol: str,
     context: dict[str, Any],
     llm_config: dict[str, Any] | None = None,
+    history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
-    """Process an AI question with real-time coin context."""
+    """Process an AI question with real-time coin context and multi-turn chat history."""
     cfg = llm_config or {}
     provider = (cfg.get("provider") or "").lower().strip()
     api_key = (cfg.get("apiKey") or cfg.get("api_key") or "").strip()
@@ -323,9 +355,9 @@ def ask_ai_analyst(
     base_url = (cfg.get("baseUrl") or cfg.get("base_url") or "").strip()
     enabled = cfg.get("enabled", True)
 
-    system_prompt = build_system_prompt()
     context_str = build_context_summary(symbol, context)
-    user_prompt = f"{context_str}\n\nCÂU HỎI CỦA TRADER:\n{question}\n\nHãy trả lời chi tiết, súc tích bằng tiếng Việt (hoặc ngôn ngữ câu hỏi yêu cầu) dựa trên số liệu thực tế ở trên."
+    system_prompt = build_system_prompt(symbol, context_str)
+    user_prompt = question.strip()
 
     used_provider = "Built-in Quantitative Engine"
     used_model = "DaoVang-Quant-v2"
@@ -336,7 +368,7 @@ def ask_ai_analyst(
             if provider == "gemini":
                 used_provider = "Google Gemini"
                 used_model = model_id or "gemini-1.5-flash"
-                answer = _call_gemini(api_key, used_model, system_prompt, user_prompt)
+                answer = _call_gemini(api_key, used_model, system_prompt, user_prompt, history=history)
             elif provider == "openai":
                 used_provider = "OpenAI"
                 used_model = model_id or "gpt-4o-mini"
@@ -346,6 +378,7 @@ def ask_ai_analyst(
                     used_model,
                     system_prompt,
                     user_prompt,
+                    history=history,
                 )
             elif provider == "deepseek":
                 used_provider = "DeepSeek"
@@ -356,13 +389,14 @@ def ask_ai_analyst(
                     used_model,
                     system_prompt,
                     user_prompt,
+                    history=history,
                 )
             elif provider == "claude":
                 used_provider = "Anthropic Claude"
                 used_model = model_id or "claude-3-5-haiku-20241022"
-                answer = _call_claude(api_key, used_model, system_prompt, user_prompt)
-            elif provider == "ollama":
-                used_provider = "Local Ollama"
+                answer = _call_claude(api_key, used_model, system_prompt, user_prompt, history=history)
+            elif provider in ("ollama", "custom"):
+                used_provider = "Local Ollama / Custom Proxy"
                 used_model = model_id or "llama3.2"
                 answer = _call_openai_compatible(
                     api_key,
@@ -370,6 +404,7 @@ def ask_ai_analyst(
                     used_model,
                     system_prompt,
                     user_prompt,
+                    history=history,
                 )
         except Exception as exc:
             logger.warning("LLM call failed provider=%s error=%s, falling back to rule-based engine", provider, exc)

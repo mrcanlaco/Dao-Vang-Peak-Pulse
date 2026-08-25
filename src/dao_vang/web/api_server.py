@@ -609,13 +609,14 @@ class APIHandler(BaseHTTPRequestHandler):
             symbol = data.get('symbol', '').strip().upper() or 'BTCUSDT'
             context = data.get('context', {})
             llm_config = data.get('llm_config', {})
+            history = data.get('history', [])
             if not question:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": "Question is required"}).encode('utf-8'))
                 return
             try:
                 from dao_vang.web.ai_analyst import ask_ai_analyst
-                result = ask_ai_analyst(question, symbol, context, llm_config)
+                result = ask_ai_analyst(question, symbol, context, llm_config, history=history)
                 self._set_headers(200)
                 self.wfile.write(json.dumps(result, ensure_ascii=False).encode('utf-8'))
             except Exception as exc:
