@@ -10,6 +10,7 @@ import type {
   ChatMessage, LlmConfig, AiAskRequest, AiAskResponse
 } from '../../types';
 import { LlmConfigModal } from './LlmConfigModal';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface InteractiveAiAssistantProps {
   displayDetail: CoinDetail;
@@ -363,17 +364,17 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
                     )}
 
                     <div
-                      className={`max-w-[85%] sm:max-w-[80%] rounded-xl p-3 text-xs leading-relaxed ${
+                      className={`max-w-[90%] sm:max-w-[85%] rounded-xl p-3 sm:p-3.5 text-xs leading-relaxed ${
                         isUser
-                          ? 'bg-amber-500 text-slate-950 font-medium rounded-tr-none shadow-md'
+                          ? 'bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-medium rounded-tr-none shadow-md'
                           : msg.isError
-                          ? 'bg-rose-950/60 border border-rose-800 text-rose-200 rounded-tl-none'
-                          : 'bg-slate-900/90 border border-slate-800 text-slate-200 rounded-tl-none shadow-md'
+                          ? 'bg-rose-950/60 border border-rose-800 text-rose-200 rounded-tl-none shadow-md'
+                          : 'bg-slate-900/95 border border-slate-800/90 text-slate-200 rounded-tl-none shadow-xl'
                       }`}
                     >
                       {/* Provider Header on Assistant Msg */}
                       {!isUser && msg.providerUsed && (
-                        <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5 mb-2 text-[10px] text-slate-400">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-2.5 text-[10px] text-slate-400">
                           <span className="font-mono text-amber-400 font-semibold">{msg.providerUsed}</span>
                           <button
                             type="button"
@@ -384,7 +385,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
                             {copiedId === msg.id ? (
                               <>
                                 <Check className="w-3 h-3 text-emerald-400" />
-                                <span className="text-emerald-400">{isEn ? 'Copied' : 'Đã sao chép'}</span>
+                                <span className="text-emerald-400 font-medium">{isEn ? 'Copied' : 'Đã sao chép'}</span>
                               </>
                             ) : (
                               <>
@@ -397,11 +398,15 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
                       )}
 
                       {/* Content rendering */}
-                      <div className="whitespace-pre-line space-y-1.5 prose-invert">
-                        {msg.content}
-                      </div>
+                      {isUser ? (
+                        <div className="whitespace-pre-wrap leading-relaxed font-sans text-slate-950 font-medium">
+                          {msg.content}
+                        </div>
+                      ) : (
+                        <MarkdownRenderer content={msg.content} />
+                      )}
 
-                      <div className={`mt-1.5 text-[9px] font-mono text-right ${isUser ? 'text-slate-800' : 'text-slate-500'}`}>
+                      <div className={`mt-2 text-[9px] font-mono text-right ${isUser ? 'text-slate-800 font-semibold' : 'text-slate-500'}`}>
                         {msg.timestamp}
                       </div>
                     </div>
