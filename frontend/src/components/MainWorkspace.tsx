@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   ShieldCheck, Activity, BarChart3,
-  Layers, ArrowUpRight, ArrowDownRight, Eye, CheckCircle2, Zap, Radio, Terminal, Send, Clock, Play, Loader2, FlaskConical, LineChart as LineChartIcon, Lock, XCircle, RefreshCw, Target, Award, ChevronDown, ChevronUp, Cpu, GitPullRequest
+  Layers, ArrowUpRight, ArrowDownRight, Eye, CheckCircle2, Zap, Radio, Terminal, Send, Clock, Play, Loader2, FlaskConical, LineChart as LineChartIcon, XCircle, RefreshCw, Target, Award, ChevronDown, ChevronUp, Cpu
 } from 'lucide-react';
 import { MultiCoinScan } from './MultiCoinScan';
 import { BacktestExperiments } from './BacktestExperiments';
@@ -13,6 +13,7 @@ import { ForwardTest } from './ForwardTest';
 import { SystemHistoryTab } from './SystemHistoryTab';
 import { VersionHistoryTab } from './VersionHistoryTab';
 import { TrackingWatchlist } from './TrackingWatchlist';
+import { WorkspaceTabBar } from './WorkspaceTabBar';
 import { ErrorBoundary } from './ErrorBoundary';
 
 import { CandlestickChart } from './CandlestickChart';
@@ -496,159 +497,16 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         </div>
       )}
 
-      {/* Workspace Tab Bar */}
-      <div className="flex items-center gap-3 border-b border-slate-800 pb-2.5 mb-3 min-w-0">
-        {selectedSignal && (
-          <div className="hidden sm:flex items-center gap-2 text-xs font-mono shrink-0">
-            <span className="text-slate-400">{t('ranking_viewing_prefix')}</span>
-            <CoinLink
-              symbol={selectedSignal.symbol}
-              onClick={() => onSelectCandidate(selectedSignal.symbol)}
-              className="bg-amber-950/60 px-2.5 py-1 rounded border border-amber-500/30"
-            />
-          </div>
-        )}
-        {/* Primary user tabs stay first; research/system tabs follow the divider. */}
-        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 min-w-0 max-w-full overflow-x-auto flex-nowrap whitespace-nowrap [&::-webkit-scrollbar]:hidden">
-          <button
-            onClick={() => setActiveTab('DECISION')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'DECISION'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            {t('ws_tab_decision')}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('WATCHLIST')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'WATCHLIST'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <Target className="w-3.5 h-3.5" />
-            {t('ws_tab_tracking')} ({trackingItems.filter(item => item.status !== 'CLOSED').length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('RANKING')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'RANKING'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            {t('ws_tab_candidates')} ({candidates.length})
-          </button>
-
-          <button
-            onClick={() => setActiveTab('MARKET')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'MARKET'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            {t('ws_tab_market_context')}
-          </button>
-
-          <span
-            aria-hidden="true"
-            className="mx-1 h-5 w-px shrink-0 bg-slate-700"
-            title={t('guide_overview_title')}
-          />
-
-          <button
-            onClick={() => setActiveTab('MULTISCAN')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'MULTISCAN'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <FlaskConical className="w-3.5 h-3.5" />
-            {t('ws_tab_multiscan')}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('BACKTEST')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'BACKTEST'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            {t('ws_tab_experiments')}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('FORWARD')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'FORWARD'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <Lock className="w-3.5 h-3.5" />
-            {t('ws_tab_forward')}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('AUDIT')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'AUDIT'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            {t('ws_tab_audit')}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('TELEMETRY')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'TELEMETRY'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            {t('ws_tab_telemetry')}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('HISTORY')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'HISTORY'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <Activity className="w-3.5 h-3.5" />
-            {t('ws_tab_history')}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('UPDATES')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition ${
-              activeTab === 'UPDATES'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
-          >
-            <GitPullRequest className="w-3.5 h-3.5 text-amber-400" />
-            {t('ws_tab_updates')}
-          </button>
-        </div>
-      </div>
+      {/* Workspace Tab Bar (Grouped & Responsive for Desktop + Mobile) */}
+      <WorkspaceTabBar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        selectedSignal={selectedSignal}
+        onSelectCandidate={onSelectCandidate}
+        trackingCount={trackingItems.filter(item => item.status !== 'CLOSED').length}
+        candidateCount={candidates.length}
+        isTelemetryActive={Boolean(telemetryData?.is_running ?? true)}
+      />
 
       {activeTab === 'WATCHLIST' && (
         <TrackingWatchlist

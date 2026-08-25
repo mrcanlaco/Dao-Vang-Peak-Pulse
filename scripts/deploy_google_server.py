@@ -46,7 +46,12 @@ for title, cmd in commands:
         line = stdout.readline()
         if not line:
             break
-        print(line, end="")
+        try:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+        except Exception:
+            sys.stdout.write(line.encode("ascii", errors="replace").decode("ascii"))
+            sys.stdout.flush()
     exit_status = stdout.channel.recv_exit_status()
     if exit_status != 0:
         print(f"[WARN] Command exited with code: {exit_status}")
