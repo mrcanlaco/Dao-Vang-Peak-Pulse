@@ -93,15 +93,21 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
     setMessages([welcomeMsg]);
   }, [symbol, currentPrice, prob, riskLevel, isEn, isZh, isKo]);
 
+  const prevSymbolRef = useRef(symbol);
+
   // Scroll internal chat container to bottom when user sends questions or AI responds (not on initial mount/symbol switch)
   useEffect(() => {
+    if (prevSymbolRef.current !== symbol) {
+      prevSymbolRef.current = symbol;
+      return;
+    }
     if (isOpen && messages.length > 1 && chatContainerRef.current) {
       chatContainerRef.current.scrollTo({
         top: chatContainerRef.current.scrollHeight,
         behavior: 'smooth',
       });
     }
-  }, [messages, isLoading, isOpen]);
+  }, [messages, isLoading, isOpen, symbol]);
 
   const handleSaveConfig = (newConfig: LlmConfig) => {
     setLlmConfig(newConfig);

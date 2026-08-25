@@ -426,6 +426,18 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     };
   }, [coinDetail, selectedSignal, candidates]);
 
+  const decisionContainerRef = useRef<HTMLDivElement>(null);
+
+  // Reset scroll to top when coin changes or tab switches to DECISION
+  useEffect(() => {
+    if (activeTab === 'DECISION') {
+      if (decisionContainerRef.current) {
+        decisionContainerRef.current.scrollTop = 0;
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
+  }, [displayDetail?.symbol, activeTab]);
+
   // Compute trade setup levels (Entry, SL, TP1, TP2, R:R)
   const tradeSetup: TradeSetup | null = useMemo(() => {
     if (!displayDetail || displayDetail.current_price <= 0) return null;
@@ -637,7 +649,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
       {/* TAB 1: DECISION CENTER */}
       {activeTab === 'DECISION' && (
-        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+        <div ref={decisionContainerRef} className="flex-1 overflow-y-auto space-y-3 pr-1">
           {displayDetail ? (
             <div className="space-y-3">
               {/* 1. Quick Header (Search + Top 5 Candidates + Live Ticker) */}

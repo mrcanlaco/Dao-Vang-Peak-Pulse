@@ -324,6 +324,7 @@ export function App() {
     if (guiVersion === 'v2') {
       setMobileTab('ANALYSIS');
     }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     fetchCoinDetail(sig.symbol);
     handleRunDeepAnalysis(sig.symbol);
   };
@@ -341,6 +342,7 @@ export function App() {
     if (guiVersion === 'v2') {
       setMobileTab('ANALYSIS');
     }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     fetchCoinDetail(symbol);
     handleRunDeepAnalysis(symbol);
   };
