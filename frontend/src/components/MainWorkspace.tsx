@@ -617,6 +617,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         <div className="flex-1 overflow-hidden h-full min-h-[500px]">
           <SignalFeed
             signals={filteredSignals || signals}
+            allSignals={signals}
             selectedSignalId={selectedSignal?.id || null}
             onSelectSignal={onSelectSignal || ((sig: SignalItem) => onSelectCandidate(sig.symbol))}
             onGoToDecision={(sig: SignalItem) => {

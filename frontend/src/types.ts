@@ -39,6 +39,23 @@ export interface SignalItem {
   two_tier_state?: 'ARMED' | 'FIRED' | 'NORMAL' | 'WATCH' | 'STANDBY';
 }
 
+export const getSignalTwoTierState = (sig: SignalItem): 'FIRED' | 'ARMED' | 'NORMAL' => {
+  if (sig.two_tier_state === 'FIRED') return 'FIRED';
+  if (sig.two_tier_state === 'ARMED') return 'ARMED';
+  if (sig.two_tier_state === 'NORMAL') return 'NORMAL';
+
+  const isFired = sig.probability >= 0.55
+    || (sig.taker_sell_ratio !== undefined && sig.taker_sell_ratio >= 0.58)
+    || sig.risk_level === 'CRITICAL'
+    || sig.risk_level === 'HIGH';
+  if (isFired) return 'FIRED';
+  if (sig.probability >= 0.35 || sig.risk_level === 'MEDIUM') return 'ARMED';
+  return 'NORMAL';
+};
+
+export const isSignalFired = (sig: SignalItem): boolean => getSignalTwoTierState(sig) === 'FIRED';
+export const isSignalArmed = (sig: SignalItem): boolean => getSignalTwoTierState(sig) === 'ARMED';
+
 export interface WatchlistPreset {
   id: string;
   name: string;

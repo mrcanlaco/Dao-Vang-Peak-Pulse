@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { FilterTag, SignalItem, RiskLevel, SignalSort, TelegramFilter } from '../types';
+import { getSignalTwoTierState, isSignalFired, isSignalArmed } from '../types';
 import { parseSystemDate } from '../utils/time';
 import {
   Clock, TrendingDown, Send, Copy, Check, Volume2, AlertOctagon, X,
@@ -14,6 +15,7 @@ export type RadarViewMode = 'GRID' | 'TABLE' | 'SPLIT';
 
 interface SignalFeedProps {
   signals: SignalItem[];
+  allSignals?: SignalItem[];
   selectedSignalId: string | null;
   onSelectSignal: (signal: SignalItem) => void;
   onGoToDecision?: (signal: SignalItem) => void;
@@ -36,6 +38,7 @@ interface SignalFeedProps {
 
 export const SignalFeed: React.FC<SignalFeedProps> = ({
   signals,
+  allSignals,
   selectedSignalId,
   onSelectSignal,
   onGoToDecision,
@@ -120,17 +123,20 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
     return groupedSignals.length > 0 ? groupedSignals[0].signal : null;
   }, [groupedSignals, selectedSignalId]);
 
-  // KPI Metrics Calculation across original signals
+  // Base signal pool for overall aggregate KPIs (unaffected by activeFilterTag)
+  const baseSignalPool = allSignals && allSignals.length > 0 ? allSignals : signals;
+
+  // KPI Metrics Calculation across original base signals
   const kpiStats = useMemo(() => {
-    const total = signals.length;
-    const fired = signals.filter(s => s.two_tier_state === 'FIRED' || s.risk_level === 'CRITICAL').length;
-    const armed = signals.filter(s => s.two_tier_state === 'ARMED' || s.risk_level === 'HIGH').length;
-    const hotRisk = signals.filter(s => s.probability >= 0.75).length;
-    const expiring = signals.filter(s => s.validity_hours_left > 0 && s.validity_hours_left <= 2.0).length;
-    const avgProb = total > 0 ? (signals.reduce((acc, s) => acc + s.probability, 0) / total * 100).toFixed(1) : '0.0';
+    const total = baseSignalPool.length;
+    const fired = baseSignalPool.filter(isSignalFired).length;
+    const armed = baseSignalPool.filter(isSignalArmed).length;
+    const hotRisk = baseSignalPool.filter(s => s.probability >= 0.75).length;
+    const expiring = baseSignalPool.filter(s => s.validity_hours_left > 0 && s.validity_hours_left <= 2.0).length;
+    const avgProb = total > 0 ? (baseSignalPool.reduce((acc, s) => acc + s.probability, 0) / total * 100).toFixed(1) : '0.0';
 
     return { total, fired, armed, hotRisk, expiring, avgProb };
-  }, [signals]);
+  }, [baseSignalPool]);
 
   // Keyboard navigation shortcuts: ↑ / ↓ to switch signal, Space to push Telegram
   useEffect(() => {
@@ -293,7 +299,9 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
             {t('feed_live_title')}
           </h2>
           <span className="px-2 py-0.5 bg-slate-800 text-amber-400 text-[10px] sm:text-xs rounded-full font-mono font-bold border border-amber-500/30">
-            {signals.length} {t('unit_signals')}
+            {activeFilterTag === 'ALL'
+              ? `${kpiStats.total} ${t('unit_signals')}`
+              : `${signals.length} / ${kpiStats.total} ${t('unit_signals')}`}
           </span>
         </div>
 
@@ -540,7 +548,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                     : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200'
                 }`}
               >
-                {t('feed_tag_all')} ({signals.length})
+                {t('feed_tag_all')} ({kpiStats.total})
               </button>
 
               <button
@@ -553,7 +561,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 }`}
               >
                 <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
-                {t('feed_tag_fired')}
+                {t('feed_tag_fired')} ({kpiStats.fired})
               </button>
 
               <button
@@ -566,7 +574,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 }`}
               >
                 <Compass className="w-3 h-3 text-amber-400" />
-                {t('feed_tag_armed')}
+                {t('feed_tag_armed')} ({kpiStats.armed})
               </button>
 
               <button
@@ -579,7 +587,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 }`}
               >
                 <Flame className="w-3 h-3 text-red-400" />
-                {t('feed_tag_hot_risk')}
+                {t('feed_tag_hot_risk')} ({kpiStats.hotRisk})
               </button>
 
               <button
@@ -592,7 +600,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 }`}
               >
                 <Clock className="w-3 h-3 text-sky-400" />
-                {t('feed_tag_expiring')}
+                {t('feed_tag_expiring')} ({kpiStats.expiring})
               </button>
 
               <button
@@ -695,11 +703,11 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                                 x{count}
                               </span>
                             )}
-                            {sig.two_tier_state === 'FIRED' ? (
+                            {getSignalTwoTierState(sig) === 'FIRED' ? (
                               <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-red-950 text-amber-300 border border-red-600 animate-pulse">
                                 FIRED
                               </span>
-                            ) : sig.two_tier_state === 'ARMED' ? (
+                            ) : getSignalTwoTierState(sig) === 'ARMED' ? (
                               <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/80">
                                 ARMED
                               </span>
@@ -899,11 +907,11 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                             {activeInspectedSignal.symbol}
                             <span className="text-xs text-slate-400 font-normal">({activeInspectedSignal.name})</span>
                           </h3>
-                          {activeInspectedSignal.two_tier_state === 'FIRED' ? (
+                          {getSignalTwoTierState(activeInspectedSignal) === 'FIRED' ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-black bg-red-950 text-amber-300 border border-red-600 animate-pulse">
                               ⚡ FIRED CLIMAX
                             </span>
-                          ) : activeInspectedSignal.two_tier_state === 'ARMED' ? (
+                          ) : getSignalTwoTierState(activeInspectedSignal) === 'ARMED' ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/80">
                               🧭 ARMED SETUP
                             </span>
@@ -1102,12 +1110,12 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                           )}
                         </div>
                         <div className="flex items-center gap-1.5">
-                          {sig.two_tier_state === 'FIRED' ? (
+                          {getSignalTwoTierState(sig) === 'FIRED' ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-black font-mono bg-red-950 text-amber-300 border border-red-600 animate-pulse flex items-center gap-1 shadow-sm shadow-red-900/50">
                               <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
                               FIRED
                             </span>
-                          ) : sig.two_tier_state === 'ARMED' ? (
+                          ) : getSignalTwoTierState(sig) === 'ARMED' ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-600/80 flex items-center gap-1">
                               <Compass className="w-3 h-3 text-amber-400" />
                               ARMED

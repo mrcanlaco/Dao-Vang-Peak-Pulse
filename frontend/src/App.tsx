@@ -13,6 +13,7 @@ import type { WorkspaceTab } from './components/WorkspaceTabBar';
 import type {
   SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, SystemStatus, FilterTag, SignalSort, TelegramFilter, AutomationSettings, ScannerTelemetry, WatchlistPreset, DeepAnalysis, ModelChoice, ModelsData, TrackingWatchlistItem
 } from './types';
+import { isSignalFired, isSignalArmed } from './types';
 import { parseSystemDate } from './utils/time';
 import { useTranslation, type Language } from './i18n/LanguageContext';
 
@@ -649,13 +650,13 @@ export function App() {
 
     let matchesTag = true;
     if (activeFilterTag === 'FIRED') {
-      matchesTag = sig.two_tier_state === 'FIRED' || sig.risk_level === 'CRITICAL';
+      matchesTag = isSignalFired(sig);
     } else if (activeFilterTag === 'ARMED') {
-      matchesTag = sig.two_tier_state === 'ARMED' || sig.risk_level === 'HIGH';
+      matchesTag = isSignalArmed(sig);
     } else if (activeFilterTag === 'HOT_RISK') {
       matchesTag = sig.probability >= 0.75;
     } else if (activeFilterTag === 'EXPIRING') {
-      matchesTag = sig.validity_hours_left <= 2.0 || (sig.validity_hours_left <= 22.0 && sig.validity_hours_left > 0);
+      matchesTag = sig.validity_hours_left > 0 && sig.validity_hours_left <= 2.0;
     } else if (activeFilterTag === 'VOLUME_SPIKE') {
       matchesTag = Boolean(sig.is_volume_spike || sig.taker_sell_ratio < 0.42);
     } else if (activeFilterTag === 'ACTIVE') {

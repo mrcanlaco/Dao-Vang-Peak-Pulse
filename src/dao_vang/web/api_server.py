@@ -1506,12 +1506,19 @@ class APIHandler(BaseHTTPRequestHandler):
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
             tier = str(sr.get("recommendation", "WAIT"))
             risk_level = _scan_risk_level(tier, prob)
+            is_scan_fired = (
+                prob >= 0.55
+                or (taker_sell is not None and taker_sell >= 0.58)
+                or risk_level in {"CAO", "HIGH", "CRITICAL"}
+            )
+            two_tier_state = "FIRED" if is_scan_fired else "ARMED" if prob >= 0.35 else "NORMAL"
             signals.append({
                 "id": f"{sym}-scan-{sig_time_str}",
                 "symbol": sym,
                 "name": sym.replace("USDT", ""),
                 "probability": prob,
                 "risk_level": risk_level,
+                "two_tier_state": two_tier_state,
                 "signal_time": sig_time_str,
                 "event_time": _system_history_timestamp(scan_dt) if scan_dt is not None else sig_time_str,
                 "telegram_sent_at": None,
