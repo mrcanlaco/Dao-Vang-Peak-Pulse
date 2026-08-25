@@ -22,7 +22,37 @@
     <meta property="og:description" content="AI Radar 24/7 bắt đỉnh coin bơm xả với Kiến trúc 2 Tầng và Adaptive SL" />
     <meta property="og:image" content="/icon-512.png" />
 
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
     <title>Đảo Vàng AI — 2-Tier Climax Radar</title>
+    <script>
+      // Auto recovery: If a JS bundle fails to load due to stale cache/hash mismatch, unregister SW, clear cache and reload
+      window.addEventListener('error', function(e) {
+        var target = e.target;
+        if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
+          var src = target.src || target.href || '';
+          if (src.indexOf('/assets/') !== -1) {
+            var retryKey = 'chunk_reload_' + src;
+            if (!sessionStorage.getItem(retryKey)) {
+              sessionStorage.setItem(retryKey, '1');
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  for (var i = 0; i < regs.length; i++) regs[i].unregister();
+                });
+              }
+              if ('caches' in window) {
+                caches.keys().then(function(keys) {
+                  for (var i = 0; i < keys.length; i++) caches.delete(keys[i]);
+                });
+              }
+              setTimeout(function() { window.location.reload(); }, 100);
+            }
+          }
+        }
+      }, true);
+    </script>
     <script type="module" crossorigin src="/assets/index-TXLctHDm.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-CV-jArQv.css">
   </head>
@@ -39,8 +69,7 @@
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').then((reg) => {
             reg.update();
-            console.log('[PWA] Service Worker registered and checked for updates:', reg.scope);
-          }).catch(err => console.warn('[PWA] Service Worker registration failed:', err));
+          }).catch(err => console.warn('[PWA] SW registration failed:', err));
         });
       }
     </script>

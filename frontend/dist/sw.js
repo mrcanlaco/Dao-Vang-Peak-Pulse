@@ -1,7 +1,5 @@
-const CACHE_NAME = 'dao-vang-pwa-v1.3';
+const CACHE_NAME = 'dao-vang-pwa-v2.0';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/favicon.svg',
   '/icon.svg',
   '/icon-192.svg',
@@ -11,7 +9,7 @@ const STATIC_ASSETS = [
   '/manifest.json'
 ];
 
-// Install Event - Pre-cache core shell
+// Install Event - Pre-cache icons/manifest only
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -23,7 +21,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate Event - Clean old caches and claim clients immediately
+// Activate Event - Clean all old caches and claim clients immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -31,7 +29,7 @@ self.addEventListener('activate', (event) => {
         cacheNames
           .filter((name) => name !== CACHE_NAME)
           .map((name) => {
-            console.log('[SW] Deleting old cache:', name);
+            console.log('[SW] Purging old cache:', name);
             return caches.delete(name);
           })
       );
@@ -57,19 +55,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Navigation (HTML pages): Network-First (Ensures instant deployment updates)
+  // 2. Navigation (HTML pages): ALWAYS Direct Network (Never cache index.html)
   if (request.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
-    event.respondWith(
-      fetch(request, { cache: 'no-cache' })
-        .then((response) => {
-          if (response && response.status === 200) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match(request) || caches.match('/index.html') || caches.match('/'))
-    );
+    event.respondWith(fetch(request, { cache: 'no-store' }));
     return;
   }
 
