@@ -18,6 +18,7 @@ import {
 import { CoinLink } from './CoinLink';
 import { useTranslation } from '../i18n/LanguageContext';
 import type { SignalItem } from '../types';
+import type { MobileTabType } from './v2/MobileBottomNav';
 
 export type WorkspaceTab =
   | 'DECISION'
@@ -52,6 +53,8 @@ interface WorkspaceTabBarProps {
   trackingCount: number;
   candidateCount: number;
   isTelemetryActive?: boolean;
+  guiVersion?: 'v1' | 'v2';
+  mobileTab?: MobileTabType;
 }
 
 export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
@@ -62,6 +65,8 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
   trackingCount,
   candidateCount,
   isTelemetryActive = true,
+  guiVersion = 'v2',
+  mobileTab = 'RADAR',
 }) => {
   const { t } = useTranslation();
   const [openDropdown, setOpenDropdown] = useState<'LAB' | 'SYSTEM' | null>(null);
@@ -209,9 +214,10 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
   };
 
   const currentMobileTabs = mobileCategory === 'TRADING' ? tradingTabs : mobileCategory === 'LAB' ? labTabs : systemTabs;
+  const isMobileAnalysis = guiVersion === 'v2' && (activeTab === 'DECISION' || mobileTab === 'ANALYSIS');
 
   return (
-    <div className="border-b border-slate-800 pb-2 mb-3 min-w-0" ref={dropdownRef}>
+    <div className={`border-b border-slate-800 pb-2 mb-3 min-w-0 ${isMobileAnalysis ? 'hidden md:block' : ''}`} ref={dropdownRef}>
       {/* ─────────────────────────────────────────────────────────────
           1. DESKTOP & TABLET VIEW (md and up)
       ───────────────────────────────────────────────────────────── */}

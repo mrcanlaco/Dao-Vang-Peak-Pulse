@@ -706,6 +706,16 @@ export function App() {
         onSelectGuiVersion={handleSelectGuiVersion}
         onOpenModelComparison={() => setIsModelComparisonOpen(true)}
         onOpenUpdates={() => setActiveTab('UPDATES')}
+        mobileTab={mobileTab}
+        onBackToRadar={() => {
+          setMobileTab('RADAR');
+          setActiveTab('DECISION');
+        }}
+        activeCoinSymbol={selectedSignal?.symbol || (candidates.length > 0 ? candidates[0].symbol : null)}
+        activeCoinPrice={coinDetail?.current_price || selectedSignal?.signal_price || (candidates.length > 0 ? candidates[0].price : null)}
+        activeCoinProbability={selectedSignal?.probability || coinDetail?.probability || null}
+        activeCoinRisk={selectedSignal?.risk_level || coinDetail?.risk_level || null}
+        signalCount={signals.length}
       />
 
       {/* Main Workspace Layout */}
