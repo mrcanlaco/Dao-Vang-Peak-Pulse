@@ -298,15 +298,24 @@ class UpdateManager:
             prev_commit = status.local_commit_short
             log_msg(f"Phiên bản hiện tại: {prev_commit} (nhánh {status.current_branch})")
 
-            # 2. Handle dirty git state safely
+            # 2. Handle unmerged conflict state & dirty git state safely
+            git_dir = self.repo_root / ".git"
+            if (git_dir / "MERGE_HEAD").exists():
+                log_msg("Phát hiện trạng thái merge xung đột dở dang (MERGE_HEAD). Đang hủy merge cũ (git merge --abort)...")
+                self._run_cmd(["git", "merge", "--abort"])
+            if (git_dir / "rebase-merge").exists() or (git_dir / "rebase-apply").exists():
+                log_msg("Phát hiện trạng thái rebase dở dang. Đang hủy rebase (git rebase --abort)...")
+                self._run_cmd(["git", "rebase", "--abort"])
+
             code, dirty_status, _ = self._run_cmd(["git", "status", "--porcelain"])
             has_stashed = False
             if dirty_status:
                 log_msg("Phát hiện thay đổi chưa commit trong thư mục làm việc.")
-                if force:
-                    log_msg("Tùy chọn --force bật: Thực hiện git stash lưu trữ thay đổi cục bộ...")
-                    self._run_cmd(["git", "stash", "save", "auto-stash-before-update"])
-                    has_stashed = True
+                # Check for unmerged files (lines starting with U, AA, DD, etc.)
+                has_unmerged = any(line.strip().startswith(('U', 'AA', 'DD', 'DU', 'UD')) for line in dirty_status.splitlines())
+                if has_unmerged:
+                    log_msg("Phát hiện file xung đột chưa giải quyết (unmerged files). Đang reset để sẵn sàng cập nhật...")
+                    self._run_cmd(["git", "reset", "--hard", "HEAD"])
                 else:
                     log_msg("Tự động lưu trữ thay đổi tạm thời (git stash) để tránh xung đột...")
                     self._run_cmd(["git", "stash", "save", "auto-stash-before-update"])
@@ -314,23 +323,31 @@ class UpdateManager:
 
             # 3. Pull latest code
             log_msg(f"Đang tải mã nguồn mới từ {remote_name}/{branch_name}...")
-            pull_cmd = ["git", "pull", remote_name, branch_name]
+            self._run_cmd(["git", "fetch", remote_name, branch_name, "--prune"], timeout=60)
+            pull_cmd = ["git", "pull", "--no-rebase", remote_name, branch_name]
             pull_code, pull_out, pull_err = self._run_cmd(pull_cmd, timeout=60)
             log_msg(f"Git pull output:\n{pull_out}")
 
             if pull_code != 0:
-                err_msg = f"Lỗi khi kéo mã nguồn git: {pull_err or pull_out}"
-                log_msg(f"❌ {err_msg}")
-                res = UpdateResult(
-                    success=False,
-                    message="Cập nhật thất bại khi git pull.",
-                    previous_commit=prev_commit,
-                    current_commit=prev_commit,
-                    logs=list(_UPDATE_LOGS),
-                    error=err_msg,
-                )
-                _LAST_UPDATE_RESULT = res.to_dict()
-                return res
+                log_msg(f"Git pull thông thường gặp cảnh báo/xung đột: {pull_err or pull_out}")
+                log_msg("Đang tự động áp dụng bản chuẩn sạch từ GitHub (git reset --hard)...")
+                reset_code, reset_out, reset_err = self._run_cmd(["git", "reset", "--hard", f"{remote_name}/{branch_name}"], timeout=60)
+                if reset_code == 0:
+                    pull_code = 0
+                    log_msg(f"✅ Đã đồng bộ mã nguồn sạch về {remote_name}/{branch_name} thành công.")
+                else:
+                    err_msg = f"Lỗi khi kéo mã nguồn git: {reset_err or reset_out or pull_err}"
+                    log_msg(f"❌ {err_msg}")
+                    res = UpdateResult(
+                        success=False,
+                        message="Cập nhật thất bại khi git pull / reset.",
+                        previous_commit=prev_commit,
+                        current_commit=prev_commit,
+                        logs=list(_UPDATE_LOGS),
+                        error=err_msg,
+                    )
+                    _LAST_UPDATE_RESULT = res.to_dict()
+                    return res
 
             # Restore stash if needed
             if has_stashed:
