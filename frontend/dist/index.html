@@ -28,6 +28,25 @@
 
     <title>Đảo Vàng AI — 2-Tier Climax Radar</title>
     <script>
+      // Force Clear Cache & Hard Reload function
+      window.forceClearCacheAndReload = function() {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (var i = 0; i < regs.length; i++) regs[i].unregister();
+          });
+        }
+        if ('caches' in window) {
+          caches.keys().then(function(keys) {
+            for (var i = 0; i < keys.length; i++) caches.delete(keys[i]);
+          });
+        }
+        try {
+          sessionStorage.clear();
+          localStorage.removeItem('dao_vang_pwa_cache');
+        } catch(e) {}
+        window.location.reload(true);
+      };
+
       // Auto recovery: If a JS bundle fails to load due to stale cache/hash mismatch, unregister SW, clear cache and reload
       window.addEventListener('error', function(e) {
         var target = e.target;
@@ -37,31 +56,36 @@
             var retryKey = 'chunk_reload_' + src;
             if (!sessionStorage.getItem(retryKey)) {
               sessionStorage.setItem(retryKey, '1');
-              if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(regs) {
-                  for (var i = 0; i < regs.length; i++) regs[i].unregister();
-                });
-              }
-              if ('caches' in window) {
-                caches.keys().then(function(keys) {
-                  for (var i = 0; i < keys.length; i++) caches.delete(keys[i]);
-                });
-              }
-              setTimeout(function() { window.location.reload(); }, 100);
+              window.forceClearCacheAndReload();
             }
           }
         }
       }, true);
+
+      // Timeout diagnostic fallback: If React does not mount within 4s, provide recovery UI
+      setTimeout(function() {
+        var root = document.getElementById('root');
+        var placeholder = document.getElementById('initial-loading-box');
+        if (root && placeholder && root.contains(placeholder)) {
+          var retryBtn = document.getElementById('loading-retry-btn');
+          if (retryBtn) {
+            retryBtn.style.display = 'inline-flex';
+          }
+        }
+      }, 4000);
     </script>
-    <script type="module" crossorigin src="/assets/index-Ds7Dj4cM.js"></script>
+    <script type="module" crossorigin src="/assets/index-D3JfGgBO.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-BnoygChS.css">
   </head>
   <body class="bg-slate-950 text-slate-100 select-none overflow-x-hidden antialiased">
     <div id="root">
-      <div style="background:#030712;color:#f59e0b;font-family:monospace;padding:32px 16px;text-align:center;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
-        <div style="font-size:32px;margin-bottom:12px;">⚡</div>
-        <h2 style="font-size:16px;font-weight:bold;letter-spacing:0.05em;margin:0;">ĐẢO VÀNG AI RADAR</h2>
-        <p style="color:#94a3b8;font-size:12px;margin-top:8px;">Đang kết nối dữ liệu thời gian thực và Binance...</p>
+      <div id="initial-loading-box" style="background:#030712;color:#f59e0b;font-family:system-ui,-apple-system,sans-serif;padding:32px 16px;text-align:center;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div style="font-size:36px;margin-bottom:12px;animation:pulse 1.5s infinite;">⚡</div>
+        <h2 style="font-size:18px;font-weight:bold;letter-spacing:0.05em;margin:0;color:#f8fafc;">ĐẢO VÀNG AI RADAR</h2>
+        <p style="color:#94a3b8;font-size:13px;margin-top:8px;max-width:320px;line-height:1.5;">Đang kết nối dữ liệu thời gian thực và Binance...</p>
+        <button id="loading-retry-btn" onclick="window.forceClearCacheAndReload()" style="display:none;margin-top:20px;padding:10px 18px;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.4);border-radius:10px;font-size:12px;font-weight:bold;cursor:pointer;align-items:center;gap:6px;transition:all 0.2s;">
+          🔄 Xóa Cache & Tải Lại Ngay
+        </button>
       </div>
     </div>
     <script>

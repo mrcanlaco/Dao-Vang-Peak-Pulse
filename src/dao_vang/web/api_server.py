@@ -65,7 +65,8 @@ from dao_vang.scoring.engine_comparison import evaluate_scoring_engines_comparis
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("dao_vang_api")
 
-DIST_DIR = Path("frontend/dist").resolve()
+REPO_ROOT = Path(__file__).resolve().parents[3]
+DIST_DIR = (REPO_ROOT / "frontend" / "dist").resolve()
 
 _settings = AppSettings()
 WATCHLIST_PATH = _settings.scanner.watchlist_path

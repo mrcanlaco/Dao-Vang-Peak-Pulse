@@ -61,18 +61,24 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. Static Assets (/assets/*, icons): Cache-First / Stale-While-Revalidate
+  // 3. Static Assets (/assets/*): Network-First to guarantee latest code, fallback to cache
+  if (url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      fetch(request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        }
+        return networkResponse;
+      }).catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // 4. Other static icons/manifest: Cache-First
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch in background to update cache for next time
-        fetch(request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, networkResponse));
-          }
-        }).catch(() => {});
-        return cachedResponse;
-      }
+      if (cachedResponse) return cachedResponse;
       return fetch(request).then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           const copy = networkResponse.clone();

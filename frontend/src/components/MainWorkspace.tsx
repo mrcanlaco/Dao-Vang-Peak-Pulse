@@ -799,22 +799,26 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               </div>
 
               {/* 3. Full-Width Executive AI Briefing Bar */}
-              <AiExecutiveBriefing
-                displayDetail={displayDetail}
-                selectedSignal={selectedSignal}
-                deepAnalysis={deepAnalysis}
-                tradeSetup={tradeSetup}
-                onOpenAiChat={() => setIsAiChatOpen(true)}
-              />
+              <ErrorBoundary fallbackTitle="Lỗi hiển thị Bản tin AI">
+                <AiExecutiveBriefing
+                  displayDetail={displayDetail}
+                  selectedSignal={selectedSignal}
+                  deepAnalysis={deepAnalysis}
+                  tradeSetup={tradeSetup}
+                  onOpenAiChat={() => setIsAiChatOpen(true)}
+                />
+              </ErrorBoundary>
 
               {/* 4. Interactive AI Assistant & Q&A Chat */}
-              <InteractiveAiAssistant
-                displayDetail={displayDetail}
-                deepAnalysis={deepAnalysis}
-                tradeSetup={tradeSetup}
-                isOpen={isAiChatOpen}
-                onToggleOpen={() => setIsAiChatOpen(prev => !prev)}
-              />
+              <ErrorBoundary fallbackTitle="Lỗi hiển thị Trợ lý AI">
+                <InteractiveAiAssistant
+                  displayDetail={displayDetail}
+                  deepAnalysis={deepAnalysis}
+                  tradeSetup={tradeSetup}
+                  isOpen={isAiChatOpen}
+                  onToggleOpen={() => setIsAiChatOpen(prev => !prev)}
+                />
+              </ErrorBoundary>
             </div>
           ) : (
             <div className="p-12 text-center text-slate-500 bg-slate-950/60 border border-slate-800 rounded-xl">

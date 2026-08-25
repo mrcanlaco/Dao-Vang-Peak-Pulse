@@ -8,8 +8,9 @@ __pycache__/
 .pyright/
 
 # Distribution / Packaging
-build/
-dist/
+/build/
+/dist/
+!frontend/dist/**
 *.egg-info/
 *.egg
 

@@ -25,13 +25,19 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
   const isZh = language === 'zh';
   const isKo = language === 'ko';
 
-  const symbol = displayDetail.symbol;
-  const currentPrice = displayDetail.current_price || 0;
-  const prob = displayDetail.probability || 0;
+  const symbol = displayDetail?.symbol || 'COIN';
+  const currentPrice = displayDetail?.current_price || 0;
+  const prob = displayDetail?.probability || 0;
   const btcRegime = deepAnalysis?.btc_regime || 'NEUTRAL';
   const isPump = deepAnalysis?.pump_analysis?.detected || false;
-  const metrics = displayDetail.metrics;
-  const shapDrivers = displayDetail.shap_drivers || [];
+  const metrics = displayDetail?.metrics || {
+    oi_change_24h: 'N/A',
+    taker_sell_ratio: 0.5,
+    funding_rate: 'N/A',
+    rsi_15m: 50,
+    volume_delta_24h: 'N/A',
+  };
+  const shapDrivers = displayDetail?.shap_drivers || [];
 
   const entry = tradeSetup?.entryPrice || currentPrice;
   const sl = tradeSetup?.stopLossPrice || entry * 1.04;
