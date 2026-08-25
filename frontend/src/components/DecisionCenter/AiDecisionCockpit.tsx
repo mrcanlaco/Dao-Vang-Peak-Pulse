@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  TrendingDown, Eye, CheckCircle2, Zap, Send, XCircle, Loader2,
+  TrendingDown, Eye, EyeOff, CheckCircle2, Zap, Send, XCircle, Loader2,
   Activity, Flame
 } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
@@ -20,6 +20,7 @@ interface AiDecisionCockpitProps {
   onDismissSignal?: (sig: SignalItem) => void;
   onAddWatchlist?: (symbol: string) => void | Promise<boolean | void>;
   onAddTracking?: (symbol: string) => void | Promise<boolean | void>;
+  onRemoveTracking?: (symbol: string) => void | Promise<boolean | void>;
   onOpenOrderModal?: () => void;
 }
 
@@ -36,6 +37,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
   onDismissSignal,
   onAddWatchlist,
   onAddTracking,
+  onRemoveTracking,
   onOpenOrderModal,
 }) => {
   const { language, t } = useTranslation();
@@ -268,19 +270,39 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
             </div>
           )}
 
-          {/* Track Position */}
-          {onAddTracking && (
+          {/* Track / Untrack Position */}
+          {(onAddTracking || onRemoveTracking) && (
             <button
-              onClick={() => void onAddTracking(displayDetail.symbol)}
-              disabled={isWatchlistUpdating || isSymbolTracked}
-              className={`px-3 py-2 border font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition disabled:cursor-not-allowed disabled:opacity-70 ${
+              onClick={() => {
+                if (isSymbolTracked && onRemoveTracking) {
+                  void onRemoveTracking(displayDetail.symbol);
+                } else if (!isSymbolTracked && onAddTracking) {
+                  void onAddTracking(displayDetail.symbol);
+                }
+              }}
+              disabled={isWatchlistUpdating}
+              className={`group/track px-3 py-2 border font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition disabled:cursor-not-allowed disabled:opacity-70 ${
                 isSymbolTracked
-                  ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
+                  ? 'bg-sky-500/15 text-sky-300 border-sky-500/40 hover:bg-red-950/80 hover:text-red-300 hover:border-red-700/80'
                   : 'bg-slate-900 hover:bg-sky-950 text-slate-300 hover:text-sky-400 border-slate-700 hover:border-sky-800'
               }`}
+              title={isSymbolTracked ? t('ws_untrack_position') : t('ws_track_position')}
             >
-              {isWatchlistUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isSymbolTracked ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              {isSymbolTracked ? t('ws_tracking_pos') : t('ws_track_position')}
+              {isWatchlistUpdating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : isSymbolTracked ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 group-hover/track:hidden text-sky-400" />
+                  <EyeOff className="w-3.5 h-3.5 hidden group-hover/track:inline text-red-400" />
+                  <span className="group-hover/track:hidden">{t('ws_tracking_pos')}</span>
+                  <span className="hidden group-hover/track:inline">{t('ws_untrack_position')}</span>
+                </>
+              ) : (
+                <>
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>{t('ws_track_position')}</span>
+                </>
+              )}
             </button>
           )}
 

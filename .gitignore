@@ -91,6 +91,7 @@ dao_vang_docs*
 .agentsroom/
 .agents/
 .devin/
+.tools/
 
 # OS generated files
 .DS_Store

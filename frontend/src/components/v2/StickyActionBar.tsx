@@ -9,6 +9,7 @@ interface StickyActionBarProps {
   riskLevel?: string | null;
   onOpenOrderModal: () => void;
   onTrackPosition?: (symbol: string) => void | Promise<void | boolean>;
+  onUntrackPosition?: (symbol: string) => void | Promise<void | boolean>;
   isSymbolTracked?: boolean;
   isTrackingLoading?: boolean;
   onPushTelegram?: () => void;
@@ -21,6 +22,7 @@ export const StickyActionBar: React.FC<StickyActionBarProps> = ({
   riskLevel: _riskLevel,
   onOpenOrderModal,
   onTrackPosition,
+  onUntrackPosition,
   isSymbolTracked = false,
   isTrackingLoading = false,
   onPushTelegram,
@@ -64,17 +66,23 @@ export const StickyActionBar: React.FC<StickyActionBarProps> = ({
 
         {/* Action Buttons Right */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Quick Track Button */}
-          {onTrackPosition && (
+          {/* Quick Track / Untrack Button */}
+          {(onTrackPosition || onUntrackPosition) && (
             <button
-              onClick={() => void onTrackPosition(symbol)}
-              disabled={isTrackingLoading || isSymbolTracked}
+              onClick={() => {
+                if (isSymbolTracked && onUntrackPosition) {
+                  void onUntrackPosition(symbol);
+                } else if (onTrackPosition) {
+                  void onTrackPosition(symbol);
+                }
+              }}
+              disabled={isTrackingLoading}
               className={`p-2 rounded-xl border text-xs font-bold transition flex items-center justify-center ${
                 isSymbolTracked
-                  ? 'bg-sky-500/20 text-sky-300 border-sky-500/50'
+                  ? 'bg-sky-500/20 text-sky-300 border-sky-500/50 hover:bg-red-950/80 hover:text-red-300 hover:border-red-700 active:scale-95'
                   : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-700 active:scale-95'
               }`}
-              title={isSymbolTracked ? t('order_tracked_success') : t('sticky_action_track')}
+              title={isSymbolTracked ? t('ws_untrack_position') : t('sticky_action_track')}
             >
               {isTrackingLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

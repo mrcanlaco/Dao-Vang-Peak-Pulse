@@ -17,6 +17,7 @@ interface OrderExecutionModalProps {
   probability?: number | null;
   riskLevel?: string | null;
   onTrackPosition?: (symbol: string) => void | Promise<void | boolean>;
+  onUntrackPosition?: (symbol: string) => void | Promise<void | boolean>;
   isSymbolTracked?: boolean;
   isTrackingLoading?: boolean;
 }
@@ -33,6 +34,7 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
   probability,
   riskLevel: _riskLevel,
   onTrackPosition,
+  onUntrackPosition,
   isSymbolTracked = false,
   isTrackingLoading = false,
 }) => {
@@ -335,16 +337,23 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
                 <span>{copiedCommand ? t('order_command_copied') : t('order_copy_command')}</span>
               </button>
 
-              {/* Auto Track Position */}
-              {onTrackPosition && (
+              {/* Auto Track / Untrack Position */}
+              {(onTrackPosition || onUntrackPosition) && (
                 <button
-                  onClick={() => void onTrackPosition(symbol)}
-                  disabled={isTrackingLoading || isSymbolTracked}
+                  onClick={() => {
+                    if (isSymbolTracked && onUntrackPosition) {
+                      void onUntrackPosition(symbol);
+                    } else if (onTrackPosition) {
+                      void onTrackPosition(symbol);
+                    }
+                  }}
+                  disabled={isTrackingLoading}
                   className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition ${
                     isSymbolTracked
-                      ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
+                      ? 'bg-sky-500/15 text-sky-300 border-sky-500/40 hover:bg-red-950/80 hover:text-red-300 hover:border-red-700/80 active:scale-95'
                       : 'bg-sky-950/80 hover:bg-sky-900 text-sky-300 border-sky-800/80 active:scale-95'
                   }`}
+                  title={isSymbolTracked ? t('ws_untrack_position') : t('order_track_now')}
                 >
                   {isTrackingLoading ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -353,7 +362,7 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
                   ) : (
                     <Eye className="w-3.5 h-3.5" />
                   )}
-                  <span>{isSymbolTracked ? t('order_tracked_success') : t('order_track_now')}</span>
+                  <span>{isSymbolTracked ? t('ws_untrack_position') : t('order_track_now')}</span>
                 </button>
               )}
             </div>

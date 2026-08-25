@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { FilterTag, SignalItem, RiskLevel, SignalSort, TelegramFilter } from '../types';
 import { parseSystemDate } from '../utils/time';
-import { Clock, TrendingDown, Send, Copy, Check, Volume2, AlertOctagon, X, ChevronDown, ChevronUp, Flame, Zap, Eye } from 'lucide-react';
+import { Clock, TrendingDown, Send, Copy, Check, Volume2, AlertOctagon, X, ChevronDown, ChevronUp, Flame, Zap, Eye, EyeOff } from 'lucide-react';
 import { CoinLink } from './CoinLink';
 import { useTranslation } from '../i18n/LanguageContext';
 import { getRiskLabel, formatDuration } from '../i18n/translations';
@@ -12,6 +12,7 @@ interface SignalFeedProps {
   onSelectSignal: (signal: SignalItem) => void;
   onPushTelegram: (signal: SignalItem) => void;
   onTrackSignal?: (signal: SignalItem) => void;
+  onUntrackSignal?: (signal: SignalItem) => void;
   isSignalTracked?: (signal: SignalItem) => boolean;
   audioAlertEnabled: boolean;
   onDismissSignal?: (signal: SignalItem) => void;
@@ -31,6 +32,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
   onSelectSignal,
   onPushTelegram,
   onTrackSignal,
+  onUntrackSignal,
   isSignalTracked,
   audioAlertEnabled,
   onDismissSignal,
@@ -500,16 +502,33 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onTrackSignal(sig);
+                          const isTracked = Boolean(isSignalTracked?.(sig));
+                          if (isTracked && onUntrackSignal) {
+                            onUntrackSignal(sig);
+                          } else {
+                            onTrackSignal(sig);
+                          }
                         }}
-                        disabled={Boolean(isSignalTracked?.(sig))}
-                        className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition border ${isSignalTracked?.(sig)
-                          ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
-                          : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-sky-800 hover:bg-sky-950 hover:text-sky-300'}`}
-                        title={isSignalTracked?.(sig) ? t('btn_tracked') : t('btn_track')}
+                        className={`group/track px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition border ${
+                          isSignalTracked?.(sig)
+                            ? 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:border-red-600/70 hover:bg-red-950/80 hover:text-red-300'
+                            : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-sky-800 hover:bg-sky-950 hover:text-sky-300'
+                        }`}
+                        title={isSignalTracked?.(sig) ? t('btn_untrack') : t('btn_track')}
                       >
-                        <Eye className="w-2.5 h-2.5" />
-                        {isSignalTracked?.(sig) ? t('btn_tracked') : t('btn_track')}
+                        {isSignalTracked?.(sig) ? (
+                          <>
+                            <Eye className="w-2.5 h-2.5 group-hover/track:hidden" />
+                            <EyeOff className="w-2.5 h-2.5 hidden group-hover/track:inline text-red-400" />
+                            <span className="group-hover/track:hidden">{t('btn_tracked')}</span>
+                            <span className="hidden group-hover/track:inline">{t('btn_untrack')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-2.5 h-2.5" />
+                            <span>{t('btn_track')}</span>
+                          </>
+                        )}
                       </button>
                     )}
 

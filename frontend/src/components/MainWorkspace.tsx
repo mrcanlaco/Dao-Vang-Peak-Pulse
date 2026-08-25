@@ -57,6 +57,7 @@ interface MainWorkspaceProps {
   onAddWatchlist?: (symbol: string) => void | Promise<boolean>;
   isSymbolInWatchlist?: boolean;
   onAddTracking?: (symbol: string) => void | Promise<boolean>;
+  onRemoveTrackingSymbol?: (symbol: string) => void | Promise<boolean>;
   isSymbolTracked?: boolean;
   isWatchlistUpdating?: boolean;
   trackingItems: TrackingWatchlistItem[];
@@ -95,6 +96,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   onAddWatchlist,
   isSymbolInWatchlist = false,
   onAddTracking,
+  onRemoveTrackingSymbol,
   isSymbolTracked = false,
   isWatchlistUpdating = false,
   trackingItems,
@@ -722,6 +724,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     onDismissSignal={onDismissSignal}
                     onAddWatchlist={onAddWatchlist ? ((s: string) => onAddWatchlist(s)) : undefined}
                     onAddTracking={onAddTracking ? ((s: string) => onAddTracking(s)) : undefined}
+                    onRemoveTracking={onRemoveTrackingSymbol ? ((s: string) => onRemoveTrackingSymbol(s)) : undefined}
                     onOpenOrderModal={onOpenOrderModal}
                   />
 

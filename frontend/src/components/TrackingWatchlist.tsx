@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock3,
   Eye,
+  EyeOff,
   Loader2,
   Minus,
   Pencil,
@@ -314,20 +315,47 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1.5 lg:w-44 lg:justify-end">
+                  <div className="flex shrink-0 items-center gap-1.5 lg:w-48 lg:justify-end">
+                    {item.status === 'WATCHING' && (
+                      <button
+                        type="button"
+                        onClick={() => void onRemoveItem(item.id)}
+                        disabled={isUpdating}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-900/70 bg-red-950/40 px-2.5 text-[10px] font-semibold text-red-300 transition hover:bg-red-950 hover:border-red-700 disabled:opacity-50"
+                        title={t('track_btn_unfollow')}
+                      >
+                        {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <EyeOff className="h-3 w-3" />}
+                        {t('track_btn_unfollow')}
+                      </button>
+                    )}
                     {item.status !== 'CLOSED' && (
-                      <button type="button" onClick={() => openEditor(item)} disabled={isUpdating} className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-[10px] font-semibold text-slate-300 transition hover:border-amber-500/60 hover:text-amber-300 disabled:opacity-50">
+                      <button
+                        type="button"
+                        onClick={() => openEditor(item)}
+                        disabled={isUpdating}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-[10px] font-semibold text-slate-300 transition hover:border-amber-500/60 hover:text-amber-300 disabled:opacity-50"
+                      >
                         {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pencil className="h-3 w-3" />}
                         {item.status === 'IN_POSITION' ? t('track_btn_edit_pos') : t('track_btn_enter_pos')}
                       </button>
                     )}
                     {item.status === 'IN_POSITION' && (
-                      <button type="button" onClick={() => void closeTracking(item)} disabled={isUpdating} className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-800/70 bg-emerald-950/40 px-2.5 text-[10px] font-semibold text-emerald-300 transition hover:bg-emerald-950 disabled:opacity-50">
+                      <button
+                        type="button"
+                        onClick={() => void closeTracking(item)}
+                        disabled={isUpdating}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-800/70 bg-emerald-950/40 px-2.5 text-[10px] font-semibold text-emerald-300 transition hover:bg-emerald-950 disabled:opacity-50"
+                      >
                         <CheckCircle2 className="h-3 w-3" /> {t('track_btn_close_pos')}
                       </button>
                     )}
                     {item.status === 'CLOSED' && (
-                      <button type="button" onClick={() => void onRemoveItem(item.id)} disabled={isUpdating} className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-900/70 bg-red-950/40 px-2.5 text-[10px] font-semibold text-red-300 transition hover:bg-red-950 disabled:opacity-50">
+                      <button
+                        type="button"
+                        onClick={() => void onRemoveItem(item.id)}
+                        disabled={isUpdating}
+                        className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-900/70 bg-red-950/40 px-2.5 text-[10px] font-semibold text-red-300 transition hover:bg-red-950 disabled:opacity-50"
+                      >
                         <Archive className="h-3 w-3" /> {t('track_btn_delete')}
                       </button>
                     )}

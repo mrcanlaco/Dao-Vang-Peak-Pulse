@@ -499,6 +499,16 @@ export function App() {
     source_invalidation_time: sig.invalidation_time,
   });
 
+  const handleUntrackSignal = async (sig: SignalItem) => {
+    const item = trackingItems.find(
+      t => t.status !== 'CLOSED' && t.symbol === sig.symbol && (t.source_signal_time === sig.signal_time || !t.source_signal_time)
+    ) || trackingItems.find(t => t.status !== 'CLOSED' && t.symbol === sig.symbol);
+    if (item) {
+      return await removeTrackingItem(item.id);
+    }
+    return false;
+  };
+
   const handleTrackCurrentCoin = (symbol: string) => {
     const signal = selectedSignal?.symbol === symbol ? selectedSignal : signals.find(item => item.symbol === symbol);
     return addTrackingItem(signal ? {
@@ -511,6 +521,20 @@ export function App() {
       source_target_price: signal.target_price,
       source_invalidation_time: signal.invalidation_time,
     } : { symbol, source: 'manual' });
+  };
+
+  const handleUntrackCurrentCoin = async (symbol: string) => {
+    const cleanSymbol = symbol.trim().toUpperCase();
+    const items = trackingItems.filter(
+      item => item.status !== 'CLOSED' && item.symbol === cleanSymbol
+    );
+    if (items.length === 0) return false;
+    let allOk = true;
+    for (const it of items) {
+      const ok = await removeTrackingItem(it.id);
+      if (!ok) allOk = false;
+    }
+    return allOk;
   };
 
   const updateTrackingItem = async (id: string, patch: Record<string, unknown>): Promise<boolean> => {
@@ -741,7 +765,8 @@ export function App() {
             audioAlertEnabled={automationSettings.audioAlertEnabled}
             onDismissSignal={handleDismissSignal}
             onTrackSignal={handleTrackSignal}
-            isSignalTracked={(sig) => trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === sig.symbol && item.source_signal_time === sig.signal_time)}
+            onUntrackSignal={handleUntrackSignal}
+            isSignalTracked={(sig) => trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === sig.symbol && (item.source_signal_time === sig.signal_time || !item.source_signal_time))}
             activeFilterTag={activeFilterTag}
             setActiveFilterTag={setActiveFilterTag}
             signalSort={signalSort}
@@ -780,6 +805,7 @@ export function App() {
             onAddWatchlist={handleAddManualCoin}
             isSymbolInWatchlist={Boolean(coinDetail?.symbol && manualWatchlist.includes(coinDetail.symbol.toUpperCase()))}
             onAddTracking={handleTrackCurrentCoin}
+            onRemoveTrackingSymbol={handleUntrackCurrentCoin}
             isSymbolTracked={Boolean(coinDetail?.symbol && trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === coinDetail.symbol.toUpperCase()))}
             isWatchlistUpdating={watchlistPendingAction !== null}
             trackingItems={trackingItems}
@@ -848,7 +874,8 @@ export function App() {
           riskLevel={selectedSignal?.risk_level || coinDetail?.risk_level}
           onOpenOrderModal={() => setIsOrderModalOpen(true)}
           onTrackPosition={handleTrackCurrentCoin}
-          isSymbolTracked={Boolean(coinDetail?.symbol && trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === coinDetail.symbol.toUpperCase()))}
+          onUntrackPosition={handleUntrackCurrentCoin}
+          isSymbolTracked={Boolean((coinDetail?.symbol || selectedSignal?.symbol) && trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === (coinDetail?.symbol || selectedSignal?.symbol)?.toUpperCase()))}
           isTrackingLoading={isTrackingLoading}
           onPushTelegram={() => selectedSignal && handlePushTelegram(selectedSignal)}
         />
@@ -867,7 +894,8 @@ export function App() {
           probability={deepAnalysis?.calibrated_probability ?? selectedSignal?.probability ?? coinDetail?.probability}
           riskLevel={selectedSignal?.risk_level || coinDetail?.risk_level}
           onTrackPosition={handleTrackCurrentCoin}
-          isSymbolTracked={Boolean(coinDetail?.symbol && trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === coinDetail.symbol.toUpperCase()))}
+          onUntrackPosition={handleUntrackCurrentCoin}
+          isSymbolTracked={Boolean((coinDetail?.symbol || selectedSignal?.symbol) && trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === (coinDetail?.symbol || selectedSignal?.symbol)?.toUpperCase()))}
           isTrackingLoading={isTrackingLoading}
         />
       )}
