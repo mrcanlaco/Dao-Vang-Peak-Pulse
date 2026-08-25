@@ -5,6 +5,12 @@ import App from './App.tsx'
 import { LanguageProvider } from './i18n/LanguageContext'
 import { ErrorBoundary } from './components/ErrorBoundary.tsx'
 
+// Ensure fallback loading placeholder from index.html is completely removed
+const initialLoadingBox = document.getElementById('initial-loading-box')
+if (initialLoadingBox) {
+  initialLoadingBox.remove()
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary fallbackTitle="Hệ thống đã gặp lỗi giao diện">

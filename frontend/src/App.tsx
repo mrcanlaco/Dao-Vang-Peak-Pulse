@@ -690,17 +690,9 @@ export function App() {
   return (
     <div className="min-h-screen bg-[#080c14] text-slate-100 flex flex-col font-sans">
       
-      {/* Loading Progress Indicator Overlay */}
+      {/* Slim Top Loading Progress Bar (Fixed, non-shifting) */}
       {loadingStep && (
-        <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 flex items-center justify-between text-xs font-mono text-amber-300">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-            <span className="font-semibold">{loadingStep}</span>
-          </div>
-          <span className="text-slate-400">
-            {t('loading_telemetry_realtime')}
-          </span>
-        </div>
+        <div className="fixed top-0 left-0 right-0 z-[100] h-0.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 animate-pulse pointer-events-none shadow-[0_0_8px_rgba(245,158,11,0.6)]" />
       )}
 
       {/* Header */}
