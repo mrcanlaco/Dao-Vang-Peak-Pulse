@@ -56,7 +56,7 @@ has no auto-trading or order execution.
 
 Tin nhắn được Việt hóa để đọc nhanh và có dòng **Mở trang phân tích SYMBOL**.
 Liên kết này mở thẳng dashboard tại đúng coin được báo cáo. Live đang dùng:
-`https://trade.comaygiauco.com/#coin=SYMBOL`. Nếu chạy domain khác, đặt
+`https://daovang.comaygiauco.com/#coin=SYMBOL`. Nếu chạy domain khác, đặt
 `web.public_url` trong YAML hoặc `DAO_VANG_WEB__PUBLIC_URL` trong môi trường.
 
 To verify delivery:

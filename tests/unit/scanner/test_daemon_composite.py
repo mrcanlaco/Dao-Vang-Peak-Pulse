@@ -80,7 +80,7 @@ def test_score_and_alert_composite_executes_without_name_errors():
         alert_levels=["CAO"],
     )
     daemon._operating_mode = "shadow"
-    daemon._web_base_url = "https://trade.comaygiauco.com"
+    daemon._web_base_url = "https://daovang.comaygiauco.com"
     daemon._cycle_count = 1
     daemon._bundle_valid = True
     daemon._kill_switch = SimpleNamespace(active=False)
@@ -131,7 +131,7 @@ def test_score_and_alert_composite_executes_without_name_errors():
         assert isinstance(digest_res, dict)
         assert digest_res["symbol"] == "BTCUSDT"
         assert digest_res["total_score"] == 85.0
-        assert digest_res["web_url"] == "https://trade.comaygiauco.com/#coin=BTCUSDT"
+        assert digest_res["web_url"] == "https://daovang.comaygiauco.com/#coin=BTCUSDT"
 
         # Test collect_for_digest=False
         sent_res = daemon._score_and_alert_composite(

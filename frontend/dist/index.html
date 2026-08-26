@@ -74,7 +74,7 @@
         }
       }, 4000);
     </script>
-    <script type="module" crossorigin src="/assets/index-IZVDveN1.js"></script>
+    <script type="module" crossorigin src="/assets/index-pQjw_XDs.js"></script>
     <link rel="stylesheet" crossorigin href="/assets/index-BA4gHEQJ.css">
   </head>
   <body class="bg-slate-950 text-slate-100 select-none overflow-x-hidden antialiased">
@@ -90,8 +90,15 @@
     </div>
     <script>
       if ('serviceWorker' in navigator) {
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then((reg) => {
+          navigator.serviceWorker.register('/sw.js?v=20260826_03').then((reg) => {
             reg.update();
           }).catch(err => console.warn('[PWA] SW registration failed:', err));
         });

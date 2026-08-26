@@ -1,6 +1,6 @@
 # Đảo Vàng — Hướng dẫn Dev & Live Environment
 
-Hệ thống chạy 2 môi trường song song: **Dev** (port 8000) để sửa code, **Live** (port 8001) cho người dùng truy cập qua domain `trade.comaygiauco.com`.
+Hệ thống chạy 2 môi trường song song: **Dev** (port 8000) để sửa code, **Live** (port 8001) cho người dùng truy cập qua domain `daovang.comaygiauco.com`.
 
 ## 1. Kiến trúc tổng quan
 
@@ -61,7 +61,7 @@ Hệ thống chạy 2 môi trường song song: **Dev** (port 8000) để sửa 
 | Data dir | `data/` | `data_live/` |
 | DuckDB | `data/dev.duckdb` | `data_live/live.duckdb` |
 | Mục đích | Sửa code, test | Người dùng thực |
-| Truy cập | `http://localhost:8000` | `https://trade.comaygiauco.com` |
+| Truy cập | `http://localhost:8000` | `https://daovang.comaygiauco.com` |
 | Ai dùng | Developer (tôi) | End user |
 | Restart khi sửa code | Có (chỉ ảnh hưởng dev) | Không (live chạy độc lập) |
 
@@ -204,7 +204,7 @@ cloudflared tunnel login
 cloudflared tunnel create dao-vang
 
 # Gán domain
-cloudflared tunnel route dns dao-vang trade.comaygiauco.com
+cloudflared tunnel route dns dao-vang daovang.comaygiauco.com
 ```
 
 ### 6.3. File config `~/.cloudflared/config.yml`
@@ -214,7 +214,7 @@ tunnel: <tunnel-id>
 credentials-file: C:\Users\<user>\.cloudflared\<tunnel-id>.json
 
 ingress:
-  - hostname: trade.comaygiauco.com
+  - hostname: daovang.comaygiauco.com
     service: http://localhost:8001
   - service: http_status:404
 ```
@@ -230,7 +230,7 @@ cloudflared service install
 ```
 
 Sau khi tunnel chạy:
-- Người dùng truy cập `https://trade.comaygiauco.com` → Cloudflare → `http://localhost:8001` → `run_live.bat`
+- Người dùng truy cập `https://daovang.comaygiauco.com` → Cloudflare → `http://localhost:8001` → `run_live.bat`
 - HTTPS tự động, không cần Let's Encrypt
 - IP máy chủ không bị lộ
 
@@ -268,7 +268,7 @@ Get-Content D:\Coding\dao_vang\data_live\scanner_heartbeat.json | ConvertFrom-Js
 ### 8.2. Dashboard
 
 - Dev: `http://localhost:8000`
-- Live: `https://trade.comaygiauco.com`
+- Live: `https://daovang.comaygiauco.com`
 
 ### 8.3. Dấu hiệu bất thường
 
@@ -351,5 +351,5 @@ cd ..
 D:\Coding\dao_vang\run_live.bat
 
 # 6. Verify
-# Truy cập https://trade.comaygiauco.com
+# Truy cập https://daovang.comaygiauco.com
 ```

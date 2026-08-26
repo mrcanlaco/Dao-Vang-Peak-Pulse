@@ -13,9 +13,9 @@ endpoints = [
     f"/api/coin/{symbol}/deep-analysis",
 ]
 
-print(f"=== Testing coin endpoints for {symbol} via https://trade.comaygiauco.com ===")
+print(f"=== Testing coin endpoints for {symbol} via https://daovang.comaygiauco.com ===")
 for ep in endpoints:
-    url = f"https://trade.comaygiauco.com{ep}"
+    url = f"https://daovang.comaygiauco.com{ep}"
     t0 = time.time()
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})

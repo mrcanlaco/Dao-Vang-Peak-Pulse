@@ -8,9 +8,9 @@ endpoints = [
     "/api/system-history",
 ]
 
-print("=== FINAL VERIFICATION OF https://trade.comaygiauco.com ===")
+print("=== FINAL VERIFICATION OF https://daovang.comaygiauco.com ===")
 for ep in endpoints:
-    url = f"https://trade.comaygiauco.com{ep}"
+    url = f"https://daovang.comaygiauco.com{ep}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0", "Cache-Control": "no-cache"})
         with urllib.request.urlopen(req, timeout=10) as resp:

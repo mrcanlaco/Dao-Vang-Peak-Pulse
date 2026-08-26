@@ -17,7 +17,7 @@ def configured_notifier() -> TelegramNotifier:
         bot_token="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ",
         chat_id="987654321",
     )
-    return TelegramNotifier(config, web_base_url="https://trade.comaygiauco.com")
+    return TelegramNotifier(config, web_base_url="https://daovang.comaygiauco.com")
 
 
 @pytest.fixture
@@ -133,7 +133,7 @@ class TestTelegramAlert:
         assert "⭐⭐⭐⭐⭐" in text
         assert "🔴" in text
         assert "CỰC MẠNH" in text
-        assert "https://trade.comaygiauco.com/#coin=BTCUSDT" in text
+        assert "https://daovang.comaygiauco.com/#coin=BTCUSDT" in text
 
     def test_send_alert_with_web_url(
         self, configured_notifier: TelegramNotifier
@@ -245,7 +245,7 @@ class TestTelegramAlert:
         assert "⭐⭐⭐⭐" in text
         assert "Điểm hợp lưu 2 Tầng" in text
         assert "Funding tăng đột biến" in text
-        assert "https://trade.comaygiauco.com/#coin=ETHUSDT" in text
+        assert "https://daovang.comaygiauco.com/#coin=ETHUSDT" in text
         assert "Báo cáo phân tích" in text
 
     def test_send_test(self, configured_notifier: TelegramNotifier) -> None:
@@ -368,7 +368,7 @@ class TestTelegramAlert:
                 "pump_days": 2,
                 "close_price": 0.35,
                 "top_signals": [("oi_divergence", 85.0, 0.2, "OI tăng mạnh")],
-                "web_url": "https://trade.comaygiauco.com/#coin=CRVUSDT",
+                "web_url": "https://daovang.comaygiauco.com/#coin=CRVUSDT",
             },
             {
                 "symbol": "DOGEUSDT",
@@ -378,7 +378,7 @@ class TestTelegramAlert:
                 "pump_days": 1,
                 "close_price": 0.12,
                 "top_signals": [("funding_spike", 80.0, 0.15, "Funding spike")],
-                "web_url": "https://trade.comaygiauco.com/#coin=DOGEUSDT",
+                "web_url": "https://daovang.comaygiauco.com/#coin=DOGEUSDT",
             },
         ]
 

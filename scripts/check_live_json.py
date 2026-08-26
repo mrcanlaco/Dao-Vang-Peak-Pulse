@@ -7,7 +7,7 @@ if sys.platform == "win32":
 endpoints = ["/api/status", "/api/signals", "/api/candidates", "/api/system-history"]
 
 for ep in endpoints:
-    url = f"https://trade.comaygiauco.com{ep}"
+    url = f"https://daovang.comaygiauco.com{ep}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:

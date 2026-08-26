@@ -2,7 +2,7 @@
 <#
 .SYNOPSIS
     Installs auto-start + auto-restart for:
-      1. cloudflared tunnel (trade.comaygiauco.com) as a Windows Service
+      1. cloudflared tunnel (daovang.comaygiauco.com) as a Windows Service
       2. Scanner daemon as a Scheduled Task (runs at startup, restarts on crash)
       3. Streamlit web UI as a Scheduled Task (runs at startup, restarts on crash)
 #>

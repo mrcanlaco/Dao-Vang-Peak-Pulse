@@ -1,4 +1,4 @@
-﻿"""Forward test loop â€” freeze a model, score new data, track predictions vs
+"""Forward test loop — freeze a model, score new data, track predictions vs
 materialized labels over time.
 
 This implements ROADMAP Phase 5 (Forward Collection) and Phase 6 (Watchlist)
@@ -6,27 +6,27 @@ gating: a model must be frozen (code + config + threshold locked) BEFORE the
 forward test period starts. Data arriving after the freeze date is scored
 with the frozen model and never used for retraining.
 
-Constitution Â§9: "cháº¡y end-to-end báº±ng má»™t command" + "cÃ³ thá»ƒ tÃ¡i táº¡o cÃ¹ng
-káº¿t quáº£ tá»« cÃ¹ng raw snapshot vÃ  config". A frozen model guarantees
-reproducibility â€” the same frozen model + same new data = same predictions.
+Constitution §9: "chạy end-to-end bằng một command" + "có thể tái tạo cùng
+kết quả từ cùng raw snapshot và config". A frozen model guarantees
+reproducibility — the same frozen model + same new data = same predictions.
 
 Flow:
     1. freeze_model(model, threshold, feature_cols, config, train_cutoff)
-       â†’ saves model.joblib + metadata.json to artifacts/frozen_models/
+       -> saves model.joblib + metadata.json to artifacts/frozen_models/
     2. score_frozen(model_id, df_new)
-       â†’ returns predictions for data AFTER train_cutoff
+       -> returns predictions for data AFTER train_cutoff
     3. evaluate_frozen(model_id, df_with_materialized_labels)
-       â†’ compares predictions vs labels that have now materialized
+       -> compares predictions vs labels that have now materialized
     4. list_frozen_models() / load_frozen_model(model_id)
-       â†’ registry operations
+       -> registry operations
 """
+from __future__ import annotations
 
 import hashlib
 import json
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 import joblib
 import numpy as np

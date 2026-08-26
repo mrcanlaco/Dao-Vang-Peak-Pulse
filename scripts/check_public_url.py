@@ -5,9 +5,9 @@ import paramiko
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-print("=== 1. Testing https://trade.comaygiauco.com from client machine ===")
+print("=== 1. Testing https://daovang.comaygiauco.com from client machine ===")
 for path in ["/", "/api/status", "/api/signals", "/api/candidates"]:
-    url = f"https://trade.comaygiauco.com{path}"
+    url = f"https://daovang.comaygiauco.com{path}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=10) as resp:
