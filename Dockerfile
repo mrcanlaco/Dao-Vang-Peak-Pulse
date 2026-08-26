@@ -53,6 +53,7 @@ COPY --from=builder /app/pyproject.toml /app/uv.lock ./
 COPY --from=frontend /frontend/dist /app/frontend/dist
 
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH="/app/src"
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 # Keep OS-level tools and any third-party local-time calls aligned with the
