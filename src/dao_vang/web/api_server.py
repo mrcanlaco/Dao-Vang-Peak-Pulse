@@ -645,6 +645,8 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.get_alpha_lab_drift()
             elif path == '/api/alpha-lab/summary':
                 self.get_alpha_lab_summary()
+            elif path in ('/api/ai/config', '/api/ai/settings'):
+                self.get_ai_config()
             elif path in ('/api/version-history', '/api/updates', '/api/changelog'):
                 self.get_version_history()
             elif path in ('/api/system/update-status', '/api/updater/status'):
@@ -1204,6 +1206,31 @@ class APIHandler(BaseHTTPRequestHandler):
         enriched.sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""), reverse=True)
         self._set_headers(200)
         self.wfile.write(json.dumps(enriched, ensure_ascii=False, default=str).encode('utf-8'))
+
+    def get_ai_config(self):
+        """Return server-configured default AI provider settings."""
+        try:
+            from dao_vang.config.settings import AppSettings
+            _app_settings = AppSettings()
+            ai_cfg = {
+                "provider": (_app_settings.ai.provider or "openai").lower().strip(),
+                "apiKey": (_app_settings.ai.api_key or "").strip(),
+                "modelId": (_app_settings.ai.model_id or "antigravity/gemini-3.7-flash-tiered").strip(),
+                "baseUrl": (_app_settings.ai.base_url or "https://proxy-ai.comaygiauco.com/v1").strip(),
+                "enabled": bool(_app_settings.ai.enabled),
+            }
+            self._set_headers(200)
+            self.wfile.write(json.dumps(ai_cfg, ensure_ascii=False).encode('utf-8'))
+        except Exception as e:
+            self._set_headers(200)
+            self.wfile.write(json.dumps({
+                "provider": "openai",
+                "apiKey": "",
+                "modelId": "antigravity/gemini-3.7-flash-tiered",
+                "baseUrl": "https://proxy-ai.comaygiauco.com/v1",
+                "enabled": True,
+                "error": str(e),
+            }).encode('utf-8'))
 
     def get_status(self):
         global _STATUS_RESP_TIME, _STATUS_RESP_CACHE

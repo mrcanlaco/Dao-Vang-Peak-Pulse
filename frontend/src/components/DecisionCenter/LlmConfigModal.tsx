@@ -15,19 +15,19 @@ interface LlmConfigModalProps {
 
 const PROVIDER_OPTIONS: { id: LlmProvider; name: string; icon: string; defaultModel: string; placeholderUrl?: string; desc: string }[] = [
   {
+    id: 'openai',
+    name: 'OpenAI / AI Proxy (Mặc Định)',
+    icon: '🟢',
+    defaultModel: 'antigravity/gemini-3.7-flash-tiered',
+    placeholderUrl: 'https://proxy-ai.comaygiauco.com/v1',
+    desc: 'Mô hình chuẩn mặc định của hệ thống: Gemini 3.7 Flash Tiered',
+  },
+  {
     id: 'gemini',
     name: 'Google Gemini',
     icon: '✨',
     defaultModel: 'gemini-1.5-flash',
     desc: 'Miễn phí, tốc độ cao, nhận thức ngữ cảnh tốt',
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI (ChatGPT)',
-    icon: '🟢',
-    defaultModel: 'gpt-4o-mini',
-    placeholderUrl: 'https://api.openai.com/v1',
-    desc: 'Mô hình tiêu chuẩn ngành, suy luận logic tốt',
   },
   {
     id: 'deepseek',
@@ -65,15 +65,32 @@ export const LlmConfigModal: React.FC<LlmConfigModalProps> = ({
   const isZh = language === 'zh';
   const isKo = language === 'ko';
 
-  const [provider, setProvider] = useState<LlmProvider>(config.provider || 'gemini');
+  const [provider, setProvider] = useState<LlmProvider>(config.provider || 'openai');
   const [apiKey, setApiKey] = useState<string>(config.apiKey || '');
-  const [modelId, setModelId] = useState<string>(config.modelId || '');
-  const [baseUrl, setBaseUrl] = useState<string>(config.baseUrl || '');
+  const [modelId, setModelId] = useState<string>(config.modelId || 'antigravity/gemini-3.7-flash-tiered');
+  const [baseUrl, setBaseUrl] = useState<string>(config.baseUrl || 'https://proxy-ai.comaygiauco.com/v1');
   const [enabled, setEnabled] = useState<boolean>(config.enabled !== false);
   const [showKey, setShowKey] = useState<boolean>(false);
 
   const [testing, setTesting] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Auto-fetch default server AI config if fields are empty
+  React.useEffect(() => {
+    if (isOpen && !apiKey) {
+      fetch('/api/ai/config')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.apiKey) {
+            setApiKey(data.apiKey);
+            if (data.provider) setProvider(data.provider);
+            if (data.modelId) setModelId(data.modelId);
+            if (data.baseUrl) setBaseUrl(data.baseUrl);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [isOpen, apiKey]);
 
   if (!isOpen) return null;
 
@@ -147,7 +164,20 @@ export const LlmConfigModal: React.FC<LlmConfigModalProps> = ({
     onClose();
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    try {
+      const res = await fetch('/api/ai/config');
+      const data = await res.json();
+      if (data && data.apiKey) {
+        setProvider(data.provider || 'openai');
+        setApiKey(data.apiKey);
+        setModelId(data.modelId || 'antigravity/gemini-3.7-flash-tiered');
+        setBaseUrl(data.baseUrl || 'https://proxy-ai.comaygiauco.com/v1');
+        setEnabled(true);
+        setTestResult(null);
+        return;
+      }
+    } catch {}
     setProvider('openai');
     setApiKey('');
     setModelId('antigravity/gemini-3.7-flash-tiered');

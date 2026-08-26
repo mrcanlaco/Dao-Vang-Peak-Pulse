@@ -88,6 +88,26 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isExpanded]);
 
+  // Auto-fetch default server AI config if apiKey is empty
+  useEffect(() => {
+    if (!llmConfig.apiKey) {
+      fetch('/api/ai/config')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.apiKey) {
+            setLlmConfig((prev) => ({
+              ...prev,
+              apiKey: data.apiKey,
+              provider: prev.provider || data.provider || 'openai',
+              modelId: prev.modelId || data.modelId || 'antigravity/gemini-3.7-flash-tiered',
+              baseUrl: prev.baseUrl || data.baseUrl || 'https://proxy-ai.comaygiauco.com/v1',
+            }));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [llmConfig.apiKey]);
+
   // Initialize welcome message when symbol changes
   useEffect(() => {
     const welcomeMsg: ChatMessage = {
