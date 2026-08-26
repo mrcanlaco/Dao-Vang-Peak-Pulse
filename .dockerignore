@@ -44,3 +44,7 @@ artifacts/
 
 # GitHub
 .github/
+
+# Frontend build & dependencies
+frontend/dist/
+frontend/node_modules/
