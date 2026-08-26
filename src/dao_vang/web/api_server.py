@@ -688,7 +688,7 @@ class APIHandler(BaseHTTPRequestHandler):
             elif not ctype:
                 ctype = 'application/octet-stream'
 
-            cache_control = 'no-cache, must-revalidate' if str(file_path).endswith(('index.html', 'sw.js', 'manifest.json')) else 'public, max-age=86400'
+            cache_control = 'no-cache, no-store, must-revalidate, max-age=0' if str(file_path).endswith(('index.html', 'sw.js', 'manifest.json', '.webmanifest')) else 'public, max-age=86400'
             try:
                 with open(file_path, 'rb') as f:
                     content = f.read()

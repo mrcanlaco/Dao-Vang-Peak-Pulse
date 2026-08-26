@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dao-vang-pwa-v2.1';
+const CACHE_NAME = 'dao-vang-pwa-v3.0';
 const STATIC_ASSETS = [
   '/favicon.svg',
   '/icon.svg',
@@ -9,7 +9,7 @@ const STATIC_ASSETS = [
   '/manifest.json'
 ];
 
-// Install Event - Pre-cache icons/manifest only
+// Install Event - Pre-cache icons/manifest only and skip waiting immediately
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
@@ -26,12 +26,12 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => {
-            console.log('[SW] Purging old cache:', name);
+        cacheNames.map((name) => {
+          if (name !== CACHE_NAME) {
+            console.log('[SW] Purging stale cache:', name);
             return caches.delete(name);
-          })
+          }
+        })
       );
     }).then(() => self.clients.claim())
   );
