@@ -160,6 +160,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({
                   }}
                   placeholder={t('auth_password_placeholder')}
                   disabled={isLoading || isSuccess}
+                  autoComplete="current-password"
                   className={`w-full px-4 py-3 pr-11 rounded-xl bg-slate-950/90 border text-sm text-white placeholder-slate-500 focus:outline-none transition-all ${
                     error
                       ? 'border-red-500/80 focus:border-red-500 focus:ring-1 focus:ring-red-500/50'
