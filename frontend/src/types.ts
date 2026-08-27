@@ -910,6 +910,7 @@ export interface VersionHistoryData {
 }
 
 export interface SystemUpdateStatus {
+  enabled: boolean;
   update_available: boolean;
   current_branch: string;
   local_commit: string;

@@ -15,7 +15,7 @@ import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Callable, Mapping, cast
 
 import joblib
 import pandas as pd
@@ -103,8 +103,10 @@ def _as_utc_timestamp(value: Any) -> pd.Timestamp | None:
     except (TypeError, ValueError, OverflowError):
         return None
     if parsed.tzinfo is None:
-        return parsed.tz_localize("UTC")
-    return parsed.tz_convert("UTC")
+        localized = parsed.tz_localize("UTC")
+        return None if pd.isna(localized) else cast(pd.Timestamp, localized)
+    converted = parsed.tz_convert("UTC")
+    return None if pd.isna(converted) else cast(pd.Timestamp, converted)
 
 
 def _normalise_quality_status(value: Any) -> str:
@@ -312,6 +314,8 @@ def _apply_calibrator(
         "calibrator",
     )
     calibrator_id = _metadata_value(metadata, "calibrator_id", "calibration_id")
+    if str(calibrator_id or "").strip().lower() == "identity_v1":
+        return None, "identity_v1", "calibrator_unvalidated_identity"
     if ref is None:
         # A bundle may explicitly document that its estimator is already a
         # calibrated pipeline.  Do not silently treat an undocumented model
@@ -331,7 +335,8 @@ def _apply_calibrator(
         elif hasattr(calibrator, "transform"):
             calibrated = float(calibrator.transform([model_probability])[0])
         elif callable(calibrator):
-            calibrated = float(calibrator(model_probability))
+            calibrator_func = cast(Callable[[float], float], calibrator)
+            calibrated = float(calibrator_func(model_probability))
         else:
             return (
                 None,

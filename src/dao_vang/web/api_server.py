@@ -10,12 +10,17 @@ dao_vang.scanner.daemon) and this server returns a "queued" response rather
 than fabricating a fake "48/48 coins scanned" success message.
 """
 
+import base64
+import hashlib
+import hmac
 import json
 import logging
 import mimetypes
+import secrets
 import threading
 import time
 from datetime import datetime, timedelta, timezone
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -69,6 +74,9 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DIST_DIR = (REPO_ROOT / "frontend" / "dist").resolve()
 
 _settings = AppSettings()
+_AUTH_FAILURES: dict[str, list[float]] = {}
+_AUTH_FAILURE_WINDOW_SECONDS = 300.0
+_AUTH_FAILURE_LIMIT = 5
 WATCHLIST_PATH = _settings.scanner.watchlist_path
 
 data_dir_path = _settings.paths.data_dir
@@ -432,56 +440,98 @@ class APIHandler(BaseHTTPRequestHandler):
         if extra_headers:
             for k, v in extra_headers.items():
                 self.send_header(k, v)
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Connection', 'close')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, DELETE, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Access-Password, X-Auth-Token')
+        origin = self.headers.get('Origin', '')
+        if origin and origin in _settings.web.allowed_origins:
+            self.send_header('Access-Control-Allow-Origin', origin)
+            self.send_header('Access-Control-Allow-Credentials', 'true')
+            self.send_header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, DELETE, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.send_header('Vary', 'Origin')
         self.end_headers()
 
+    def _auth_secret(self) -> str:
+        return (_settings.web.access_password or '').strip()
+
+    def _make_session_token(self) -> str:
+        """Create a short-lived signed token that never contains the password."""
+
+        timestamp = str(int(time.time()))
+        nonce = secrets.token_urlsafe(18)
+        payload = f'{timestamp}.{nonce}'
+        signature = hmac.new(
+            self._auth_secret().encode('utf-8'),
+            payload.encode('utf-8'),
+            hashlib.sha256,
+        ).digest()
+        encoded_signature = base64.urlsafe_b64encode(signature).decode('ascii').rstrip('=')
+        return f'{payload}.{encoded_signature}'
+
+    def _is_valid_session_token(self, token: str) -> bool:
+        if not token or not self._auth_secret():
+            return False
+        parts = token.split('.', 2)
+        if len(parts) != 3:
+            return False
+        timestamp, nonce, supplied_signature = parts
+        if not timestamp.isdigit() or not nonce or not supplied_signature:
+            return False
+        issued_at = int(timestamp)
+        now = int(time.time())
+        ttl = int(_settings.web.auth_session_ttl_seconds)
+        if issued_at > now + 60 or now - issued_at > ttl:
+            return False
+        payload = f'{timestamp}.{nonce}'
+        expected_signature = base64.urlsafe_b64encode(
+            hmac.new(
+                self._auth_secret().encode('utf-8'),
+                payload.encode('utf-8'),
+                hashlib.sha256,
+            ).digest()
+        ).decode('ascii').rstrip('=')
+        return hmac.compare_digest(supplied_signature, expected_signature)
+
+    def _auth_client_key(self) -> str:
+        client_address = getattr(self, 'client_address', None)
+        if isinstance(client_address, tuple) and client_address:
+            return str(client_address[0])
+        return 'unknown'
+
+    def _auth_rate_limited(self) -> bool:
+        now = time.time()
+        key = self._auth_client_key()
+        attempts = [
+            value for value in _AUTH_FAILURES.get(key, [])
+            if now - value < _AUTH_FAILURE_WINDOW_SECONDS
+        ]
+        _AUTH_FAILURES[key] = attempts
+        return len(attempts) >= _AUTH_FAILURE_LIMIT
+
+    def _record_auth_failure(self) -> None:
+        _AUTH_FAILURES.setdefault(self._auth_client_key(), []).append(time.time())
+
+    def _clear_auth_failures(self) -> None:
+        _AUTH_FAILURES.pop(self._auth_client_key(), None)
+
     def _check_auth(self) -> bool:
-        """Verify if the request has a valid password/token when access password is configured."""
-        expected = (_settings.web.access_password or "").strip()
-        if not expected:
-            return True
+        """Verify only a signed, short-lived session cookie.
 
-        # 1. Check X-Access-Password or X-Auth-Token header
-        x_pass = self.headers.get('X-Access-Password', '') or self.headers.get('X-Auth-Token', '')
-        if x_pass and x_pass.strip() == expected:
-            return True
+        Passwords in URLs, arbitrary headers and long-lived plaintext cookies
+        are deliberately rejected because they leak through logs, proxies and
+        browser storage.
+        """
 
-        # 2. Check Authorization header
-        auth_header = self.headers.get('Authorization', '')
-        if auth_header:
-            if auth_header.startswith('Bearer '):
-                token = auth_header[7:].strip()
-                if token == expected:
-                    return True
-            elif auth_header.strip() == expected:
-                return True
-
-        # 3. Check Cookie header
-        cookie_header = self.headers.get('Cookie', '')
-        if cookie_header:
-            from http.cookies import SimpleCookie
-            try:
-                cookie = SimpleCookie(cookie_header)
-                if 'dao_vang_password' in cookie and cookie['dao_vang_password'].value == expected:
-                    return True
-            except Exception:
-                pass
-
-        # 4. Check query params (optional fallback)
+        if not self._auth_secret():
+            return False
         try:
-            parsed = urlparse(self.path)
-            if parsed.query:
-                qs = parse_qs(parsed.query)
-                token_param = qs.get('token', [''])[0] or qs.get('password', [''])[0]
-                if token_param and token_param == expected:
-                    return True
+            cookie = SimpleCookie(self.headers.get('Cookie', ''))
+            session = cookie.get('dao_vang_session')
+            return session is not None and self._is_valid_session_token(session.value)
         except Exception:
-            pass
-
-        return False
+            return False
 
     def _send_unauthorized(self):
         err_body = json.dumps({
@@ -493,10 +543,10 @@ class APIHandler(BaseHTTPRequestHandler):
         self.wfile.write(err_body)
 
     def get_auth_status(self):
-        expected = bool((_settings.web.access_password or "").strip())
         is_authenticated = self._check_auth()
         resp = {
-            "auth_required": expected,
+            "auth_required": True,
+            "auth_configured": bool(self._auth_secret()),
             "authenticated": is_authenticated,
         }
         body = json.dumps(resp).encode("utf-8")
@@ -505,19 +555,46 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def verify_auth_password(self, data: dict[str, Any]):
         password = str(data.get("password") or "").strip()
-        expected = (_settings.web.access_password or "").strip()
-        if not expected or password == expected:
+        if not self._auth_secret():
+            resp = {
+                "ok": False,
+                "authenticated": False,
+                "error": "Máy chủ chưa cấu hình mật khẩu truy cập.",
+            }
+            body = json.dumps(resp, ensure_ascii=False).encode("utf-8")
+            self._set_headers(503, content_length=len(body))
+            self.wfile.write(body)
+            return
+
+        if self._auth_rate_limited():
+            resp = {
+                "ok": False,
+                "authenticated": False,
+                "error": "Có quá nhiều lần thử. Vui lòng đợi vài phút rồi thử lại.",
+            }
+            body = json.dumps(resp, ensure_ascii=False).encode("utf-8")
+            self._set_headers(429, content_length=len(body))
+            self.wfile.write(body)
+            return
+
+        if hmac.compare_digest(password, self._auth_secret()):
+            self._clear_auth_failures()
             resp = {
                 "ok": True,
                 "authenticated": True,
-                "token": password or expected,
                 "message": "Xác thực thành công",
             }
             body = json.dumps(resp, ensure_ascii=False).encode("utf-8")
-            cookie_val = f"dao_vang_password={password or expected}; Path=/; SameSite=Lax; Max-Age=31536000"
+            secure = _settings.web.public_url.lower().startswith('https://') or self.headers.get('X-Forwarded-Proto', '').lower() == 'https'
+            secure_attr = '; Secure' if secure else ''
+            cookie_val = (
+                f"dao_vang_session={self._make_session_token()}; Path=/; "
+                f"HttpOnly; SameSite=Lax; Max-Age={int(_settings.web.auth_session_ttl_seconds)}{secure_attr}"
+            )
             self._set_headers(200, content_length=len(body), extra_headers={"Set-Cookie": cookie_val})
             self.wfile.write(body)
         else:
+            self._record_auth_failure()
             resp = {
                 "ok": False,
                 "authenticated": False,
@@ -526,6 +603,12 @@ class APIHandler(BaseHTTPRequestHandler):
             body = json.dumps(resp, ensure_ascii=False).encode("utf-8")
             self._set_headers(401, content_length=len(body))
             self.wfile.write(body)
+
+    def logout_auth(self):
+        body = json.dumps({"ok": True, "authenticated": False}).encode("utf-8")
+        cookie_val = 'dao_vang_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0'
+        self._set_headers(200, content_length=len(body), extra_headers={"Set-Cookie": cookie_val})
+        self.wfile.write(body)
 
     def do_OPTIONS(self):
         self._set_headers(200)
@@ -717,6 +800,9 @@ class APIHandler(BaseHTTPRequestHandler):
 
         if parsed.path in ('/api/auth/verify', '/api/auth/login'):
             self.verify_auth_password(data)
+            return
+        if parsed.path == '/api/auth/logout':
+            self.logout_auth()
             return
 
         if parsed.path.startswith('/api/'):
@@ -1214,7 +1300,7 @@ class APIHandler(BaseHTTPRequestHandler):
             _app_settings = AppSettings()
             ai_cfg = {
                 "provider": (_app_settings.ai.provider or "openai").lower().strip(),
-                "apiKey": (_app_settings.ai.api_key or "").strip(),
+                "hasApiKey": bool((_app_settings.ai.api_key or "").strip()),
                 "modelId": (_app_settings.ai.model_id or "antigravity/gemini-3.7-flash-tiered").strip(),
                 "baseUrl": (_app_settings.ai.base_url or "https://proxy-ai.comaygiauco.com/v1").strip(),
                 "enabled": bool(_app_settings.ai.enabled),
@@ -1225,7 +1311,7 @@ class APIHandler(BaseHTTPRequestHandler):
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "provider": "openai",
-                "apiKey": "",
+                "hasApiKey": False,
                 "modelId": "antigravity/gemini-3.7-flash-tiered",
                 "baseUrl": "https://proxy-ai.comaygiauco.com/v1",
                 "enabled": True,
@@ -1915,7 +2001,6 @@ class APIHandler(BaseHTTPRequestHandler):
             
             resolved_count = 142
             pos_events_count = 38
-            eval_days = 11
             try:
                 conn = _ro_duckdb_connect(str(_settings.scanner.db_path))
                 try:
@@ -2094,6 +2179,7 @@ class APIHandler(BaseHTTPRequestHandler):
 
         try:
             from concurrent.futures import ThreadPoolExecutor
+
             from dao_vang.data.collectors.binance_client import BinanceClient
 
             client = BinanceClient(timeout_seconds=2.0, max_retries=1)
@@ -3338,7 +3424,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 conn.close()
         except Exception as exc:
             logger.warning(f"models_comparison_matrix_failed error={exc}")
-            from dao_vang.scoring.engine_comparison import _fallback_benchmark_comparison
+            from dao_vang.scoring.engine_comparison import (
+                _fallback_benchmark_comparison,
+            )
             res = _fallback_benchmark_comparison()
 
         self._set_headers(200)
@@ -3641,7 +3729,11 @@ class APIHandler(BaseHTTPRequestHandler):
     def get_system_update_logs(self):
         """Serve live update execution logs."""
         try:
-            from dao_vang.updater.manager import _IS_UPDATING, _LAST_UPDATE_RESULT, get_update_logs
+            from dao_vang.updater.manager import (
+                _IS_UPDATING,
+                _LAST_UPDATE_RESULT,
+                get_update_logs,
+            )
             data = {
                 "logs": get_update_logs(),
                 "is_updating": _IS_UPDATING,
@@ -3659,8 +3751,15 @@ class APIHandler(BaseHTTPRequestHandler):
     def post_system_update_apply(self):
         """Trigger update process in background thread."""
         try:
-            import threading
-            from dao_vang.updater.manager import UpdateManager, _IS_UPDATING
+            from dao_vang.updater.manager import _IS_UPDATING, UpdateManager
+            if not _settings.updater.enabled:
+                body = json.dumps({
+                    "status": "disabled",
+                    "message": "Tính năng cập nhật trực tiếp đang bị vô hiệu hóa; hãy triển khai qua release pipeline.",
+                }, ensure_ascii=False).encode("utf-8")
+                self._set_headers(403, content_length=len(body))
+                self.wfile.write(body)
+                return
             if _IS_UPDATING:
                 body = json.dumps({
                     "status": "in_progress",

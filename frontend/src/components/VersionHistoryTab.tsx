@@ -390,16 +390,17 @@ export const VersionHistoryTab: React.FC = () => {
               setShowUpdateModal(true);
               fetchUpdateStatus();
             }}
+            disabled={updateStatus?.enabled === false}
             className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold shadow-md transition active:scale-95 ${
-              updateStatus?.update_available
+              updateStatus?.enabled && updateStatus.update_available
                 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 shadow-emerald-500/20 animate-pulse'
-                : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-amber-500/20'
+                : 'bg-slate-800 text-slate-400 shadow-slate-950/20 disabled:cursor-not-allowed disabled:opacity-60'
             }`}
             title={t('updates_one_click_tooltip')}
           >
             <Rocket className="w-3.5 h-3.5" />
             <span>{t('updates_btn_one_click_update')}</span>
-            {updateStatus?.update_available && (
+            {updateStatus?.enabled && updateStatus.update_available && (
               <span className="ml-1 rounded-full bg-emerald-950 px-1.5 py-0.2 text-[10px] font-mono font-bold text-emerald-300">
                 +{updateStatus.commits_behind}
               </span>
@@ -409,7 +410,7 @@ export const VersionHistoryTab: React.FC = () => {
       </div>
 
       {/* Update Available Notification Banner */}
-      {updateStatus?.update_available && (
+      {updateStatus?.enabled && updateStatus.update_available && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-gradient-to-r from-emerald-950/90 via-slate-900 to-slate-900 border border-emerald-500/40 p-4 rounded-2xl shadow-xl backdrop-blur-md">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400">

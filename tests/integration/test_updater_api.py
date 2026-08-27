@@ -1,16 +1,6 @@
 """Integration tests for updater API endpoints."""
 
-import json
-from unittest.mock import MagicMock, patch
-
-import pytest
-
-from dao_vang.updater.manager import (
-    UpdateResult,
-    UpdateStatus,
-    get_update_logs,
-    get_update_status,
-)
+from dao_vang.updater.manager import get_update_logs, get_update_status
 
 
 def test_get_update_status_structure():
@@ -21,6 +11,7 @@ def test_get_update_status_structure():
     assert "current_branch" in status_dict
     assert "local_commit_short" in status_dict
     assert "is_updating" in status_dict
+    assert "enabled" in status_dict
 
 
 def test_get_update_logs_structure():

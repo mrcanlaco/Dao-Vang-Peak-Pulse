@@ -55,7 +55,7 @@ Hệ thống được xây dựng và kiểm định dựa trên các tiêu chu�
 - 🔍 **Live Scanner Daemon (24/7):** Tự động quét theo thời gian thực hàng trăm cặp giao dịch Binance Futures theo chu kỳ nến 5 phút.
 - 📊 **Cơ chế Candidate Filter v2 & Pump Filter:** Lọc danh sách coin biến động mạnh, phát hiện bất thường dòng tiền và nguy cơ đảo chiều nhanh chóng.
 - 🤖 **Machine Learning & Self-Learning Daemon:**
-  - Mô hình tự động căn chỉnh (Calibration) và học hỏi liên tục từ dữ liệu live theo chu kỳ.
+  - Pipeline huấn luyện hỗ trợ calibration; live alert chỉ bật khi bundle có calibration artifact hợp lệ.
   - Đánh giá mô hình nghiêm ngặt bằng phương pháp **Walk-Forward Validation** (Không nhìn trước tương lai / Zero Data Leakage).
 - 📲 **Cảnh báo Telegram 24/7:** Gửi thông báo tín hiệu trực tiếp về Telegram cá nhân/group với đầy đủ chỉ số phân tích và đường dẫn mở thẳng coin trên Dashboard.
 - 💻 **Giao diện Web Dashboard (React + Vite + TypeScript):**
@@ -69,15 +69,15 @@ Hệ thống được xây dựng và kiểm định dựa trên các tiêu chu�
 ## 🛠 4. KIẾN TRÚC KỸ THUẬT (TECH STACK)
 
 ### 🔹 Backend & Data Engine (Python)
-- **Core Framework:** Python 3.11+, Pydantic v2, Typer (CLI).
-- **Web & API Server:** FastAPI, Uvicorn (RESTful APIs).
+- **Core Framework:** Python 3.12, Pydantic v2, Typer (CLI).
+- **Web & API Server:** `ThreadingHTTPServer` + REST endpoints; frontend hiện refresh dữ liệu theo chu kỳ.
 - **Data Engine & Storage:** DuckDB (Query engine phân tích dữ liệu siêu tốc), Apache Parquet, Pandas.
 - **Logging & Security:** `structlog` tích hợp cơ chế tự động ẩn secret/key (`redact_secrets`).
 
 ### 🔹 Frontend (Web Dashboard)
-- **Framework:** React 18, TypeScript, Vite.
+- **Framework:** React 19, TypeScript, Vite.
 - **Styling & UI:** Modern Vanilla CSS (Clean & Responsive).
-- **Charts:** Lightweight Candlestick Charts & Real-time Feeds.
+- **Charts:** Lightweight Candlestick Charts & polling-based live snapshots.
 
 ### 🔹 Machine Learning & Signal Processing
 - **Validation Engine:** Walk-Forward Splitter, Event-based Validation, Out-of-fold Calibration.
@@ -117,7 +117,7 @@ dao_vang/
 │   ├── ARCHITECTURE.md # Sơ đồ kiến trúc & luồng dữ liệu chi tiết
 │   ├── DEVELOPER_GUIDE.md # Hướng dẫn viết code, thêm collector, feature, scoring
 │   └── ...
-├── frontend/           # Ứng dụng Web Dashboard (React 18 + Vite + TypeScript)
+├── frontend/           # Ứng dụng Web Dashboard (React 19 + Vite + TypeScript)
 │   └── src/components/ # Các component giao diện (MainWorkspace, SignalFeed, AlphaLab...)
 ├── scripts/            # Script vận hành, supervisor tự khởi động lại, dev_check.py
 ├── src/dao_vang/       # Toàn bộ mã nguồn cốt lõi Backend (Modular Monolith)
@@ -135,7 +135,7 @@ dao_vang/
 │   ├── scanner/        # 24/7 Live Scanner Daemon, Pump Filter, Watchlist tracker
 │   ├── scoring/        # Frozen ML inference, BTC context & evidence scoring
 │   ├── validation/     # Walk-forward validation, zero leakage audit & metrics
-│   └── web/            # FastAPI REST & WebSocket server
+│   └── web/            # Threaded REST API & static frontend server
 └── tests/              # 375+ bài kiểm thử tự động (Unit, Integration, Leakage, QA)
 ```
 
@@ -173,8 +173,8 @@ Dành cho nhà phát triển muốn đóng góp code, chỉnh sửa mô hình Ma
 #### 1. Cài đặt môi trường ban đầu
 ```bash
 # Clone repository
-git clone https://github.com/mrcanlaco/dao_vang.git
-cd dao_vang
+git clone https://github.com/mrcanlaco/Dao-Vang-Peak-Pulse.git
+cd Dao-Vang-Peak-Pulse
 
 # Tạo môi trường ảo Python và cài đặt dependencies
 python -m venv .venv

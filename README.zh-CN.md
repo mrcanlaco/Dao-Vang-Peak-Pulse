@@ -41,13 +41,13 @@
 ## 🛠 3. 技术架构 (TECH STACK)
 
 ### 🔹 后端与数据引擎 (Python)
-- **核心框架：** Python 3.11+, Pydantic v2, Typer (CLI)。
-- **Web & API 服务：** FastAPI, Uvicorn (RESTful APIs)。
+- **核心框架：** Python 3.12, Pydantic v2, Typer (CLI)。
+- **Web & API 服务：** `ThreadingHTTPServer` REST API 与静态前端服务。
 - **数据引擎与存储：** DuckDB（极速分析型数据查询引擎）, Apache Parquet, Pandas。
 - **日志与安全：** `structlog` 嵌入敏感信息自动脱敏机制 (`redact_secrets`)。
 
 ### 🔹 前端 (Web Dashboard)
-- **框架：** React 18, TypeScript, Vite。
+- **框架：** React 19, TypeScript, Vite。
 - **样式与 UI：** Modern Vanilla CSS（简洁且响应式）。
 - **图表：** Lightweight Candlestick Charts & 实时数据流。
 
@@ -90,8 +90,8 @@ flowchart LR
 ### 环境配置
 ```bash
 # 克隆项目仓库
-git clone https://github.com/mrcanlaco/dao_vang.git
-cd dao_vang
+git clone https://github.com/mrcanlaco/Dao-Vang-Peak-Pulse.git
+cd Dao-Vang-Peak-Pulse
 
 # 使用 uv / pip 安装依赖
 pip install -e .

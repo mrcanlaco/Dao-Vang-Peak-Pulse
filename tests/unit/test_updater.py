@@ -1,9 +1,6 @@
 """Unit tests for dao_vang.updater module."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from dao_vang.config.settings import AppSettings, UpdaterConfig
 from dao_vang.updater.auto_updater import AutoUpdaterDaemon
@@ -12,21 +9,19 @@ from dao_vang.updater.manager import (
     UpdateManager,
     UpdateResult,
     UpdateStatus,
-    get_update_logs,
-    get_update_status,
 )
 
 
 def test_updater_config_defaults():
     """Verify default values in UpdaterConfig."""
     config = UpdaterConfig()
-    assert config.enabled is True
+    assert config.enabled is False
     assert config.poll_interval_minutes == 10
     assert config.remote_name == "origin"
     assert config.branch_name == "main"
-    assert config.auto_restart_services is True
+    assert config.auto_restart_services is False
     assert config.rebuild_frontend is True
-    assert config.telegram_notify is True
+    assert config.telegram_notify is False
     assert config.auto_deploy_remote is False
 
 
@@ -172,7 +167,7 @@ def test_apply_update_success(mock_tg, mock_restart, mock_run_cmd):
 
     mock_run_cmd.side_effect = side_effect
 
-    manager = UpdateManager()
+    manager = UpdateManager(settings=AppSettings(updater={"enabled": True}))
     res = manager.apply_update(restart_services=True, rebuild_frontend=False, notify_telegram=False)
 
     assert isinstance(res, UpdateResult)

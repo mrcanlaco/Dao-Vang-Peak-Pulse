@@ -248,23 +248,30 @@ class WebConfig(BaseModel):
     # `host`: the web server may bind locally while users open the dashboard
     # through a domain or tunnel.
     public_url: str = Field(default="http://127.0.0.1:8000")
-    # Access password for dashboard and APIs to prevent unauthorized quota consumption
-    access_password: str = Field(
-        default="Hailong200%",
+    # Access password is intentionally unset by default. The server fails
+    # closed until an operator supplies it through the environment or .env.
+    access_password: str | None = Field(
+        default=None,
         description="Password required to access the dashboard and APIs",
     )
+    # CORS is opt-in. Same-origin deployments do not need it, and a wildcard
+    # origin is unsafe when authenticated cookies are in use.
+    allowed_origins: list[str] = Field(default_factory=list)
+    auth_session_ttl_seconds: int = Field(default=3600, ge=300, le=86400)
 
 
 class UpdaterConfig(BaseModel):
     """Configuration for automatic and manual git updates."""
 
-    enabled: bool = Field(default=True)
+    # Updating a live checkout from the dashboard is an explicit operator
+    # decision. Keep it disabled until the deployment has a release process.
+    enabled: bool = Field(default=False)
     poll_interval_minutes: int = Field(default=10, ge=1)
     remote_name: str = Field(default="origin")
     branch_name: str = Field(default="main")
-    auto_restart_services: bool = Field(default=True)
+    auto_restart_services: bool = Field(default=False)
     rebuild_frontend: bool = Field(default=True)
-    telegram_notify: bool = Field(default=True)
+    telegram_notify: bool = Field(default=False)
     auto_deploy_remote: bool = Field(default=False)
 
 

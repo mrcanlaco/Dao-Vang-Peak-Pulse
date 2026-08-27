@@ -55,6 +55,10 @@ Hệ thống chạy 2 môi trường song song: **Dev** (port 8000) để sửa 
 
 ## 2. Bảng so sánh 2 môi trường
 
+> **Bắt buộc:** Dashboard không còn dùng mật khẩu mặc định. Hãy đặt
+> `DAO_VANG_WEB__ACCESS_PASSWORD` trong file `.env` trước khi khởi động web;
+> nếu thiếu, server sẽ khóa toàn bộ API bảo vệ và không cho đăng nhập.
+
 | Yếu tố | Dev (`run_dev.bat`) | Live (`run_live.bat`) |
 |---|---|---|
 | Port | 8000 | 8001 |

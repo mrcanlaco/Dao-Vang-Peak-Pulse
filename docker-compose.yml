@@ -21,7 +21,6 @@ services:
       - ./data:/app/data_live
       - ./artifacts:/app/artifacts
       - ./configs:/app/configs
-      - ./.git:/app/.git
     command: >
       dao-vang scanner start --config configs/live.yaml
     healthcheck:
@@ -42,12 +41,12 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
-      - "8001:8000"
     env_file:
       - .env.docker
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - DAO_VANG_PATHS__DATA_DIR=data_live
+      - DAO_VANG_UPDATER__ENABLED=false
       - DAO_VANG_PATHS__RAW_DIR=data_live/raw
       - DAO_VANG_PATHS__NORMALIZED_DIR=data_live/normalized
       - DAO_VANG_SCANNER__DB_PATH=data_live/live.duckdb
@@ -63,7 +62,6 @@ services:
       - ./data:/app/data_live
       - ./artifacts:/app/artifacts
       - ./configs:/app/configs
-      - ./.git:/app/.git
     depends_on:
       - scanner
     healthcheck:

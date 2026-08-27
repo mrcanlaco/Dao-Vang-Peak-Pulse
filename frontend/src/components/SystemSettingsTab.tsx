@@ -83,7 +83,13 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
   const [llmConfig, setLlmConfig] = useState<LlmConfig>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_CONFIG_KEY);
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<LlmConfig>;
+        // Migrate older browser state without retaining a plaintext API key.
+        const safeConfig = { ...parsed, apiKey: '' } as LlmConfig;
+        localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(safeConfig));
+        return safeConfig;
+      }
     } catch {
       // fallback
     }
@@ -114,8 +120,7 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
       fetch('/api/ai/config')
         .then((res) => res.json())
         .then((data) => {
-          if (data && data.apiKey) {
-            setApiKey(data.apiKey);
+          if (data && data.provider) {
             if (data.provider) setProvider(data.provider);
             if (data.modelId) setModelId(data.modelId);
             if (data.baseUrl) setBaseUrl(data.baseUrl);
@@ -195,7 +200,7 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
     };
     setLlmConfig(updated);
     try {
-      localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(updated));
+      localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify({ ...updated, apiKey: '' }));
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (e) {
@@ -207,9 +212,9 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
     try {
       const res = await fetch('/api/ai/config');
       const data = await res.json();
-      if (data && data.apiKey) {
+      if (data && data.provider) {
         setProvider(data.provider || 'openai');
-        setApiKey(data.apiKey);
+        setApiKey('');
         setModelId(data.modelId || 'antigravity/gemini-3.7-flash-tiered');
         setBaseUrl(data.baseUrl || 'https://proxy-ai.comaygiauco.com/v1');
         setEnabled(true);

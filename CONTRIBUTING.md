@@ -27,12 +27,12 @@ All contributors and maintainers are expected to adhere to our [Code of Conduct]
 ```bash
 git clone https://github.com/<your-username>/dao_vang.git
 cd dao_vang
-git remote add upstream https://github.com/mrcanlaco/dao_vang.git
+git remote add upstream https://github.com/mrcanlaco/Dao-Vang-Peak-Pulse.git
 ```
 
 ### 2. Environment Setup
 
-#### Backend (Python 3.11+)
+#### Backend (Python 3.12)
 We recommend using [`uv`](https://docs.astral.sh/uv/) for ultra-fast dependency management:
 ```bash
 # Install dependencies including dev tools

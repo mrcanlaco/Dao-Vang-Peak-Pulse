@@ -5,6 +5,22 @@ All notable changes to the Đảo Vàng project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0-rc.2] - 2026-08-27
+
+### Changed
+- Synchronized backend, frontend, and version-history reporting on the `2.0.0-rc.2` release candidate.
+- Disabled live Git updates by default and removed automatic destructive checkout recovery.
+- Updated the CI frontend job to use Node 22, the lockfile cache, and `npm ci`.
+
+### Security
+- Replaced plaintext password headers, query parameters, localStorage persistence, and cookies with a short-lived signed `HttpOnly` session cookie.
+- Added opt-in CORS allowlisting and baseline response security headers.
+- Added login attempt throttling and fail-closed behavior when no access password is configured.
+
+### Model contract
+- The active frozen bundle remains `frozen_20260811_082824_96df7ec9` with `distribution_short_v1`, 24-hour horizon, 25 serving features, and 0.60 high-confidence / 0.45 watch thresholds.
+- Bundles using `identity_v1` calibration now fail closed for alerting until a fitted calibration artifact is supplied and validated.
+
 ## [1.0.0-rc.1] - 2026-08-01
 
 ### Added

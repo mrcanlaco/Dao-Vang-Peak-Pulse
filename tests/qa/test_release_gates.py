@@ -343,6 +343,7 @@ def test_stale_or_invalid_snapshot_is_not_alertable(tmp_path: Path):
     assert result.calibrated_probability is None
     assert result.alertable is False
 
+
     invalid_quality = dict(stale_features)
     invalid_quality["feature_time"] = now
     invalid_quality["quality_status"] = "invalid"
@@ -359,6 +360,32 @@ def test_stale_or_invalid_snapshot_is_not_alertable(tmp_path: Path):
     assert result.risk_tier == "WAIT"
     assert result.calibrated_probability is None
     assert result.alertable is False
+
+
+def test_identity_calibration_is_not_alertable(tmp_path: Path):
+    """Raw model probabilities must not bypass the calibration gate."""
+    from sklearn.linear_model import LogisticRegression
+
+    model = LogisticRegression().fit([[0.0], [1.0]], [0, 1])
+    info = freeze_model(
+        model=model,
+        threshold=0.5,
+        feature_cols=["feature_a"],
+        config={},
+        train_cutoff=datetime(2024, 1, 1),
+        artifact_dir=tmp_path,
+    )
+    result = score_snapshot(
+        symbol="BTCUSDT",
+        feature_dict={"feature_a": 1.0, "quality_status": "valid"},
+        btc_context=classify_btc(0.0, 0.0, 0.0, ScoringConfig()),
+        frozen_info=info,
+        config=ScoringConfig(),
+        threshold_policy=ThresholdPolicy(),
+    )
+    assert result.risk_tier == "WAIT"
+    assert result.calibrated_probability is None
+    assert "calibrator_unvalidated_identity" in result.quality.reason_codes
 
 
 def test_bundle_checksum_mismatch_fails_closed(tmp_path: Path):

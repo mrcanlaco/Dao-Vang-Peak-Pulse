@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import signal
-import sys
 import time
 from pathlib import Path
 
@@ -37,6 +36,9 @@ class AutoUpdaterDaemon:
 
     def start(self) -> None:
         """Start the auto-updater monitoring loop."""
+        if not self.settings.updater.enabled:
+            logger.info("auto_updater_disabled")
+            return
         self._running = True
 
         def _handle_signal(signum, frame):
@@ -76,6 +78,9 @@ class AutoUpdaterDaemon:
 
     def run_once(self) -> bool:
         """Check once and apply update if new commits are found. Returns True if updated."""
+        if not self.settings.updater.enabled:
+            logger.debug("auto_updater_disabled")
+            return False
         logger.debug("auto_updater_checking_github")
         status = self.manager.check_for_updates()
 
@@ -100,7 +105,7 @@ class AutoUpdaterDaemon:
         print(
             f"\n🔔 [ĐẢO VÀNG] Phát hiện {status.commits_behind} commit mới trên GitHub ({status.remote_commit_short})!"
         )
-        print(f"   Tiến hành tự động cập nhật hệ thống...")
+        print("   Tiến hành tự động cập nhật hệ thống...")
 
         res = self.manager.apply_update(
             force=False,

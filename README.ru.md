@@ -41,13 +41,13 @@
 ## 🛠 3. ТЕХНИЧЕСКАЯ АРХИТЕКТУРА (TECH STACK)
 
 ### 🔹 Бэкенд и движок данных (Python)
-- **Основной фреймворк:** Python 3.11+, Pydantic v2, Typer (CLI).
-- **Веб и API сервер:** FastAPI, Uvicorn (RESTful APIs).
+- **Основной фреймворк:** Python 3.12, Pydantic v2, Typer (CLI).
+- **Веб и API сервер:** `ThreadingHTTPServer`, REST API и статический frontend-сервер.
 - **Движок данных и хранилище:** DuckDB (сверхбыстрый аналитический движок запросов), Apache Parquet, Pandas.
 - **Логирование и безопасность:** `structlog` с автоматической маскировкой конфиденциальных данных (`redact_secrets`).
 
 ### 🔹 Фронтенд (Web Dashboard)
-- **Фреймворк:** React 18, TypeScript, Vite.
+- **Фреймворк:** React 19, TypeScript, Vite.
 - **Стили и UI:** Modern Vanilla CSS (чистый и адаптивный).
 - **Графики:** Lightweight Candlestick Charts & потоки данных в реальном времени.
 
@@ -90,8 +90,8 @@ flowchart LR
 ### Настройка окружения
 ```bash
 # Клонирование репозитория
-git clone https://github.com/mrcanlaco/dao_vang.git
-cd dao_vang
+git clone https://github.com/mrcanlaco/Dao-Vang-Peak-Pulse.git
+cd Dao-Vang-Peak-Pulse
 
 # Установка зависимостей с помощью uv / pip
 pip install -e .

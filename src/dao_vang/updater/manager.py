@@ -8,7 +8,6 @@ alerts.
 from __future__ import annotations
 
 import logging
-import os
 import platform
 import re
 import shutil
@@ -34,7 +33,8 @@ def _get_system_time_iso() -> str:
     """Return local ISO timestamp in UTC+7."""
     try:
         from dao_vang.domain.time import system_iso
-        return system_iso(datetime.now(timezone.utc).isoformat())
+        value = system_iso(datetime.now(timezone.utc).isoformat())
+        return value if value is not None else datetime.now(timezone.utc).isoformat()
     except Exception:
         return datetime.now(timezone.utc).isoformat()
 
@@ -270,6 +270,17 @@ class UpdateManager:
         """Perform the complete update process safely."""
         global _IS_UPDATING, _UPDATE_LOGS, _LAST_UPDATE_RESULT
 
+        if not self.settings.updater.enabled:
+            result = UpdateResult(
+                success=False,
+                message="Cập nhật trực tiếp đang bị vô hiệu hóa; hãy dùng release pipeline.",
+                previous_commit="",
+                current_commit="",
+                error="Live updater is disabled",
+            )
+            _LAST_UPDATE_RESULT = result.to_dict()
+            return result
+
         if _IS_UPDATING:
             return UpdateResult(
                 success=False,
@@ -281,6 +292,7 @@ class UpdateManager:
 
         _IS_UPDATING = True
         _UPDATE_LOGS.clear()
+        status: UpdateStatus | None = None
 
         def log_msg(msg: str) -> None:
             timestamp = _get_system_time_iso()[:19].replace("T", " ")
@@ -314,8 +326,18 @@ class UpdateManager:
                 # Check for unmerged files (lines starting with U, AA, DD, etc.)
                 has_unmerged = any(line.strip().startswith(('U', 'AA', 'DD', 'DU', 'UD')) for line in dirty_status.splitlines())
                 if has_unmerged:
-                    log_msg("Phát hiện file xung đột chưa giải quyết (unmerged files). Đang reset để sẵn sàng cập nhật...")
-                    self._run_cmd(["git", "reset", "--hard", "HEAD"])
+                    err_msg = "Working tree contains unresolved merge conflicts; resolve and commit them before updating."
+                    log_msg(f"❌ {err_msg}")
+                    res = UpdateResult(
+                        success=False,
+                        message="Cập nhật dừng lại vì thư mục làm việc đang có xung đột.",
+                        previous_commit=prev_commit,
+                        current_commit=prev_commit,
+                        logs=list(_UPDATE_LOGS),
+                        error=err_msg,
+                    )
+                    _LAST_UPDATE_RESULT = res.to_dict()
+                    return res
                 else:
                     log_msg("Tự động lưu trữ thay đổi tạm thời (git stash) để tránh xung đột...")
                     self._run_cmd(["git", "stash", "save", "auto-stash-before-update"])
@@ -330,24 +352,18 @@ class UpdateManager:
 
             if pull_code != 0:
                 log_msg(f"Git pull thông thường gặp cảnh báo/xung đột: {pull_err or pull_out}")
-                log_msg("Đang tự động áp dụng bản chuẩn sạch từ GitHub (git reset --hard)...")
-                reset_code, reset_out, reset_err = self._run_cmd(["git", "reset", "--hard", f"{remote_name}/{branch_name}"], timeout=60)
-                if reset_code == 0:
-                    pull_code = 0
-                    log_msg(f"✅ Đã đồng bộ mã nguồn sạch về {remote_name}/{branch_name} thành công.")
-                else:
-                    err_msg = f"Lỗi khi kéo mã nguồn git: {reset_err or reset_out or pull_err}"
-                    log_msg(f"❌ {err_msg}")
-                    res = UpdateResult(
-                        success=False,
-                        message="Cập nhật thất bại khi git pull / reset.",
-                        previous_commit=prev_commit,
-                        current_commit=prev_commit,
-                        logs=list(_UPDATE_LOGS),
-                        error=err_msg,
-                    )
-                    _LAST_UPDATE_RESULT = res.to_dict()
-                    return res
+                err_msg = f"Lỗi khi kéo mã nguồn git: {pull_err or pull_out}"
+                log_msg(f"❌ {err_msg}. Không tự động ghi đè thay đổi cục bộ.")
+                res = UpdateResult(
+                    success=False,
+                    message="Cập nhật thất bại khi git pull; thay đổi cục bộ được giữ nguyên.",
+                    previous_commit=prev_commit,
+                    current_commit=prev_commit,
+                    logs=list(_UPDATE_LOGS),
+                    error=err_msg,
+                )
+                _LAST_UPDATE_RESULT = res.to_dict()
+                return res
 
             # Restore stash if needed
             if has_stashed:
@@ -468,7 +484,7 @@ class UpdateManager:
             result = UpdateResult(
                 success=False,
                 message="Quá trình cập nhật gặp sự cố.",
-                previous_commit=status.local_commit_short if 'status' in locals() else "",
+                previous_commit=status.local_commit_short if status is not None else "",
                 current_commit="",
                 logs=list(_UPDATE_LOGS),
                 error=err_msg,
@@ -612,6 +628,7 @@ def get_update_status() -> dict[str, Any]:
     manager = UpdateManager()
     status = manager.check_for_updates()
     res = status.to_dict()
+    res["enabled"] = bool(manager.settings.updater.enabled)
     res["is_updating"] = _IS_UPDATING
     res["last_update_result"] = _LAST_UPDATE_RESULT
     return res

@@ -6,15 +6,15 @@ and changelog data from local Git and GitHub repository.
 
 from __future__ import annotations
 
-import json
 import logging
-import os
 import re
 import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from dao_vang import __version__
 
 logger = logging.getLogger("dao_vang.version_history")
 
@@ -24,7 +24,7 @@ _CACHE_TIMESTAMP: float = 0.0
 _CACHE_TTL_SECONDS = 300.0  # 5 minutes
 
 REPO_OWNER = "mrcanlaco"
-REPO_NAME = "dao_vang"
+REPO_NAME = "Dao-Vang-Peak-Pulse"
 GITHUB_REPO_URL = f"https://github.com/{REPO_OWNER}/{REPO_NAME}"
 
 # Known architectural milestones for Đảo Vàng PeakPulse
@@ -188,7 +188,7 @@ def _get_current_git_info(cwd: Path) -> dict[str, str]:
     """Get active branch and latest tag/commit info."""
     info = {
         "branch": "main",
-        "current_tag": "v1.0.0-rc.1",
+        "current_tag": f"v{__version__}",
         "head_hash": "",
         "repo_url": GITHUB_REPO_URL,
     }
@@ -349,7 +349,7 @@ def compute_version_history_data(repo_root: Path, force_refresh: bool = False) -
     type_counts: dict[str, int] = {}
     scope_counts: dict[str, int] = {}
     authors_map: dict[str, int] = {}
-    daily_map: dict[str, dict[str, int]] = {}
+    daily_map: dict[str, dict[str, Any]] = {}
 
     total_insertions = 0
     total_deletions = 0
@@ -403,7 +403,7 @@ def compute_version_history_data(repo_root: Path, force_refresh: bool = False) -
     ]
 
     last_commit_date = commits[0]["date"] if commits else datetime.now(timezone.utc).isoformat()
-    latest_version = git_info["current_tag"] or "v1.0.0-rc.1"
+    latest_version = git_info["current_tag"] or f"v{__version__}"
 
     payload: dict[str, Any] = {
         "repo": {

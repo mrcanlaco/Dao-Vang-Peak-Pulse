@@ -23,7 +23,7 @@ Welcome to the **DAO VANG (PeakPulse AI)** architectural documentation. This doc
 ```mermaid
 flowchart TD
     subgraph DataIngestion["1. Data Ingestion & Storage"]
-        BinanceAPI["Binance USD-M Futures REST/WS"]
+        BinanceAPI["Binance USD-M Futures REST"]
         Collectors["Data Collectors (Klines, OI, Funding, Taker, Ratios)"]
         DuckDBStorage[("DuckDB & Parquet Storage")]
         BinanceAPI --> Collectors --> DuckDBStorage
@@ -56,8 +56,8 @@ flowchart TD
 
     subgraph Delivery["5. Signal Delivery & UI"]
         Scorer -->|Quality Gate Passed (>= 70%)| TelegramBot["Telegram Alert Bot (VI/EN)"]
-        Scorer --> FastAPI["FastAPI REST & WebSocket Server"]
-        FastAPI --> ReactUI["React + TypeScript + Vite Web Dashboard"]
+        Scorer --> HttpServer["ThreadingHTTPServer REST API"]
+        HttpServer --> ReactUI["React 19 + TypeScript + Vite Web Dashboard"]
     end
 ```
 
@@ -83,19 +83,19 @@ The backend follows a **Modular Monolith** pattern organized cleanly by domain a
 | [`alerts/`](file:///d:/Coding/dao_vang/src/dao_vang/alerts) | Telegram alert delivery manager, bilingual message formatting (Vietnamese/English), and alert dedup store. | `TelegramAlertManager`, `AlertStore` |
 | [`alpha_lab/`](file:///d:/Coding/dao_vang/src/dao_vang/alpha_lab) | Advanced alpha research module: Triple Barrier method, Meta-Labeling, Market Regime classification, Drift Guardian. | `AlphaBacktester`, `DriftGuardian`, `RegimeClassifier` |
 | [`reports/`](file:///d:/Coding/dao_vang/src/dao_vang/reports) | HTML / Markdown summary report generator for backtest benchmarks and live operational audits. | `ReportGenerator` |
-| [`web/`](file:///d:/Coding/dao_vang/src/dao_vang/web) | FastAPI backend API server providing REST endpoints and WebSocket feeds for the frontend. | `api_server.py`, `run.py` |
+| [`web/`](file:///d:/Coding/dao_vang/src/dao_vang/web) | Custom threaded HTTP server providing REST endpoints and static frontend files. | `api_server.py`, `run.py` |
 | [`cli/`](file:///d:/Coding/dao_vang/src/dao_vang/cli) | Typer CLI commands for manual data collection, backtesting, scanning, and model training. | `main.py` (`dao-vang`) |
 
 ---
 
 ## 💻 4. Frontend Architecture (`frontend/`)
 
-The Web Dashboard is built with **React 18 + TypeScript + Vite**:
+The Web Dashboard is built with **React 19 + TypeScript + Vite**:
 
 - **`src/components/MainWorkspace.tsx`**: Main trading cockpit containing interactive candlestick charts, live metrics (OI 24h, Funding, Taker Sell %, RSI), risk ratings, and deep analysis accordion.
 - **`src/components/Sidebar.tsx`**: Navigation menu for Dashboard, Live Scanner, Signals Feed, Watchlist, Alpha Lab, and System Settings.
-- **`src/components/SignalFeed.tsx`**: Real-time signal stream with hit/miss outcome badges, lead-time stats, and quick filtering.
-- **`src/components/WatchlistPanel.tsx`**: Real-time watchlist tracking symbols under accumulation/distribution observation.
+- **`src/components/SignalFeed.tsx`**: Polling-refreshed signal stream with hit/miss outcome badges, lead-time stats, and quick filtering.
+- **`src/components/WatchlistPanel.tsx`**: Polling-refreshed watchlist tracking symbols under accumulation/distribution observation.
 - **`src/components/AlphaLab.tsx`**: Visual research workbench for running Triple Barrier backtests, regime audits, and SHAP feature attribution.
 
 ---

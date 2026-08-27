@@ -69,15 +69,15 @@ DAO VANG is engineered and validated against institutional-grade quantitative fi
 ## 🛠 4. TECHNICAL ARCHITECTURE (TECH STACK)
 
 ### 🔹 Backend & Data Engine (Python)
-- **Core Framework:** Python 3.11+, Pydantic v2, Typer (CLI).
-- **Web & API Server:** FastAPI, Uvicorn (RESTful APIs).
+- **Core Framework:** Python 3.12, Pydantic v2, Typer (CLI).
+- **Web & API Server:** `ThreadingHTTPServer` REST API and static frontend server.
 - **Data Engine & Storage:** DuckDB (Ultra-fast data analysis query engine), Apache Parquet, Pandas.
 - **Logging & Security:** `structlog` integrated with automated secret redaction (`redact_secrets`).
 
 ### 🔹 Frontend (Web Dashboard)
-- **Framework:** React 18, TypeScript, Vite.
+- **Framework:** React 19, TypeScript, Vite.
 - **Styling & UI:** Modern Vanilla CSS (Clean & Responsive).
-- **Charts:** Lightweight Candlestick Charts & Real-time Feeds.
+- **Charts:** Lightweight Candlestick Charts & polling-based live snapshots.
 
 ### 🔹 Machine Learning & Signal Processing
 - **Validation Engine:** Walk-Forward Splitter, Event-based Validation, Out-of-fold Calibration.
@@ -137,8 +137,8 @@ For contributors developing new features, modifying ML models, or customizing th
 #### 1. Initial Setup
 ```bash
 # Clone the repository
-git clone https://github.com/mrcanlaco/dao_vang.git
-cd dao_vang
+git clone https://github.com/mrcanlaco/Dao-Vang-Peak-Pulse.git
+cd Dao-Vang-Peak-Pulse
 
 # Create Python virtual environment and install dependencies
 python -m venv .venv
@@ -179,7 +179,7 @@ cp .env.docker.example .env.docker
 # 2. Configure Telegram Bot Token and Chat ID (if Telegram alerts are desired)
 # nano .env.docker
 
-# 3. Launch full stack (Scanner Daemon + FastAPI Backend + React Web UI)
+# 3. Launch full stack (Scanner Daemon + REST API + React Web UI)
 docker compose up -d --build
 
 # 4. Check status and streaming logs

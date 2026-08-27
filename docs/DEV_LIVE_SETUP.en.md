@@ -7,15 +7,15 @@ Complete reference for setting up local development and live production daemon e
 ## 1. Environment Setup
 
 ### Prerequisites
-- **Python 3.11+**
+- **Python 3.12**
 - **uv** (recommended) or **pip**
-- **Node.js 18+** & **npm** (for Frontend Web Dashboard)
+- **Node.js 22+** & **npm** (for Frontend Web Dashboard)
 
 ### Clone & Install
 ```bash
 # Clone the repository
-git clone https://github.com/mrcanlaco/dao_vang.git
-cd dao_vang
+git clone https://github.com/mrcanlaco/Dao-Vang-Peak-Pulse.git
+cd Dao-Vang-Peak-Pulse
 
 # Install Python package in editable mode
 pip install -e .

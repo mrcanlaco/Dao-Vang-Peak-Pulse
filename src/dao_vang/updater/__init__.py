@@ -5,8 +5,13 @@ mechanisms with Git sync, dependency updates, UI rebuild, service restarts,
 and Telegram notifications.
 """
 
-from dao_vang.updater.manager import CommitInfo, UpdateManager, UpdateResult, UpdateStatus
 from dao_vang.updater.auto_updater import AutoUpdaterDaemon
+from dao_vang.updater.manager import (
+    CommitInfo,
+    UpdateManager,
+    UpdateResult,
+    UpdateStatus,
+)
 
 __all__ = [
     "CommitInfo",

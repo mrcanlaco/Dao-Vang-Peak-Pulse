@@ -6,12 +6,12 @@ Welcome to the **DAO VANG (PeakPulse AI)** Developer Guide! This playbook outlin
 
 ## ⚡ 1. Quick Environment Setup
 
-### Backend (Python 3.11 / 3.12)
+### Backend (Python 3.12)
 We recommend using [`uv`](https://docs.astral.sh/uv/) for instant dependency management:
 ```bash
 # Clone the repository
-git clone https://github.com/mrcanlaco/dao_vang.git
-cd dao_vang
+git clone https://github.com/mrcanlaco/Dao-Vang-Peak-Pulse.git
+cd Dao-Vang-Peak-Pulse
 
 # Install all backend dependencies and dev tools
 uv sync --all-extras --dev
@@ -108,7 +108,7 @@ Scoring combines ML model probabilities and deterministic market signals:
 
 1. **Component Location:** `frontend/src/components/`
 2. **Design Tokens:** Use TailwindCSS utility classes aligned with our dark futuristic palette (`slate-950`, `amber-400`, `emerald-400`, `red-400`).
-3. **State Management:** Keep API polling and WebSocket subscriptions synced through `MainWorkspace.tsx` and custom React hooks.
+3. **State Management:** Keep the 30-second API polling snapshots synced through `MainWorkspace.tsx` and custom React hooks.
 4. **Typecheck & Build:**
    ```bash
    cd frontend

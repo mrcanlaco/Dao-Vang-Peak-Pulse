@@ -1,14 +1,12 @@
 """Unit tests for version history and GitHub development timeline extraction."""
 
 from pathlib import Path
-import pytest
 
 from dao_vang.web.version_history import (
     _parse_conventional_commit,
     _parse_shortstat,
     compute_version_history_data,
     refresh_version_history,
-    MILESTONES,
 )
 
 
@@ -61,7 +59,7 @@ def test_compute_version_history():
     assert "daily_velocity" in data
     assert "commits" in data
 
-    assert data["repo"]["name"] == "dao_vang"
+    assert data["repo"]["name"] == "Dao-Vang-Peak-Pulse"
     assert data["repo"]["owner"] == "mrcanlaco"
     assert data["stats"]["total_commits"] > 0
     assert len(data["milestones"]) >= 5

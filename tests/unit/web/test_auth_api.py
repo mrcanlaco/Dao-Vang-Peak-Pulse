@@ -9,48 +9,46 @@ from dao_vang.web.api_server import APIHandler
 
 
 def test_check_auth_methods():
-    handler = MagicMock(spec=APIHandler)
+    handler = object.__new__(APIHandler)
     handler.headers = {}
     handler.path = "/api/status"
+    handler.client_address = ("127.0.0.1", 1234)
 
-    # When access password is set to Hailong200%
-    with patch("dao_vang.web.api_server._settings.web.access_password", "Hailong200%"):
-        # 1. No auth headers -> False
+    with patch("dao_vang.web.api_server._settings.web.access_password", "test-password"):
+        # Passwords in headers, cookies and URLs are never accepted.
         assert APIHandler._check_auth(handler) is False
-
-        # 2. Correct X-Access-Password header -> True
-        handler.headers = {"X-Access-Password": "Hailong200%"}
-        assert APIHandler._check_auth(handler) is True
-
-        # 3. Incorrect X-Access-Password header -> False
-        handler.headers = {"X-Access-Password": "wrongpassword"}
+        handler.headers = {"X-Access-Password": "test-password"}
         assert APIHandler._check_auth(handler) is False
-
-        # 4. Bearer Authorization header -> True
-        handler.headers = {"Authorization": "Bearer Hailong200%"}
-        assert APIHandler._check_auth(handler) is True
-
-        # 5. Raw Authorization header -> True
-        handler.headers = {"Authorization": "Hailong200%"}
-        assert APIHandler._check_auth(handler) is True
-
-        # 6. Cookie auth -> True
-        handler.headers = {"Cookie": "session=abc; dao_vang_password=Hailong200%; foo=bar"}
-        assert APIHandler._check_auth(handler) is True
-
-        # 7. Query param token -> True
+        handler.headers = {"Authorization": "Bearer test-password"}
+        assert APIHandler._check_auth(handler) is False
+        handler.headers = {"Cookie": "dao_vang_password=test-password"}
+        assert APIHandler._check_auth(handler) is False
         handler.headers = {}
-        handler.path = "/api/signals?token=Hailong200%"
+        handler.path = "/api/signals?token=test-password"
+        assert APIHandler._check_auth(handler) is False
+
+
+def test_check_auth_accepts_signed_session_cookie():
+    handler = object.__new__(APIHandler)
+    handler.headers = {}
+    handler.path = "/api/status"
+    handler.client_address = ("127.0.0.1", 1234)
+
+    with patch("dao_vang.web.api_server._settings.web.access_password", "test-password"):
+        token = APIHandler._make_session_token(handler)
+        handler.headers = {"Cookie": f"dao_vang_session={token}"}
         assert APIHandler._check_auth(handler) is True
 
 
 def test_verify_auth_password_success():
-    handler = MagicMock(spec=APIHandler)
+    handler = object.__new__(APIHandler)
     handler.wfile = MagicMock()
     handler._set_headers = MagicMock()
+    handler.headers = {}
+    handler.client_address = ("127.0.0.1", 1234)
 
-    with patch("dao_vang.web.api_server._settings.web.access_password", "Hailong200%"):
-        APIHandler.verify_auth_password(handler, {"password": "Hailong200%"})
+    with patch("dao_vang.web.api_server._settings.web.access_password", "test-password"):
+        APIHandler.verify_auth_password(handler, {"password": "test-password"})
 
         handler._set_headers.assert_called_once()
         args, kwargs = handler._set_headers.call_args
@@ -61,14 +59,21 @@ def test_verify_auth_password_success():
         data = json.loads(written)
         assert data.get("ok") is True
         assert data.get("authenticated") is True
+        assert "token" not in data
+        cookie = kwargs["extra_headers"]["Set-Cookie"]
+        assert "dao_vang_session=" in cookie
+        assert "HttpOnly" in cookie
+        assert "test-password" not in cookie
 
 
 def test_verify_auth_password_failure():
-    handler = MagicMock(spec=APIHandler)
+    handler = object.__new__(APIHandler)
     handler.wfile = MagicMock()
     handler._set_headers = MagicMock()
+    handler.headers = {}
+    handler.client_address = ("127.0.0.1", 1235)
 
-    with patch("dao_vang.web.api_server._settings.web.access_password", "Hailong200%"):
+    with patch("dao_vang.web.api_server._settings.web.access_password", "test-password"):
         APIHandler.verify_auth_password(handler, {"password": "wrong"})
 
         handler._set_headers.assert_called_once()
@@ -79,3 +84,37 @@ def test_verify_auth_password_failure():
         data = json.loads(written)
         assert data.get("ok") is False
         assert data.get("authenticated") is False
+
+
+def test_verify_auth_password_fails_closed_when_unconfigured():
+    handler = object.__new__(APIHandler)
+    handler.wfile = MagicMock()
+    handler._set_headers = MagicMock()
+    handler.headers = {}
+    handler.client_address = ("127.0.0.1", 1236)
+
+    with patch("dao_vang.web.api_server._settings.web.access_password", None):
+        APIHandler.verify_auth_password(handler, {"password": "anything"})
+
+    args, _ = handler._set_headers.call_args
+    assert args[0] == 503
+    data = json.loads(handler.wfile.write.call_args[0][0].decode("utf-8"))
+    assert data["ok"] is False
+
+
+def test_verify_auth_password_rate_limits_repeated_failures():
+    handler = object.__new__(APIHandler)
+    handler.wfile = MagicMock()
+    handler._set_headers = MagicMock()
+    handler.headers = {}
+    handler.client_address = ("127.0.0.1", 1237)
+
+    with (
+        patch("dao_vang.web.api_server._settings.web.access_password", "test-password"),
+        patch("dao_vang.web.api_server._AUTH_FAILURES", {}),
+    ):
+        for _ in range(5):
+            APIHandler.verify_auth_password(handler, {"password": "wrong"})
+        APIHandler.verify_auth_password(handler, {"password": "wrong"})
+
+    assert handler._set_headers.call_args.args[0] == 429

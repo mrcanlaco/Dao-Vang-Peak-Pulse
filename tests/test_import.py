@@ -5,4 +5,4 @@ import dao_vang
 
 def test_package_importable() -> None:
     """Verify that the core package can be imported and has the correct version."""
-    assert dao_vang.__version__ == "0.1.0"
+    assert dao_vang.__version__ == "2.0.0-rc.2"

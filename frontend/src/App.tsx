@@ -1,31 +1,50 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
-import { MainWorkspace } from './components/MainWorkspace';
-import { ActionDrawer } from './components/ActionDrawer';
-import { GlossaryModal } from './components/GlossaryModal';
-import { WatchlistModal } from './components/WatchlistModal';
-import { ModelComparisonModal } from './components/ModelComparisonModal';
-import { CoinSelectorModal } from './components/CoinSelectorModal';
 import { LockScreen } from './components/LockScreen';
-import { MobileBottomNav, type MobileTabType } from './components/v2/MobileBottomNav';
-import { StickyActionBar } from './components/v2/StickyActionBar';
-import { OrderExecutionModal } from './components/v2/OrderExecutionModal';
+import type { MobileTabType } from './components/v2/MobileBottomNav';
 import type { WorkspaceTab } from './components/WorkspaceTabBar';
 import type {
   SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, SystemStatus, FilterTag, SignalSort, TelegramFilter, AutomationSettings, ScannerTelemetry, WatchlistPreset, DeepAnalysis, ModelChoice, ModelsData, TrackingWatchlistItem
 } from './types';
 import { isSignalFired, isSignalArmed } from './types';
 import { parseSystemDate } from './utils/time';
-import { getStoredPassword, clearStoredPassword } from './utils/auth';
+import { clearStoredPassword, checkAuthStatus, logoutAuth } from './utils/auth';
 import { useTranslation, type Language } from './i18n/LanguageContext';
+
+// Keep the authenticated shell small. Charts, modals, and secondary controls
+// are loaded only after the lock screen has been cleared.
+const MainWorkspace = lazy(() => import('./components/MainWorkspace').then(({ MainWorkspace: component }) => ({ default: component })));
+const ActionDrawer = lazy(() => import('./components/ActionDrawer').then(({ ActionDrawer: component }) => ({ default: component })));
+const GlossaryModal = lazy(() => import('./components/GlossaryModal').then(({ GlossaryModal: component }) => ({ default: component })));
+const WatchlistModal = lazy(() => import('./components/WatchlistModal').then(({ WatchlistModal: component }) => ({ default: component })));
+const ModelComparisonModal = lazy(() => import('./components/ModelComparisonModal').then(({ ModelComparisonModal: component }) => ({ default: component })));
+const CoinSelectorModal = lazy(() => import('./components/CoinSelectorModal').then(({ CoinSelectorModal: component }) => ({ default: component })));
+const MobileBottomNav = lazy(() => import('./components/v2/MobileBottomNav').then(({ MobileBottomNav: component }) => ({ default: component })));
+const StickyActionBar = lazy(() => import('./components/v2/StickyActionBar').then(({ StickyActionBar: component }) => ({ default: component })));
+const OrderExecutionModal = lazy(() => import('./components/v2/OrderExecutionModal').then(({ OrderExecutionModal: component }) => ({ default: component })));
 
 export function App() {
   const { language, t } = useTranslation();
 
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return getStoredPassword() !== null;
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    checkAuthStatus()
+      .then((authStatus) => {
+        if (cancelled) return;
+        setIsAuthenticated(authStatus.authenticated);
+        if (!authStatus.authenticated) clearStoredPassword();
+      })
+      .finally(() => {
+        if (!cancelled) setIsAuthChecking(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const handleAuthError = () => {
@@ -37,7 +56,7 @@ export function App() {
   }, [t]);
 
   const handleLogout = () => {
-    clearStoredPassword();
+    void logoutAuth();
     setIsAuthenticated(false);
     setAuthError(null);
   };
@@ -711,6 +730,10 @@ export function App() {
 
   const activeScanMode = activeScanModes.join(' + ');
 
+  if (isAuthChecking) {
+    return <div className="min-h-screen bg-[#07090E]" aria-label="Checking authentication" />;
+  }
+
   if (!isAuthenticated) {
     return (
       <LockScreen
@@ -725,7 +748,8 @@ export function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#080c14] text-slate-100 flex flex-col font-sans">
+    <Suspense fallback={<div className="min-h-screen bg-[#080c14]" aria-label="Loading dashboard" />}>
+      <div className="min-h-screen bg-[#080c14] text-slate-100 flex flex-col font-sans">
       
       {/* Slim Top Loading Progress Bar (Fixed, non-shifting) */}
       {loadingStep && (
@@ -996,7 +1020,8 @@ export function App() {
         </div>
       )}
 
-    </div>
+      </div>
+    </Suspense>
   );
 }
 

@@ -22,7 +22,6 @@ from dao_vang.scoring.frozen_inference import (
     assess_snapshot_quality,
     score_snapshot,
 )
-
 from dao_vang.scoring.two_tier_scorer import (
     TwoTierDistributionScore,
     compute_two_tier_distribution_score,

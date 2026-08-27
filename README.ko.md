@@ -41,13 +41,13 @@
 ## 🛠 3. 기술 아키텍처 (TECH STACK)
 
 ### 🔹 백엔드 및 데이터 엔진 (Python)
-- **Core Framework:** Python 3.11+, Pydantic v2, Typer (CLI).
-- **Web & API Server:** FastAPI, Uvicorn (RESTful APIs).
+- **Core Framework:** Python 3.12, Pydantic v2, Typer (CLI).
+- **Web & API Server:** `ThreadingHTTPServer` REST API 및 정적 프론트엔드 서버.
 - **Data Engine & Storage:** DuckDB (초고속 분석형 데이터 쿼리 엔진), Apache Parquet, Pandas.
 - **Logging & Security:** `structlog` 기반 민감 정보 자동 마스킹 처리 (`redact_secrets`).
 
 ### 🔹 프론트엔드 (Web Dashboard)
-- **Framework:** React 18, TypeScript, Vite.
+- **Framework:** React 19, TypeScript, Vite.
 - **Styling & UI:** Modern Vanilla CSS (Clean & Responsive).
 - **Charts:** Lightweight Candlestick Charts & 실시간 데이터 피드.
 
@@ -90,8 +90,8 @@ flowchart LR
 ### 환경 설정
 ```bash
 # 리포지토리 클론
-git clone https://github.com/mrcanlaco/dao_vang.git
-cd dao_vang
+git clone https://github.com/mrcanlaco/Dao-Vang-Peak-Pulse.git
+cd Dao-Vang-Peak-Pulse
 
 # uv / pip를 통한 패키지 설치
 pip install -e .
