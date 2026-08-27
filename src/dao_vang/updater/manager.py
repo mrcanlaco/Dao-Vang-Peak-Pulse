@@ -27,6 +27,10 @@ logger = logging.getLogger("dao_vang.updater")
 _LAST_UPDATE_RESULT: dict[str, Any] | None = None
 _IS_UPDATING: bool = False
 _UPDATE_LOGS: list[str] = []
+_CONFLICT_MARKER_RE = re.compile(
+    r"^(?:<<<<<<<(?: .*)?|=======|>>>>>>>(?: .*)?)\r?$",
+    re.MULTILINE,
+)
 
 
 def _get_system_time_iso() -> str:
@@ -149,6 +153,46 @@ class UpdateManager:
             scope = match.group(2) or ""
             return c_type, scope
         return "other", ""
+
+    def _frontend_files_with_conflict_markers(self) -> list[str]:
+        """Return deployable HTML files that still contain Git conflict markers."""
+        invalid_files: list[str] = []
+        for relative_path in ("frontend/index.html", "frontend/dist/index.html"):
+            path = self.repo_root / relative_path
+            if not path.is_file():
+                continue
+            try:
+                content = path.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                logger.warning(
+                    "frontend_conflict_scan_failed path=%s error=%s",
+                    relative_path,
+                    exc,
+                )
+                invalid_files.append(relative_path)
+                continue
+            if _CONFLICT_MARKER_RE.search(content):
+                invalid_files.append(relative_path)
+        return invalid_files
+
+    def _restore_paths_from_head(self, paths: list[str]) -> list[str]:
+        """Restore selected conflicted paths while their original edits stay stashed."""
+        failed: list[str] = []
+        for relative_path in paths:
+            code, _, _ = self._run_cmd(
+                [
+                    "git",
+                    "restore",
+                    "--source=HEAD",
+                    "--staged",
+                    "--worktree",
+                    "--",
+                    relative_path,
+                ]
+            )
+            if code != 0:
+                failed.append(relative_path)
+        return failed
 
     def check_for_updates(
         self,
@@ -321,6 +365,7 @@ class UpdateManager:
 
             code, dirty_status, _ = self._run_cmd(["git", "status", "--porcelain"])
             has_stashed = False
+            stash_oid = ""
             if dirty_status:
                 log_msg("Phát hiện thay đổi chưa commit trong thư mục làm việc.")
                 # Check for unmerged files (lines starting with U, AA, DD, etc.)
@@ -340,7 +385,56 @@ class UpdateManager:
                     return res
                 else:
                     log_msg("Tự động lưu trữ thay đổi tạm thời (git stash) để tránh xung đột...")
-                    self._run_cmd(["git", "stash", "save", "auto-stash-before-update"])
+                    _, previous_stash_oid, _ = self._run_cmd(
+                        ["git", "rev-parse", "--verify", "--quiet", "refs/stash"]
+                    )
+                    stash_code, stash_out, stash_err = self._run_cmd(
+                        [
+                            "git",
+                            "stash",
+                            "push",
+                            "--include-untracked",
+                            "--message",
+                            "auto-stash-before-update",
+                        ]
+                    )
+                    if stash_code != 0:
+                        err_msg = f"Không thể lưu thay đổi cục bộ vào stash: {stash_err or stash_out}"
+                        log_msg(f"❌ {err_msg}")
+                        res = UpdateResult(
+                            success=False,
+                            message="Cập nhật dừng lại vì không thể bảo toàn thay đổi cục bộ.",
+                            previous_commit=prev_commit,
+                            current_commit=prev_commit,
+                            logs=list(_UPDATE_LOGS),
+                            error=err_msg,
+                        )
+                        _LAST_UPDATE_RESULT = res.to_dict()
+                        return res
+
+                    oid_code, stash_oid, oid_err = self._run_cmd(
+                        ["git", "rev-parse", "--verify", "--quiet", "refs/stash"]
+                    )
+                    if (
+                        oid_code != 0
+                        or not stash_oid
+                        or stash_oid == previous_stash_oid
+                    ):
+                        err_msg = (
+                            "Lệnh stash không tạo bản lưu mới cho thay đổi cục bộ: "
+                            f"{oid_err or stash_out or 'refs/stash unchanged'}"
+                        )
+                        log_msg(f"❌ {err_msg}")
+                        res = UpdateResult(
+                            success=False,
+                            message="Cập nhật dừng lại vì không xác minh được stash vừa tạo.",
+                            previous_commit=prev_commit,
+                            current_commit=prev_commit,
+                            logs=list(_UPDATE_LOGS),
+                            error=err_msg,
+                        )
+                        _LAST_UPDATE_RESULT = res.to_dict()
+                        return res
                     has_stashed = True
 
             # 3. Pull latest code
@@ -368,7 +462,81 @@ class UpdateManager:
             # Restore stash if needed
             if has_stashed:
                 log_msg("Khôi phục lại thay đổi cục bộ từ stash...")
-                self._run_cmd(["git", "stash", "pop"])
+                apply_code, apply_out, apply_err = self._run_cmd(
+                    ["git", "stash", "apply", stash_oid]
+                )
+                if apply_code != 0:
+                    _, unmerged_out, unmerged_err = self._run_cmd(
+                        ["git", "diff", "--name-only", "--diff-filter=U"]
+                    )
+                    unmerged_paths = [
+                        line.strip()
+                        for line in unmerged_out.splitlines()
+                        if line.strip()
+                    ]
+                    restore_failures = self._restore_paths_from_head(unmerged_paths)
+                    details = apply_err or apply_out or unmerged_err or "git stash apply failed"
+                    if unmerged_paths:
+                        details += f"; conflict files: {', '.join(unmerged_paths)}"
+                    if restore_failures:
+                        details += f"; could not restore: {', '.join(restore_failures)}"
+                    err_msg = (
+                        "Khôi phục stash phát sinh xung đột. Updater đã dừng; "
+                        f"stash {stash_oid[:12]} được giữ nguyên. {details}"
+                    )
+                    log_msg(f"❌ {err_msg}")
+                    _, current_short, _ = self._run_cmd(
+                        ["git", "rev-parse", "--short", "HEAD"]
+                    )
+                    res = UpdateResult(
+                        success=False,
+                        message="Cập nhật dừng lại vì thay đổi cục bộ xung đột với bản mới.",
+                        previous_commit=prev_commit,
+                        current_commit=current_short or prev_commit,
+                        logs=list(_UPDATE_LOGS),
+                        error=err_msg,
+                    )
+                    _LAST_UPDATE_RESULT = res.to_dict()
+                    return res
+
+                marker_files = self._frontend_files_with_conflict_markers()
+                if marker_files:
+                    restore_failures = self._restore_paths_from_head(marker_files)
+                    err_msg = (
+                        "Phát hiện Git conflict marker trong frontend sau khi áp dụng stash: "
+                        f"{', '.join(marker_files)}. Stash {stash_oid[:12]} được giữ nguyên."
+                    )
+                    if restore_failures:
+                        err_msg += f" Không thể khôi phục: {', '.join(restore_failures)}."
+                    log_msg(f"❌ {err_msg}")
+                    _, current_short, _ = self._run_cmd(
+                        ["git", "rev-parse", "--short", "HEAD"]
+                    )
+                    res = UpdateResult(
+                        success=False,
+                        message="Cập nhật dừng lại để ngăn deploy frontend chứa conflict marker.",
+                        previous_commit=prev_commit,
+                        current_commit=current_short or prev_commit,
+                        logs=list(_UPDATE_LOGS),
+                        error=err_msg,
+                    )
+                    _LAST_UPDATE_RESULT = res.to_dict()
+                    return res
+
+                top_code, top_oid, _ = self._run_cmd(
+                    ["git", "rev-parse", "--verify", "--quiet", "refs/stash"]
+                )
+                if top_code == 0 and top_oid == stash_oid:
+                    drop_code, drop_out, drop_err = self._run_cmd(
+                        ["git", "stash", "drop", "stash@{0}"]
+                    )
+                    if drop_code != 0:
+                        log_msg(
+                            "⚠️ Đã khôi phục thay đổi nhưng chưa xóa được stash dự phòng: "
+                            f"{drop_err or drop_out}"
+                        )
+                else:
+                    log_msg("⚠️ Giữ lại stash dự phòng vì refs/stash đã thay đổi trong lúc cập nhật.")
 
             # 4. Get new current commit
             _, new_hash, _ = self._run_cmd(["git", "rev-parse", "HEAD"])
@@ -420,6 +588,26 @@ class UpdateManager:
                     log_msg("⚠️ Không tìm thấy lệnh npm trên máy để build frontend.")
             else:
                 log_msg("Không cần build lại frontend.")
+
+            marker_files = self._frontend_files_with_conflict_markers()
+            if marker_files:
+                err_msg = (
+                    "Phát hiện Git conflict marker trong frontend; không khởi động lại dịch vụ: "
+                    f"{', '.join(marker_files)}"
+                )
+                log_msg(f"❌ {err_msg}")
+                res = UpdateResult(
+                    success=False,
+                    message="Cập nhật dừng lại để ngăn deploy frontend không hợp lệ.",
+                    previous_commit=prev_commit,
+                    current_commit=new_short,
+                    dependencies_updated=deps_updated,
+                    frontend_rebuilt=fe_rebuilt,
+                    logs=list(_UPDATE_LOGS),
+                    error=err_msg,
+                )
+                _LAST_UPDATE_RESULT = res.to_dict()
+                return res
 
             # 7. Clean stale lock files
             cleaned_locks = self._clean_locks()

@@ -1,5 +1,6 @@
 """Unit tests for dao_vang.updater module."""
 
+from pathlib import Path
 from unittest.mock import patch
 
 from dao_vang.config.settings import AppSettings, UpdaterConfig
@@ -173,6 +174,98 @@ def test_apply_update_success(mock_tg, mock_restart, mock_run_cmd):
     assert isinstance(res, UpdateResult)
     assert res.success is True
     assert res.current_commit == "new1234"
+
+
+def _update_available_status() -> UpdateStatus:
+    return UpdateStatus(
+        update_available=True,
+        current_branch="main",
+        local_commit="old123456789",
+        local_commit_short="old1234",
+        local_commit_message="Old commit",
+        remote_commit="new123456789",
+        remote_commit_short="new1234",
+        remote_commit_message="New commit",
+        commits_behind=1,
+        commits_ahead=0,
+    )
+
+
+@patch.object(UpdateManager, "check_for_updates")
+@patch.object(UpdateManager, "_restart_services_windows")
+def test_apply_update_stops_and_restores_upstream_file_on_stash_conflict(
+    mock_restart,
+    mock_check,
+):
+    """A stash conflict must never reach frontend build or service restart."""
+    mock_check.return_value = _update_available_status()
+    commands: list[list[str]] = []
+    stash_ref_reads = 0
+
+    def side_effect(cmd, **kwargs):
+        nonlocal stash_ref_reads
+        commands.append(cmd)
+        if cmd == ["git", "status", "--porcelain"]:
+            return (0, " M frontend/dist/index.html", "")
+        if cmd[:3] == ["git", "stash", "push"]:
+            return (0, "Saved working directory and index state", "")
+        if cmd == ["git", "rev-parse", "--verify", "--quiet", "refs/stash"]:
+            stash_ref_reads += 1
+            if stash_ref_reads == 1:
+                return (1, "", "")
+            return (0, "stash123456789", "")
+        if cmd[:2] in (["git", "fetch"], ["git", "pull"]):
+            return (0, "Updated", "")
+        if cmd[:3] == ["git", "stash", "apply"]:
+            return (1, "CONFLICT (content): Merge conflict", "")
+        if cmd == ["git", "diff", "--name-only", "--diff-filter=U"]:
+            return (0, "frontend/dist/index.html", "")
+        if cmd[:3] == ["git", "restore", "--source=HEAD"]:
+            return (0, "", "")
+        if cmd == ["git", "rev-parse", "--short", "HEAD"]:
+            return (0, "new1234", "")
+        return (0, "", "")
+
+    manager = UpdateManager(settings=AppSettings(updater={"enabled": True}))
+    with patch.object(manager, "_run_cmd", side_effect=side_effect):
+        result = manager.apply_update(
+            restart_services=True,
+            rebuild_frontend=True,
+            notify_telegram=False,
+        )
+
+    assert result.success is False
+    assert "stash" in (result.error or "").lower()
+    assert [
+        "git",
+        "restore",
+        "--source=HEAD",
+        "--staged",
+        "--worktree",
+        "--",
+        "frontend/dist/index.html",
+    ] in commands
+    assert not any(cmd[:3] == ["npm", "run", "build"] for cmd in commands)
+    mock_restart.assert_not_called()
+
+
+def test_frontend_conflict_marker_scan_covers_source_and_build(tmp_path: Path):
+    """Both source HTML and the served build are release blockers."""
+    source = tmp_path / "frontend" / "index.html"
+    build = tmp_path / "frontend" / "dist" / "index.html"
+    build.parent.mkdir(parents=True)
+    source.write_text("<!doctype html><html></html>\n", encoding="utf-8")
+    build.write_text(
+        "<<<<<<< Updated upstream\n<html></html>\n=======\n<html></html>\n"
+        ">>>>>>> Stashed changes\n",
+        encoding="utf-8",
+    )
+
+    manager = UpdateManager(repo_root=tmp_path)
+
+    assert manager._frontend_files_with_conflict_markers() == [
+        "frontend/dist/index.html"
+    ]
 
 
 def test_auto_updater_daemon_init():
