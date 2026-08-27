@@ -162,6 +162,33 @@ def test_latest_cycle_stats_uses_contiguous_tail_after_daemon_restart(tmp_path):
     assert stats["n_alerts"] == 1
 
 
+def test_scan_results_persist_anomaly_report(tmp_path):
+    store = ScanResultStore(str(tmp_path / "anomalies.duckdb"))
+    now = datetime.now(timezone.utc)
+    report = '{"score":82.4,"level":"EXTREME","count":1,"categories":["funding"],"anomalies":[{"code":"funding_extreme"}]}'
+
+    store.save_batch([
+        ScanResultRecord(
+            now,
+            "SOLUSDT",
+            48.0,
+            "WATCH",
+            anomaly_score=82.4,
+            anomaly_level="EXTREME",
+            anomaly_count=1,
+            anomalies_json=report,
+        )
+    ])
+
+    rows = store.latest_per_symbol(limit=10, max_age_hours=24)
+
+    assert len(rows) == 1
+    assert rows[0]["anomaly_score"] == 82.4
+    assert rows[0]["anomaly_level"] == "EXTREME"
+    assert rows[0]["anomaly_count"] == 1
+    assert rows[0]["anomalies_json"] == report
+
+
 def test_is_prediction_telegram_in_cooldown(tmp_path):
     store = ScanResultStore(str(tmp_path / "cooldown.duckdb"))
     now = datetime.now(timezone.utc)
@@ -186,4 +213,3 @@ def test_is_prediction_telegram_in_cooldown(tmp_path):
     assert store.is_prediction_telegram_in_cooldown("BTCUSDT:24h", 120)
     assert not store.is_prediction_telegram_in_cooldown("ETHUSDT", 24, 120)
     assert not store.is_prediction_telegram_in_cooldown("BTCUSDT", 6, 120)
-

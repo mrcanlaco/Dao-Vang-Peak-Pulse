@@ -142,6 +142,30 @@ class PumpFilterConfig(BaseModel):
     min_volume_usd: float = Field(default=500_000, gt=0)
 
 
+class MarketAnomalyConfig(BaseModel):
+    """Thresholds for the independent market-anomaly radar layer.
+
+    These rules enrich the frozen model output; they never masquerade as a
+    calibrated probability and therefore can evolve without invalidating a
+    frozen model bundle.
+    """
+
+    enabled: bool = True
+    min_signal_score: float = Field(default=35.0, ge=0.0, le=100.0)
+    volume_zscore_threshold: float = Field(default=2.5, ge=0.0)
+    volume_ratio_1h_threshold: float = Field(default=1.8, gt=1.0)
+    volume_percentile_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
+    funding_zscore_threshold: float = Field(default=2.0, ge=0.0)
+    funding_change_8h_threshold: float = Field(default=0.0003, ge=0.0)
+    funding_max_age_minutes: float = Field(default=720.0, ge=0.0)
+    reversal_prior_return_threshold: float = Field(default=0.03, ge=0.0, le=1.0)
+    reversal_current_return_threshold: float = Field(default=0.01, ge=0.0, le=1.0)
+    oi_unwind_threshold: float = Field(default=0.03, ge=0.0, le=1.0)
+    taker_buy_ratio_threshold: float = Field(default=0.45, ge=0.0, le=1.0)
+    taker_ratio_change_threshold: float = Field(default=0.05, ge=0.0, le=1.0)
+    crowded_long_ratio_threshold: float = Field(default=1.5, ge=0.0)
+
+
 class CandidateComparisonConfig(BaseModel):
     """Shadow comparison between the production pump filter and a challenger.
 
@@ -294,6 +318,7 @@ class AppSettings(BaseSettings):
     scanner: ScannerConfig = ScannerConfig()
     self_learning: SelfLearningConfig = SelfLearningConfig()
     pump_filter: PumpFilterConfig = PumpFilterConfig()
+    market_anomalies: MarketAnomalyConfig = MarketAnomalyConfig()
     candidate_comparison: CandidateComparisonConfig = CandidateComparisonConfig()
     threshold: ThresholdPolicy = ThresholdPolicy()
     scoring: ScoringConfig = ScoringConfig()

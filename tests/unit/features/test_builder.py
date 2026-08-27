@@ -44,6 +44,9 @@ def test_build_features():
     # Ensure some key features are present
     assert "feature_time" in col_names
     assert "price_ret_5m" in col_names
+    assert "price_ret_15m" in col_names
+    assert "volume_zscore_24h" in col_names
+    assert "volume_ratio_1h" in col_names
     assert "funding_rate_raw" in col_names
     assert "oi_change_1h" in col_names
     assert "taker_buy_ratio" in col_names

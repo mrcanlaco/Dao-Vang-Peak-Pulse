@@ -41,6 +41,7 @@ from dao_vang.domain.time import (
     system_iso,
     system_now,
 )
+from dao_vang.scanner.anomalies import detect_market_anomalies
 from dao_vang.scanner.instance_lock import ScannerAlreadyRunning, ScannerInstanceLock
 from dao_vang.scanner.pump_filter import analyze_pump, fetch_daily_klines
 from dao_vang.scanner.scan_results_store import ScanResultStore
@@ -152,6 +153,58 @@ def _system_display_datetime(value: Any) -> datetime | None:
     """Return a timestamp as an aware UTC+7 datetime for human display."""
     utc_value = _as_utc_datetime(value)
     return as_system_timezone(utc_value) if utc_value is not None else None
+
+
+def _anomaly_fields(row: dict[str, Any] | None) -> dict[str, Any]:
+    """Return the stable anomaly payload used by candidates and signals.
+
+    The JSON column was added after the first scan schema.  Keep the API
+    tolerant of legacy rows so an upgrade can show the existing radar while
+    the scanner publishes the first enriched cycle.
+    """
+
+    source = row or {}
+    report: dict[str, Any] = {}
+    raw_report = source.get("anomalies_json")
+    if isinstance(raw_report, str):
+        try:
+            parsed = json.loads(raw_report)
+            if isinstance(parsed, dict):
+                report = parsed
+        except (json.JSONDecodeError, TypeError):
+            report = {}
+    elif isinstance(raw_report, dict):
+        report = raw_report
+
+    raw_items = report.get("anomalies", [])
+    anomalies = [item for item in raw_items if isinstance(item, dict)] if isinstance(raw_items, list) else []
+    raw_categories = report.get("categories", [])
+    categories = (
+        [str(item) for item in raw_categories if item]
+        if isinstance(raw_categories, list)
+        else []
+    )
+    if not categories:
+        categories = list(dict.fromkeys(str(item.get("category")) for item in anomalies if item.get("category")))
+
+    try:
+        anomaly_score = float(source.get("anomaly_score", report.get("score", 0.0)) or 0.0)
+    except (TypeError, ValueError):
+        anomaly_score = 0.0
+    anomaly_level = str(source.get("anomaly_level") or report.get("level") or "NORMAL")
+    try:
+        anomaly_count = int(source.get("anomaly_count", len(anomalies)) or len(anomalies))
+    except (TypeError, ValueError):
+        anomaly_count = len(anomalies)
+    codes = {str(item.get("code", "")) for item in anomalies}
+    return {
+        "anomaly_score": anomaly_score,
+        "anomaly_level": anomaly_level,
+        "anomaly_count": max(0, anomaly_count),
+        "anomaly_categories": categories,
+        "anomalies": anomalies,
+        "is_volume_spike": "volume_spike" in codes,
+    }
 
 
 FundingPoint = tuple[int, float]
@@ -1763,6 +1816,7 @@ class APIHandler(BaseHTTPRequestHandler):
         now = datetime.now(timezone.utc)
         rows = _alert_store.query(days=7, include_dismissed=False, limit=100)
         lead_stats = _alert_store.lead_time_stats(days=30)
+        latest_scans_list: list[dict[str, Any]] = []
         try:
             latest_scans_list = _scan_store.latest_per_symbol(limit=500, max_age_hours=48)
             latest_scans = {s["symbol"]: s for s in latest_scans_list}
@@ -1811,6 +1865,7 @@ class APIHandler(BaseHTTPRequestHandler):
             oi_change = scan.get("oi_change_24h") if scan else None
             funding = scan.get("funding_rate") if scan else None
             taker_sell = scan.get("taker_sell_ratio") if scan else None
+            anomaly_fields = _anomaly_fields(scan)
 
             rsi_divergence = any(
                 c.get("name", "") in ("momentum_exhaustion", "fake_breakout")
@@ -1855,12 +1910,28 @@ class APIHandler(BaseHTTPRequestHandler):
                 "hit": r.get("hit"),
                 "telegram_sent": r.get("telegram_sent"),
                 "drivers": drivers,
+                **anomaly_fields,
             })
 
         # Also include top candidates from scan_results that haven't triggered
         # alerts, so the RADAR shows what the scanner is seeing even when no
         # alert threshold has been crossed.
-        scan_rows = latest_scans_list[:50]
+        # Keep the normal top-score feed compact, but never hide a market
+        # anomaly merely because its frozen-model score is below the first
+        # 50 rows.  The anomaly filter must be able to discover observations
+        # outside the model leaderboard as well.
+        scan_rows = list(latest_scans_list[:50])
+        scan_symbols = {str(sr.get("symbol", "")) for sr in scan_rows}
+        for sr in latest_scans_list[50:]:
+            sym = str(sr.get("symbol", ""))
+            if sym in scan_symbols:
+                continue
+            if _anomaly_fields(sr)["anomaly_count"] <= 0:
+                continue
+            scan_rows.append(sr)
+            scan_symbols.add(sym)
+            if len(scan_rows) >= 150:
+                break
         for sr in scan_rows:
             sym = sr.get("symbol", "")
             calibrated_probability = sr.get("calibrated_probability")
@@ -1890,6 +1961,7 @@ class APIHandler(BaseHTTPRequestHandler):
             oi_change = sr.get("oi_change_24h")
             funding = sr.get("funding_rate")
             taker_sell = sr.get("taker_sell_ratio")
+            anomaly_fields = _anomaly_fields(sr)
             target_drawdown = -8.0
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
             tier = str(sr.get("recommendation", "WAIT"))
@@ -1926,6 +1998,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "hit": None,
                 "telegram_sent": False,
                 "drivers": [],
+                **anomaly_fields,
             })
 
         # Shadow mode writes every scored observation to ``predictions`` and
@@ -1963,6 +2036,7 @@ class APIHandler(BaseHTTPRequestHandler):
             oi_change = scan.get("oi_change_24h")
             funding = scan.get("funding_rate")
             taker_sell = scan.get("taker_sell_ratio")
+            anomaly_fields = _anomaly_fields(scan)
             target_drawdown = -8.0
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
             tier = str(pr.get("tier") or "WAIT")
@@ -2006,6 +2080,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "hit": None,
                 "telegram_sent": bool(pr.get("telegram_sent")),
                 "drivers": [],
+                **anomaly_fields,
             })
 
         # The Radar's primary order is the observation/delivery time.  The
@@ -2104,6 +2179,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "volume_24h": f"${r['volume_24h_usd'] / 1e6:.1f}M" if r.get("volume_24h_usd") else "N/A",
                 "age": age_str,
                 "is_stale": row_is_stale,
+                **_anomaly_fields(r),
             })
         candidates.sort(key=lambda c: c["score"], reverse=True)
         self._set_headers(200)
@@ -2770,6 +2846,10 @@ class APIHandler(BaseHTTPRequestHandler):
 
         # 4. Compute the same frozen serving score used by Radar.  Keep the
         # heuristic composite alongside it for the component breakdown.
+        anomaly_report = detect_market_anomalies(
+            feature_dict,
+            _settings.market_anomalies,
+        )
         frozen_result = None
         frozen_model_error: str | None = None
         heartbeat = _read_json(HEARTBEAT_PATH)
@@ -2916,6 +2996,11 @@ class APIHandler(BaseHTTPRequestHandler):
             "btc_explanation": btc_context.explanation,
             "btc_score_adjustment": round(btc_context.score_adjustment, 1),
             "components": components,
+            "anomaly_score": anomaly_report.score,
+            "anomaly_level": anomaly_report.level,
+            "anomaly_count": len(anomaly_report.anomalies),
+            "anomaly_categories": list(anomaly_report.categories),
+            "anomalies": [item.to_dict() for item in anomaly_report.anomalies],
             "pump_analysis": pump_analysis,
             "rsi": rsi_data,
             "threshold": _settings.scoring.alert_score_threshold,

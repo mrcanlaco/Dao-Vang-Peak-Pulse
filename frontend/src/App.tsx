@@ -701,6 +701,8 @@ export function App() {
       matchesTag = sig.validity_hours_left > 0 && sig.validity_hours_left <= 2.0;
     } else if (activeFilterTag === 'VOLUME_SPIKE') {
       matchesTag = Boolean(sig.is_volume_spike || sig.taker_sell_ratio < 0.42);
+    } else if (activeFilterTag === 'ANOMALY') {
+      matchesTag = Boolean((sig.anomaly_count ?? sig.anomalies?.length ?? 0) > 0);
     } else if (activeFilterTag === 'ACTIVE') {
       matchesTag = sig.validity_hours_left > 0;
     } else if (activeFilterTag === 'EXPIRED') {

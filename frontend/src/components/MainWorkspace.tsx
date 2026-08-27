@@ -1539,7 +1539,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           )}
 
           <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-x-auto">
-            <table className="w-full min-w-[900px] text-left text-xs text-slate-300">
+            <table className="w-full min-w-[1040px] text-left text-xs text-slate-300">
               <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-mono text-[10px] uppercase">
                 <tr>
                   <th className="p-2.5">{t('col_coin')}</th>
@@ -1551,13 +1551,14 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <th className="p-2.5">{t('metric_funding')}</th>
                   <th className="p-2.5">{t('metric_taker_sell')}</th>
                   <th className="p-2.5">{t('metric_volume_24h')}</th>
+                  <th className="p-2.5">{language === 'vi' ? 'Bất thường' : language === 'zh' ? '异常' : language === 'ko' ? '이상 징후' : 'Anomalies'}</th>
                   <th className="p-2.5 text-right">{t('col_action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-mono">
                 {filteredCandidates.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="p-8 text-center font-sans text-slate-500">
+                    <td colSpan={11} className="p-8 text-center font-sans text-slate-500">
                       {isRefreshingCandidates
                         ? t('candidate_filter_pipeline_loading') : t('candidate_empty_segment_notice')}
                     </td>
@@ -1619,6 +1620,30 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       <td className="p-2.5 text-amber-300">{c.funding}</td>
                       <td className="p-2.5">{c.taker_ratio}</td>
                       <td className="p-2.5 text-slate-400">{c.volume_24h}</td>
+                      <td className="p-2.5">
+                        <div className="flex max-w-[190px] flex-wrap items-center gap-1">
+                          {c.anomalies && c.anomalies.length > 0 ? c.anomalies.slice(0, 3).map((anomaly) => (
+                            <span
+                              key={anomaly.code}
+                              className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${
+                                anomaly.severity === 'extreme'
+                                  ? 'border-red-700/80 bg-red-950/70 text-red-300'
+                                  : anomaly.severity === 'high'
+                                  ? 'border-amber-700/80 bg-amber-950/60 text-amber-300'
+                                  : 'border-violet-700/70 bg-violet-950/50 text-violet-300'
+                              }`}
+                              title={anomaly.explanation}
+                            >
+                              {language === 'vi' ? (anomaly.title_vi || anomaly.title) : anomaly.title}
+                            </span>
+                          )) : (
+                            <span className="text-[10px] text-slate-600">—</span>
+                          )}
+                        </div>
+                        {(c.anomaly_count ?? 0) > 3 && (
+                          <span className="mt-1 block text-[9px] text-slate-500">+{(c.anomaly_count ?? 0) - 3}</span>
+                        )}
+                      </td>
                       <td className="p-2.5 text-right">
                         <button
                           onClick={() => {

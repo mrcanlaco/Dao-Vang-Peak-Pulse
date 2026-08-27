@@ -1,7 +1,21 @@
 export type RiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'SAFE';
-export type FilterTag = 'ALL' | 'FIRED' | 'ARMED' | 'HOT_RISK' | 'EXPIRING' | 'VOLUME_SPIKE' | 'ACTIVE' | 'EXPIRED';
+export type FilterTag = 'ALL' | 'FIRED' | 'ARMED' | 'HOT_RISK' | 'EXPIRING' | 'VOLUME_SPIKE' | 'ANOMALY' | 'ACTIVE' | 'EXPIRED';
 export type SignalSort = 'NEWEST' | 'HIGHEST_PROBABILITY' | 'HIGHEST_RISK' | 'EXPIRING_SOON' | 'LARGEST_DRAWDOWN';
 export type TelegramFilter = 'ALL' | 'SENT' | 'UNSENT';
+
+export interface MarketAnomaly {
+  code: string;
+  category: string;
+  severity: 'medium' | 'high' | 'extreme' | string;
+  score: number;
+  direction: 'bearish' | 'bullish' | 'squeeze_risk' | 'neutral' | string;
+  metric: string;
+  value: number | null;
+  threshold: number | null;
+  title: string;
+  title_vi?: string;
+  explanation?: string;
+}
 
 export interface SignalDriver {
   name: string;
@@ -31,6 +45,11 @@ export interface SignalItem {
   funding_rate: string;
   rsi_divergence: boolean;
   is_volume_spike?: boolean;
+  anomaly_score?: number;
+  anomaly_level?: string;
+  anomaly_count?: number;
+  anomaly_categories?: string[];
+  anomalies?: MarketAnomaly[];
   drivers: SignalDriver[];
   evidence_precision?: number | null;
   evidence_n_judged?: number | null;
@@ -126,6 +145,11 @@ export interface CandidateCoin {
   stage?: string;
   filter_version?: string;
   pump_pct?: number;
+  anomaly_score?: number;
+  anomaly_level?: string;
+  anomaly_count?: number;
+  anomaly_categories?: string[];
+  anomalies?: MarketAnomaly[];
 }
 
 export type CandidateFilterSegment = 'ALL' | 'V2_CHAMPION' | 'V1_CHALLENGER' | 'OVERLAP' | 'V2_UNIQUE' | 'V3_PREVIEW';
@@ -375,6 +399,11 @@ export interface DeepAnalysis {
   rsi: { rsi_14?: number; rsi_7?: number };
   threshold: number;
   has_features: boolean;
+  anomaly_score?: number;
+  anomaly_level?: string;
+  anomaly_count?: number;
+  anomaly_categories?: string[];
+  anomalies?: MarketAnomaly[];
 }
 
 export interface TradeSetup {

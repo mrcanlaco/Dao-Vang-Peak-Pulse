@@ -46,10 +46,12 @@ flowchart TD
         LiveScan["Live 5m Cycle Scanner"]
         CandFilter["Candidate Filter v2 & Pump Filter"]
         Scorer["Distribution Scorer & BTC Context Scorer"]
+        AnomalyRadar["Independent Market Anomaly Radar"]
         OutcomeTracker["PnL & Empirical Precision Tracker"]
         
         LiveScan --> CandFilter
         CandFilter --> Scorer
+        CandFilter --> AnomalyRadar
         FrozenBundle -.-> Scorer
         Scorer --> OutcomeTracker
     end
@@ -57,6 +59,7 @@ flowchart TD
     subgraph Delivery["5. Signal Delivery & UI"]
         Scorer -->|Quality Gate Passed (>= 70%)| TelegramBot["Telegram Alert Bot (VI/EN)"]
         Scorer --> HttpServer["ThreadingHTTPServer REST API"]
+        AnomalyRadar --> HttpServer
         HttpServer --> ReactUI["React 19 + TypeScript + Vite Web Dashboard"]
     end
 ```
@@ -79,7 +82,7 @@ The backend follows a **Modular Monolith** pattern organized cleanly by domain a
 | [`validation/`](file:///d:/Coding/dao_vang/src/dao_vang/validation) | Strict Walk-Forward validation, embargo splitting, data leakage audits, and Brier / ECE calibration metrics. | `WalkForwardSplitter`, `LeakageAuditor`, `CalibrationMetrics` |
 | [`experiments/`](file:///d:/Coding/dao_vang/src/dao_vang/experiments) | ML training runner, forward testing, ablation studies, and automated self-learning feedback loops. | `ExperimentRunner`, `SelfLearningDaemon` |
 | [`scoring/`](file:///d:/Coding/dao_vang/src/dao_vang/scoring) | Live scoring engine combining Frozen ML model probabilities, BTC Macro context, and evidence explanations (SHAP). | `DistributionScorer`, `BTCContextScorer`, `EvidenceGenerator` |
-| [`scanner/`](file:///d:/Coding/dao_vang/src/dao_vang/scanner) | 24/7 background scanner daemon, pump pattern detector, Candidate Filter v2, watchlist manager, and signal outcome tracking. | `ScannerDaemon`, `PumpFilter`, `TrackingWatchlist`, `CandidateFilterV2` |
+| [`scanner/`](file:///d:/Coding/dao_vang/src/dao_vang/scanner) | 24/7 background scanner daemon, pump pattern detector, independent Market Anomaly Radar, Candidate Filter v2, watchlist manager, and signal outcome tracking. | `ScannerDaemon`, `PumpFilter`, `MarketAnomaly`, `TrackingWatchlist`, `CandidateFilterV2` |
 | [`alerts/`](file:///d:/Coding/dao_vang/src/dao_vang/alerts) | Telegram alert delivery manager, bilingual message formatting (Vietnamese/English), and alert dedup store. | `TelegramAlertManager`, `AlertStore` |
 | [`alpha_lab/`](file:///d:/Coding/dao_vang/src/dao_vang/alpha_lab) | Advanced alpha research module: Triple Barrier method, Meta-Labeling, Market Regime classification, Drift Guardian. | `AlphaBacktester`, `DriftGuardian`, `RegimeClassifier` |
 | [`reports/`](file:///d:/Coding/dao_vang/src/dao_vang/reports) | HTML / Markdown summary report generator for backtest benchmarks and live operational audits. | `ReportGenerator` |

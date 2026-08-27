@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { FilterTag, SignalItem, RiskLevel, SignalSort, TelegramFilter } from '../types';
+import type { FilterTag, SignalItem, RiskLevel, SignalSort, TelegramFilter, MarketAnomaly } from '../types';
 import { getSignalTwoTierState, isSignalFired, isSignalArmed } from '../types';
 import { parseSystemDate } from '../utils/time';
 import {
@@ -217,6 +217,18 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
         );
     }
   };
+
+  const getAnomalyLabel = (anomaly: MarketAnomaly) => (
+    language === 'vi' ? (anomaly.title_vi || anomaly.title) : anomaly.title
+  );
+
+  const getAnomalyClass = (anomaly: MarketAnomaly) => (
+    anomaly.severity === 'extreme'
+      ? 'border-red-700/80 bg-red-950/70 text-red-300'
+      : anomaly.severity === 'high'
+      ? 'border-amber-700/80 bg-amber-950/60 text-amber-300'
+      : 'border-violet-700/70 bg-violet-950/50 text-violet-300'
+  );
 
   const parseSignalDate = (value?: string | null) => {
     return parseSystemDate(value);
@@ -618,6 +630,19 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
 
               <button
                 type="button"
+                onClick={() => setActiveFilterTag('ANOMALY')}
+                className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
+                  activeFilterTag === 'ANOMALY'
+                    ? 'border-violet-700 bg-violet-950/80 text-violet-300 shadow-sm'
+                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-violet-900/70 hover:text-violet-300'
+                }`}
+              >
+                <AlertOctagon className="w-3 h-3 text-violet-400" />
+                {language === 'vi' ? 'Bất thường' : language === 'zh' ? '异常' : language === 'ko' ? '이상 징후' : 'Anomalies'}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveFilterTag('ACTIVE')}
                 className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
                   activeFilterTag === 'ACTIVE'
@@ -754,6 +779,19 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                             <span className="mx-1 text-slate-600">|</span>
                             FR: <span className="font-semibold text-amber-400">{sig.funding_rate || 'N/A'}</span>
                           </div>
+                          {sig.anomalies && sig.anomalies.length > 0 && (
+                            <div className="mt-1 flex max-w-[220px] flex-wrap gap-1">
+                              {sig.anomalies.slice(0, 2).map((anomaly) => (
+                                <span
+                                  key={anomaly.code}
+                                  className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${getAnomalyClass(anomaly)}`}
+                                  title={anomaly.explanation}
+                                >
+                                  {getAnomalyLabel(anomaly)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </td>
 
                         {/* Timing */}
@@ -1046,6 +1084,29 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                       </div>
                     </div>
 
+                    {activeInspectedSignal.anomalies && activeInspectedSignal.anomalies.length > 0 && (
+                      <div className="rounded-xl border border-violet-900/70 bg-violet-950/20 p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-violet-300">
+                            {language === 'vi' ? 'Radar bất thường' : 'Anomaly radar'}
+                          </span>
+                          <span className="font-mono text-xs font-bold text-violet-300">
+                            {activeInspectedSignal.anomaly_level || 'WATCH'} · {activeInspectedSignal.anomaly_score?.toFixed(0) ?? '—'}/100
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {activeInspectedSignal.anomalies.map((anomaly) => (
+                            <div key={anomaly.code} className="flex items-start justify-between gap-2 text-[10px]">
+                              <span className={`rounded border px-1.5 py-0.5 font-semibold ${getAnomalyClass(anomaly)}`}>
+                                {getAnomalyLabel(anomaly)}
+                              </span>
+                              <span className="text-right text-slate-400">{anomaly.explanation}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* AI Warning Drivers */}
                     <div className="space-y-1.5">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
@@ -1171,6 +1232,26 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                           <span className="text-amber-300 font-bold">{sig.funding_rate || 'N/A'}</span>
                         </div>
                       </div>
+
+                      {sig.anomalies && sig.anomalies.length > 0 && (
+                        <div className="mb-2 rounded-lg border border-violet-900/60 bg-violet-950/20 px-2.5 py-1.5">
+                          <div className="mb-1 flex items-center justify-between text-[9px] font-bold uppercase tracking-wider text-violet-300">
+                            <span>{language === 'vi' ? 'Bất thường phát hiện' : 'Detected anomalies'}</span>
+                            <span className="font-mono text-violet-400">{sig.anomaly_score?.toFixed(0) ?? '—'}/100</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {sig.anomalies.slice(0, 3).map((anomaly) => (
+                              <span
+                                key={anomaly.code}
+                                className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${getAnomalyClass(anomaly)}`}
+                                title={anomaly.explanation}
+                              >
+                                {getAnomalyLabel(anomaly)}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       {/* Timing, remaining validity and progress */}
                       <div className="pt-0.5 mb-2.5">

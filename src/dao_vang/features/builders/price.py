@@ -18,6 +18,14 @@ PRICE_RET_1H = FeatureDefinition(
     missing_policy="ffill",
 )
 
+PRICE_RET_15M = FeatureDefinition(
+    id="price_ret_15m",
+    version="1.0",
+    description="15-minute price return",
+    lookback_minutes=15,
+    missing_policy="ffill",
+)
+
 PRICE_RET_4H = FeatureDefinition(
     id="price_ret_4h",
     version="1.0",
@@ -58,6 +66,22 @@ VOLUME_PERCENTILE_24H = FeatureDefinition(
     missing_policy="fill_mean",
 )
 
+VOLUME_ZSCORE_24H = FeatureDefinition(
+    id="volume_zscore_24h",
+    version="1.0",
+    description="Current 5-minute volume Z-score over the past 24 hours",
+    lookback_minutes=1440,
+    missing_policy="fill_zero",
+)
+
+VOLUME_RATIO_1H = FeatureDefinition(
+    id="volume_ratio_1h",
+    version="1.0",
+    description="Current 1-hour volume divided by the preceding 1-hour volume",
+    lookback_minutes=120,
+    missing_policy="fill_zero",
+)
+
 MOMENTUM_DECELERATION_4H = FeatureDefinition(
     id="momentum_deceleration_4h",
     version="1.0",
@@ -81,11 +105,14 @@ FAKE_BREAKOUT_1H = FeatureDefinition(
 # Register features
 registry.register_feature(PRICE_RET_5M)
 registry.register_feature(PRICE_RET_1H)
+registry.register_feature(PRICE_RET_15M)
 registry.register_feature(PRICE_RET_4H)
 registry.register_feature(PRICE_RET_24H)
 registry.register_feature(PRICE_VOLATILITY_24H)
 registry.register_feature(DISTANCE_FROM_HIGH_24H)
 registry.register_feature(VOLUME_PERCENTILE_24H)
+registry.register_feature(VOLUME_ZSCORE_24H)
+registry.register_feature(VOLUME_RATIO_1H)
 registry.register_feature(MOMENTUM_DECELERATION_4H)
 registry.register_feature(FAKE_BREAKOUT_1H)
 
@@ -102,6 +129,7 @@ def build_price_features_sql(source_table: str) -> str:
             *,
             close / lag(close, 1) OVER w_all - 1 AS {PRICE_RET_5M.id},
             close / lag(close, 12) OVER w_all - 1 AS {PRICE_RET_1H.id},
+            close / lag(close, 3) OVER w_all - 1 AS {PRICE_RET_15M.id},
             close / lag(close, 48) OVER w_all - 1 AS {PRICE_RET_4H.id},
             close / lag(close, 288) OVER w_all - 1 AS {PRICE_RET_24H.id},
             max(high) OVER w_12_prev AS prev_max_high_12
@@ -116,6 +144,7 @@ def build_price_features_sql(source_table: str) -> str:
             symbol,
             {PRICE_RET_5M.id},
             {PRICE_RET_1H.id},
+            {PRICE_RET_15M.id},
             {PRICE_RET_4H.id},
             {PRICE_RET_24H.id},
             
@@ -125,6 +154,16 @@ def build_price_features_sql(source_table: str) -> str:
             
             -- Volume relative to 24h max
             volume_base / NULLIF(max(volume_base) OVER w_288, 0) AS {VOLUME_PERCENTILE_24H.id},
+
+            -- A percentile alone cannot distinguish a regularly active coin
+            -- from a one-candle shock. Keep both a distribution-normalized
+            -- score and a one-hour versus prior-hour ratio for the radar.
+            (volume_base - avg(volume_base) OVER w_288)
+                / NULLIF(stddev_samp(volume_base) OVER w_288, 0)
+                AS {VOLUME_ZSCORE_24H.id},
+            sum(volume_base) OVER w_12
+                / NULLIF(sum(volume_base) OVER w_prev_12, 0)
+                AS {VOLUME_RATIO_1H.id},
             
             -- Momentum deceleration: current 1h return - 1h return 3 hours ago (lag 36)
             {PRICE_RET_1H.id} - lag({PRICE_RET_1H.id}, 36) OVER w_all AS {MOMENTUM_DECELERATION_4H.id},
@@ -146,6 +185,8 @@ def build_price_features_sql(source_table: str) -> str:
         FROM price_base
         WINDOW 
             w_all AS (PARTITION BY symbol ORDER BY feature_time),
-            w_288 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 287 PRECEDING AND CURRENT ROW)
+            w_288 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 287 PRECEDING AND CURRENT ROW),
+            w_12 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 11 PRECEDING AND CURRENT ROW),
+            w_prev_12 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 23 PRECEDING AND 12 PRECEDING)
     )
     """

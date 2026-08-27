@@ -42,6 +42,10 @@ CREATE TABLE IF NOT EXISTS scan_results (
     volume_24h_usd     DOUBLE,
     pump_pct           DOUBLE,
     pump_days          INTEGER,
+    anomaly_score      DOUBLE,
+    anomaly_level      VARCHAR,
+    anomaly_count      INTEGER,
+    anomalies_json     VARCHAR,
     cycle              INTEGER,
     created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -119,6 +123,10 @@ _MIGRATIONS: list[str] = [
     "ALTER TABLE scan_results ADD COLUMN data_quality_score DOUBLE",
     "ALTER TABLE scan_results ADD COLUMN horizon_hours INTEGER",
     "ALTER TABLE scan_results ADD COLUMN model_probability DOUBLE",
+    "ALTER TABLE scan_results ADD COLUMN anomaly_score DOUBLE",
+    "ALTER TABLE scan_results ADD COLUMN anomaly_level VARCHAR",
+    "ALTER TABLE scan_results ADD COLUMN anomaly_count INTEGER",
+    "ALTER TABLE scan_results ADD COLUMN anomalies_json VARCHAR",
     "ALTER TABLE prediction_outcomes ADD COLUMN event_id VARCHAR",
 ]
 
@@ -137,6 +145,10 @@ class ScanResultRecord:
     calibrated_probability: float | None = None
     data_quality_score: float | None = None
     horizon_hours: int | None = None
+    anomaly_score: float = 0.0
+    anomaly_level: str = "NORMAL"
+    anomaly_count: int = 0
+    anomalies_json: str = "{}"
     close_price: float | None = None
     price_change_24h: float | None = None
     oi_change_24h: float | None = None
@@ -594,9 +606,11 @@ class ScanResultStore:
                 INSERT INTO scan_results (
                     scan_time, symbol, score, recommendation, close_price,
                     price_change_24h, oi_change_24h, funding_rate,
-                    taker_sell_ratio, volume_24h_usd, pump_pct, pump_days, cycle,
-                    model_probability, heuristic_score, calibrated_probability, data_quality_score, horizon_hours
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    taker_sell_ratio, volume_24h_usd, pump_pct, pump_days,
+                    anomaly_score, anomaly_level, anomaly_count, anomalies_json,
+                    cycle, model_probability, heuristic_score,
+                    calibrated_probability, data_quality_score, horizon_hours
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     [
@@ -612,6 +626,10 @@ class ScanResultStore:
                         r.volume_24h_usd,
                         r.pump_pct,
                         r.pump_days,
+                        r.anomaly_score,
+                        r.anomaly_level,
+                        r.anomaly_count,
+                        r.anomalies_json,
                         r.cycle,
                         r.model_probability,
                         r.heuristic_score,
@@ -658,7 +676,9 @@ class ScanResultStore:
                 SELECT symbol, scan_time, score, recommendation, close_price,
                        price_change_24h, oi_change_24h, funding_rate,
                        taker_sell_ratio, volume_24h_usd, pump_pct, pump_days,
-                       model_probability, heuristic_score, calibrated_probability, data_quality_score, horizon_hours
+                       anomaly_score, anomaly_level, anomaly_count, anomalies_json,
+                       model_probability, heuristic_score, calibrated_probability,
+                       data_quality_score, horizon_hours
 
                 FROM (
                     SELECT *,
@@ -687,6 +707,10 @@ class ScanResultStore:
                 "volume_24h_usd",
                 "pump_pct",
                 "pump_days",
+                "anomaly_score",
+                "anomaly_level",
+                "anomaly_count",
+                "anomalies_json",
                 "model_probability",
                 "heuristic_score",
                 "calibrated_probability",
@@ -767,7 +791,9 @@ class ScanResultStore:
                 SELECT symbol, scan_time, score, recommendation, close_price,
                        price_change_24h, oi_change_24h, funding_rate,
                        taker_sell_ratio, volume_24h_usd, pump_pct, pump_days,
-                       model_probability, heuristic_score, calibrated_probability, data_quality_score, horizon_hours
+                       anomaly_score, anomaly_level, anomaly_count, anomalies_json,
+                       model_probability, heuristic_score, calibrated_probability,
+                       data_quality_score, horizon_hours
 
                 FROM scan_results
                 WHERE symbol = ? AND scan_time >= ?
@@ -791,6 +817,10 @@ class ScanResultStore:
                 "volume_24h_usd",
                 "pump_pct",
                 "pump_days",
+                "anomaly_score",
+                "anomaly_level",
+                "anomaly_count",
+                "anomalies_json",
                 "model_probability",
                 "heuristic_score",
                 "calibrated_probability",

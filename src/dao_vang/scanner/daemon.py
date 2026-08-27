@@ -64,6 +64,7 @@ from dao_vang.experiments.forward_test import load_frozen_model
 from dao_vang.experiments.self_learning import run_self_learning
 from dao_vang.features.builder import build_features
 from dao_vang.logging import get_logger
+from dao_vang.scanner.anomalies import AnomalyReport, detect_market_anomalies
 from dao_vang.scanner.candidate_filter_comparison import (
     CandidateFilterCycleAudit,
     assemble_candidate_filter_audit,
@@ -894,6 +895,10 @@ class ScannerDaemon:
             "calibrated_probability",
             "data_quality_score",
             "horizon_hours",
+            "anomaly_score",
+            "anomaly_level",
+            "anomaly_count",
+            "anomalies_json",
         ]
         try:
             # ``cycle`` restarts at 1 after a daemon restart, so filtering on
@@ -927,7 +932,8 @@ class ScannerDaemon:
                        price_change_24h, oi_change_24h, funding_rate,
                        taker_sell_ratio, volume_24h_usd, pump_pct, pump_days,
                        model_probability, heuristic_score, calibrated_probability,
-                       data_quality_score, horizon_hours
+                       data_quality_score, horizon_hours, anomaly_score,
+                       anomaly_level, anomaly_count, anomalies_json
                 FROM (
                     SELECT *, ROW_NUMBER() OVER (
                         PARTITION BY symbol ORDER BY rowid DESC
@@ -1406,6 +1412,10 @@ class ScannerDaemon:
             if pd.notna(val):
                 feature_dict[col] = val
 
+        anomaly_report: AnomalyReport = detect_market_anomalies(
+            feature_dict,
+            self._settings.market_anomalies,
+        )
         pump_pct = pump_candidate.pump_pct if pump_candidate else 0.0
         pump_days = pump_candidate.pump_days if pump_candidate else 0
         score_started = time.perf_counter()
@@ -1484,6 +1494,14 @@ class ScannerDaemon:
                         volume_24h_usd=volume_24h_usd,
                         pump_pct=pump_pct,
                         pump_days=pump_days,
+                        anomaly_score=anomaly_report.score,
+                        anomaly_level=anomaly_report.level,
+                        anomaly_count=len(anomaly_report.anomalies),
+                        anomalies_json=json.dumps(
+                            anomaly_report.to_dict(),
+                            ensure_ascii=False,
+                            separators=(",", ":"),
+                        ),
                         cycle=self._cycle_count,
                     )
                 ],
