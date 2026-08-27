@@ -15,6 +15,7 @@ import hashlib
 import hmac
 import json
 import logging
+import math
 import mimetypes
 import secrets
 import threading
@@ -151,6 +152,105 @@ def _system_display_datetime(value: Any) -> datetime | None:
     """Return a timestamp as an aware UTC+7 datetime for human display."""
     utc_value = _as_utc_datetime(value)
     return as_system_timezone(utc_value) if utc_value is not None else None
+
+
+FundingPoint = tuple[int, float]
+
+
+def _parse_funding_history(payload: Any) -> list[FundingPoint]:
+    """Return valid Binance funding events sorted by funding timestamp."""
+
+    if not isinstance(payload, list):
+        return []
+
+    points: dict[int, float] = {}
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        try:
+            funding_time = int(item["fundingTime"])
+            funding_rate = float(item["fundingRate"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if funding_time < 0 or not math.isfinite(funding_rate):
+            continue
+        points[funding_time] = funding_rate
+    return sorted(points.items())
+
+
+def _parse_live_funding(payload: Any, symbol: str) -> tuple[float | None, int | None, int | None]:
+    """Extract the latest rate and next funding time from Binance premiumIndex."""
+
+    item: dict[str, Any] | None = None
+    if isinstance(payload, dict):
+        payload_symbol = str(payload.get("symbol", "")).upper()
+        if not payload_symbol or payload_symbol == symbol.upper():
+            item = payload
+    elif isinstance(payload, list):
+        item = next(
+            (
+                candidate
+                for candidate in payload
+                if isinstance(candidate, dict)
+                and str(candidate.get("symbol", "")).upper() == symbol.upper()
+            ),
+            None,
+        )
+    if item is None:
+        return None, None, None
+
+    try:
+        rate = float(item["lastFundingRate"])
+        if not math.isfinite(rate):
+            rate = None
+    except (KeyError, TypeError, ValueError):
+        rate = None
+
+    def _timestamp(name: str) -> int | None:
+        try:
+            value = int(item[name])
+        except (KeyError, TypeError, ValueError):
+            return None
+        return value if value >= 0 else None
+
+    return rate, _timestamp("nextFundingTime"), _timestamp("time")
+
+
+def _infer_funding_interval_ms(points: list[FundingPoint]) -> int | None:
+    """Infer the symbol's funding cadence from observed settlement events."""
+
+    deltas = [current[0] - previous[0] for previous, current in zip(points, points[1:])]
+    positive_deltas = sorted(delta for delta in deltas if delta > 0)
+    if not positive_deltas:
+        return None
+    return positive_deltas[len(positive_deltas) // 2]
+
+
+def _funding_asof(
+    points: list[FundingPoint],
+    timestamp_ms: int,
+    *,
+    max_age_ms: int | None = None,
+) -> tuple[float, int] | None:
+    """Find the most recent funding event known at ``timestamp_ms``.
+
+    Funding must never be taken from a future settlement event.  ``max_age_ms``
+    is optional so callers can explicitly mark an old feed as unavailable.
+    """
+
+    eligible = [point for point in points if point[0] <= timestamp_ms]
+    if not eligible:
+        return None
+    funding_time, funding_rate = eligible[-1]
+    if max_age_ms is not None and timestamp_ms - funding_time > max_age_ms:
+        return None
+    return funding_rate, funding_time
+
+
+def _format_funding_rate(rate: float | None) -> str:
+    """Format Binance's decimal funding rate as a percentage or N/A."""
+
+    return f"{rate:+.3%}" if rate is not None and math.isfinite(rate) else "N/A"
 
 
 def _ro_duckdb_connect(db_path: str) -> duckdb.DuckDBPyConnection:
@@ -2176,6 +2276,12 @@ class APIHandler(BaseHTTPRequestHandler):
         chart_points: list[dict[str, Any]] = []
         closes: list[float] = []
         chart_source = "api"
+        display_funding_rate: float | None = None
+        display_funding_time: int | None = None
+        live_funding_observed_at: int | None = None
+        next_funding_time: int | None = None
+        funding_interval_ms: int | None = None
+        funding_source = "unavailable"
 
         try:
             from concurrent.futures import ThreadPoolExecutor
@@ -2196,9 +2302,15 @@ class APIHandler(BaseHTTPRequestHandler):
 
             def _fetch_funding() -> list[Any]:
                 try:
-                    return client.get("fapi/v1/fundingRate", {"symbol": symbol, "limit": 96}) or []
+                    return client.get("fapi/v1/fundingRate", {"symbol": symbol, "limit": 200}) or []
                 except Exception:
                     return []
+
+            def _fetch_live_funding() -> Any:
+                try:
+                    return client.get("fapi/v1/premiumIndex", {"symbol": symbol})
+                except Exception:
+                    return None
 
             def _fetch_oi() -> list[Any]:
                 try:
@@ -2206,9 +2318,10 @@ class APIHandler(BaseHTTPRequestHandler):
                 except Exception:
                     return []
 
-            with ThreadPoolExecutor(max_workers=3) as executor:
+            with ThreadPoolExecutor(max_workers=4) as executor:
                 f_k = executor.submit(_fetch_klines)
                 f_f = executor.submit(_fetch_funding)
+                f_l = executor.submit(_fetch_live_funding)
                 f_o = executor.submit(_fetch_oi)
                 try:
                     data = f_k.result(timeout=2.5)
@@ -2219,14 +2332,50 @@ class APIHandler(BaseHTTPRequestHandler):
                 except Exception:
                     funding_raw = []
                 try:
+                    live_funding_raw = f_l.result(timeout=2.5)
+                except Exception:
+                    live_funding_raw = None
+                try:
                     oi_raw = f_o.result(timeout=2.5)
                 except Exception:
                     oi_raw = []
 
-            funding_by_time: dict[int, float] = {}
-            for item in funding_raw:
-                if isinstance(item, dict) and "fundingTime" in item:
-                    funding_by_time[int(item["fundingTime"])] = float(item.get("fundingRate", 0.0))
+            funding_points = _parse_funding_history(funding_raw)
+            live_funding_rate, next_funding_time, live_funding_observed_at = _parse_live_funding(
+                live_funding_raw,
+                symbol,
+            )
+            funding_interval_ms = _infer_funding_interval_ms(funding_points)
+            # Keep a feed fresh for at most two observed settlement intervals.
+            # The fallback covers a newly listed symbol with only one event and
+            # does not assume that every symbol settles every eight hours.
+            funding_max_age_ms = max(
+                12 * 60 * 60 * 1000,
+                (funding_interval_ms or 12 * 60 * 60 * 1000) * 2,
+            )
+            history_current = _funding_asof(
+                funding_points,
+                int(time.time() * 1000),
+                max_age_ms=funding_max_age_ms,
+            )
+            display_funding_rate = (
+                live_funding_rate
+                if live_funding_rate is not None
+                else history_current[0]
+                if history_current is not None
+                else None
+            )
+            # The settlement timestamp belongs to the history value.  Keep it
+            # empty when history is unavailable instead of borrowing an
+            # unrelated/future event for the live premium-index value.
+            display_funding_time = history_current[1] if history_current else None
+            funding_source = (
+                "binance_premium_index"
+                if live_funding_rate is not None
+                else "binance_funding_history"
+                if history_current is not None
+                else "unavailable"
+            )
 
             oi_snapshots: list[tuple[int, float]] = []
             for item in oi_raw:
@@ -2241,12 +2390,15 @@ class APIHandler(BaseHTTPRequestHandler):
                 c = float(k[4])
                 closes.append(c)
 
-                # nearest funding (within 8h)
-                funding = 0.0
-                if funding_by_time:
-                    nearest = min(funding_by_time.keys(), key=lambda x: abs(x - ts))
-                    if abs(nearest - ts) <= 28_800_000:
-                        funding = funding_by_time[nearest]
+                # Funding is a point-in-time settlement observation.  Carry
+                # forward only the latest event already known at this candle;
+                # never attach a future settlement to an earlier candle.
+                funding_point = _funding_asof(
+                    funding_points,
+                    ts,
+                    max_age_ms=funding_max_age_ms,
+                )
+                funding = funding_point[0] if funding_point is not None else None
 
                 # nearest OI snapshot (within 5m)
                 oi_val = 0.0
@@ -2369,7 +2521,34 @@ class APIHandler(BaseHTTPRequestHandler):
             "metrics": {
                 "oi_change_24h": f"{chart_points[-1]['oi']:+.1%}" if chart_points else "N/A",
                 "taker_sell_ratio": chart_points[-1]["taker_ratio"] if chart_points else 0.5,
-                "funding_rate": f"{chart_points[-1]['funding']:+.3%}" if chart_points else "N/A",
+                "funding_rate": _format_funding_rate(display_funding_rate),
+                "funding_rate_source": funding_source,
+                "funding_rate_time": (
+                    _system_history_timestamp(
+                        datetime.fromtimestamp(display_funding_time / 1000, tz=timezone.utc)
+                    )
+                    if display_funding_time is not None
+                    else None
+                ),
+                "funding_rate_observed_at": (
+                    _system_history_timestamp(
+                        datetime.fromtimestamp(live_funding_observed_at / 1000, tz=timezone.utc)
+                    )
+                    if live_funding_observed_at is not None
+                    else None
+                ),
+                "funding_next_time": (
+                    _system_history_timestamp(
+                        datetime.fromtimestamp(next_funding_time / 1000, tz=timezone.utc)
+                    )
+                    if next_funding_time is not None
+                    else None
+                ),
+                "funding_interval_hours": (
+                    round(funding_interval_ms / 3_600_000, 2)
+                    if funding_interval_ms is not None
+                    else None
+                ),
                 "rsi_15m": rsi_15m,
                 "volume_delta_24h": vol_delta_str,
             },

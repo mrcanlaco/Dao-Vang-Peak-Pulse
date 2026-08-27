@@ -230,7 +230,7 @@ export interface CandlePoint {
   price: number;
   volume?: number;
   oi: number;
-  funding: number;
+  funding: number | null;
   taker_ratio: number;
   is_signal_point?: boolean;
 }
@@ -258,7 +258,12 @@ export interface CoinDetail {
     oi_change_24h: string;
     taker_sell_ratio: number;
     funding_rate: string;
-    rsi_15m: number;
+    funding_rate_source?: 'binance_premium_index' | 'binance_funding_history' | 'signal_snapshot' | 'unavailable';
+    funding_rate_time?: string | null;
+    funding_rate_observed_at?: string | null;
+    funding_next_time?: string | null;
+    funding_interval_hours?: number | null;
+    rsi_15m: number | null;
     volume_delta_24h: string;
   };
   shap_drivers: ShapDriver[];

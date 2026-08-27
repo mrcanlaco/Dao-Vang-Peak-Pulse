@@ -340,7 +340,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           close: k.close,
           volume: k.volume,
           oi: 0,
-          funding: 0,
+          funding: null,
           taker_ratio: 0.5,
           is_signal_point: false,
         }));
@@ -380,6 +380,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             oi_change_24h: selectedSignal.oi_change_24h ?? 'N/A',
             taker_sell_ratio: selectedSignal.taker_sell_ratio ?? 0.5,
             funding_rate: selectedSignal.funding_rate ?? 'N/A',
+            funding_rate_source: 'signal_snapshot',
             rsi_15m: 50,
             volume_delta_24h: 'N/A',
           },
@@ -403,6 +404,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             oi_change_24h: c.oi_24h ?? 'N/A',
             taker_sell_ratio: c.taker_ratio ?? 0.5,
             funding_rate: c.funding ?? 'N/A',
+            funding_rate_source: 'signal_snapshot',
             rsi_15m: 50,
             volume_delta_24h: c.volume_24h ?? 'N/A',
           },
@@ -422,7 +424,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       metrics: {
         ...(coinDetail.metrics || {}),
         oi_change_24h: selectedSignal.oi_change_24h ?? coinDetail.metrics?.oi_change_24h ?? 'N/A',
-        funding_rate: selectedSignal.funding_rate ?? coinDetail.metrics?.funding_rate ?? 'N/A',
+        // The selected signal contains a historical scanner snapshot. Keep
+        // the detail panel on the live Binance value from coinDetail.
+        funding_rate: coinDetail.metrics?.funding_rate ?? 'N/A',
         taker_sell_ratio: selectedSignal.taker_sell_ratio ?? coinDetail.metrics?.taker_sell_ratio ?? 0.5,
       },
     };
@@ -817,6 +821,23 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
                       <div className="text-[9px] text-slate-400 uppercase">{t('metric_funding')}</div>
                       <div className="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate" title={displayDetail.metrics?.funding_rate ?? 'N/A'}>{displayDetail.metrics?.funding_rate ?? 'N/A'}</div>
+                      {displayDetail.metrics?.funding_rate_source && (
+                        <div className="text-[9px] text-slate-500 truncate" title={displayDetail.metrics.funding_rate_time ?? undefined}>
+                          {displayDetail.metrics.funding_rate_source === 'binance_premium_index'
+                            ? 'Binance live'
+                            : displayDetail.metrics.funding_rate_source === 'binance_funding_history'
+                              ? 'Binance history'
+                              : displayDetail.metrics.funding_rate_source === 'signal_snapshot'
+                                ? 'Signal snapshot'
+                                : 'Unavailable'}
+                          {displayDetail.metrics.funding_rate_time
+                            ? ` • ${formatSystemTime(displayDetail.metrics.funding_rate_time)}`
+                            : ''}
+                          {displayDetail.metrics.funding_next_time
+                            ? ` • next ${formatSystemTime(displayDetail.metrics.funding_next_time)}`
+                            : ''}
+                        </div>
+                      )}
                     </div>
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
                       <div className="text-[9px] text-slate-400 uppercase">{t('metric_taker_sell')}</div>
