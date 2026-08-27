@@ -20,11 +20,12 @@ if not os.path.exists(key_path):
 
 commands = [
     ("Kiểm tra trạng thái Git", "cd /home/ubuntu/dao_vang && git status --short"),
-    ("Đồng bộ mã nguồn mới nhất từ GitHub origin/main", "cd /home/ubuntu/dao_vang && git fetch origin main && git reset --hard origin/main"),
+    ("Hủy các trạng thái xung đột / merge dở dang", "cd /home/ubuntu/dao_vang && git merge --abort 2>/dev/null || true && git rebase --abort 2>/dev/null || true && git reset --hard HEAD && git clean -fd"),
+    ("Đồng bộ mã nguồn mới nhất từ GitHub origin/main", "cd /home/ubuntu/dao_vang && git fetch origin main --prune && git reset --hard origin/main"),
     ("Bảo đảm quyền truy cập Cloudflare Tunnel", "chmod 644 /home/ubuntu/dao_vang/cloudflared/* 2>/dev/null || true"),
     ("Dọn dẹp lock files cũ", "cd /home/ubuntu/dao_vang && rm -f data/web.lock data_live/web.lock data/scanner.lock data_live/scanner.lock"),
-    ("Build và khởi động lại container mới", "cd /home/ubuntu/dao_vang && docker compose up -d --build --force-recreate"),
-    ("Kiểm tra danh sách container", "cd /home/ubuntu/dao_vang && sleep 4 && docker compose ps"),
+    ("Dừng container cũ và build container mới", "cd /home/ubuntu/dao_vang && docker compose down && docker compose up -d --build --force-recreate"),
+    ("Kiểm tra danh sách container", "cd /home/ubuntu/dao_vang && sleep 5 && docker compose ps"),
     ("Kiểm tra API Health Endpoint", "curl -s -w '\nHTTP_STATUS:%{http_code}\n' http://localhost:8000/api/status"),
 ]
 

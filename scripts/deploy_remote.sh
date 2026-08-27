@@ -1,11 +1,15 @@
-﻿#!/bin/bash
+#!/bin/bash
 set -e
 
 echo === [1/5] Kéo code mới nhất từ Git ===
-git pull origin main
+git merge --abort 2>/dev/null || true
+git reset --hard HEAD
+git clean -fd
+git fetch origin main --prune
+git reset --hard origin/main
 
 echo === [2/5] Xóa file lock cũ (nếu có kẹt do crash trước đó) ===
-rm -f data/web.lock data_live/web.lock
+rm -f data/web.lock data_live/web.lock data/scanner.lock data_live/scanner.lock
 
 echo === [3/5] Build lại Docker containers ===
 docker compose build
