@@ -358,10 +358,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
   const candleData = candleDataOverride || coinDetail?.chart_data || [];
 
-  // When a signal from RADAR is selected, prefer its live values over the
-  // independently-fetched coinDetail so the detail panel stays in sync with
-  // the radar card that the user clicked. Fallback to selectedSignal or first candidate
-  // if coinDetail has not loaded yet.
+  // When a signal from RADAR is selected, keep its decision fields in sync
+  // while preserving live market metrics from coinDetail (especially funding).
+  // Fallback to selectedSignal or first candidate if coinDetail has not loaded yet.
   const displayDetail: CoinDetail | null = useMemo(() => {
     if (!coinDetail) {
       if (selectedSignal) {
@@ -821,6 +820,24 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
                       <div className="text-[9px] text-slate-400 uppercase">{t('metric_funding')}</div>
                       <div className="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate" title={displayDetail.metrics?.funding_rate ?? 'N/A'}>{displayDetail.metrics?.funding_rate ?? 'N/A'}</div>
+                      {displayDetail.metrics?.funding_interval_hours != null && (
+                        <div
+                          className="text-[9px] text-slate-300 truncate"
+                          title={displayDetail.metrics.funding_interval_source ?? undefined}
+                        >
+                          {t('funding_cadence')}: {displayDetail.metrics.funding_interval_hours.toFixed(displayDetail.metrics.funding_interval_hours % 1 === 0 ? 0 : 2)}h
+                          {displayDetail.metrics.funding_apr
+                            ? ` • ${t('funding_apr_label')}: ${displayDetail.metrics.funding_apr}`
+                            : ''}
+                        </div>
+                      )}
+                      {displayDetail.metrics?.funding_cost_per_1000_usdt != null
+                        && (displayDetail.metrics.funding_payer === 'long' || displayDetail.metrics.funding_payer === 'short') && (
+                        <div className="text-[9px] text-amber-500 truncate">
+                          {displayDetail.metrics.funding_payer === 'long' ? t('funding_long_pays') : t('funding_short_pays')}{' '}
+                          ${displayDetail.metrics.funding_cost_per_1000_usdt.toFixed(2)} USDT {t('funding_per_1000')}
+                        </div>
+                      )}
                       {displayDetail.metrics?.funding_rate_source && (
                         <div className="text-[9px] text-slate-500 truncate" title={displayDetail.metrics.funding_rate_time ?? undefined}>
                           {displayDetail.metrics.funding_rate_source === 'binance_premium_index'

@@ -262,7 +262,13 @@ export interface CoinDetail {
     funding_rate_time?: string | null;
     funding_rate_observed_at?: string | null;
     funding_next_time?: string | null;
+    funding_interval_source?: 'binance_funding_info' | 'history_inferred' | 'default_8h' | 'unavailable';
     funding_interval_hours?: number | null;
+    funding_periods_per_year?: number | null;
+    funding_apr?: string | null;
+    funding_apr_value?: number | null;
+    funding_cost_per_1000_usdt?: number | null;
+    funding_payer?: 'long' | 'short' | 'none' | 'unknown';
     rsi_15m: number | null;
     volume_delta_24h: string;
   };

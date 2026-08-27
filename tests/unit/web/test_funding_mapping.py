@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from dao_vang.web.api_server import (
     _format_funding_rate,
+    _funding_apr,
     _funding_asof,
+    _funding_payer,
     _infer_funding_interval_ms,
     _parse_funding_history,
+    _parse_funding_interval_info,
     _parse_live_funding,
 )
 
@@ -53,3 +56,21 @@ def test_invalid_live_premium_index_does_not_become_zero() -> None:
     assert _parse_live_funding({"symbol": "TACUSDT"}, "TACUSDT") == (None, None, None)
     assert _format_funding_rate(None) == "N/A"
     assert _format_funding_rate(0.0005) == "+0.050%"
+
+
+def test_funding_info_overrides_history_inference_for_non_standard_cadence() -> None:
+    payload = [
+        {"symbol": "BTCUSDT", "fundingIntervalHours": 4},
+        {"symbol": "TACUSDT", "fundingIntervalHours": 2},
+    ]
+
+    assert _parse_funding_interval_info(payload, "TACUSDT") == 2.0
+    assert _parse_funding_interval_info(payload, "ETHUSDT") is None
+
+
+def test_funding_apr_and_payer_use_the_selected_cadence() -> None:
+    assert _funding_apr(0.0005, 8.0) == 0.5475
+    assert _funding_apr(0.0005, 2.0) == 2.19
+    assert _funding_payer(0.0005) == "long"
+    assert _funding_payer(-0.0005) == "short"
+    assert _funding_payer(0.0) == "none"

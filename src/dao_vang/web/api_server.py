@@ -155,6 +155,7 @@ def _system_display_datetime(value: Any) -> datetime | None:
 
 
 FundingPoint = tuple[int, float]
+DEFAULT_FUNDING_INTERVAL_HOURS = 8.0
 
 
 def _parse_funding_history(payload: Any) -> list[FundingPoint]:
@@ -216,6 +217,31 @@ def _parse_live_funding(payload: Any, symbol: str) -> tuple[float | None, int | 
     return rate, _timestamp("nextFundingTime"), _timestamp("time")
 
 
+def _parse_funding_interval_info(payload: Any, symbol: str) -> float | None:
+    """Read Binance's explicit non-standard funding cadence for a symbol."""
+
+    items: list[Any]
+    if isinstance(payload, dict):
+        items = [payload]
+    elif isinstance(payload, list):
+        items = payload
+    else:
+        return None
+
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("symbol", "")).upper() != symbol.upper():
+            continue
+        try:
+            interval_hours = float(item["fundingIntervalHours"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if 0 < interval_hours <= 24 and math.isfinite(interval_hours):
+            return round(interval_hours, 2)
+    return None
+
+
 def _infer_funding_interval_ms(points: list[FundingPoint]) -> int | None:
     """Infer the symbol's funding cadence from observed settlement events."""
 
@@ -251,6 +277,27 @@ def _format_funding_rate(rate: float | None) -> str:
     """Format Binance's decimal funding rate as a percentage or N/A."""
 
     return f"{rate:+.3%}" if rate is not None and math.isfinite(rate) else "N/A"
+
+
+def _funding_apr(rate: float | None, interval_hours: float | None) -> float | None:
+    """Annualize a per-settlement funding rate using a simple APR convention."""
+
+    if rate is None or interval_hours is None or interval_hours <= 0:
+        return None
+    apr = rate * (365.0 * 24.0 / interval_hours)
+    return apr if math.isfinite(apr) else None
+
+
+def _funding_payer(rate: float | None) -> str:
+    """Return the side that pays the funding transfer for a signed rate."""
+
+    if rate is None:
+        return "unknown"
+    if rate > 0:
+        return "long"
+    if rate < 0:
+        return "short"
+    return "none"
 
 
 def _ro_duckdb_connect(db_path: str) -> duckdb.DuckDBPyConnection:
@@ -2281,6 +2328,11 @@ class APIHandler(BaseHTTPRequestHandler):
         live_funding_observed_at: int | None = None
         next_funding_time: int | None = None
         funding_interval_ms: int | None = None
+        funding_interval_hours = DEFAULT_FUNDING_INTERVAL_HOURS
+        funding_interval_source = "default_8h"
+        funding_apr_value: float | None = None
+        funding_cost_per_1000_usdt: float | None = None
+        funding_payer = "unknown"
         funding_source = "unavailable"
 
         try:
@@ -2312,6 +2364,12 @@ class APIHandler(BaseHTTPRequestHandler):
                 except Exception:
                     return None
 
+            def _fetch_funding_info() -> Any:
+                try:
+                    return client.get("fapi/v1/fundingInfo")
+                except Exception:
+                    return None
+
             def _fetch_oi() -> list[Any]:
                 try:
                     return client.get("fapi/v1/openInterestHist", {"symbol": symbol, "period": "5m", "limit": 96}) or []
@@ -2322,6 +2380,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 f_k = executor.submit(_fetch_klines)
                 f_f = executor.submit(_fetch_funding)
                 f_l = executor.submit(_fetch_live_funding)
+                f_i = executor.submit(_fetch_funding_info)
                 f_o = executor.submit(_fetch_oi)
                 try:
                     data = f_k.result(timeout=2.5)
@@ -2336,6 +2395,10 @@ class APIHandler(BaseHTTPRequestHandler):
                 except Exception:
                     live_funding_raw = None
                 try:
+                    funding_info_raw = f_i.result(timeout=2.5)
+                except Exception:
+                    funding_info_raw = None
+                try:
                     oi_raw = f_o.result(timeout=2.5)
                 except Exception:
                     oi_raw = []
@@ -2345,13 +2408,26 @@ class APIHandler(BaseHTTPRequestHandler):
                 live_funding_raw,
                 symbol,
             )
-            funding_interval_ms = _infer_funding_interval_ms(funding_points)
+            funding_info_interval_hours = _parse_funding_interval_info(funding_info_raw, symbol)
+            history_interval_ms = _infer_funding_interval_ms(funding_points[-25:])
+            history_interval_hours = (
+                history_interval_ms / 3_600_000
+                if history_interval_ms is not None
+                else None
+            )
+            if funding_info_interval_hours is not None:
+                funding_interval_hours = funding_info_interval_hours
+                funding_interval_source = "binance_funding_info"
+            elif history_interval_hours is not None and 0 < history_interval_hours <= 24:
+                funding_interval_hours = round(history_interval_hours, 2)
+                funding_interval_source = "history_inferred"
+            funding_interval_ms = int(round(funding_interval_hours * 3_600_000))
             # Keep a feed fresh for at most two observed settlement intervals.
-            # The fallback covers a newly listed symbol with only one event and
-            # does not assume that every symbol settles every eight hours.
+            # The fallback covers a newly listed symbol with no adjustment info
+            # and keeps the default at Binance's standard eight-hour cadence.
             funding_max_age_ms = max(
                 12 * 60 * 60 * 1000,
-                (funding_interval_ms or 12 * 60 * 60 * 1000) * 2,
+                funding_interval_ms * 2,
             )
             history_current = _funding_asof(
                 funding_points,
@@ -2376,6 +2452,13 @@ class APIHandler(BaseHTTPRequestHandler):
                 if history_current is not None
                 else "unavailable"
             )
+            funding_apr_value = _funding_apr(display_funding_rate, funding_interval_hours)
+            funding_cost_per_1000_usdt = (
+                abs(display_funding_rate * 1_000.0)
+                if display_funding_rate is not None
+                else None
+            )
+            funding_payer = _funding_payer(display_funding_rate)
 
             oi_snapshots: list[tuple[int, float]] = []
             for item in oi_raw:
@@ -2544,11 +2627,21 @@ class APIHandler(BaseHTTPRequestHandler):
                     if next_funding_time is not None
                     else None
                 ),
+                "funding_interval_source": funding_interval_source,
                 "funding_interval_hours": (
-                    round(funding_interval_ms / 3_600_000, 2)
-                    if funding_interval_ms is not None
+                    round(funding_interval_hours, 2)
+                    if funding_interval_hours is not None
                     else None
                 ),
+                "funding_periods_per_year": (
+                    round(365.0 * 24.0 / funding_interval_hours, 2)
+                    if funding_interval_hours and funding_interval_hours > 0
+                    else None
+                ),
+                "funding_apr": _format_funding_rate(funding_apr_value),
+                "funding_apr_value": funding_apr_value,
+                "funding_cost_per_1000_usdt": funding_cost_per_1000_usdt,
+                "funding_payer": funding_payer,
                 "rsi_15m": rsi_15m,
                 "volume_delta_24h": vol_delta_str,
             },
