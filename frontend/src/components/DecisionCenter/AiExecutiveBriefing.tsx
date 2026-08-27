@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Sparkles, ShieldAlert, Award,
-  Compass, TrendingDown, CheckCircle
+  Compass, TrendingDown, CheckCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import type { CoinDetail, DeepAnalysis, SignalItem, TradeSetup, TradeReadinessStatus, ConvictionGrade } from '../../types';
@@ -20,7 +20,8 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
   tradeSetup,
   onOpenAiChat,
 }) => {
-  const { language } = useTranslation();
+  const { language, t } = useTranslation();
+  const [isGameplanExpanded, setIsGameplanExpanded] = useState(false);
   const isEn = language === 'en';
   const isZh = language === 'zh';
   const isKo = language === 'ko';
@@ -34,6 +35,10 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
     oi_change_24h: 'N/A',
     taker_sell_ratio: 0.5,
     funding_rate: 'N/A',
+    funding_interval_hours: null,
+    funding_apr: null,
+    funding_cost_per_1000_usdt: null,
+    funding_payer: 'unknown' as const,
     rsi_15m: 50,
     volume_delta_24h: 'N/A',
   };
@@ -251,27 +256,48 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
               {storyWhale}
             </p>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+          <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400 font-mono">
             <span>OI: <strong className="text-sky-400">{metrics.oi_change_24h || 'N/A'}</strong></span>
             <span>Funding: <strong className="text-amber-400">{metrics.funding_rate || 'N/A'}</strong></span>
+            {metrics.funding_interval_hours != null && (
+              <span>{t('funding_cadence')}: <strong className="text-slate-300">{metrics.funding_interval_hours.toFixed(metrics.funding_interval_hours % 1 === 0 ? 0 : 2)}h</strong></span>
+            )}
+            {metrics.funding_apr && (
+              <span>{t('funding_apr_label')}: <strong className="text-amber-300">{metrics.funding_apr}</strong></span>
+            )}
+            {metrics.funding_cost_per_1000_usdt != null
+              && (metrics.funding_payer === 'long' || metrics.funding_payer === 'short') && (
+              <span>
+                {metrics.funding_payer === 'long' ? t('funding_long_pays') : t('funding_short_pays')}{' '}
+                <strong className="text-amber-300">${metrics.funding_cost_per_1000_usdt.toFixed(2)} USDT {t('funding_per_1000')}</strong>
+              </span>
+            )}
           </div>
         </div>
 
         {/* Section 2: Actionable Gameplan */}
         <div className="bg-slate-900/70 border border-slate-800 rounded-lg p-3 flex flex-col justify-between hover:border-slate-700 transition">
-          <div>
+          <button
+            type="button"
+            onClick={() => setIsGameplanExpanded((expanded) => !expanded)}
+            aria-expanded={isGameplanExpanded}
+            className="w-full flex items-center justify-between text-left"
+          >
             <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300 uppercase mb-2">
               <TrendingDown className="w-3.5 h-3.5 text-emerald-400" />
               <span>{isZh ? '2. 实战交易行动计划' : isKo ? '2. 실전 매매 실행 계획' : isEn ? '2. Actionable Gameplan' : '2. Kế Hoạch Vào Lệnh Chi Tiết'}</span>
             </div>
+            {isGameplanExpanded ? <ChevronUp className="w-4 h-4 text-slate-400 mb-2" /> : <ChevronDown className="w-4 h-4 text-slate-400 mb-2" />}
+          </button>
+          {isGameplanExpanded && <>
             <div className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-line space-y-1">
               {gameplan}
             </div>
-          </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-            <span>Entry: <strong className="text-amber-400">${entry}</strong></span>
-            <span>TP1: <strong className="text-emerald-400">${tp1}</strong></span>
-          </div>
+            <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+              <span>Entry: <strong className="text-amber-400">${entry}</strong></span>
+              <span>TP1: <strong className="text-emerald-400">${tp1}</strong></span>
+            </div>
+          </>}
         </div>
 
         {/* Section 3: Risk & Invalidation Rules */}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Target, ShieldAlert, TrendingDown, Zap } from 'lucide-react';
+import { Target, ShieldAlert, TrendingDown, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 
 interface TradeSetupCardV2Props {
@@ -24,6 +24,7 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
   const { t } = useTranslation();
   const [marginUsd, setMarginUsd] = useState<number>(100);
   const [leverage, setLeverage] = useState<number>(5);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const entry = signalPrice && signalPrice > 0 ? signalPrice : currentPrice;
   if (!entry || entry <= 0) return null;
@@ -60,7 +61,12 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
   return (
     <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 sm:p-3.5 shadow-lg space-y-3">
       {/* Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+      <button
+        type="button"
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+        aria-expanded={isExpanded}
+        className="w-full flex items-center justify-between pb-2 border-b border-slate-800/80 text-left"
+      >
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
             <Target className="w-3.5 h-3.5" />
@@ -82,11 +88,13 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
           }`}>
             1 : {rrRatio.toFixed(1)}
           </span>
+          {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </div>
-      </div>
+      </button>
 
-      {/* Levels Grid (Entry, SL, TP1, TP2, TP3) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      {isExpanded && <>
+        {/* Levels Grid (Entry, SL, TP1, TP2, TP3) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {/* Invalidation / Stop Loss Level (Adaptive) */}
         <div className="bg-slate-900/90 border border-red-500/30 rounded-lg p-2.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[10px] text-red-400 font-semibold mb-1">
@@ -154,10 +162,10 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
             Trailing gồng xả lũ
           </div>
         </div>
-      </div>
+        </div>
 
-      {/* Quick Interactive Sizing Summary & Button */}
-      <div className="bg-slate-900/80 rounded-xl p-2.5 border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        {/* Quick Interactive Sizing Summary & Button */}
+        <div className="bg-slate-900/80 rounded-xl p-2.5 border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
         <div className="flex items-center gap-3 text-xs font-mono">
           <div className="flex items-center gap-1.5 text-slate-300">
             <span className="text-slate-400">Margin:</span>
@@ -193,7 +201,8 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
             <span>{t('sticky_action_short')} (Binance / OKX)</span>
           </button>
         )}
-      </div>
+        </div>
+      </>}
     </div>
   );
 };

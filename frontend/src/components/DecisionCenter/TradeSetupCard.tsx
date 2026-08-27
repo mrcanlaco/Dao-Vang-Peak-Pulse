@@ -1,5 +1,5 @@
-import React from 'react';
-import { Target, ShieldAlert, TrendingDown } from 'lucide-react';
+import React, { useState } from 'react';
+import { Target, ShieldAlert, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 
 interface TradeSetupCardProps {
@@ -18,6 +18,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
   invalidationPrice,
 }) => {
   const { t } = useTranslation();
+  const [isExpanded, setIsExpanded] = useState(false);
   
   const entry = signalPrice && signalPrice > 0 ? signalPrice : currentPrice;
   if (!entry || entry <= 0) return null;
@@ -47,7 +48,12 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
 
   return (
     <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 sm:p-3.5 shadow-md">
-      <div className="flex items-center justify-between mb-2.5 pb-2 border-b border-slate-800/80">
+      <button
+        type="button"
+        onClick={() => setIsExpanded((expanded) => !expanded)}
+        aria-expanded={isExpanded}
+        className="w-full flex items-center justify-between mb-2.5 pb-2 border-b border-slate-800/80 text-left"
+      >
         <div className="flex items-center gap-1.5">
           <Target className="w-4 h-4 text-amber-400" />
           <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">
@@ -67,11 +73,13 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
           }`}>
             1 : {rrRatio.toFixed(1)}
           </span>
+          {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </div>
-      </div>
+      </button>
 
-      {/* 4 Levels Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      {isExpanded && <>
+        {/* 4 Levels Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {/* Entry Level */}
         <div className="bg-slate-900/90 border border-amber-500/30 rounded-lg p-2.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[10px] text-amber-300 font-semibold mb-1">
@@ -138,7 +146,8 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
             {t('trade_sub_ai_target')}
           </div>
         </div>
-      </div>
+        </div>
+      </>}
     </div>
   );
 };
