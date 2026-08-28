@@ -134,6 +134,8 @@ class TestTelegramAlert:
         assert "🔴" in text
         assert "CỰC MẠNH" in text
         assert "https://daovang.comaygiauco.com/#coin=BTCUSDT" in text
+        assert captured_payload.get("disable_web_page_preview") is True
+        assert captured_payload.get("link_preview_options") == {"is_disabled": True}
 
     def test_send_alert_with_web_url(
         self, configured_notifier: TelegramNotifier

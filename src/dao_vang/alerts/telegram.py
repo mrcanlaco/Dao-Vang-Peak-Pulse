@@ -254,7 +254,12 @@ class TelegramNotifier:
             resp.raise_for_status()
             return resp.json()
 
-    def send_message(self, text: str, parse_mode: str = "Markdown") -> bool:
+    def send_message(
+        self,
+        text: str,
+        parse_mode: str = "Markdown",
+        disable_web_page_preview: bool = True,
+    ) -> bool:
         """Send a plain text message.
 
         Returns True on success, False on failure (logged, not raised).
@@ -262,10 +267,12 @@ class TelegramNotifier:
         if not self.is_configured:
             logger.warning("telegram_not_configured_skip")
             return False
-        payload = {
+        payload: dict[str, Any] = {
             "chat_id": self._config.chat_id,
             "text": text,
             "parse_mode": parse_mode,
+            "disable_web_page_preview": disable_web_page_preview,
+            "link_preview_options": {"is_disabled": disable_web_page_preview},
         }
         try:
             result = self._post(payload)
