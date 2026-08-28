@@ -561,6 +561,17 @@ def experiment_frozen_list(
         typer.echo(f"  {m.model_id}  cutoff={m.train_cutoff[:19]}  thresh={m.threshold:.4f}  features={len(m.feature_cols)}")
 
 
+@experiment_app.command("train-lgbm")
+def experiment_train_lgbm(
+    horizon: int = typer.Option(24, "--horizon", help="Prediction horizon in hours"),
+    data_dir: Path = typer.Option(Path("data"), "--data-dir", help="Data directory"),
+    output_dir: Path = typer.Option(Path("artifacts"), "--output-dir", help="Artifacts directory"),
+):
+    """Train and freeze a LightGBM model for the frozen bundle."""
+    from dao_vang.experiments.runner import train_lgbm_experiment
+    train_lgbm_experiment(horizon_hours=horizon, data_dir=data_dir, output_dir=output_dir)
+    typer.echo(f"LightGBM training completed and model frozen to {output_dir}")
+
 @experiment_app.command("self-learn")
 def experiment_self_learn(
     config: str = typer.Option("", "--config", "-c", help="Path to YAML config"),

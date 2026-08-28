@@ -181,7 +181,7 @@ class TestCompositeScore:
         )
         assert score.total_score >= 70
         assert score.recommendation == "SHORT_CANDIDATE"
-        assert len(score.components) == 8
+        assert len(score.components) == 9
         assert score.pump_pct == 1.8
 
     def test_low_risk_coin(self, config: ScoringConfig, fomo_btc: BtcContext) -> None:

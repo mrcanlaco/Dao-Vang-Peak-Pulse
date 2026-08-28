@@ -148,20 +148,57 @@ def materialize_prediction_outcomes(
                 signal_time = _normalize_ts(signal_time)
             row = db.conn.execute(
                 f"""
-                SELECT label_value, target_time, lead_time_minutes,
-                       max_adverse_excursion, max_favorable_excursion,
-                       exclusion_reason, label_version
-                FROM {labels_table}
-                WHERE symbol = ? AND signal_time = ? AND horizon_hours = ?
-                LIMIT 1
+                WITH f AS (
+                    SELECT label_value, target_time, lead_time_minutes,
+                           max_adverse_excursion, max_favorable_excursion,
+                           exclusion_reason, label_version
+                    FROM {labels_table}
+                    WHERE symbol = ? AND signal_time = ? AND horizon_hours = ?
+                    LIMIT 1
+                ), signal_klines AS (
+                    SELECT k.close, k.high, k.low, k.feature_time as close_time,
+                           (CAST(? AS DOUBLE) - k.low) / CAST(? AS DOUBLE) AS drawdown,
+                           (k.high - CAST(? AS DOUBLE)) / CAST(? AS DOUBLE) AS adverse_excursion,
+                           extract('epoch' from (k.feature_time - ?)) / 3600.0 AS hours_since
+                    FROM {timeline_table} k
+                    WHERE k.symbol = ?
+                      AND k.feature_time > ?
+                      AND k.feature_time <= ? + INTERVAL 24 HOUR
+                ), metrics AS (
+                    SELECT 
+                        MAX(CASE WHEN hours_since <= 6 THEN drawdown ELSE NULL END) AS max_drawdown_6h,
+                        MAX(CASE WHEN hours_since <= 12 THEN drawdown ELSE NULL END) AS max_drawdown_12h,
+                        MAX(CASE WHEN hours_since <= 24 THEN drawdown ELSE NULL END) AS max_drawdown_24h,
+                        MIN(CASE WHEN drawdown >= 0.04 THEN close_time ELSE NULL END) AS first_tp1_hit_time,
+                        MIN(CASE WHEN drawdown >= 0.08 THEN close_time ELSE NULL END) AS first_tp2_hit_time
+                    FROM signal_klines
+                ), before_tp AS (
+                    SELECT MAX(adverse_excursion) AS max_adverse_excursion_before_tp
+                    FROM signal_klines
+                    CROSS JOIN metrics m
+                    WHERE (m.first_tp1_hit_time IS NULL OR close_time <= m.first_tp1_hit_time)
+                )
+                SELECT f.*, m.*, b.max_adverse_excursion_before_tp
+                FROM f 
+                LEFT JOIN metrics m ON 1=1
+                LEFT JOIN before_tp b ON 1=1
                 """,
-                [prediction["symbol"], signal_time, horizon],
+                [
+                    prediction["symbol"], signal_time, horizon,
+                    prediction.get("signal_price"), prediction.get("signal_price"),
+                    prediction.get("signal_price"), prediction.get("signal_price"),
+                    signal_time,
+                    prediction["symbol"], signal_time, signal_time
+                ],
             ).fetchone()
-            if row is None:
+            if row is None or row[0] is None:
                 # No matching row means the snapshot did not contain this
                 # signal; leave it pending instead of fabricating an outcome.
                 continue
-            label_value, target_time, lead, mae, mfe, exclusion, label_version = row
+            label_value, target_time, lead, mae, mfe, exclusion, label_version, \
+            max_drawdown_6h, max_drawdown_12h, max_drawdown_24h, \
+            first_tp1_hit_time, first_tp2_hit_time, max_adverse_excursion_before_tp = row
+            
             # A row with an unfinished horizon is not materialized.  The V1
             # contract marks it missing_future_data and it should be retried
             # on the next run if the source is still catching up.
@@ -178,6 +215,12 @@ def materialize_prediction_outcomes(
                 outcome_status=status,
                 exclusion_reason=str(exclusion) if exclusion else None,
                 outcome_engine_version=str(label_version or engine_version),
+                max_drawdown_6h=float(max_drawdown_6h) if max_drawdown_6h is not None else None,
+                max_drawdown_12h=float(max_drawdown_12h) if max_drawdown_12h is not None else None,
+                max_drawdown_24h=float(max_drawdown_24h) if max_drawdown_24h is not None else None,
+                first_tp1_hit_time=first_tp1_hit_time,
+                first_tp2_hit_time=first_tp2_hit_time,
+                max_adverse_excursion_before_tp=float(max_adverse_excursion_before_tp) if max_adverse_excursion_before_tp is not None else None,
             ):
                 resolved += 1
         # Event identity is assigned only from materialized positive labels.

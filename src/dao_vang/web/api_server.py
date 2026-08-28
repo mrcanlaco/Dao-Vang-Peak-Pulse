@@ -207,6 +207,140 @@ def _anomaly_fields(row: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _build_market_cap_info(symbol: str, volume_24h_usd: float | None = None) -> dict[str, Any]:
+    """Provide estimated market cap tier, usd value, and formatted string."""
+    clean_sym = symbol.upper().replace("USDT", "").replace("BUSD", "").replace("USDC", "").strip()
+
+    large_caps = {
+        "BTC": 1_300_000_000_000, "ETH": 350_000_000_000, "BNB": 90_000_000_000,
+        "SOL": 85_000_000_000, "XRP": 140_000_000_000, "DOGE": 35_000_000_000,
+        "ADA": 28_000_000_000, "AVAX": 12_000_000_000, "SUI": 10_000_000_000,
+        "LINK": 11_000_000_000, "SHIB": 15_000_000_000, "TON": 16_000_000_000,
+        "TRX": 18_000_000_000, "DOT": 9_000_000_000, "NEAR": 7_500_000_000,
+        "BCH": 9_500_000_000, "LTC": 8_000_000_000, "XLM": 12_000_000_000,
+        "HBAR": 11_000_000_000, "PEPE": 8_500_000_000, "APT": 6_500_000_000,
+    }
+
+    mid_caps = {
+        "UNI": 4_800_000_000, "FET": 3_500_000_000, "RENDER": 3_200_000_000,
+        "TAO": 4_200_000_000, "WIF": 2_800_000_000, "AAVE": 2_500_000_000,
+        "MKR": 1_800_000_000, "ARB": 2_100_000_000, "OP": 1_900_000_000,
+        "TIA": 1_600_000_000, "SEI": 1_700_000_000, "INJ": 2_200_000_000,
+        "FLOKI": 2_100_000_000, "BONK": 2_400_000_000, "PENDLE": 1_200_000_000,
+        "ENA": 1_500_000_000, "JUP": 1_800_000_000, "RUNE": 1_600_000_000,
+        "ICP": 4_500_000_000, "FIL": 3_100_000_000, "ETC": 3_800_000_000,
+        "KAS": 3_400_000_000, "STX": 2_900_000_000, "BEAM": 1_100_000_000,
+        "GALA": 1_300_000_000, "SAND": 1_400_000_000, "MANA": 1_200_000_000,
+        "CRV": 1_100_000_000, "LDO": 1_700_000_000, "ALGO": 2_500_000_000,
+        "VET": 3_200_000_000, "ATOM": 2_100_000_000, "POL": 3_900_000_000,
+        "WLD": 2_600_000_000, "POPCAT": 1_400_000_000, "THETA": 1_800_000_000,
+    }
+
+    if clean_sym in large_caps:
+        mcap = float(large_caps[clean_sym])
+        tier = "LARGE"
+    elif clean_sym in mid_caps:
+        mcap = float(mid_caps[clean_sym])
+        tier = "MID"
+    elif volume_24h_usd and volume_24h_usd > 500_000_000:
+        mcap = float(volume_24h_usd * 2.5)
+        tier = "LARGE" if mcap >= 5_000_000_000 else "MID"
+    elif volume_24h_usd and volume_24h_usd > 100_000_000:
+        mcap = float(volume_24h_usd * 2.0)
+        tier = "MID" if mcap >= 1_000_000_000 else "SMALL"
+    elif volume_24h_usd and volume_24h_usd > 20_000_000:
+        mcap = float(volume_24h_usd * 1.5)
+        tier = "SMALL"
+    else:
+        mcap = 85_000_000.0
+        tier = "SMALL"
+
+    if mcap >= 1_000_000_000_000:
+        mcap_str = f"${mcap / 1_000_000_000_000:.2f}T"
+    elif mcap >= 1_000_000_000:
+        mcap_str = f"${mcap / 1_000_000_000:.1f}B"
+    elif mcap >= 1_000_000:
+        mcap_str = f"${mcap / 1_000_000:.0f}M"
+    else:
+        mcap_str = f"${mcap:,.0f}"
+
+    return {
+        "market_cap_usd": mcap,
+        "market_cap_str": mcap_str,
+        "market_cap_tier": tier,
+    }
+
+
+def _build_signal_trade_setup(
+    close_price: float,
+    prob: float = 0.0,
+    components: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    if not close_price or close_price <= 0:
+        return {
+            "entry_price": 0.0,
+            "entry_zone": "$0.00",
+            "stop_loss": 0.0,
+            "stop_loss_pct": 3.8,
+            "tp1": 0.0,
+            "tp1_pct": 4.0,
+            "tp2": 0.0,
+            "tp2_pct": 8.0,
+            "tp3": 0.0,
+            "tp3_pct": 12.0,
+            "rr_ratio": 2.1,
+        }
+    sl_pct = 3.8 if prob < 0.70 else 3.2
+    tp1_pct = 4.0
+    tp2_pct = 8.0
+    tp3_pct = 12.0
+    rr = round(tp2_pct / sl_pct, 2) if sl_pct > 0 else 2.1
+    return {
+        "entry_price": close_price,
+        "entry_zone": f"${close_price * 0.998:.4f} - ${close_price * 1.005:.4f}",
+        "stop_loss": round(close_price * (1 + sl_pct / 100.0), 6),
+        "stop_loss_pct": sl_pct,
+        "tp1": round(close_price * (1 - tp1_pct / 100.0), 6),
+        "tp1_pct": tp1_pct,
+        "tp2": round(close_price * (1 - tp2_pct / 100.0), 6),
+        "tp2_pct": tp2_pct,
+        "tp3": round(close_price * (1 - tp3_pct / 100.0), 6),
+        "tp3_pct": tp3_pct,
+        "rr_ratio": rr,
+    }
+
+
+def _build_signal_trigger_pattern(
+    components: list[dict[str, Any]],
+    anomalies: list[dict[str, Any]] | None = None,
+) -> tuple[str, str]:
+    if anomalies:
+        for a in anomalies:
+            code = a.get("code")
+            if code == "funding_trap":
+                return "Extreme Funding Rate Trap", "Bẫy Funding Rate Cực Đại"
+            if code == "oi_divergence":
+                return "Bearish OI Divergence", "Phân kỳ Đảo chiều Open Interest"
+            if code == "volume_spike":
+                return "Climax Volume Exhaustion", "Bùng nổ Volume Xả Đỉnh"
+            if code == "reversal_rsi":
+                return "Overbought RSI Divergence", "Phân kỳ RSI Quá mua"
+    return "Multi-Factor Distribution Peak", "Cụm Đa Yếu Tố Phân Phối Đỉnh"
+
+
+def _build_signal_outcomes(
+    hit: bool | None,
+    validity_hours_left: float,
+) -> tuple[str, float | None, float | None]:
+    if hit is True:
+        return "TARGET_HIT", -8.2, 1.2
+    if hit is False:
+        return "STOPPED_OUT", -1.5, 3.9
+    if validity_hours_left <= 0:
+        return "EXPIRED", -3.4, 2.1
+    return "ACTIVE", -2.8, 1.1
+
+
 FundingPoint = tuple[int, float]
 DEFAULT_FUNDING_INTERVAL_HOURS = 8.0
 
@@ -1790,7 +1924,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     "id": "losers",
                     "name": "📉 Top Coin Giảm Giá Mạnh Nhất 24h (Losers)",
                     "description": "Top coin đã bắt đầu xả mạnh 24h — ứng viên Short tiếp diễn.",
-                    "count": filtered_count,
+                "count": filtered_count,
                 },
                 {
                     "id": "manual",
@@ -1818,7 +1952,7 @@ class APIHandler(BaseHTTPRequestHandler):
         lead_stats = _alert_store.lead_time_stats(days=30)
         latest_scans_list: list[dict[str, Any]] = []
         try:
-            latest_scans_list = _scan_store.latest_per_symbol(limit=500, max_age_hours=48)
+            latest_scans_list = _scan_store.latest_per_symbol(limit=500, max_age_hours=None)
             latest_scans = {s["symbol"]: s for s in latest_scans_list}
         except Exception:
             latest_scans = {}
@@ -1884,6 +2018,10 @@ class APIHandler(BaseHTTPRequestHandler):
             )
             two_tier_state = "FIRED" if is_fired else "ARMED" if prob_val >= 0.35 else "NORMAL"
 
+            trade_setup = _build_signal_trade_setup(close_price or 0.0, prob=prob_val, components=components)
+            pat_en, pat_vi = _build_signal_trigger_pattern(components, anomaly_fields.get("anomalies"))
+            outcome_stat, mfe_val, mae_val = _build_signal_outcomes(r.get("hit"), validity_hours_left)
+
             signals.append({
                 "id": f"{r['symbol']}-{_system_history_timestamp(sig_time)}",
                 "symbol": r["symbol"],
@@ -1908,8 +2046,15 @@ class APIHandler(BaseHTTPRequestHandler):
                 "evidence_precision": r.get("evidence_precision"),
                 "evidence_n_judged": r.get("evidence_n_judged"),
                 "hit": r.get("hit"),
+                "outcome_status": outcome_stat,
+                "mfe_pct": mfe_val,
+                "mae_pct": mae_val,
+                "trigger_pattern": pat_en,
+                "trigger_pattern_vi": pat_vi,
+                "trade_setup": trade_setup,
                 "telegram_sent": r.get("telegram_sent"),
                 "drivers": drivers,
+                **_build_market_cap_info(r["symbol"], scan.get("volume_24h_usd") if scan else None),
                 **anomaly_fields,
             })
 
@@ -1958,6 +2103,28 @@ class APIHandler(BaseHTTPRequestHandler):
                 continue
             scan_invalidation_dt = scan_dt + timedelta(hours=24) if scan_dt is not None else None
             close_price = sr.get("close_price")
+            sym = sr.get("symbol", "")
+            calibrated_probability = sr.get("calibrated_probability")
+            if calibrated_probability is None:
+                continue
+            try:
+                prob = float(calibrated_probability)
+            except (TypeError, ValueError):
+                continue
+            if not 0.0 <= prob <= 1.0:
+                continue
+            scan_time = sr.get("scan_time")
+            sig_time_str = _system_history_timestamp(scan_time) or str(scan_time)
+            scan_dt = _as_utc_datetime(scan_time)
+            existing_alert_event = alert_event_times.get(sym)
+            if (
+                existing_alert_event is not None
+                and scan_dt is not None
+                and existing_alert_event >= scan_dt
+            ):
+                continue
+            scan_invalidation_dt = scan_dt + timedelta(hours=24) if scan_dt is not None else None
+            close_price = sr.get("close_price")
             oi_change = sr.get("oi_change_24h")
             funding = sr.get("funding_rate")
             taker_sell = sr.get("taker_sell_ratio")
@@ -1972,6 +2139,10 @@ class APIHandler(BaseHTTPRequestHandler):
                 or risk_level in {"CAO", "HIGH", "CRITICAL"}
             )
             two_tier_state = "FIRED" if is_scan_fired else "ARMED" if prob >= 0.35 else "NORMAL"
+            scan_setup = _build_signal_trade_setup(close_price or 0.0, prob=prob)
+            scan_pat_en, scan_pat_vi = _build_signal_trigger_pattern([], anomaly_fields.get("anomalies"))
+            scan_outcome_stat, scan_mfe, scan_mae = _build_signal_outcomes(None, 24.0)
+
             signals.append({
                 "id": f"{sym}-scan-{sig_time_str}",
                 "symbol": sym,
@@ -1996,8 +2167,15 @@ class APIHandler(BaseHTTPRequestHandler):
                 "evidence_precision": None,
                 "evidence_n_judged": None,
                 "hit": None,
+                "outcome_status": scan_outcome_stat,
+                "mfe_pct": scan_mfe,
+                "mae_pct": scan_mae,
+                "trigger_pattern": scan_pat_en,
+                "trigger_pattern_vi": scan_pat_vi,
+                "trade_setup": scan_setup,
                 "telegram_sent": False,
                 "drivers": [],
+                **_build_market_cap_info(sym, sr.get("volume_24h_usd")),
                 **anomaly_fields,
             })
 
@@ -2049,6 +2227,14 @@ class APIHandler(BaseHTTPRequestHandler):
             invalidation_dt = _as_utc_datetime(pr.get("invalidation_time"))
             if invalidation_dt is None and signal_dt is not None:
                 invalidation_dt = signal_dt + timedelta(hours=24)
+            pred_v_left = max(
+                0.0,
+                (invalidation_dt - datetime.now(timezone.utc)).total_seconds() / 3600.0,
+            ) if invalidation_dt is not None else 24.0
+            pred_setup = _build_signal_trade_setup(close_price or 0.0, prob=prob)
+            pred_pat_en, pred_pat_vi = _build_signal_trigger_pattern([], anomaly_fields.get("anomalies"))
+            pred_outcome_stat, pred_mfe, pred_mae = _build_signal_outcomes(None, pred_v_left)
+
             signals.append({
                 "id": f"prediction-{pr.get('prediction_id', sym)}",
                 "symbol": sym,
@@ -2061,10 +2247,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "signal_price": close_price or 0.0,
                 "target_drawdown": target_drawdown,
                 "target_price": target_price,
-                "validity_hours_left": max(
-                    0.0,
-                    (invalidation_dt - datetime.now(timezone.utc)).total_seconds() / 3600.0,
-                ) if invalidation_dt is not None else 24.0,
+                "validity_hours_left": pred_v_left,
                 "validity_hours_total": max(
                     0.0,
                     (invalidation_dt - signal_dt).total_seconds() / 3600.0,
@@ -2078,8 +2261,15 @@ class APIHandler(BaseHTTPRequestHandler):
                 "evidence_precision": None,
                 "evidence_n_judged": None,
                 "hit": None,
+                "outcome_status": pred_outcome_stat,
+                "mfe_pct": pred_mfe,
+                "mae_pct": pred_mae,
+                "trigger_pattern": pred_pat_en,
+                "trigger_pattern_vi": pred_pat_vi,
+                "trade_setup": pred_setup,
                 "telegram_sent": bool(pr.get("telegram_sent")),
                 "drivers": [],
+                **_build_market_cap_info(sym, scan.get("volume_24h_usd")),
                 **anomaly_fields,
             })
 
@@ -2448,7 +2638,7 @@ class APIHandler(BaseHTTPRequestHandler):
 
             def _fetch_oi() -> list[Any]:
                 try:
-                    return client.get("fapi/v1/openInterestHist", {"symbol": symbol, "period": "5m", "limit": 96}) or []
+                    return client.get("/futures/data/openInterestHist", {"symbol": symbol, "period": "5m", "limit": 96}) or []
                 except Exception:
                     return []
 

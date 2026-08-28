@@ -55,6 +55,9 @@ class TwoTierDistributionScore:
     pump_pct: float = 0.0
     pump_days: int = 0
     explanation_summary: str = ""
+    trigger_pattern: str = ""
+    trigger_pattern_vi: str = ""
+    trade_setup: dict[str, Any] = field(default_factory=dict)
 
     @property
     def top_signals(self) -> list[ScoreComponent]:
@@ -75,6 +78,9 @@ class TwoTierDistributionScore:
             "btc_regime": self.btc_regime,
             "pump_pct": self.pump_pct,
             "explanation_summary": self.explanation_summary,
+            "trigger_pattern": self.trigger_pattern,
+            "trigger_pattern_vi": self.trigger_pattern_vi,
+            "trade_setup": self.trade_setup,
             "components": [
                 {
                     "name": c.name,
@@ -127,6 +133,7 @@ def compute_two_tier_distribution_score(
     config: ScoringConfig,
     pump_pct: float = 0.0,
     pump_days: int = 0,
+    calibrator: Any | None = None,
 ) -> TwoTierDistributionScore:
     """Compute Two-Tier distribution score (HTF Climax Context + LTF Order Flow Trigger)."""
 
@@ -200,9 +207,32 @@ def compute_two_tier_distribution_score(
         recommendation = "WAIT" if total_score < 40.0 else "WATCH"
         explanation_summary = f"Normal price action (HTF: {htf_climax_score:.0f}/100, LTF: {ltf_trigger_score:.0f}/100)."
 
-    # Calibrated probability mapping via sigmoid curve
-    calibrated_probability = 1.0 / (1.0 + math.exp(-0.075 * (total_score - 48.0)))
+    # Calibrated probability mapping
+    if calibrator is not None:
+        try:
+            if hasattr(calibrator, "transform"):
+                calibrated_probability = float(calibrator.transform([total_score])[0])
+            elif hasattr(calibrator, "predict"):
+                calibrated_probability = float(calibrator.predict([total_score])[0])
+            elif callable(calibrator):
+                calibrated_probability = float(calibrator(total_score))
+            else:
+                # Fallback to static sigmoid
+                calibrated_probability = 1.0 / (1.0 + math.exp(-0.075 * (total_score - 48.0)))
+        except Exception:
+            # Fail-open: use static sigmoid if calibrator errors
+            calibrated_probability = 1.0 / (1.0 + math.exp(-0.075 * (total_score - 48.0)))
+    else:
+        # Legacy static sigmoid fallback
+        calibrated_probability = 1.0 / (1.0 + math.exp(-0.075 * (total_score - 48.0)))
     calibrated_probability = max(0.01, min(0.99, calibrated_probability))
+
+    # Determine primary trigger pattern
+    pat_en, pat_vi = determine_trigger_pattern(features, htf_state, ltf_state)
+
+    # Calculate trade setup if close price is provided
+    close_price = float(features.get("close") or features.get("close_price") or 0.0)
+    trade_setup = calculate_trade_setup(close_price, dist_high=dist_high, features=features)
 
     logger.info(
         "two_tier_distribution_scored",
@@ -231,4 +261,99 @@ def compute_two_tier_distribution_score(
         pump_pct=pump_pct,
         pump_days=pump_days,
         explanation_summary=explanation_summary,
+        trigger_pattern=pat_en,
+        trigger_pattern_vi=pat_vi,
+        trade_setup=trade_setup,
     )
+
+
+def determine_trigger_pattern(
+    features: dict[str, Any],
+    htf_state: str,
+    ltf_state: str,
+) -> tuple[str, str]:
+    """Identify the primary price action & microstructure trigger pattern."""
+    dist_high = float(features.get("distance_from_high_24h") or 0.0)
+    fake_breakout = float(features.get("fake_breakout_1h") or 0.0)
+    taker_buy = float(features.get("taker_buy_ratio") or 0.5)
+    oi_change = float(features.get("oi_change_24h") or 0.0)
+    price_ret_24h = float(features.get("price_ret_24h") or 0.0)
+    price_ret_4h = float(features.get("price_ret_4h") or 0.0)
+    price_ret_1h = float(features.get("price_ret_1h") or 0.0)
+    mom_decel = float(features.get("momentum_deceleration_4h") or 0.0)
+    funding_z = float(features.get("funding_zscore_30d") or 0.0)
+
+    patterns_en: list[str] = []
+    patterns_vi: list[str] = []
+
+    if fake_breakout >= 0.015 or dist_high <= 0.015:
+        patterns_en.append("Liquidity Sweep High")
+        patterns_vi.append("Quét thanh khoản đỉnh")
+    elif price_ret_24h >= 0.30:
+        patterns_en.append("Parabolic Climax")
+        patterns_vi.append("Đỉnh cao trào Parabolic")
+
+    if price_ret_4h >= 0.05 and price_ret_1h <= -0.01:
+        patterns_en.append("M15 Structure Breakdown")
+        patterns_vi.append("Gãy cấu trúc M15")
+    elif mom_decel <= -0.02:
+        patterns_en.append("Momentum Deceleration")
+        patterns_vi.append("Kiệt sức đà tăng")
+
+    if oi_change <= -0.04:
+        patterns_en.append("OI Climax Unwind")
+        patterns_vi.append("OI tháo chạy (Longs Exit)")
+    elif taker_buy <= 0.45:
+        patterns_en.append("Aggressive Taker Sell")
+        patterns_vi.append("Bán chủ động áp đảo")
+    elif funding_z >= 2.0:
+        patterns_en.append("Extreme Funding Shock")
+        patterns_vi.append("Funding Rate quá nhiệt")
+
+    if not patterns_en:
+        if htf_state == "ARMED":
+            return "HTF Climax Zone", "Vùng cao trào khung lớn"
+        return "Market Distribution Watch", "Theo dõi phân phối"
+
+    return " + ".join(patterns_en[:2]), " + ".join(patterns_vi[:2])
+
+
+def calculate_trade_setup(
+    close_price: float,
+    dist_high: float = 0.0,
+    features: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Calculate concrete actionable Entry, SL, TP1, TP2, TP3 and Risk/Reward."""
+    if close_price <= 0:
+        return {}
+
+    # Adaptive Stop Loss: above recent sweep high or default +3.5% to +4.0%
+    sl_pct_raw = max(3.2, min(4.5, (dist_high + 0.006) * 100 if dist_high > 0 else 3.8))
+    sl_price = round(close_price * (1.0 + sl_pct_raw / 100.0), 8)
+    sl_pct = round(sl_pct_raw, 1)
+
+    # Multi TP targets
+    tp1_pct = 4.0   # Scalp partial close & move SL to BE
+    tp2_pct = 8.0   # Standard target drawdown
+    tp3_pct = 15.0  # Runner target for full distribution dump
+
+    tp1_price = round(close_price * (1.0 - tp1_pct / 100.0), 8)
+    tp2_price = round(close_price * (1.0 - tp2_pct / 100.0), 8)
+    tp3_price = round(close_price * (1.0 - tp3_pct / 100.0), 8)
+
+    rr_ratio = round(tp2_pct / (sl_pct if sl_pct > 0 else 3.8), 2)
+
+    return {
+        "entry_price": close_price,
+        "entry_zone": f"{close_price * 0.998:.6g} - {close_price * 1.002:.6g}",
+        "stop_loss": sl_price,
+        "stop_loss_pct": sl_pct,
+        "tp1": tp1_price,
+        "tp1_pct": tp1_pct,
+        "tp2": tp2_price,
+        "tp2_pct": tp2_pct,
+        "tp3": tp3_price,
+        "tp3_pct": tp3_pct,
+        "rr_ratio": rr_ratio,
+    }
+

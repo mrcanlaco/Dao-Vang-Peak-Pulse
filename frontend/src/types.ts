@@ -3,6 +3,40 @@ export type FilterTag = 'ALL' | 'FIRED' | 'ARMED' | 'HOT_RISK' | 'EXPIRING' | 'V
 export type SignalSort = 'NEWEST' | 'HIGHEST_PROBABILITY' | 'HIGHEST_RISK' | 'EXPIRING_SOON' | 'LARGEST_DRAWDOWN';
 export type TelegramFilter = 'ALL' | 'SENT' | 'UNSENT';
 
+export type CoinSector = 'ALL' | 'AI' | 'MEME' | 'L1_L2' | 'DEFI' | 'GAMEFI' | 'TOP_CAP' | 'OTHER';
+export type MarketCapFilter = 'ALL' | 'LARGE' | 'MID' | 'SMALL';
+export type RadarStrategicPreset = 'ALL' | 'CLIMAX_DUMP' | 'ARMED_SETUP' | 'FUNDING_TRAP' | 'OI_SQUEEZE' | 'HIGH_RR' | 'AI_MEME' | 'LOWCAP_GEMS';
+
+export interface RadarAdvancedFilterState {
+  sectors: CoinSector[];
+  marketCapTier: MarketCapFilter;
+  preset: RadarStrategicPreset;
+  fundingRange: 'ALL' | 'POSITIVE_HIGH' | 'NEGATIVE_DEEP' | 'NEUTRAL';
+  minOiChangePct?: number | null;
+  minTakerSellRatio?: number | null;
+  minProbability?: number | null;
+  minRrRatio?: number | null;
+  minDrawdownPct?: number | null;
+  maxStopLossPct?: number | null;
+  anomalyCategories: string[];
+  twoTierState: 'ALL' | 'FIRED' | 'ARMED';
+}
+
+export const DEFAULT_RADAR_ADVANCED_FILTERS: RadarAdvancedFilterState = {
+  sectors: ['ALL'],
+  marketCapTier: 'ALL',
+  preset: 'ALL',
+  fundingRange: 'ALL',
+  minOiChangePct: null,
+  minTakerSellRatio: null,
+  minProbability: null,
+  minRrRatio: null,
+  minDrawdownPct: null,
+  maxStopLossPct: null,
+  anomalyCategories: [],
+  twoTierState: 'ALL',
+};
+
 export interface MarketAnomaly {
   code: string;
   category: string;
@@ -21,6 +55,20 @@ export interface SignalDriver {
   name: string;
   impact: string;
   score: string;
+}
+
+export interface SignalTradeSetup {
+  entry_price?: number;
+  entry_zone?: string;
+  stop_loss?: number;
+  stop_loss_pct?: number;
+  tp1?: number;
+  tp1_pct?: number;
+  tp2?: number;
+  tp2_pct?: number;
+  tp3?: number;
+  tp3_pct?: number;
+  rr_ratio?: number;
 }
 
 export interface SignalItem {
@@ -54,8 +102,17 @@ export interface SignalItem {
   evidence_precision?: number | null;
   evidence_n_judged?: number | null;
   hit?: boolean | null;
+  outcome_status?: 'ACTIVE' | 'TARGET_HIT' | 'STOPPED_OUT' | 'EXPIRED' | string;
+  mfe_pct?: number | null;
+  mae_pct?: number | null;
+  trigger_pattern?: string;
+  trigger_pattern_vi?: string;
+  trade_setup?: SignalTradeSetup;
   telegram_sent?: boolean;
   two_tier_state?: 'ARMED' | 'FIRED' | 'NORMAL' | 'WATCH' | 'STANDBY';
+  market_cap_usd?: number | null;
+  market_cap_str?: string | null;
+  market_cap_tier?: 'LARGE' | 'MID' | 'SMALL' | 'MICRO' | string;
 }
 
 export const getSignalTwoTierState = (sig: SignalItem): 'FIRED' | 'ARMED' | 'NORMAL' => {

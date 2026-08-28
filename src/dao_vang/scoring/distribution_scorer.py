@@ -328,6 +328,33 @@ def score_btc_context(
     )
 
 
+def score_multi_tf_exhaustion(
+    momentum_decel_15m: float,
+    lower_high_4h: float,
+    volume_dry_up_1h: float,
+    weight: float = 0.05,
+) -> ScoreComponent:
+    """Multi-timeframe exhaustion confirmation across 15m/1h/4h."""
+    signals = 0
+    if momentum_decel_15m < -0.005:  # 15m momentum decelerating
+        signals += 1
+    if lower_high_4h >= 0.5:  # 4h lower high formed
+        signals += 1
+    if volume_dry_up_1h < 0.5:  # 1h volume drying up
+        signals += 1
+    
+    score = _clamp_score(signals * 33.3)  # 0, 33, 67, or 100
+    explanation = f"Multi-TF exhaustion: {signals}/3 timeframes confirming ({['15m decel', '4h lower-high', '1h vol dry-up'][:signals]})"
+    return ScoreComponent(
+        name="multi_tf_exhaustion",
+        raw_value=float(signals),
+        score=score,
+        weight=weight,
+        weighted_score=score * weight,
+        explanation=explanation,
+    )
+
+
 def compute_distribution_score(
     symbol: str,
     features: dict[str, Any],
@@ -418,6 +445,15 @@ def compute_distribution_score(
         score_fake_breakout(
             fake_breakout_1h=features.get("fake_breakout_1h", 0.0) if features.get("fake_breakout_1h") is not None else 0.0,
             weight=config.weight_fake_breakout
+        )
+    )
+
+    components.append(
+        score_multi_tf_exhaustion(
+            momentum_decel_15m=features.get("momentum_decel_15m", 0.0) if features.get("momentum_decel_15m") is not None else 0.0,
+            lower_high_4h=features.get("lower_high_4h", 0.0) if features.get("lower_high_4h") is not None else 0.0,
+            volume_dry_up_1h=features.get("volume_dry_up_1h", 0.0) if features.get("volume_dry_up_1h") is not None else 0.0,
+            weight=config.weight_multi_tf_exhaustion
         )
     )
 

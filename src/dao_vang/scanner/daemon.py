@@ -25,6 +25,7 @@ Constraints:
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import math
@@ -65,6 +66,7 @@ from dao_vang.domain.time import (
 from dao_vang.experiments.forward_test import load_frozen_model
 from dao_vang.experiments.self_learning import run_self_learning
 from dao_vang.features.builder import build_features
+from dao_vang.alpha_lab.meta_labeling import MetaLabelingModel
 from dao_vang.logging import get_logger
 from dao_vang.scanner.anomalies import AnomalyReport, detect_market_anomalies
 from dao_vang.scanner.candidate_filter_comparison import (
@@ -198,6 +200,7 @@ class ScannerDaemon:
     def __init__(self, settings: AppSettings) -> None:
         self._settings = settings
         self._scanner_cfg = settings.scanner
+        self._meta_model: MetaLabelingModel | None = None
         self._notifier = TelegramNotifier(
             settings.telegram,
             web_base_url=settings.web.public_url,
@@ -1445,6 +1448,43 @@ class ScannerDaemon:
             max_feature_age_minutes=self._scanner_cfg.max_feature_age_minutes,
             min_data_quality_score=self._scanner_cfg.min_data_quality_score,
         )
+        
+        # Meta-labeling filter
+        enable_meta = getattr(self._scanner_cfg, "enable_meta_labeling", "disabled")
+        if result.alertable and enable_meta != "disabled":
+            try:
+                meta_path = getattr(self._scanner_cfg, "meta_model_path", None)
+                if self._meta_model is None and meta_path:
+                    model_path = Path(meta_path)
+                    if model_path.exists():
+                        self._meta_model = MetaLabelingModel.load(model_path)
+                    else:
+                        logger.warning("meta_model_not_found", path=str(model_path))
+                
+                if self._meta_model is not None:
+                    # btc_context could be a dict or a BtcContext dataclass
+                    regime = btc_context.get("regime", "SIDEWAY_DISTRIBUTION") if isinstance(btc_context, dict) else getattr(btc_context, "regime", "SIDEWAY_DISTRIBUTION")
+                    meta_decision = self._meta_model.filter_signal(
+                        features=feature_dict,
+                        primary_prob=result.calibrated_probability or 0.0,
+                        regime=regime,
+                        threshold_override=getattr(self._scanner_cfg, "meta_model_min_confidence", 0.5),
+                    )
+                    logger.info(
+                        "meta_labeling_decision",
+                        symbol=symbol,
+                        primary_probability=result.calibrated_probability,
+                        meta_approved=meta_decision.should_execute,
+                        meta_confidence=meta_decision.meta_probability,
+                        mode=enable_meta,
+                    )
+                    
+                    if enable_meta == "active" and not meta_decision.should_execute:
+                        if result.risk_tier == "HIGH_CONFIDENCE":
+                            result = dataclasses.replace(result, risk_tier="WATCH")
+            except Exception as exc:
+                logger.warning("meta_model_error", symbol=symbol, error=str(exc))
+
         score = result.heuristic
 
         close_price: float | None = None

@@ -76,7 +76,7 @@ def build_funding_features_sql(source_table: str) -> str:
         SELECT
             feature_time,
             symbol,
-            COALESCE(funding_rate_last_known, 0.0) AS {FUNDING_RATE_RAW.id},
+            funding_rate_last_known AS {FUNDING_RATE_RAW.id},
             
             -- Relative position within 7d range
             (funding_rate_last_known - min(funding_rate_last_known) OVER w_2016) 
@@ -90,10 +90,12 @@ def build_funding_features_sql(source_table: str) -> str:
             (funding_rate_last_known - avg(funding_rate_last_known) OVER w_8640) / NULLIF(stddev_samp(funding_rate_last_known) OVER w_8640, 0) AS {FUNDING_ZSCORE_30D.id},
             
             -- Change 8h (lag 96)
-            funding_rate_last_known - lag(funding_rate_last_known, 96) OVER w_all AS {FUNDING_CHANGE_8H.id},
+            -- Fall back to 0 change if history is missing, but propagate NULL if current value is missing
+            CASE WHEN funding_rate_last_known IS NULL THEN NULL ELSE COALESCE(funding_rate_last_known - lag(funding_rate_last_known, 96) OVER w_all, 0.0) END AS {FUNDING_CHANGE_8H.id},
             
             -- Change 24h (lag 288)
-            funding_rate_last_known - lag(funding_rate_last_known, 288) OVER w_all AS {FUNDING_CHANGE_24H.id},
+            -- Fall back to 0 change if history is missing, but propagate NULL if current value is missing
+            CASE WHEN funding_rate_last_known IS NULL THEN NULL ELSE COALESCE(funding_rate_last_known - lag(funding_rate_last_known, 288) OVER w_all, 0.0) END AS {FUNDING_CHANGE_24H.id},
             
             -- Persistence 7d (rolling average)
             avg(funding_rate_last_known) OVER w_2016 AS {FUNDING_PERSISTENCE_7D.id}

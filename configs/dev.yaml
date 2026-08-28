@@ -1,0 +1,106 @@
+# ============================================================
+# ĐẢO VÀNG — LOCAL DEV CONFIGURATION (Môi trường máy cá nhân)
+# ============================================================
+# Cấu hình độc lập cho việc phát triển, kiểm thử thuật toán và
+# chạy mô phỏng tại local. Tuyệt đối không ảnh hưởng đến dữ liệu LIVE.
+
+paths:
+  data_dir: data
+  raw_dir: data/raw
+  normalized_dir: data/normalized
+
+web:
+  port: 8000
+  host: 127.0.0.1
+  public_url: http://localhost:8000
+
+collection:
+  timeout_seconds: 15
+  max_retries: 5
+  max_concurrency: 4
+
+scanner:
+  enabled: true
+  operating_mode: shadow
+  poll_interval_minutes: 5
+  max_coins: 150
+  min_volume_usd: 1000000
+  cooldown_minutes: 120
+  telegram_cooldown_minutes: 120
+  alert_levels: ["CAO", "TRUNG BÌNH"]
+  frozen_model_id: frozen_20260811_082824_96df7ec9
+  db_path: data/dev.duckdb
+  artifact_dir: artifacts
+  watchlist_path: data/watchlist.json
+  kill_switch_path: data/scanner_kill_switch.json
+  rollback_state_path: data/scanner_rollback.json
+  health_report_path: data/scanner_health.json
+  threshold_policy_version: "1.0"
+  max_heartbeat_age_minutes: 15
+  history_days: 30
+  # Môi trường Dev: Tắt cảnh báo Telegram thật để tránh spam
+  shadow_telegram_enabled: false
+  telegram_min_probability: 0.75
+  telegram_min_volume_usd: 500000
+  telegram_tiers: ["HIGH_CONFIDENCE"]
+  telegram_digest_mode: true
+  global_daily_alert_limit: 15
+  coin_daily_alert_limit: 2
+  max_feature_age_minutes: 10
+  min_data_quality_score: 0.8
+  scan_mode: gainers
+  min_price_change_pct: 5.0
+  include_btc: true
+  exclude_stablecoins: true
+
+self_learning:
+  enabled: false
+  check_interval_cycles: 12
+  recent_window_days: 14
+  recent_sample_weight: 2.0
+  historical_max_rows: 100000
+  state_path: artifacts/self_learning/state.json
+  report_dir: artifacts/self_learning/runs
+
+candidate_comparison:
+  enabled: false
+  champion_version: pump_filter_v1
+  challenger_version: candidate_filter_v2
+  universe_size: 150
+  max_candidates: 30
+  max_workers: 4
+  decision_interval_minutes: 60
+  outcome_check_interval_cycles: 12
+  horizon_hours: 24
+  target_drawdown: 0.08
+  max_adverse_excursion: 0.04
+  gap_tolerance_minutes: 15
+  metrics_window_days: 30
+  min_resolved: 200
+  min_positive_events: 50
+  min_evaluation_days: 14
+  truth_event_gap_minutes: 240
+  min_challenger_event_recall: 0.80
+  precision_at_10_relative_gain: 0.10
+  max_recall_regression: 0.05
+  snapshot_path: data/candidate_filter_comparison.json
+  state_path: data/candidate_filter_v2_state.json
+
+market_anomalies:
+  enabled: true
+  min_signal_score: 35.0
+  volume_zscore_threshold: 2.5
+  volume_ratio_1h_threshold: 1.8
+  volume_percentile_threshold: 0.85
+  funding_zscore_threshold: 2.0
+  funding_change_8h_threshold: 0.0003
+  funding_max_age_minutes: 720
+  reversal_prior_return_threshold: 0.03
+  reversal_current_return_threshold: 0.01
+  oi_unwind_threshold: 0.03
+  taker_buy_ratio_threshold: 0.45
+  taker_ratio_change_threshold: 0.05
+  crowded_long_ratio_threshold: 1.5
+
+scoring:
+  alert_score_threshold: 40.0

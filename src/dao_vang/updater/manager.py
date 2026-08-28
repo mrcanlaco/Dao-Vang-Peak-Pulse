@@ -628,17 +628,17 @@ class UpdateManager:
                     for sl in s_logs:
                         log_msg(sl)
 
-            # 9. Remote MSI Deployment if requested
+            # 9. Remote Google Cloud Server Deployment if requested
             if remote_deploy or self.settings.updater.auto_deploy_remote:
-                log_msg("Đang kích hoạt triển khai cập nhật lên server Ubuntu MSI...")
-                msi_script = self.repo_root / "scripts" / "deploy_msi.py"
-                if msi_script.exists():
+                log_msg("Đang kích hoạt triển khai cập nhật lên Google Cloud Server (136.110.29.208)...")
+                deploy_script = self.repo_root / "scripts" / "deploy_google_server.py"
+                if deploy_script.exists():
                     py_exe = sys.executable
-                    code, msi_out, msi_err = self._run_cmd([py_exe, str(msi_script)], timeout=300)
+                    code, dep_out, dep_err = self._run_cmd([py_exe, str(deploy_script)], timeout=300)
                     if code == 0:
-                        log_msg("✅ Triển khai cập nhật lên server MSI từ xa thành công!")
+                        log_msg("✅ Triển khai cập nhật lên Google Cloud Server từ xa thành công!")
                     else:
-                        log_msg(f"⚠️ Triển khai MSI gặp lỗi: {msi_err or msi_out}")
+                        log_msg(f"⚠️ Triển khai Google Cloud Server gặp lỗi: {dep_err or dep_out}")
 
             # 10. Check health
             log_msg("Đang kiểm tra sức khỏe hệ thống sau cập nhật...")

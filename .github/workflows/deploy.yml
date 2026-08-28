@@ -1,0 +1,54 @@
+name: Deploy to Google Cloud (Live)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Auto Deploy Live Server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Google Cloud via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        if: env.GCP_SSH_KEY != ''
+        env:
+          GCP_SSH_KEY: ${{ secrets.GCP_SSH_KEY }}
+        with:
+          host: ${{ secrets.GCP_HOST || '136.110.29.208' }}
+          username: ${{ secrets.GCP_USER || 'ubuntu' }}
+          key: ${{ secrets.GCP_SSH_KEY }}
+          port: 22
+          timeout: 120s
+          command_timeout: 15m
+          script: |
+            echo "========================================================"
+            echo "🚀 [CI/CD] AUTO-DEPLOYING DAO VANG ON GOOGLE CLOUD..."
+            echo "========================================================"
+            cd /home/ubuntu/dao_vang
+            git merge --abort 2>/dev/null || true
+            git rebase --abort 2>/dev/null || true
+            git reset --hard HEAD
+            git clean -fd
+            git fetch origin main --prune
+            git reset --hard origin/main
+            chmod 644 /home/ubuntu/dao_vang/cloudflared/* 2>/dev/null || true
+            rm -f data/web.lock data_live/web.lock data/scanner.lock data_live/scanner.lock
+            docker compose down
+            docker compose up -d --build --force-recreate
+            sleep 8
+            docker compose ps
+            echo "Checking Web API health..."
+            for i in $(seq 1 10); do
+              if curl -s -f http://localhost:8000/api/status >/dev/null; then
+                echo "✅ API Server is ONLINE and HEALTHY (HTTP 200)!"
+                exit 0
+              fi
+              echo "Waiting for API to initialize... (retry $i/10)"
+              sleep 2
+            done
+            echo "⚠️ Deployment finished. Container is initializing."

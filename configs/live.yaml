@@ -58,6 +58,11 @@ scanner:
   min_price_change_pct: 5.0
   include_btc: true
   exclude_stablecoins: true
+  # Meta-labeling: HistGradientBoosting filter rejects weak signals from
+  # the primary model.  "active" blocks alerts; "shadow" only logs decisions.
+  enable_meta_labeling: "active"
+  meta_model_path: "data/artifacts/meta_model.joblib"
+  meta_model_min_confidence: 0.5
 
 self_learning:
   enabled: true

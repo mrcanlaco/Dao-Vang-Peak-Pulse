@@ -140,6 +140,8 @@ def assess_snapshot_quality(
         value = feature_dict.get(col)
         if value is None or pd.isna(value):
             missing.append(col)
+            if col.startswith("funding") or col.startswith("oi_"):
+                reasons.append("derivative_feed_missing")
     if missing:
         reasons.append("missing_required_features")
 

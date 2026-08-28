@@ -80,15 +80,17 @@ def build_oi_features_sql(source_table: str) -> str:
             feature_time,
             symbol,
             
-            COALESCE(oi_ret_1h, 0.0) AS {OI_CHANGE_1H.id},
-            COALESCE(oi_ret_4h, 0.0) AS {OI_CHANGE_4H.id},
-            COALESCE(oi_ret_24h, 0.0) AS {OI_CHANGE_24H.id},
+            -- Fall back to 0 change if history is missing, but propagate NULL if current value is missing
+            CASE WHEN open_interest_value IS NULL THEN NULL ELSE COALESCE(oi_ret_1h, 0.0) END AS {OI_CHANGE_1H.id},
+            CASE WHEN open_interest_value IS NULL THEN NULL ELSE COALESCE(oi_ret_4h, 0.0) END AS {OI_CHANGE_4H.id},
+            CASE WHEN open_interest_value IS NULL THEN NULL ELSE COALESCE(oi_ret_24h, 0.0) END AS {OI_CHANGE_24H.id},
             
             -- Z-score 7d (2016 periods)
             (open_interest_value - avg(open_interest_value) OVER w_2016) / NULLIF(stddev_samp(open_interest_value) OVER w_2016, 0) AS {OI_ZSCORE_7D.id},
             
             -- Acceleration: current 1h return - 1h return 1h ago
-            oi_ret_1h - lag(oi_ret_1h, 12) OVER w_all AS {OI_ACCELERATION_1H.id},
+            -- Fall back to 0 acceleration if history is missing, but propagate NULL if current value is missing
+            CASE WHEN open_interest_value IS NULL THEN NULL ELSE COALESCE(oi_ret_1h - lag(oi_ret_1h, 12) OVER w_all, 0.0) END AS {OI_ACCELERATION_1H.id},
             
             -- Divergence
             price_ret_1h * oi_ret_1h AS {PRICE_OI_DIVERGENCE_1H.id}

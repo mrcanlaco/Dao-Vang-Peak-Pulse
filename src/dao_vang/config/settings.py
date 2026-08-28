@@ -70,6 +70,9 @@ class ScannerConfig(BaseModel):
     )
     global_daily_alert_limit: int = Field(default=15, ge=1)
     coin_daily_alert_limit: int = Field(default=2, ge=1)
+    enable_meta_labeling: Literal["disabled", "shadow", "active"] = "disabled"
+    meta_model_path: Path | None = None
+    meta_model_min_confidence: float = 0.5
     # Explicit opt-in for labelled observational Telegram messages for every
     # Radar detection while the scanner remains in shadow.
     shadow_telegram_enabled: bool = False
@@ -227,11 +230,12 @@ class ScoringConfig(BaseModel):
     weight_price_volume_divergence: float = Field(default=0.20, ge=0.0, le=1.0)
     weight_funding_spike: float = Field(default=0.15, ge=0.0, le=1.0)
     weight_momentum_exhaustion: float = Field(default=0.15, ge=0.0, le=1.0)
-    weight_distance_from_high: float = Field(default=0.10, ge=0.0, le=1.0)
+    weight_distance_from_high: float = Field(default=0.07, ge=0.0, le=1.0)
     weight_taker_sell_pressure: float = Field(default=0.10, ge=0.0, le=1.0)
     weight_btc_context: float = Field(default=0.15, ge=0.0, le=1.0)
     weight_oi_divergence: float = Field(default=0.10, ge=0.0, le=1.0)
-    weight_fake_breakout: float = Field(default=0.05, ge=0.0, le=1.0)
+    weight_fake_breakout: float = Field(default=0.03, ge=0.0, le=1.0)
+    weight_multi_tf_exhaustion: float = Field(default=0.05, ge=0.0, le=1.0)
     # BTC context thresholds
     btc_fomo_threshold: float = Field(default=0.05, ge=0.0, le=1.0)  # BTC +5% → FOMO
     btc_weak_threshold: float = Field(default=-0.02, le=0.0)  # BTC -2% → weak
@@ -248,6 +252,7 @@ class ScoringConfig(BaseModel):
             "weight_btc_context",
             "weight_oi_divergence",
             "weight_fake_breakout",
+            "weight_multi_tf_exhaustion",
         )
         total = sum(float(getattr(self, name)) for name in weight_names)
         if abs(total - 1.0) > 1e-6:
@@ -256,8 +261,6 @@ class ScoringConfig(BaseModel):
 
 
 class CoinGeckoConfig(BaseModel):
-    """Multi-source cross-reference via CoinGecko free API."""
-
     enabled: bool = Field(default=False)
     base_url: str = "https://api.coingecko.com/api/v3"
     timeout_seconds: int = Field(default=15, gt=0)

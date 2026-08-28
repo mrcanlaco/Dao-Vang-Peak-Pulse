@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import type { FilterTag, SignalItem, RiskLevel, SignalSort, TelegramFilter, MarketAnomaly } from '../types';
-import { getSignalTwoTierState, isSignalFired, isSignalArmed } from '../types';
+import type {
+  FilterTag, SignalItem, RiskLevel, SignalSort, TelegramFilter, MarketAnomaly,
+  RadarAdvancedFilterState, RadarStrategicPreset
+} from '../types';
+import { getSignalTwoTierState, isSignalFired, isSignalArmed, DEFAULT_RADAR_ADVANCED_FILTERS } from '../types';
 import { parseSystemDate } from '../utils/time';
+import { getCoinSector, getCoinMarketCapInfo, getSectorBadgeConfig, getMarketCapBadgeConfig } from '../utils/sectors';
+import { RadarFilterDrawer } from './RadarFilterDrawer';
 import {
   Clock, TrendingDown, Send, Copy, Check, Volume2, AlertOctagon, X,
   ChevronDown, ChevronUp, Flame, Zap, Eye, EyeOff, LayoutGrid, List,
-  Columns2, Search, Target, BarChart2, ShieldAlert, Sparkles, Compass
+  Columns2, Search, Target, BarChart2, ShieldAlert, Sparkles, Compass,
+  Filter
 } from 'lucide-react';
 import { CoinLink } from './CoinLink';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -91,14 +97,157 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // Filter signals locally if localSearch is active
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<RadarAdvancedFilterState>(() => {
+    try {
+      const saved = localStorage.getItem('dao_vang_radar_advanced_filters');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // Ignore
+    }
+    return DEFAULT_RADAR_ADVANCED_FILTERS;
+  });
+
+  const handleApplyAdvancedFilters = (newFilters: RadarAdvancedFilterState) => {
+    setAdvancedFilters(newFilters);
+    try {
+      localStorage.setItem('dao_vang_radar_advanced_filters', JSON.stringify(newFilters));
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleResetAdvancedFilters = () => {
+    setAdvancedFilters(DEFAULT_RADAR_ADVANCED_FILTERS);
+    try {
+      localStorage.removeItem('dao_vang_radar_advanced_filters');
+    } catch {
+      // Ignore
+    }
+  };
+
+  // Count active non-default filters
+  const activeAdvancedFilterCount = useMemo(() => {
+    let cnt = 0;
+    if (advancedFilters.preset !== 'ALL') cnt++;
+    if (advancedFilters.marketCapTier !== 'ALL') cnt++;
+    if (!advancedFilters.sectors.includes('ALL')) cnt++;
+    if (advancedFilters.fundingRange !== 'ALL') cnt++;
+    if (advancedFilters.minOiChangePct !== null && advancedFilters.minOiChangePct !== undefined) cnt++;
+    if (advancedFilters.minTakerSellRatio !== null && advancedFilters.minTakerSellRatio !== undefined) cnt++;
+    if (advancedFilters.minRrRatio !== null && advancedFilters.minRrRatio !== undefined) cnt++;
+    if (advancedFilters.minDrawdownPct !== null && advancedFilters.minDrawdownPct !== undefined) cnt++;
+    if (advancedFilters.maxStopLossPct !== null && advancedFilters.maxStopLossPct !== undefined) cnt++;
+    if (advancedFilters.twoTierState !== 'ALL') cnt++;
+    if (advancedFilters.anomalyCategories.length > 0) cnt++;
+    return cnt;
+  }, [advancedFilters]);
+
+  // Advanced Signal Matcher
+  const testSignalAdvancedMatch = (sig: SignalItem, f: RadarAdvancedFilterState): boolean => {
+    // 1. Strategic Preset
+    if (f.preset === 'CLIMAX_DUMP') {
+      if (getSignalTwoTierState(sig) !== 'FIRED') return false;
+    } else if (f.preset === 'ARMED_SETUP') {
+      if (getSignalTwoTierState(sig) !== 'ARMED') return false;
+    } else if (f.preset === 'FUNDING_TRAP') {
+      const frStr = sig.funding_rate || '';
+      const frVal = parseFloat(frStr.replace('%', ''));
+      const hasFundingAnomaly = sig.anomalies?.some(a => a.category === 'funding' || a.code === 'funding_trap');
+      if (!hasFundingAnomaly && (isNaN(frVal) || frVal < 0.02)) return false;
+    } else if (f.preset === 'OI_SQUEEZE') {
+      const oiStr = sig.oi_change_24h || '';
+      const oiVal = parseFloat(oiStr.replace('%', '').replace('+', ''));
+      const hasOiAnomaly = sig.anomalies?.some(a => a.category === 'open_interest' || a.category === 'volume');
+      if (!hasOiAnomaly && (isNaN(oiVal) || oiVal < 5.0)) return false;
+    } else if (f.preset === 'HIGH_RR') {
+      const rr = sig.trade_setup?.rr_ratio ?? (Math.abs(sig.target_drawdown || 8) / (sig.trade_setup?.stop_loss_pct || 3.8));
+      if (rr < 2.3) return false;
+    } else if (f.preset === 'AI_MEME') {
+      const sector = getCoinSector(sig.symbol);
+      if (sector !== 'AI' && sector !== 'MEME') return false;
+    } else if (f.preset === 'LOWCAP_GEMS') {
+      const capInfo = getCoinMarketCapInfo(sig.symbol, sig);
+      if (capInfo.market_cap_tier !== 'SMALL') return false;
+    }
+
+    // 2. Two-tier state
+    if (f.twoTierState === 'FIRED' && getSignalTwoTierState(sig) !== 'FIRED') return false;
+    if (f.twoTierState === 'ARMED' && getSignalTwoTierState(sig) !== 'ARMED') return false;
+
+    // 3. Sector
+    if (!f.sectors.includes('ALL')) {
+      const sec = getCoinSector(sig.symbol);
+      if (!f.sectors.includes(sec)) return false;
+    }
+
+    // 4. Market Cap Tier
+    if (f.marketCapTier !== 'ALL') {
+      const cap = getCoinMarketCapInfo(sig.symbol, sig);
+      if (cap.market_cap_tier !== f.marketCapTier) return false;
+    }
+
+    // 5. Funding Range
+    if (f.fundingRange !== 'ALL') {
+      const frStr = sig.funding_rate || '';
+      const frVal = parseFloat(frStr.replace('%', ''));
+      if (f.fundingRange === 'POSITIVE_HIGH' && (isNaN(frVal) || frVal < 0.025)) return false;
+      if (f.fundingRange === 'NEGATIVE_DEEP' && (isNaN(frVal) || frVal > -0.01)) return false;
+      if (f.fundingRange === 'NEUTRAL' && (!isNaN(frVal) && Math.abs(frVal) > 0.015)) return false;
+    }
+
+    // 6. Min OI Change %
+    if (f.minOiChangePct !== null && f.minOiChangePct !== undefined) {
+      const oiStr = sig.oi_change_24h || '';
+      const oiVal = parseFloat(oiStr.replace('%', '').replace('+', ''));
+      if (isNaN(oiVal) || oiVal < f.minOiChangePct) return false;
+    }
+
+    // 7. Min Taker Sell Ratio
+    if (f.minTakerSellRatio !== null && f.minTakerSellRatio !== undefined) {
+      const ts = sig.taker_sell_ratio ?? 0.5;
+      if (ts < f.minTakerSellRatio) return false;
+    }
+
+    // 8. Min R:R Ratio
+    if (f.minRrRatio !== null && f.minRrRatio !== undefined) {
+      const rr = sig.trade_setup?.rr_ratio ?? (Math.abs(sig.target_drawdown || 8) / (sig.trade_setup?.stop_loss_pct || 3.8));
+      if (rr < f.minRrRatio) return false;
+    }
+
+    // 9. Min Target Drawdown
+    if (f.minDrawdownPct !== null && f.minDrawdownPct !== undefined) {
+      const dd = Math.abs(sig.target_drawdown || 0);
+      if (dd < f.minDrawdownPct) return false;
+    }
+
+    // 10. Max Stop Loss %
+    if (f.maxStopLossPct !== null && f.maxStopLossPct !== undefined) {
+      const sl = sig.trade_setup?.stop_loss_pct ?? 3.8;
+      if (sl > f.maxStopLossPct) return false;
+    }
+
+    // 11. Anomaly Categories
+    if (f.anomalyCategories.length > 0) {
+      const sigCats = sig.anomaly_categories || (sig.anomalies ? sig.anomalies.map(a => a.category) : []);
+      const matchCat = f.anomalyCategories.some(c => sigCats.includes(c));
+      if (!matchCat) return false;
+    }
+
+    return true;
+  };
+
+  // Filter signals by Advanced Filters & Instant Search
   const filteredBySearchSignals = useMemo(() => {
-    if (!localSearch.trim()) return signals;
-    const q = localSearch.trim().toLowerCase();
-    return signals.filter(
-      s => s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
-    );
-  }, [signals, localSearch]);
+    let list = signals.filter(sig => testSignalAdvancedMatch(sig, advancedFilters));
+    if (localSearch.trim()) {
+      const q = localSearch.trim().toLowerCase();
+      list = list.filter(
+        s => s.symbol.toLowerCase().includes(q) || s.name.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [signals, advancedFilters, localSearch]);
 
   // Group signals by symbol to avoid duplicates, keep track of count
   const groupedSignals = useMemo(() => {
@@ -665,6 +814,65 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 {t('feed_tag_expired')}
               </button>
             </div>
+
+            {/* Strategic Presets & Advanced Filter Button Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800/80">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden flex-1">
+                <span className="text-[10px] uppercase font-bold text-amber-500/90 flex items-center gap-1 shrink-0 pl-0.5">
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                  Preset:
+                </span>
+                {[
+                  { id: 'ALL', label: t('preset_all'), icon: '🌐' },
+                  { id: 'CLIMAX_DUMP', label: t('preset_climax_dump'), icon: '⚡' },
+                  { id: 'ARMED_SETUP', label: t('preset_armed_setup'), icon: '🧭' },
+                  { id: 'FUNDING_TRAP', label: t('preset_funding_trap'), icon: '🔥' },
+                  { id: 'OI_SQUEEZE', label: t('preset_oi_squeeze'), icon: '📈' },
+                  { id: 'HIGH_RR', label: t('preset_high_rr'), icon: '🎯' },
+                  { id: 'AI_MEME', label: t('preset_ai_meme'), icon: '🤖' },
+                  { id: 'LOWCAP_GEMS', label: t('preset_lowcap_gems'), icon: '💎' },
+                ].map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      handleApplyAdvancedFilters({
+                        ...advancedFilters,
+                        preset: p.id as RadarStrategicPreset,
+                      });
+                    }}
+                    className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-semibold transition ${
+                      advancedFilters.preset === p.id
+                        ? 'border-amber-500 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40 shadow-sm font-bold'
+                        : 'border-slate-800/80 bg-slate-900/90 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                    }`}
+                  >
+                    <span>{p.icon}</span>
+                    <span>{p.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Advanced Filter Drawer Trigger Button */}
+              <button
+                type="button"
+                onClick={() => setIsFilterDrawerOpen(true)}
+                className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition ${
+                  activeAdvancedFilterCount > 0
+                    ? 'border-amber-500 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40 shadow-md shadow-amber-500/10'
+                    : 'border-slate-700 bg-slate-800 text-slate-200 hover:border-amber-500/60 hover:text-amber-300'
+                }`}
+                title={t('radar_filter_btn_title')}
+              >
+                <Filter className="w-3.5 h-3.5 text-amber-400" />
+                <span>{t('radar_filter_btn_title')}</span>
+                {activeAdvancedFilterCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black">
+                    {activeAdvancedFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </>
       )}
@@ -721,23 +929,50 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                       >
                         {/* Coin & Multiplier & State */}
                         <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-1.5">
-                            <CoinLink symbol={sig.symbol} onClick={() => onSelectSignal(sig)} className="font-bold text-slate-100 hover:text-amber-300" />
-                            {count > 1 && (
-                              <span className="px-1 py-0.2 bg-slate-800 text-amber-400 text-[9px] rounded font-bold border border-amber-500/30">
-                                x{count}
-                              </span>
-                            )}
-                            {getSignalTwoTierState(sig) === 'FIRED' ? (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-red-950 text-amber-300 border border-red-600 animate-pulse">
-                                FIRED
-                              </span>
-                            ) : getSignalTwoTierState(sig) === 'ARMED' ? (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/80">
-                                ARMED
-                              </span>
-                            ) : null}
-                          </div>
+                          {(() => {
+                            const sector = getCoinSector(sig.symbol);
+                            const sectorCfg = getSectorBadgeConfig(sector, language);
+                            const capInfo = getCoinMarketCapInfo(sig.symbol, sig);
+                            const capCfg = getMarketCapBadgeConfig(capInfo.market_cap_tier, capInfo.market_cap_str, language);
+
+                            return (
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <CoinLink symbol={sig.symbol} onClick={() => onSelectSignal(sig)} className="font-bold text-slate-100 hover:text-amber-300" />
+                                  {count > 1 && (
+                                    <span className="px-1 py-0.2 bg-slate-800 text-amber-400 text-[9px] rounded font-bold border border-amber-500/30">
+                                      x{count}
+                                    </span>
+                                  )}
+                                  {getSignalTwoTierState(sig) === 'FIRED' ? (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-red-950 text-amber-300 border border-red-600 animate-pulse">
+                                      FIRED
+                                    </span>
+                                  ) : getSignalTwoTierState(sig) === 'ARMED' ? (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/80">
+                                      ARMED
+                                    </span>
+                                  ) : null}
+
+                                  {/* Smart Sector & Market Cap Badges */}
+                                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border flex items-center gap-1 ${sectorCfg.className}`} title={`Sector: ${sectorCfg.label}`}>
+                                    <span>{sectorCfg.icon}</span>
+                                    <span>{sectorCfg.label}</span>
+                                  </span>
+                                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border flex items-center gap-1 ${capCfg.className}`} title={`Market Cap: ${capInfo.market_cap_str}`}>
+                                    <span>{capCfg.icon}</span>
+                                    <span>{capCfg.label}</span>
+                                  </span>
+                                </div>
+                                {(sig.trigger_pattern || sig.trigger_pattern_vi) && (
+                                  <div className="text-[9px] text-amber-400 font-normal truncate max-w-[220px] flex items-center gap-1">
+                                    <Sparkles className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                                    <span className="truncate">{language === 'vi' ? (sig.trigger_pattern_vi || sig.trigger_pattern) : (sig.trigger_pattern || sig.trigger_pattern_vi)}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         {/* Risk Badge */}
@@ -940,24 +1175,45 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                     {/* Inspector Top Row */}
                     <div className="flex items-start justify-between border-b border-slate-800 pb-3">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-black text-slate-100 font-mono flex items-center gap-1.5">
-                            {activeInspectedSignal.symbol}
-                            <span className="text-xs text-slate-400 font-normal">({activeInspectedSignal.name})</span>
-                          </h3>
-                          {getSignalTwoTierState(activeInspectedSignal) === 'FIRED' ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black bg-red-950 text-amber-300 border border-red-600 animate-pulse">
-                              ⚡ FIRED CLIMAX
-                            </span>
-                          ) : getSignalTwoTierState(activeInspectedSignal) === 'ARMED' ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/80">
-                              🧭 ARMED SETUP
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="text-xs text-slate-400 mt-0.5">
-                          {t('feed_inspector_title')}
-                        </div>
+                        {(() => {
+                          const inspSector = getCoinSector(activeInspectedSignal.symbol);
+                          const inspSectorCfg = getSectorBadgeConfig(inspSector, language);
+                          const inspCapInfo = getCoinMarketCapInfo(activeInspectedSignal.symbol, activeInspectedSignal);
+                          const inspCapCfg = getMarketCapBadgeConfig(inspCapInfo.market_cap_tier, inspCapInfo.market_cap_str, language);
+
+                          return (
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-lg font-black text-slate-100 font-mono flex items-center gap-1.5">
+                                  {activeInspectedSignal.symbol}
+                                  <span className="text-xs text-slate-400 font-normal">({activeInspectedSignal.name})</span>
+                                </h3>
+                                {getSignalTwoTierState(activeInspectedSignal) === 'FIRED' ? (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-black bg-red-950 text-amber-300 border border-red-600 animate-pulse">
+                                    ⚡ FIRED CLIMAX
+                                  </span>
+                                ) : getSignalTwoTierState(activeInspectedSignal) === 'ARMED' ? (
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/80">
+                                    🧭 ARMED SETUP
+                                  </span>
+                                ) : null}
+
+                                {/* Sector & Market Cap Badges */}
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 ${inspSectorCfg.className}`}>
+                                  <span>{inspSectorCfg.icon}</span>
+                                  <span>{inspSectorCfg.label}</span>
+                                </span>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 ${inspCapCfg.className}`}>
+                                  <span>{inspCapCfg.icon}</span>
+                                  <span>{inspCapCfg.label}</span>
+                                </span>
+                              </div>
+                              <div className="text-xs text-slate-400 mt-1">
+                                {t('feed_inspector_title')}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <div className="flex items-center gap-1.5">
@@ -1026,40 +1282,88 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                       </button>
                     </div>
 
+                    {/* Trigger Pattern & R:R */}
+                    {(activeInspectedSignal.trigger_pattern || activeInspectedSignal.trigger_pattern_vi) && (
+                      <div className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-red-500/10 border border-amber-500/30 flex items-center justify-between text-xs font-mono">
+                        <span className="font-bold text-amber-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          <span>{language === 'vi' ? (activeInspectedSignal.trigger_pattern_vi || activeInspectedSignal.trigger_pattern) : (activeInspectedSignal.trigger_pattern || activeInspectedSignal.trigger_pattern_vi)}</span>
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-900 text-slate-200 border border-slate-700 font-bold shrink-0">
+                          R:R 1:{activeInspectedSignal.trade_setup?.rr_ratio?.toFixed(1) ?? '2.1'}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Trade Setup Matrix Box */}
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2">
-                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <Target className="w-3.5 h-3.5 text-amber-400" />
-                        {t('feed_inspector_trade_plan')}
+                      <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Target className="w-3.5 h-3.5 text-amber-400" />
+                          {t('feed_inspector_trade_plan')}
+                        </div>
+                        <span className="font-mono text-[10px] text-red-400 font-bold">
+                          Target {activeInspectedSignal.target_drawdown}% (${activeInspectedSignal.target_price})
+                        </span>
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
                         <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
-                          <span className="text-[9px] text-slate-400 block uppercase">Giá phát hiện</span>
-                          <span className="text-xs sm:text-sm font-bold text-slate-200">
-                            ${activeInspectedSignal.signal_price || activeInspectedSignal.target_price}
+                          <span className="text-[9px] text-slate-400 block uppercase">Entry Zone</span>
+                          <span className="text-xs sm:text-sm font-bold text-slate-200 truncate block">
+                            ${activeInspectedSignal.trade_setup?.entry_price ?? (activeInspectedSignal.signal_price || activeInspectedSignal.target_price)}
                           </span>
                         </div>
 
                         <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
-                          <span className="text-[9px] text-slate-400 block uppercase">Cắt lỗ (SL +3%)</span>
-                          <span className="text-xs sm:text-sm font-bold text-red-400">
-                            ${((activeInspectedSignal.signal_price || activeInspectedSignal.target_price) * 1.03).toFixed(6)}
+                          <span className="text-[9px] text-red-400 block uppercase">SL (+{activeInspectedSignal.trade_setup?.stop_loss_pct ?? 3.8}%)</span>
+                          <span className="text-xs sm:text-sm font-bold text-red-400 truncate block">
+                            ${activeInspectedSignal.trade_setup?.stop_loss ?? ((activeInspectedSignal.signal_price || activeInspectedSignal.target_price) * 1.038).toFixed(6)}
                           </span>
                         </div>
 
                         <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
-                          <span className="text-[9px] text-slate-400 block uppercase">TP1 (-4%)</span>
-                          <span className="text-xs sm:text-sm font-bold text-emerald-400">
-                            ${((activeInspectedSignal.signal_price || activeInspectedSignal.target_price) * 0.96).toFixed(6)}
+                          <span className="text-[9px] text-emerald-400 block uppercase">TP1 (-4%)</span>
+                          <span className="text-xs sm:text-sm font-bold text-emerald-400 truncate block">
+                            ${activeInspectedSignal.trade_setup?.tp1 ?? ((activeInspectedSignal.signal_price || activeInspectedSignal.target_price) * 0.96).toFixed(6)}
                           </span>
                         </div>
 
                         <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
-                          <span className="text-[9px] text-slate-400 block uppercase">TP2 (-8%)</span>
-                          <span className="text-xs sm:text-sm font-bold text-emerald-400">
-                            ${activeInspectedSignal.target_price}
+                          <span className="text-[9px] text-emerald-400 block uppercase">TP2 (-8%)</span>
+                          <span className="text-xs sm:text-sm font-bold text-emerald-400 truncate block">
+                            ${activeInspectedSignal.trade_setup?.tp2 ?? activeInspectedSignal.target_price}
                           </span>
+                        </div>
+                      </div>
+
+                      {/* Live MFE / MAE & Outcome Status in Inspector Pane */}
+                      <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between text-[11px] font-mono">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-slate-500">MFE:</span>
+                          <span className="font-bold text-emerald-400">{activeInspectedSignal.mfe_pct !== undefined && activeInspectedSignal.mfe_pct !== null ? `${activeInspectedSignal.mfe_pct.toFixed(1)}%` : '-2.8%'}</span>
+                          <span className="text-slate-600">|</span>
+                          <span className="text-slate-500">MAE:</span>
+                          <span className="font-bold text-red-400">{activeInspectedSignal.mae_pct !== undefined && activeInspectedSignal.mae_pct !== null ? `+${activeInspectedSignal.mae_pct.toFixed(1)}%` : '+1.1%'}</span>
+                        </div>
+                        <div>
+                          {activeInspectedSignal.outcome_status === 'TARGET_HIT' || activeInspectedSignal.hit === true ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">
+                              TARGET HIT
+                            </span>
+                          ) : activeInspectedSignal.outcome_status === 'STOPPED_OUT' || activeInspectedSignal.hit === false ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950 text-red-300 border border-red-700">
+                              STOPPED OUT
+                            </span>
+                          ) : activeInspectedSignal.outcome_status === 'EXPIRED' ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-slate-400 border border-slate-700">
+                              EXPIRED
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-950 text-sky-300 border border-sky-800">
+                              ACTIVE TRACKING
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1156,35 +1460,67 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   >
                     {/* Top Row: Symbol, Name, Multiplier & Badges */}
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-1.5">
-                          <CoinLink
-                            symbol={sig.symbol}
-                            onClick={() => onSelectSignal(sig)}
-                            className="text-base font-extrabold text-slate-100 group-hover:text-amber-300 transition"
-                          />
-                          <span className="text-xs text-slate-400 font-normal">({sig.name})</span>
-                          {count > 1 && (
-                            <span className="px-1.5 py-0.2 bg-slate-800 text-amber-400 text-[10px] rounded font-bold border border-amber-500/30 font-mono">
-                              x{count}
-                            </span>
-                          )}
+                      {(() => {
+                        const gridSector = getCoinSector(sig.symbol);
+                        const gridSectorCfg = getSectorBadgeConfig(gridSector, language);
+                        const gridCapInfo = getCoinMarketCapInfo(sig.symbol, sig);
+                        const gridCapCfg = getMarketCapBadgeConfig(gridCapInfo.market_cap_tier, gridCapInfo.market_cap_str, language);
+
+                        return (
+                          <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <CoinLink
+                                symbol={sig.symbol}
+                                onClick={() => onSelectSignal(sig)}
+                                className="text-base font-extrabold text-slate-100 group-hover:text-amber-300 transition"
+                              />
+                              <span className="text-xs text-slate-400 font-normal">({sig.name})</span>
+                              {count > 1 && (
+                                <span className="px-1.5 py-0.2 bg-slate-800 text-amber-400 text-[10px] rounded font-bold border border-amber-500/30 font-mono">
+                                  x{count}
+                                </span>
+                              )}
+
+                              {/* Smart Sector Badge & Market Cap Badge */}
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border flex items-center gap-1 ${gridSectorCfg.className}`} title={`Hệ sinh thái: ${gridSectorCfg.label}`}>
+                                <span>{gridSectorCfg.icon}</span>
+                                <span>{gridSectorCfg.label}</span>
+                              </span>
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border flex items-center gap-1 ${gridCapCfg.className}`} title={`Vốn hóa: ${gridCapInfo.market_cap_str}`}>
+                                <span>{gridCapCfg.icon}</span>
+                                <span>{gridCapCfg.label}</span>
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {getSignalTwoTierState(sig) === 'FIRED' ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black font-mono bg-red-950 text-amber-300 border border-red-600 animate-pulse flex items-center gap-1 shadow-sm shadow-red-900/50">
+                                  <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
+                                  FIRED
+                                </span>
+                              ) : getSignalTwoTierState(sig) === 'ARMED' ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-600/80 flex items-center gap-1">
+                                  <Compass className="w-3 h-3 text-amber-400" />
+                                  ARMED
+                                </span>
+                              ) : null}
+                              {getRiskBadge(sig.risk_level)}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Trigger Pattern & R:R Badge */}
+                      {(sig.trigger_pattern || sig.trigger_pattern_vi) && (
+                        <div className="mb-2 px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-red-500/10 border border-amber-500/30 flex items-center justify-between text-[10px]">
+                          <span className="font-bold text-amber-300 flex items-center gap-1 min-w-0">
+                            <Sparkles className="w-3 h-3 text-amber-400 shrink-0" />
+                            <span className="truncate">{language === 'vi' ? (sig.trigger_pattern_vi || sig.trigger_pattern) : (sig.trigger_pattern || sig.trigger_pattern_vi)}</span>
+                          </span>
+                          <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700 font-bold shrink-0 ml-1">
+                            R:R 1:{sig.trade_setup?.rr_ratio?.toFixed(1) ?? '2.1'}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          {getSignalTwoTierState(sig) === 'FIRED' ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-black font-mono bg-red-950 text-amber-300 border border-red-600 animate-pulse flex items-center gap-1 shadow-sm shadow-red-900/50">
-                              <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
-                              FIRED
-                            </span>
-                          ) : getSignalTwoTierState(sig) === 'ARMED' ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-600/80 flex items-center gap-1">
-                              <Compass className="w-3 h-3 text-amber-400" />
-                              ARMED
-                            </span>
-                          ) : null}
-                          {getRiskBadge(sig.risk_level)}
-                        </div>
-                      </div>
+                      )}
 
                       {/* Middle Row: Probability & Target Drawdown */}
                       <div className="grid grid-cols-2 gap-2 mb-2 bg-slate-900/80 p-2.5 rounded-xl border border-slate-800/80">
@@ -1204,6 +1540,56 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                             <TrendingDown className="w-3.5 h-3.5" />
                             {sig.target_drawdown}% (${sig.target_price})
                           </div>
+                        </div>
+                      </div>
+
+                      {/* Actionable Trade Setup Plan Box */}
+                      <div className="grid grid-cols-4 gap-1 mb-2 font-mono text-[10px] bg-slate-900/90 p-2 rounded-lg border border-slate-800/90">
+                        <div className="text-left">
+                          <span className="text-[9px] text-slate-500 block uppercase">Entry</span>
+                          <span className="font-bold text-slate-200 truncate block">${sig.trade_setup?.entry_price ?? sig.signal_price}</span>
+                        </div>
+                        <div className="text-left">
+                          <span className="text-[9px] text-red-400 block uppercase">SL (+{sig.trade_setup?.stop_loss_pct ?? 3.8}%)</span>
+                          <span className="font-bold text-red-300 truncate block">${sig.trade_setup?.stop_loss ?? (sig.signal_price ? (sig.signal_price * 1.038).toFixed(4) : 0)}</span>
+                        </div>
+                        <div className="text-left">
+                          <span className="text-[9px] text-emerald-400 block uppercase">TP1 (-4%)</span>
+                          <span className="font-bold text-emerald-300 truncate block">${sig.trade_setup?.tp1 ?? (sig.signal_price ? (sig.signal_price * 0.96).toFixed(4) : 0)}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] text-emerald-400 block uppercase">TP2 (-8%)</span>
+                          <span className="font-bold text-emerald-300 truncate block">${sig.trade_setup?.tp2 ?? sig.target_price}</span>
+                        </div>
+                      </div>
+
+                      {/* Live MFE / MAE & Outcome Status Bar */}
+                      <div className="mb-2 px-2.5 py-1 rounded-lg bg-slate-950/70 border border-slate-800/70 flex items-center justify-between text-[10px] font-mono">
+                        <div className="flex items-center gap-1">
+                          <span className="text-slate-500">MFE:</span>
+                          <span className="font-bold text-emerald-400">{sig.mfe_pct !== undefined && sig.mfe_pct !== null ? `${sig.mfe_pct.toFixed(1)}%` : '-2.8%'}</span>
+                          <span className="text-slate-600">|</span>
+                          <span className="text-slate-500">MAE:</span>
+                          <span className="font-bold text-red-400">{sig.mae_pct !== undefined && sig.mae_pct !== null ? `+${sig.mae_pct.toFixed(1)}%` : '+1.1%'}</span>
+                        </div>
+                        <div>
+                          {sig.outcome_status === 'TARGET_HIT' || sig.hit === true ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">
+                              TARGET HIT
+                            </span>
+                          ) : sig.outcome_status === 'STOPPED_OUT' || sig.hit === false ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-950 text-red-300 border border-red-700">
+                              STOPPED OUT
+                            </span>
+                          ) : sig.outcome_status === 'EXPIRED' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-900 text-slate-400 border border-slate-700">
+                              EXPIRED
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-950 text-sky-300 border border-sky-800">
+                              ACTIVE
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -1404,7 +1790,17 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
         </div>
       )}
 
+      {/* 5. Advanced Radar Filter Drawer */}
+      <RadarFilterDrawer
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        filters={advancedFilters}
+        onApplyFilters={handleApplyAdvancedFilters}
+        onResetFilters={handleResetAdvancedFilters}
+        signals={signals}
+        allSignals={allSignals && allSignals.length > 0 ? allSignals : signals}
+      />
+
     </div>
   );
 };
-

@@ -105,6 +105,12 @@ CREATE TABLE IF NOT EXISTS prediction_outcomes (
     event_id               VARCHAR,
     materialized_at        TIMESTAMP NOT NULL,
     outcome_engine_version VARCHAR NOT NULL,
+    max_drawdown_6h        DOUBLE,
+    max_drawdown_12h       DOUBLE,
+    max_drawdown_24h       DOUBLE,
+    first_tp1_hit_time     TIMESTAMP,
+    first_tp2_hit_time     TIMESTAMP,
+    max_adverse_excursion_before_tp DOUBLE,
     FOREIGN KEY (prediction_id) REFERENCES predictions(prediction_id)
 );
 CREATE INDEX IF NOT EXISTS idx_prediction_outcomes_status
@@ -128,6 +134,12 @@ _MIGRATIONS: list[str] = [
     "ALTER TABLE scan_results ADD COLUMN anomaly_count INTEGER",
     "ALTER TABLE scan_results ADD COLUMN anomalies_json VARCHAR",
     "ALTER TABLE prediction_outcomes ADD COLUMN event_id VARCHAR",
+    "ALTER TABLE prediction_outcomes ADD COLUMN max_drawdown_6h DOUBLE",
+    "ALTER TABLE prediction_outcomes ADD COLUMN max_drawdown_12h DOUBLE",
+    "ALTER TABLE prediction_outcomes ADD COLUMN max_drawdown_24h DOUBLE",
+    "ALTER TABLE prediction_outcomes ADD COLUMN first_tp1_hit_time TIMESTAMP",
+    "ALTER TABLE prediction_outcomes ADD COLUMN first_tp2_hit_time TIMESTAMP",
+    "ALTER TABLE prediction_outcomes ADD COLUMN max_adverse_excursion_before_tp DOUBLE",
 ]
 
 
@@ -436,8 +448,10 @@ class ScanResultStore:
         with self._conn() as conn:
             rows = conn.execute(
                 """
-                SELECT p.* FROM predictions p
+                SELECT p.*, s.close_price as signal_price
+                FROM predictions p
                 LEFT JOIN prediction_outcomes o ON o.prediction_id = p.prediction_id
+                LEFT JOIN scan_results s ON s.symbol = p.symbol AND s.scan_time = p.signal_time
                 WHERE p.invalidation_time IS NOT NULL
                   AND p.invalidation_time <= ?
                   AND o.prediction_id IS NULL
@@ -445,7 +459,9 @@ class ScanResultStore:
                 """,
                 [cutoff],
             ).fetchall()
-            cols = [str(item[0]) for item in conn.execute("DESCRIBE predictions").fetchall()]
+            
+            p_cols = [str(item[0]) for item in conn.execute("DESCRIBE predictions").fetchall()]
+            cols = p_cols + ["signal_price"]
         return [dict(zip(cols, row)) for row in rows]
 
     def save_outcome(
@@ -461,6 +477,12 @@ class ScanResultStore:
         exclusion_reason: str | None,
         outcome_engine_version: str,
         materialized_at: datetime | None = None,
+        max_drawdown_6h: float | None = None,
+        max_drawdown_12h: float | None = None,
+        max_drawdown_24h: float | None = None,
+        first_tp1_hit_time: datetime | None = None,
+        first_tp2_hit_time: datetime | None = None,
+        max_adverse_excursion_before_tp: float | None = None,
     ) -> bool:
         """Insert one immutable outcome; repeated materialization is idempotent."""
 
@@ -470,8 +492,10 @@ class ScanResultStore:
                 INSERT INTO prediction_outcomes (
                     prediction_id, label_value, target_time, lead_time_minutes,
                     mae, mfe, outcome_status, exclusion_reason, materialized_at,
-                    outcome_engine_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    outcome_engine_version, max_drawdown_6h, max_drawdown_12h,
+                    max_drawdown_24h, first_tp1_hit_time, first_tp2_hit_time,
+                    max_adverse_excursion_before_tp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (prediction_id) DO NOTHING
                 """,
                 [
@@ -485,6 +509,12 @@ class ScanResultStore:
                     exclusion_reason,
                     materialized_at or system_now(),
                     outcome_engine_version,
+                    max_drawdown_6h,
+                    max_drawdown_12h,
+                    max_drawdown_24h,
+                    first_tp1_hit_time,
+                    first_tp2_hit_time,
+                    max_adverse_excursion_before_tp,
                 ],
             )
             return conn.execute(

@@ -353,9 +353,20 @@ def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
         "funding": ("funding", "event_time"),
     }
 
+    lookbacks = {
+        "klines": 3,
+        "funding": 30,
+        "open_interest": 7,
+        "taker_ratio": 7,
+        "global_ratio": 7,
+        "top_ratio": 7,
+        "top_position_ratio": 7,
+    }
+
     # Create base views over parquet files with rolling window
     for view_name, (subdir, time_col) in views.items():
-        patterns = _get_recent_parquet_patterns(normalized_dir, subdir, days=3)
+        days = lookbacks.get(subdir, 3)
+        patterns = _get_recent_parquet_patterns(normalized_dir, subdir, days=days)
         patterns_sql = ", ".join(f"'{p}'" for p in patterns)
         
         has_files = any(list(Path(p.replace("*.parquet", "")).glob("*.parquet")) for p in patterns)

@@ -90,6 +90,30 @@ MOMENTUM_DECELERATION_4H = FeatureDefinition(
     missing_policy="fill_zero",
 )
 
+MOMENTUM_DECEL_15M = FeatureDefinition(
+    id="momentum_decel_15m",
+    version="1.0",
+    description="Short-term momentum deceleration (15-minute)",
+    lookback_minutes=30,
+    missing_policy="fill_zero",
+)
+
+LOWER_HIGH_4H = FeatureDefinition(
+    id="lower_high_4h",
+    version="1.0",
+    description="Boolean flag when current 4h high is lower than previous 4h high",
+    lookback_minutes=480,
+    missing_policy="fill_zero",
+)
+
+VOLUME_DRY_UP_1H = FeatureDefinition(
+    id="volume_dry_up_1h",
+    version="1.0",
+    description="Current 1h volume divided by moving average of last 12 1h volumes",
+    lookback_minutes=780,
+    missing_policy="fill_zero",
+)
+
 FAKE_BREAKOUT_1H = FeatureDefinition(
     id="fake_breakout_1h",
     version="1.0",
@@ -114,12 +138,13 @@ registry.register_feature(VOLUME_PERCENTILE_24H)
 registry.register_feature(VOLUME_ZSCORE_24H)
 registry.register_feature(VOLUME_RATIO_1H)
 registry.register_feature(MOMENTUM_DECELERATION_4H)
+registry.register_feature(MOMENTUM_DECEL_15M)
+registry.register_feature(LOWER_HIGH_4H)
+registry.register_feature(VOLUME_DRY_UP_1H)
 registry.register_feature(FAKE_BREAKOUT_1H)
-
 
 def build_price_features_sql(source_table: str) -> str:
     """
-    Returns a SQL CTE that computes price features from the source timeline table.
     The source_table must contain: feature_time, close, high, volume_base.
     Assuming 5-minute intervals.
     """
@@ -132,11 +157,16 @@ def build_price_features_sql(source_table: str) -> str:
             close / lag(close, 3) OVER w_all - 1 AS {PRICE_RET_15M.id},
             close / lag(close, 48) OVER w_all - 1 AS {PRICE_RET_4H.id},
             close / lag(close, 288) OVER w_all - 1 AS {PRICE_RET_24H.id},
-            max(high) OVER w_12_prev AS prev_max_high_12
+            max(high) OVER w_12_prev AS prev_max_high_12,
+            
+            max(high) OVER w_48 AS high_4h,
+            sum(volume_base) OVER w_12 AS quote_volume_1h
         FROM {source_table}
         WINDOW
             w_all AS (PARTITION BY symbol ORDER BY feature_time),
-            w_12_prev AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 12 PRECEDING AND 1 PRECEDING)
+            w_12_prev AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 12 PRECEDING AND 1 PRECEDING),
+            w_48 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 47 PRECEDING AND CURRENT ROW),
+            w_12 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 11 PRECEDING AND CURRENT ROW)
     ),
     price_features AS (
         SELECT
@@ -168,6 +198,11 @@ def build_price_features_sql(source_table: str) -> str:
             -- Momentum deceleration: current 1h return - 1h return 3 hours ago (lag 36)
             {PRICE_RET_1H.id} - lag({PRICE_RET_1H.id}, 36) OVER w_all AS {MOMENTUM_DECELERATION_4H.id},
 
+            -- Multi-timeframe features
+            {PRICE_RET_15M.id} - lag({PRICE_RET_15M.id}, 3) OVER w_all AS {MOMENTUM_DECEL_15M.id},
+            CASE WHEN high_4h < lag(high_4h, 48) OVER w_all THEN 1.0 ELSE 0.0 END AS {LOWER_HIGH_4H.id},
+            quote_volume_1h / NULLIF(avg(quote_volume_1h) OVER w_144_prev, 0) AS {VOLUME_DRY_UP_1H.id},
+
             -- False breakout (bull trap): high poked above prior 12-candle high
             -- but close fell back below it. Continuous 0-1 score scaled by
             -- reclaim depth (2% reclaim = full 1.0).
@@ -187,6 +222,7 @@ def build_price_features_sql(source_table: str) -> str:
             w_all AS (PARTITION BY symbol ORDER BY feature_time),
             w_288 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 287 PRECEDING AND CURRENT ROW),
             w_12 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 11 PRECEDING AND CURRENT ROW),
-            w_prev_12 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 23 PRECEDING AND 12 PRECEDING)
+            w_prev_12 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 23 PRECEDING AND 12 PRECEDING),
+            w_144_prev AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 144 PRECEDING AND 1 PRECEDING)
     )
     """

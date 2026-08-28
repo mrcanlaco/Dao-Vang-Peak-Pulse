@@ -475,14 +475,17 @@ def detect_market_anomalies(
             )
 
     # 4. Price/OI divergence and leverage build-up.
-    oi_4h = _number(features, "oi_change_4h")
-    oi_24h = _number(features, "oi_change_24h")
-    price_oi_divergence = _number(features, "price_oi_divergence_1h")
+    oi_age = _number(features, "oi_age_minutes")
+    oi_max_age = _config_value(resolved, "oi_max_age_minutes", 60.0)
+    oi_fresh = oi_age is None or oi_age <= oi_max_age
+    oi_4h = _number(features, "oi_change_4h") if oi_fresh else None
+    oi_24h = _number(features, "oi_change_24h") if oi_fresh else None
+    price_oi_divergence = _number(features, "price_oi_divergence_1h") if oi_fresh else None
     oi_threshold = _config_value(resolved, "oi_unwind_threshold", 0.03)
     oi_unwind_score = 0.0
     oi_metric = "oi_change_4h"
     oi_value: float | None = None
-    if price_4h is not None and price_4h >= prior_threshold:
+    if oi_fresh and price_4h is not None and price_4h >= prior_threshold:
         if oi_4h is not None and oi_4h <= -oi_threshold:
             oi_unwind_score = _threshold_score(abs(oi_4h), oi_threshold, 0.15)
             oi_value = oi_4h
@@ -515,7 +518,8 @@ def detect_market_anomalies(
         )
 
     if (
-        oi_4h is not None
+        oi_fresh
+        and oi_4h is not None
         and oi_4h >= 0.05
         and (price_4h is None or abs(price_4h) <= 0.02)
     ):

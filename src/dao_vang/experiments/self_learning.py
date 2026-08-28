@@ -83,6 +83,7 @@ def _load_resolved_training_frame(
     conn: duckdb.DuckDBPyConnection,
     *,
     horizon_hours: int,
+    preferred_horizon: int = 12,
 ) -> pd.DataFrame:
     """Load one point-in-time feature row per resolved signal.
 
@@ -118,6 +119,7 @@ def _load_resolved_training_frame(
                 o.label_value,
                 o.materialized_at,
                 o.event_id,
+                o.max_drawdown_{preferred_horizon}h,
                 ROW_NUMBER() OVER (
                     PARTITION BY p.symbol, p.signal_time, p.horizon_hours
                     ORDER BY o.materialized_at DESC, p.created_at DESC,
@@ -135,7 +137,11 @@ def _load_resolved_training_frame(
             f.*,
             r.prediction_id,
             r.horizon_hours,
-            r.label_value AS target_label,
+            CASE 
+                WHEN r.max_drawdown_{preferred_horizon}h IS NOT NULL THEN
+                    CASE WHEN r.max_drawdown_{preferred_horizon}h <= -0.04 THEN 1 ELSE 0 END
+                ELSE r.label_value 
+            END AS target_label,
             r.materialized_at AS outcome_materialized_at,
             r.event_id AS outcome_event_id,
             'live' AS training_source
