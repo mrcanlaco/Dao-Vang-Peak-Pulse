@@ -194,6 +194,89 @@ class UpdateManager:
                 failed.append(relative_path)
         return failed
 
+    def _fetch_remote_github_api(
+        self,
+        branch: str = "main",
+        local_hash: str = "",
+    ) -> tuple[str, str, str, int, list[dict[str, Any]], bool, bool, str | None]:
+        """Fetch remote commit information using GitHub REST API as fallback."""
+        import json
+        import urllib.request
+
+        owner = "mrcanlaco"
+        repo = "dao_vang"
+        headers = {"User-Agent": "DaoVang-Updater/2.0"}
+
+        try:
+            # If we have local_hash, try compare API first
+            if local_hash and local_hash != "UNKNOWN":
+                compare_url = f"https://api.github.com/repos/{owner}/{repo}/compare/{local_hash}...{branch}"
+                req = urllib.request.Request(compare_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    if resp.status == 200:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        ahead_by = int(data.get("ahead_by", 0))
+                        commits_list = data.get("commits", [])
+
+                        remote_hash = ""
+                        remote_msg = ""
+                        if commits_list:
+                            last_c = commits_list[-1]
+                            remote_hash = last_c.get("sha", "")
+                            remote_msg = last_c.get("commit", {}).get("message", "").split("\n")[0]
+                        elif "base_commit" in data:
+                            remote_hash = data.get("base_commit", {}).get("sha", "")
+                            remote_msg = data.get("base_commit", {}).get("commit", {}).get("message", "").split("\n")[0]
+
+                        new_commits: list[dict[str, Any]] = []
+                        has_dep = False
+                        has_fe = False
+
+                        for c in commits_list:
+                            c_sha = c.get("sha", "")
+                            c_short = c_sha[:7] if c_sha else ""
+                            c_msg = c.get("commit", {}).get("message", "").split("\n")[0]
+                            c_author = c.get("commit", {}).get("author", {}).get("name", "GitHub")
+                            c_date = c.get("commit", {}).get("author", {}).get("date", "")
+                            c_type, c_scope = self._parse_commit_type(c_msg)
+                            new_commits.append({
+                                "hash": c_sha,
+                                "short_hash": c_short,
+                                "author": c_author,
+                                "date": c_date,
+                                "message": c_msg,
+                                "type": c_type,
+                                "scope": c_scope,
+                            })
+
+                        for f in data.get("files", []):
+                            filename = f.get("filename", "").lower()
+                            if filename in ("pyproject.toml", "uv.lock", "requirements.txt", "package.json", "package-lock.json"):
+                                has_dep = True
+                            if filename.startswith("frontend/"):
+                                has_fe = True
+
+                        remote_short = remote_hash[:7] if remote_hash else ""
+                        return (remote_hash, remote_short, remote_msg, ahead_by, new_commits, has_dep, has_fe, None)
+
+            # Fallback to single commit endpoint
+            commit_url = f"https://api.github.com/repos/{owner}/{repo}/commits/{branch}"
+            req = urllib.request.Request(commit_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    remote_hash = data.get("sha", "")
+                    remote_short = remote_hash[:7] if remote_hash else ""
+                    remote_msg = data.get("commit", {}).get("message", "").split("\n")[0]
+                    behind = 1 if local_hash and remote_hash != local_hash else 0
+                    return (remote_hash, remote_short, remote_msg, behind, [], False, False, None)
+
+        except Exception as exc:
+            logger.warning("github_api_fetch_failed error=%s", exc)
+            return ("", "", "", 0, [], False, False, str(exc))
+
+        return ("", "", "", 0, [], False, False, "Unknown GitHub API error")
+
     def check_for_updates(
         self,
         remote: str | None = None,
@@ -213,94 +296,116 @@ class UpdateManager:
         _, local_short, _ = self._run_cmd(["git", "rev-parse", "--short", "HEAD"])
         _, local_msg, _ = self._run_cmd(["git", "log", "-1", "--pretty=%s", "HEAD"])
 
-        # 3. Fetch remote silently
-        fetch_cmd = ["git", "fetch", remote_name, branch_name, "--quiet"]
-        fetch_code, _, fetch_err = self._run_cmd(fetch_cmd, timeout=30)
-        if fetch_code != 0:
-            logger.warning("git_fetch_failed remote=%s branch=%s error=%s", remote_name, branch_name, fetch_err)
-            return UpdateStatus(
-                update_available=False,
-                current_branch=current_branch,
-                local_commit=local_hash or "UNKNOWN",
-                local_commit_short=local_short or "UNKNOWN",
-                local_commit_message=local_msg or "",
-                remote_commit="UNKNOWN",
-                remote_commit_short="UNKNOWN",
-                remote_commit_message="",
-                commits_behind=0,
-                commits_ahead=0,
-                error=f"Không thể kết nối tới GitHub ({fetch_err or 'Git fetch failed'})",
-            )
-
-        # 4. Get remote HEAD commit info
-        remote_ref = f"{remote_name}/{branch_name}"
-        _, remote_hash, _ = self._run_cmd(["git", "rev-parse", remote_ref])
-        _, remote_short, _ = self._run_cmd(["git", "rev-parse", "--short", remote_ref])
-        _, remote_msg, _ = self._run_cmd(["git", "log", "-1", "--pretty=%s", remote_ref])
-
-        # 5. Calculate commits behind / ahead
-        _, rev_count, _ = self._run_cmd(["git", "rev-list", "--left-right", "--count", f"HEAD...{remote_ref}"])
-        ahead, behind = 0, 0
-        if rev_count and "\t" in rev_count:
-            parts = rev_count.split("\t")
-            ahead = int(parts[0]) if parts[0].isdigit() else 0
-            behind = int(parts[1]) if parts[1].isdigit() else 0
-
-        # 6. Parse new commits if behind
+        remote_hash = ""
+        remote_short = ""
+        remote_msg = ""
+        ahead = 0
+        behind = 0
         new_commits: list[dict[str, Any]] = []
         has_dep_changes = False
         has_fe_changes = False
+        check_error: str | None = None
 
-        if behind > 0:
-            log_format = "%H%x1f%h%x1f%an%x1f%ad%x1f%s"
-            cmd = ["git", "log", f"--pretty=format:{log_format}", f"HEAD..{remote_ref}"]
-            code, stdout, _ = self._run_cmd(cmd)
-            if code == 0 and stdout:
-                for line in stdout.strip().split("\n"):
-                    if not line:
-                        continue
-                    fields = line.split("\x1f")
-                    if len(fields) >= 5:
-                        c_hash, c_short, c_author, c_date, c_msg = fields[:5]
-                        c_type, c_scope = self._parse_commit_type(c_msg)
-                        new_commits.append({
-                            "hash": c_hash,
-                            "short_hash": c_short,
-                            "author": c_author,
-                            "date": c_date,
-                            "message": c_msg,
-                            "type": c_type,
-                            "scope": c_scope,
-                        })
+        # 3. Try standard git fetch
+        fetch_cmd = ["git", "fetch", remote_name, branch_name, "--quiet"]
+        fetch_code, _, fetch_err = self._run_cmd(fetch_cmd, timeout=30)
 
-            # Check file diffs for dependency or frontend changes
-            diff_cmd = ["git", "diff", "--name-only", f"HEAD..{remote_ref}"]
-            code, diff_files_str, _ = self._run_cmd(diff_cmd)
-            if code == 0 and diff_files_str:
-                changed_files = diff_files_str.split("\n")
-                for f in changed_files:
-                    f = f.strip().lower()
-                    if f in ("pyproject.toml", "uv.lock", "requirements.txt", "package.json", "package-lock.json"):
-                        has_dep_changes = True
-                    if f.startswith("frontend/"):
-                        has_fe_changes = True
+        if fetch_code == 0:
+            # 4. Get remote HEAD commit info from local git refs
+            remote_ref = f"{remote_name}/{branch_name}"
+            _, remote_hash, _ = self._run_cmd(["git", "rev-parse", remote_ref])
+            _, remote_short, _ = self._run_cmd(["git", "rev-parse", "--short", remote_ref])
+            _, remote_msg, _ = self._run_cmd(["git", "log", "-1", "--pretty=%s", remote_ref])
 
-        update_available = behind > 0 or (local_hash != remote_hash and local_hash != "")
+            # 5. Calculate commits behind / ahead
+            _, rev_count, _ = self._run_cmd(["git", "rev-list", "--left-right", "--count", f"HEAD...{remote_ref}"])
+            if rev_count and "\t" in rev_count:
+                parts = rev_count.split("\t")
+                ahead = int(parts[0]) if parts[0].isdigit() else 0
+                behind = int(parts[1]) if parts[1].isdigit() else 0
+
+            # 6. Parse new commits if behind
+            if behind > 0:
+                log_format = "%H%x1f%h%x1f%an%x1f%ad%x1f%s"
+                cmd = ["git", "log", f"--pretty=format:{log_format}", f"HEAD..{remote_ref}"]
+                code, stdout, _ = self._run_cmd(cmd)
+                if code == 0 and stdout:
+                    for line in stdout.strip().split("\n"):
+                        if not line:
+                            continue
+                        fields = line.split("\x1f")
+                        if len(fields) >= 5:
+                            c_hash, c_short, c_author, c_date, c_msg = fields[:5]
+                            c_type, c_scope = self._parse_commit_type(c_msg)
+                            new_commits.append({
+                                "hash": c_hash,
+                                "short_hash": c_short,
+                                "author": c_author,
+                                "date": c_date,
+                                "message": c_msg,
+                                "type": c_type,
+                                "scope": c_scope,
+                            })
+
+                diff_cmd = ["git", "diff", "--name-only", f"HEAD..{remote_ref}"]
+                code, diff_files_str, _ = self._run_cmd(diff_cmd)
+                if code == 0 and diff_files_str:
+                    changed_files = diff_files_str.split("\n")
+                    for f in changed_files:
+                        f = f.strip().lower()
+                        if f in ("pyproject.toml", "uv.lock", "requirements.txt", "package.json", "package-lock.json"):
+                            has_dep_changes = True
+                        if f.startswith("frontend/"):
+                            has_fe_changes = True
+        else:
+            logger.info("git_fetch_failed_trying_fallback error=%s", fetch_err)
+
+            # Try ls-remote (works even with read-only .git filesystem)
+            ls_code, ls_out, ls_err = self._run_cmd(["git", "ls-remote", remote_name, f"refs/heads/{branch_name}"])
+            if ls_code != 0:
+                repo_url = "https://github.com/mrcanlaco/dao_vang.git"
+                ls_code, ls_out, ls_err = self._run_cmd(["git", "ls-remote", repo_url, f"refs/heads/{branch_name}"])
+
+            if ls_code == 0 and ls_out:
+                remote_hash = ls_out.split()[0]
+                remote_short = remote_hash[:7] if remote_hash else ""
+
+            # Fallback to GitHub REST API to get commit list, messages, and diff details
+            gh_hash, gh_short, gh_msg, gh_behind, gh_commits, gh_dep, gh_fe, gh_err = self._fetch_remote_github_api(
+                branch=branch_name,
+                local_hash=local_hash,
+            )
+
+            if gh_hash:
+                remote_hash = gh_hash
+                remote_short = gh_short
+                remote_msg = gh_msg
+                behind = gh_behind
+                new_commits = gh_commits
+                has_dep_changes = gh_dep
+                has_fe_changes = gh_fe
+            elif remote_hash:
+                behind = 1 if local_hash and remote_hash != local_hash else 0
+            else:
+                check_error = f"Không thể kết nối tới GitHub ({fetch_err or ls_err or gh_err or 'Git check failed'})"
+
+        update_available = (behind > 0 or (bool(local_hash) and bool(remote_hash) and local_hash != remote_hash))
 
         return UpdateStatus(
             update_available=update_available,
             current_branch=current_branch,
-            local_commit=local_hash or "",
-            local_commit_short=local_short or "",
+            local_commit=local_hash or "UNKNOWN",
+            local_commit_short=local_short or "UNKNOWN",
             local_commit_message=local_msg or "",
-            remote_commit=remote_hash or "",
-            remote_commit_short=remote_short or "",
+            remote_commit=remote_hash or ("UNKNOWN" if check_error else (local_hash or "")),
+            remote_commit_short=remote_short or ("UNKNOWN" if check_error else (local_short or "")),
             remote_commit_message=remote_msg or "",
             commits_behind=behind,
             commits_ahead=ahead,
             new_commits=new_commits,
             has_dependency_changes=has_dep_changes,
             has_frontend_changes=has_fe_changes,
+            error=check_error,
         )
 
     def apply_update(
