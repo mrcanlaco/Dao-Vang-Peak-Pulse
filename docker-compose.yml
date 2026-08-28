@@ -62,6 +62,8 @@ services:
       - ./data:/app/data_live
       - ./artifacts:/app/artifacts
       - ./configs:/app/configs
+      - ./.git:/app/.git:ro
+      - ./CHANGELOG.md:/app/CHANGELOG.md:ro
     depends_on:
       - scanner
     healthcheck:

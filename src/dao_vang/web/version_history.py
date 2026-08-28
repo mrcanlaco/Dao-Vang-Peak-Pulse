@@ -205,6 +205,19 @@ def _get_current_git_info(cwd: Path) -> dict[str, str]:
     except Exception:
         pass
 
+    # If git repo info is missing, fetch latest commit from GitHub API
+    if not info["head_hash"]:
+        try:
+            import urllib.request
+            gh_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/commits/main"
+            req = urllib.request.Request(gh_url, headers={"User-Agent": "DaoVang-App"})
+            with urllib.request.urlopen(req, timeout=8) as response:
+                if response.status == 200:
+                    gh_commit = json.loads(response.read().decode("utf-8"))
+                    info["head_hash"] = gh_commit.get("sha", "")
+        except Exception:
+            pass
+
     try:
         res = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -265,6 +278,7 @@ def extract_git_commits(repo_root: Path, limit: int = 500) -> list[dict[str, Any
         "--shortstat",
     ]
 
+    raw_output = ""
     try:
         res = subprocess.run(
             cmd,
@@ -275,13 +289,47 @@ def extract_git_commits(repo_root: Path, limit: int = 500) -> list[dict[str, Any
             errors="replace",
             check=False,
         )
-        if res.returncode != 0:
-            logger.warning("git log exited with code %d: %s", res.returncode, res.stderr)
-            return []
-
-        raw_output = res.stdout
+        if res.returncode == 0 and res.stdout.strip():
+            raw_output = res.stdout
     except Exception as e:
-        logger.error("Failed to execute git log: %s", e)
+        logger.warning("Local git log failed: %s", e)
+
+    # Fallback to GitHub Public API if local git is unavailable (e.g. inside Docker container)
+    if not raw_output:
+        try:
+            import urllib.request
+            gh_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/commits?per_page={min(limit, 100)}"
+            req = urllib.request.Request(gh_url, headers={"User-Agent": "DaoVang-App"})
+            with urllib.request.urlopen(req, timeout=10) as response:
+                if response.status == 200:
+                    gh_data = json.loads(response.read().decode("utf-8"))
+                    gh_commits = []
+                    for item in gh_data:
+                        c_sha = item.get("sha", "")
+                        c_commit = item.get("commit", {})
+                        c_author = c_commit.get("author", {})
+                        c_msg = c_commit.get("message", "").split("\n")[0]
+                        c_date = c_author.get("date", "")
+                        c_type, scope, clean_desc = _parse_conventional_commit(c_msg)
+                        gh_commits.append({
+                            "hash": c_sha,
+                            "short_hash": c_sha[:7],
+                            "author": c_author.get("name", "Unknown"),
+                            "author_email": c_author.get("email", ""),
+                            "date": c_date,
+                            "subject": c_msg,
+                            "type": c_type,
+                            "scope": scope,
+                            "description": clean_desc,
+                            "github_url": f"{GITHUB_REPO_URL}/commit/{c_sha}",
+                            "stats": {"files_changed": 1, "insertions": 0, "deletions": 0},
+                        })
+                    if gh_commits:
+                        return gh_commits
+        except Exception as exc:
+            logger.warning("GitHub API commits fallback failed: %s", exc)
+
+    if not raw_output:
         return []
 
     commits: list[dict[str, Any]] = []
