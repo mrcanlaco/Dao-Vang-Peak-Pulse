@@ -318,9 +318,27 @@ def process_raw_to_parquet(settings: AppSettings, dataset_version: str = "1.0.0"
     return created_files
 
 
+def _get_recent_parquet_patterns(normalized_dir: Path, subdir: str, days: int = 3) -> list[str]:
+    """Return parquet glob patterns restricted to the recent N days to prevent full-disk I/O scans."""
+    now_utc = datetime.now(timezone.utc)
+    date_patterns = []
+    for i in range(days):
+        d_str = (now_utc - timedelta(days=i)).strftime("%Y-%m-%d")
+        d_path = normalized_dir / subdir / f"date={d_str}"
+        if d_path.exists():
+            date_patterns.append(str(d_path / "*.parquet").replace("\\", "/"))
+    # Fallback to general subdir glob if no dated directories found
+    if not date_patterns:
+        sub_path = normalized_dir / subdir
+        if sub_path.exists():
+            date_patterns.append(str(sub_path / "**/*.parquet").replace("\\", "/"))
+    return date_patterns
+
+
 def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
     """
     Mounts parquet files into DuckDB views and stitches them into the raw_timeline.
+    Restricted to recent 3-day rolling window for sub-second I/O performance.
     """
     normalized_dir = settings.paths.data_dir / "normalized"
 
@@ -335,11 +353,18 @@ def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
         "funding": ("funding", "event_time"),
     }
 
-    # Create base views over parquet files
+    # Create base views over parquet files with rolling window
     for view_name, (subdir, time_col) in views.items():
-        path_pattern = str(normalized_dir / subdir / "**/*.parquet").replace("\\", "/")
-        # We check if there are any parquet files first.
-        if list((normalized_dir / subdir).rglob("*.parquet")):
+        patterns = _get_recent_parquet_patterns(normalized_dir, subdir, days=3)
+        patterns_sql = ", ".join(f"'{p}'" for p in patterns)
+        
+        has_files = any(list(Path(p.replace("*.parquet", "")).glob("*.parquet")) for p in patterns)
+        if not has_files:
+            has_files = bool(list((normalized_dir / subdir).rglob("*.parquet")))
+            if has_files:
+                patterns_sql = f"'{str(normalized_dir / subdir / '**/*.parquet').replace(chr(92), '/')}'"
+
+        if has_files:
             for kind in ("VIEW", "TABLE"):
                 try:
                     db.conn.execute(f"DROP {kind} {view_name}")
@@ -348,18 +373,13 @@ def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
 
             db.conn.execute(f"""
                 CREATE OR REPLACE VIEW {view_name} AS 
-                SELECT * FROM read_parquet('{path_pattern}', union_by_name=true)
+                SELECT * FROM read_parquet([{patterns_sql}], union_by_name=true)
                 QUALIFY row_number() OVER (PARTITION BY symbol, {time_col} ORDER BY available_time DESC) = 1
             """)
         else:
-            # Create an empty view with the right schema? 
-            # For MVP, we assume data exists because we just collected it.
-            logger.warning(f"No parquet files found for {view_name} at {path_pattern}")
+            logger.warning(f"No parquet files found for {view_name} at {patterns_sql}")
 
     # Build the intermediate exact 5m alignment
-    # The position-ratio collector is optional for old snapshots.  Pass the
-    # view name only when a parquet-backed view was mounted; ``align_exact_5m``
-    # keeps a NULL column when it is absent.
     position_view = "top_position_ratio" if list(
         (normalized_dir / "top_position_ratio").rglob("*.parquet")
     ) else None
