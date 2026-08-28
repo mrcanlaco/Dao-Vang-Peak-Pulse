@@ -46,9 +46,11 @@ from dao_vang.data.collectors.binance_client import BinanceClient
 from dao_vang.data.collectors.coingecko import cross_reference
 from dao_vang.data.collectors.funding import FundingCollector
 from dao_vang.data.collectors.klines import KlinesCollector
+from dao_vang.data.collectors.liquidations import LiquidationCollector
 from dao_vang.data.collectors.open_interest import OpenInterestCollector
 from dao_vang.data.collectors.ratios import GlobalRatioCollector, TopRatioCollector
 from dao_vang.data.collectors.taker import TakerRatioCollector
+from dao_vang.data.collectors.top_position_ratio import TopPositionRatioCollector
 from dao_vang.data.pipeline import (
     build_raw_timeline,
     get_incremental_start,
@@ -112,6 +114,8 @@ _COLLECTORS = [
     ("taker_ratio", "Taker Volume", TakerRatioCollector),
     ("global_ratio", "Global L/S", GlobalRatioCollector),
     ("top_ratio", "Top L/S", TopRatioCollector),
+    ("top_position_ratio", "Top Position L/S", TopPositionRatioCollector),
+    ("liquidations", "Liquidations", LiquidationCollector),
 ]
 
 

@@ -135,7 +135,7 @@ wheels = [
 
 [[package]]
 name = "dao-vang"
-version = "0.1.0"
+version = "2.0.0rc2"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
