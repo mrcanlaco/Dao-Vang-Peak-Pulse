@@ -920,6 +920,19 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       </div>
                     </div>
 
+                    <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 space-y-1.5">
+                      <div className="font-bold text-violet-300 text-xs flex items-center gap-1.5">
+                        <Compass className="h-3.5 w-3.5 text-violet-400" />
+                        <span>Vị Trí Ứng Dụng Trong Giao Diện:</span>
+                      </div>
+                      <div className="grid gap-1.5 sm:grid-cols-2 text-[11px] text-slate-300">
+                        <div>• <strong>Tab Vào lệnh:</strong> Tính bảng Trade Setup (Entry, SL, TP1-3, R:R) & điểm Phân phối.</div>
+                        <div>• <strong>Tab Tín hiệu:</strong> Gán huy hiệu ARMED / FIRED & kích hoạt âm thanh cảnh báo.</div>
+                        <div>• <strong>Tab Top coin xả:</strong> Tuyển chọn danh sách Top 30 ứng viên kiệt sức động lượng.</div>
+                        <div>• <strong>Telegram Bot:</strong> Tự động đóng gói và bắn tin nhắn cảnh báo kèm mốc SL/TP.</div>
+                      </div>
+                    </div>
+
                     <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-4 pt-1">
                       <span className="text-emerald-400 font-bold">✓ Tỷ lệ chạm TP1: 76.6%</span>
                       <span className="text-emerald-400 font-bold">✓ Tỷ lệ dính SL: 14.9%</span>
@@ -953,6 +966,19 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                         <div>• <strong>Tương quan Cá Mập vs Nhỏ Lẻ:</strong> global_ls_ratio, top_ls_ratio, retail_top_spread, spread_trend_1h/4h.</div>
                       </div>
                     </div>
+
+                    <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 space-y-1.5">
+                      <div className="font-bold text-amber-300 text-xs flex items-center gap-1.5">
+                        <Compass className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Vị Trí Ứng Dụng Trong Giao Diện:</span>
+                      </div>
+                      <div className="grid gap-1.5 sm:grid-cols-2 text-[11px] text-slate-300">
+                        <div>• <strong>Tab Vào lệnh:</strong> Tính xác suất sụt giảm (Probability %) & phân tích nhân tố SHAP.</div>
+                        <div>• <strong>Tab Tín hiệu:</strong> Sắp xếp danh sách tín hiệu theo xác suất cao nhất (Probability Sort).</div>
+                        <div>• <strong>Tab Forward Test:</strong> Đánh giá hiệu năng ngoài mẫu (OOS) của 5 checkpoint mô hình.</div>
+                        <div>• <strong>Tab Kiểm định:</strong> Cung cấp ma trận nhầm lẫn (Confusion Matrix TP, FP, TN, FN).</div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Model 3 */}
@@ -970,6 +996,17 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                     </p>
                     <div className="text-[11px] text-cyan-300 font-mono bg-slate-950/60 p-2 rounded border border-cyan-900/40">
                       💡 <strong>Ý nghĩa thực chiến:</strong> Khi AI hiển thị xác suất 75%, bạn hoàn toàn có thể tin tưởng rằng trong 100 kèo tương tự ở quá khứ, có đúng 75 kèo giá đã sập sâu &ge; 8%.
+                    </div>
+
+                    <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 space-y-1.5">
+                      <div className="font-bold text-cyan-300 text-xs flex items-center gap-1.5">
+                        <Compass className="h-3.5 w-3.5 text-cyan-400" />
+                        <span>Vị Trí Ứng Dụng Trong Giao Diện:</span>
+                      </div>
+                      <div className="grid gap-1.5 sm:grid-cols-2 text-[11px] text-slate-300">
+                        <div>• <strong>Tab Vào lệnh & Tín hiệu:</strong> Hiển thị huy hiệu Xác suất % chuẩn hóa trên từng coin.</div>
+                        <div>• <strong>Tab Kiểm định:</strong> Vẽ đường cong hiệu chuẩn Brier Score & độ tin cậy AI.</div>
+                      </div>
                     </div>
                   </div>
 
@@ -989,6 +1026,17 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                     <div className="text-[11px] text-emerald-300 font-mono bg-slate-950/60 p-2 rounded border border-emerald-900/40">
                       🛡️ <strong>Hiệu quả bảo vệ:</strong> Loại bỏ từ <strong>55% đến 60% các tín hiệu nhiễu/bẫy tăng tiếp</strong>, đặc biệt trong những ngày thị trường biến động giật 2 đầu.
                     </div>
+
+                    <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 space-y-1.5">
+                      <div className="font-bold text-emerald-300 text-xs flex items-center gap-1.5">
+                        <Compass className="h-3.5 w-3.5 text-emerald-400" />
+                        <span>Vị Trí Ứng Dụng Trong Giao Diện & Backend:</span>
+                      </div>
+                      <div className="grid gap-1.5 sm:grid-cols-2 text-[11px] text-slate-300">
+                        <div>• <strong>Tab Thị trường (Alpha Lab):</strong> Hiển thị trạng thái Meta-Labeling & tỷ lệ lọc nhiễu 55-60%.</div>
+                        <div>• <strong>Scanner Daemon:</strong> Tự động chặn (VETO) tín hiệu giả trước khi bắn Telegram.</div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Model 5 */}
@@ -1005,6 +1053,17 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       • <strong>Market Regime:</strong> Kết hợp chỉ số ADX và Bollinger Band Width để phân loại trạng thái thị trường (`TRENDING_BEAR`, `TRENDING_BULL`, `CHOPPY`, `RANGE`).<br/>
                       • <strong>Drift Guardian:</strong> Liên tục đo lường chỉ số ổn định dữ liệu (Population Stability Index - PSI) trên cửa sổ trượt 7 ngày để phát hiện sớm hiện tượng suy giảm hiệu quả của các đặc trưng (Alpha Decay) và tự động bật cảnh báo cho người vận hành.
                     </p>
+
+                    <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 space-y-1.5">
+                      <div className="font-bold text-rose-300 text-xs flex items-center gap-1.5">
+                        <Compass className="h-3.5 w-3.5 text-rose-400" />
+                        <span>Vị Trí Ứng Dụng Trong Giao Diện:</span>
+                      </div>
+                      <div className="grid gap-1.5 sm:grid-cols-2 text-[11px] text-slate-300">
+                        <div>• <strong>Tab Thị trường:</strong> Hiển thị thẻ Market Regime (ADX, BB Width) & Drift Guardian (PSI).</div>
+                        <div>• <strong>Tab Top coin xả & Tín hiệu:</strong> Gắn nhãn 5 loại bất thường (Funding, OI, Volume).</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
