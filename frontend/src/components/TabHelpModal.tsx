@@ -17,7 +17,14 @@ import {
   Radio,
   ChevronRight,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle,
+  Flame,
+  Scale,
+  Zap,
+  Info,
+  ShieldAlert,
+  Compass
 } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 import type { WorkspaceTab } from './WorkspaceTabBar';
@@ -27,6 +34,8 @@ export interface TabHelpModalProps {
   onClose: () => void;
   activeTab: WorkspaceTab;
 }
+
+type GuideSection = 'OVERVIEW' | 'TABS' | 'PLAYBOOK' | 'MODELS' | 'RISK';
 
 interface TabGuideItem {
   id: WorkspaceTab;
@@ -40,12 +49,14 @@ interface TabGuideItem {
   metrics: Array<{ label: string; desc: string }>;
   playbook: string[];
 }
+
 export const TabHelpModal: React.FC<TabHelpModalProps> = ({
   isOpen,
   onClose,
   activeTab,
 }) => {
   const { language } = useTranslation();
+  const [activeSection, setActiveSection] = useState<GuideSection>('TABS');
   const [selectedTab, setSelectedTab] = useState<WorkspaceTab>(activeTab);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -62,8 +73,8 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
       return {
         DECISION: {
           id: 'DECISION',
-          name: 'Decision Center',
-          nameEn: 'Decision Center',
+          name: 'Trade Setup',
+          nameEn: 'Trade Setup',
           icon: Target,
           category: 'TRADING',
           badge: 'V2 2-Tier Engine',
@@ -89,7 +100,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         },
         RADAR: {
           id: 'RADAR',
-          name: 'Signal Radar',
+          name: 'Signals',
           nameEn: 'Signal Feed',
           icon: Activity,
           category: 'TRADING',
@@ -110,12 +121,36 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           playbook: [
             'Filter by "FIRED" tab to see coins actively breaking down right now.',
             'Use Strategic Presets like "Climax Dump" or "OI Squeeze" for specific trade setups.',
-            'Click on any signal card to instantly load its full chart and analytics in the Decision Center.'
+            'Click on any signal card to instantly load its full chart and analytics in the Trade Setup view.'
+          ]
+        },
+        RANKING: {
+          id: 'RANKING',
+          name: 'Top Dump',
+          nameEn: 'Candidate Filter',
+          icon: BarChart3,
+          category: 'TRADING',
+          badge: 'Tier 1 Filter (V2 Champion)',
+          purpose: 'Tier 1 candidate screening ranking top climax candidates from 678+ Binance Futures coins, featuring live A/B verification progress.',
+          mechanism: [
+            'Champion V2 vs Challenger V1: V2 (multi-stage quant filter, max 30 coins) runs main lane; V1 (hard threshold, 10 coins) runs parallel shadow baseline.',
+            '72-Hour State Memory: Tracks pump lifecycle from Pump Active -> Climax Exhaustion -> Distribution -> Markdown.',
+            'A/B Verification Progress: Live countdown tracking 3 promotion gates (14 evaluation days, 50 positive climax events, 200 resolved samples) before safely retiring V1.'
+          ],
+          metrics: [
+            { label: 'Rank Score', desc: 'Multi-factor quantitative score ranking highest probability dump candidates.' },
+            { label: 'Stage', desc: 'PUMP_ACTIVE, EXHAUSTION, DISTRIBUTION, or DUMPED.' },
+            { label: 'P@10 (Precision at 10)', desc: 'Empirical precision among Top 10 ranked candidates.' },
+            { label: 'Event Recall', desc: 'Percentage of total market dump events successfully captured.' }
+          ],
+          playbook: [
+            'Focus on candidates in "EXHAUSTION" or "DISTRIBUTION" stage for imminent short setups.',
+            'Check the A/B Test Verification Card to inspect model promotion readiness.'
           ]
         },
         WATCHLIST: {
           id: 'WATCHLIST',
-          name: 'Tracking Watchlist',
+          name: 'Positions',
           nameEn: 'Watchlist & PnL',
           icon: Layers,
           category: 'TRADING',
@@ -136,33 +171,9 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
             'Log your executed trade details to monitor live SL/TP trailing without switching to exchange.'
           ]
         },
-        RANKING: {
-          id: 'RANKING',
-          name: 'Candidate Ranking',
-          nameEn: 'Candidate Filter',
-          icon: BarChart3,
-          category: 'TRADING',
-          badge: 'Tier 1 Filter',
-          purpose: 'Tier 1 candidate screening ranking top climax candidates from 678+ Binance Futures coins, featuring live A/B verification progress.',
-          mechanism: [
-            'Champion V2 vs Challenger V1: V2 (multi-stage quant filter, max 30 coins) runs main lane; V1 (hard threshold, 10 coins) runs parallel shadow baseline.',
-            '72-Hour State Memory: Tracks pump lifecycle from Pump Active -> Climax Exhaustion -> Distribution -> Markdown.',
-            'A/B Verification Progress: Live countdown tracking 3 promotion gates (14 evaluation days, 50 positive climax events, 200 resolved samples) before safely retiring V1.'
-          ],
-          metrics: [
-            { label: 'Rank Score', desc: 'Multi-factor quantitative score ranking highest probability dump candidates.' },
-            { label: 'Stage', desc: 'PUMP_ACTIVE, EXHAUSTION, DISTRIBUTION, or DUMPED.' },
-            { label: 'P@10 (Precision at 10)', desc: 'Empirical precision among Top 10 ranked candidates.' },
-            { label: 'Event Recall', desc: 'Percentage of total market dump events successfully captured.' }
-          ],
-          playbook: [
-            'Focus on candidates in "EXHAUSTION" or "DISTRIBUTION" stage for imminent short setups.',
-            'Check the A/B Test Verification Card to inspect model promotion readiness.'
-          ]
-        },
         MULTISCAN: {
           id: 'MULTISCAN',
-          name: 'Multi-Coin Scan',
+          name: 'Multi-Scan',
           nameEn: 'Multi-Timeframe',
           icon: Radio,
           category: 'LAB',
@@ -182,7 +193,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         },
         BACKTEST: {
           id: 'BACKTEST',
-          name: 'Backtest Lab',
+          name: 'Backtest',
           nameEn: 'Validation Lab',
           icon: FlaskConical,
           category: 'LAB',
@@ -224,7 +235,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         },
         AUDIT: {
           id: 'AUDIT',
-          name: 'Model Audit',
+          name: 'Audit',
           nameEn: 'Audit Matrix',
           icon: ShieldCheck,
           category: 'LAB',
@@ -245,7 +256,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         },
         MARKET: {
           id: 'MARKET',
-          name: 'Market Overview & Alpha Lab',
+          name: 'Market',
           nameEn: 'Market & Alpha',
           icon: Activity,
           category: 'SYSTEM',
@@ -268,7 +279,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         },
         TELEMETRY: {
           id: 'TELEMETRY',
-          name: 'Telemetry & Logs',
+          name: 'Telemetry',
           nameEn: 'System Health',
           icon: Cpu,
           category: 'SYSTEM',
@@ -289,7 +300,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         },
         HISTORY: {
           id: 'HISTORY',
-          name: 'System History',
+          name: 'History',
           nameEn: 'Archive & DB',
           icon: Clock,
           category: 'SYSTEM',
@@ -309,14 +320,14 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         },
         UPDATES: {
           id: 'UPDATES',
-          name: 'Version & Updates',
+          name: 'Updates',
           nameEn: 'Git & Auto-updater',
           icon: GitPullRequest,
           category: 'SYSTEM',
           badge: 'v2.0 Pro',
           purpose: 'Git commit history, 8 architectural milestones, development velocity metrics, and 1-click system auto-updater.',
           mechanism: [
-            '3-Tier Auto-Updater: 5-minute server auto-sync cron, 1-click UI update button, and PWA v3.1 cache purge.',
+            '3-Tier Auto-Updater: 5-minute server auto-sync cron, 1-click UI update button, and PWA v3.2 cache purge.',
             'Git Analytics: Commit classification (feat, fix, perf, docs) and active development days.'
           ],
           metrics: [
@@ -329,7 +340,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         },
         SETTINGS: {
           id: 'SETTINGS',
-          name: 'System Settings',
+          name: 'Settings',
           nameEn: 'Settings & AI',
           icon: Settings,
           category: 'SYSTEM',
@@ -354,8 +365,8 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
     return {
       DECISION: {
         id: 'DECISION',
-        name: 'Trung tâm Ra Quyết Định',
-        nameEn: 'Decision Center',
+        name: 'Vào lệnh',
+        nameEn: 'Trade Setup',
         icon: Target,
         category: 'TRADING',
         badge: 'V2 2-Tier Climax Engine',
@@ -381,7 +392,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
       },
       RADAR: {
         id: 'RADAR',
-        name: 'Radar Tín Hiệu Cảnh Báo',
+        name: 'Tín hiệu',
         nameEn: 'Signal Feed',
         icon: Activity,
         category: 'TRADING',
@@ -402,35 +413,12 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         playbook: [
           'Chọn tab "FIRED" để xem các coin đang trong nhịp xả đẹp nhất ở hiện tại.',
           'Sử dụng các Preset chiến lược như "Climax Dump" hoặc "Bẫy Funding" để tìm setup theo sở trường.',
-          'Bấm vào bất kỳ thẻ tín hiệu nào để mở ngay biểu đồ chi tiết bên Trung tâm Ra quyết định.'
-        ]
-      },
-      WATCHLIST: {
-        id: 'WATCHLIST',
-        name: 'Danh Sách Theo Dõi & Vị Thế',
-        nameEn: 'Tracking Watchlist',
-        icon: Layers,
-        category: 'TRADING',
-        badge: 'Quản Lý PnL',
-        purpose: 'Quản lý danh mục coin theo dõi cá nhân, các chế độ quét tự động và ghi nhận quản trị vị thế Short thực tế với PnL & ROI live.',
-        mechanism: [
-          '5 Chế độ Preset: Top Biến động, Top Volume, Top Tăng giá, Top Giảm giá và Watchlist tùy chọn.',
-          'Theo Dõi Vị Thế Trực Tiếp: Lưu giá Entry, Đòn bẩy, SL, TP và tự động tính toán PnL, ROI% theo thời gian thực.',
-          'Đồng Bộ Dữ Liệu: Lưu trữ trên trình duyệt và tự động đồng bộ với Daemon quét thị trường.'
-        ],
-        metrics: [
-          { label: 'PnL Vị Thế ($)', desc: 'Lợi nhuận/thua lỗ danh nghĩa dựa theo giá thị trường Binance hiện tại.' },
-          { label: 'ROI Vị Thế (%)', desc: 'Tỷ suất sinh lời trên vốn ký quỹ có tính đòn bẩy.' },
-          { label: 'Tiến Độ Tín Hiệu (%)', desc: 'Thanh tiến trình đo khoảng cách từ điểm Entry đến Target TP (-8%).' }
-        ],
-        playbook: [
-          'Thêm coin trực tiếp từ Radar hoặc Ranking vào Watchlist chỉ với 1 click.',
-          'Ghi nhận thông số vào lệnh thực tế để theo dõi lãi/lỗ mà không cần mở sàn giao dịch.'
+          'Bấm vào bất kỳ thẻ tín hiệu nào để mở ngay biểu đồ chi tiết bên màn hình Vào Lệnh.'
         ]
       },
       RANKING: {
         id: 'RANKING',
-        name: 'Bảng Xếp Hạng Ứng Viên Bán',
+        name: 'Top coin xả',
         nameEn: 'Candidate Filter',
         icon: BarChart3,
         category: 'TRADING',
@@ -452,9 +440,32 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           'Theo dõi Card "Tiến độ thử nghiệm A/B" để biết chính xác thời gian hoàn thành nghiệm thu.'
         ]
       },
+      WATCHLIST: {
+        id: 'WATCHLIST',
+        name: 'Vị thế',
+        nameEn: 'Tracking Watchlist',
+        icon: Layers,
+        category: 'TRADING',
+        badge: 'Quản Lý PnL',
+        purpose: 'Quản lý danh mục coin theo dõi cá nhân, các chế độ quét tự động và ghi nhận quản trị vị thế Short thực tế với PnL & ROI live.',
+        mechanism: [
+          '5 Chế độ Preset: Top Biến động, Top Volume, Top Tăng giá, Top Giảm giá và Watchlist tùy chọn.',
+          'Theo Dõi Vị Thế Trực Tiếp: Lưu giá Entry, Đòn bẩy, SL, TP và tự động tính toán PnL, ROI% theo thời gian thực.',
+          'Đồng Bộ Dữ Liệu: Lưu trữ trên trình duyệt và tự động đồng bộ với Daemon quét thị trường.'
+        ],
+        metrics: [
+          { label: 'PnL Vị Thế ($)', desc: 'Lợi nhuận/thua lỗ danh nghĩa dựa theo giá thị trường Binance hiện tại.' },
+          { label: 'ROI Vị Thế (%)', desc: 'Tỷ suất sinh lời trên vốn ký quỹ có tính đòn bẩy.' },
+          { label: 'Tiến Độ Tín Hiệu (%)', desc: 'Thanh tiến trình đo khoảng cách từ điểm Entry đến Target TP (-8%).' }
+        ],
+        playbook: [
+          'Thêm coin trực tiếp từ Radar hoặc Top coin xả vào Vị thế chỉ với 1 click.',
+          'Ghi nhận thông số vào lệnh thực tế để theo dõi lãi/lỗ mà không cần mở sàn giao dịch.'
+        ]
+      },
       MULTISCAN: {
         id: 'MULTISCAN',
-        name: 'Quét Đa Khung Thời Gian',
+        name: 'Quét đa khung',
         nameEn: 'Multi-Coin Scan',
         icon: Radio,
         category: 'LAB',
@@ -469,12 +480,12 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           { label: 'Lượt Chạy Quét (Runs)', desc: 'Tổng số lượt quét đa coin đã được lưu trữ trong kho lưu trữ.' }
         ],
         playbook: [
-          'Dùng MultiScan để nhận diện khi cả một nhóm coin cùng hệ (Meme, AI) đồng loạt tạo đỉnh phân phối.'
+          'Dùng Quét đa khung để nhận diện khi cả một nhóm coin cùng hệ (Meme, AI) đồng loạt tạo đỉnh phân phối.'
         ]
       },
       BACKTEST: {
         id: 'BACKTEST',
-        name: 'Phòng Thí Nghiệm Backtest',
+        name: 'Backtest',
         nameEn: 'Backtest Lab',
         icon: FlaskConical,
         category: 'LAB',
@@ -496,7 +507,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
       },
       FORWARD: {
         id: 'FORWARD',
-        name: 'Forward Test (Out-of-Sample)',
+        name: 'Forward Test',
         nameEn: 'Mô Hình Đóng Băng',
         icon: Sparkles,
         category: 'LAB',
@@ -516,7 +527,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
       },
       AUDIT: {
         id: 'AUDIT',
-        name: 'Kiểm Định Mô Hình & Ma Trận',
+        name: 'Kiểm định',
         nameEn: 'Model Audit',
         icon: ShieldCheck,
         category: 'LAB',
@@ -537,7 +548,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
       },
       MARKET: {
         id: 'MARKET',
-        name: 'Tổng Quan Thị Trường & Alpha Lab',
+        name: 'Thị trường',
         nameEn: 'Market & Alpha',
         icon: Activity,
         category: 'SYSTEM',
@@ -560,7 +571,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
       },
       TELEMETRY: {
         id: 'TELEMETRY',
-        name: 'Hạ Tầng & Giám Sát Scanner',
+        name: 'Hạ tầng & Log',
         nameEn: 'Scanner Telemetry',
         icon: Cpu,
         category: 'SYSTEM',
@@ -581,7 +592,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
       },
       HISTORY: {
         id: 'HISTORY',
-        name: 'Lịch Sử Hệ Thống & Dữ Liệu',
+        name: 'Lịch sử',
         nameEn: 'System History',
         icon: Clock,
         category: 'SYSTEM',
@@ -601,14 +612,14 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
       },
       UPDATES: {
         id: 'UPDATES',
-        name: 'Lịch Sử Phiên Bản & Cập Nhật',
+        name: 'Cập nhật',
         nameEn: 'Version & Auto-updater',
         icon: GitPullRequest,
         category: 'SYSTEM',
         badge: 'v2.0 Pro',
         purpose: 'Theo dõi 185 commit Git, 8 cột mốc kiến trúc, phân loại thay đổi mã nguồn và kích hoạt cơ chế Auto-Update 1 chạm.',
         mechanism: [
-          'Quy Trình Auto-Update 3 Tầng: Cron tự đồng bộ 5 phút trên máy chủ Google, Nút cập nhật 1 chạm trên Web, và PWA v3.1 dọn sạch cache trình duyệt.',
+          'Quy Trình Auto-Update 3 Tầng: Cron tự đồng bộ 5 phút trên máy chủ Google, Nút cập nhật 1 chạm trên Web, và PWA v3.2 dọn sạch cache trình duyệt.',
           'Phân Tích Git: Thống kê số lượng tính năng mới (feat), sửa lỗi (fix), tối ưu hiệu năng (perf) và ngày phát triển.'
         ],
         metrics: [
@@ -621,7 +632,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
       },
       SETTINGS: {
         id: 'SETTINGS',
-        name: 'Cài Đặt Hệ Thống & AI Config',
+        name: 'Cài đặt',
         nameEn: 'Settings & AI',
         icon: Settings,
         category: 'SYSTEM',
@@ -652,36 +663,30 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
     guide.purpose.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getCategoryLabel = (cat: 'TRADING' | 'LAB' | 'SYSTEM') => {
-    if (cat === 'TRADING') return language === 'en' ? 'Trading Core' : language === 'zh' ? '实盘核心' : language === 'ko' ? '실전 트레이딩' : 'Giao dịch Thực chiến';
-    if (cat === 'LAB') return language === 'en' ? 'Quant Lab' : language === 'zh' ? '量化实验室' : language === 'ko' ? '정량 랩' : 'Phòng Thí nghiệm Quant';
-    return language === 'en' ? 'System & Data' : language === 'zh' ? '系统与数据' : language === 'ko' ? '시스템 & 데이터' : 'Hệ thống & Dữ liệu';
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
-      <div className="flex flex-col w-full max-w-5xl h-[92vh] max-h-[850px] bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/80 shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-fade-in">
+      <div className="flex flex-col w-full max-w-5xl h-[94vh] max-h-[880px] bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden">
+        {/* Modal Top Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/90 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="rounded-lg bg-violet-600/20 p-2 text-violet-400 border border-violet-500/30">
-              <BookOpen className="h-5 w-5" />
+            <div className="rounded-lg bg-gradient-to-br from-amber-500/20 to-violet-600/20 p-2 text-amber-300 border border-amber-500/30 shadow-inner">
+              <Compass className="h-5 w-5" />
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                <span>{language === 'en' ? 'Tab Mechanism & Operation Guide' : language === 'zh' ? '各 Tab 功能机制与操作指南' : language === 'ko' ? '탭별 작동 메커니즘 및 가이드' : 'Hướng Dẫn Cơ Chế Hoạt Động Từng Tab'}</span>
-                <span className="rounded bg-violet-950 border border-violet-700/80 px-2 py-0.5 text-[10px] font-mono text-violet-300">
-                  13 Tabs
+                <span>{language === 'en' ? 'DAO VANG — System Knowledge & User Guide' : language === 'zh' ? '刀锋量化系统 — 用户操作全指南与架构解析' : language === 'ko' ? '다오방 — 시스템 가이드 및 지식 센터' : 'ĐẢO VÀNG — CẨM NANG HỆ THỐNG & HƯỚNG DẪN NGƯỜI DÙNG'}</span>
+                <span className="rounded bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[10px] font-mono text-amber-300 font-bold">
+                  v2.0 Pro
                 </span>
               </h2>
               <p className="text-[11px] text-slate-400">
                 {language === 'en'
-                  ? 'Detailed architectural mechanisms, quantitative models, and actionable playbooks for every tab'
+                  ? 'Complete quantitative philosophy, 4-tier engine architecture, models in production, and risk rules'
                   : language === 'zh'
-                  ? '深入解析每个 Tab 的量化模型、底层机制、指标释义与实盘操作策略'
+                  ? '系统量化哲学、4层漏斗架构、实盘运行模型、13个Tab全功能与风控军规'
                   : language === 'ko'
-                  ? '모든 탭의 정량 모델, 작동 메커니즘, 지표 해석 및 실전 가이드 상세 안내'
-                  : 'Mô tả chi tiết nguyên lý định lượng, cơ chế vận hành, giải thích thông số và chiến lược sử dụng của từng tab'}
+                  ? '정량 트레이딩 철학, 4단계 파이프라인 구조, 가동 모델 및 리스크 관리 수칙'
+                  : 'Triết lý định lượng, kiến trúc 4 tầng phễu, các mô hình AI/ML đang chạy, hướng dẫn 13 Tab và quy tắc quản trị rủi ro sống còn'}
               </p>
             </div>
           </div>
@@ -694,168 +699,499 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           </button>
         </div>
 
-        {/* Search & Main Layout Grid */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-          {/* Left Sidebar: Tab List Selector */}
-          <div className="w-full md:w-72 bg-slate-950/60 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col shrink-0">
-            {/* Search Input */}
-            <div className="p-2.5 border-b border-slate-800/80">
-              <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder={language === 'en' ? 'Search tab or concept...' : language === 'zh' ? '搜索 Tab 或概念...' : language === 'ko' ? '탭 또는 개념 검색...' : 'Tìm kiếm tab hoặc khái niệm...'}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                )}
+        {/* Section Navigation Tabs (Top Bar) */}
+        <div className="flex items-center gap-1.5 px-4 py-2 border-b border-slate-800 bg-slate-950/60 overflow-x-auto shrink-0 [&::-webkit-scrollbar]:hidden">
+          <button
+            type="button"
+            onClick={() => setActiveSection('OVERVIEW')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition ${
+              activeSection === 'OVERVIEW'
+                ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{language === 'en' ? '1. Purpose & Architecture' : language === 'zh' ? '1. 目标与4层架构' : language === 'ko' ? '1. 목적 및 4단계 구조' : '1. Mục đích & Kiến trúc 4 Tầng'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('MODELS')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition ${
+              activeSection === 'MODELS'
+                ? 'bg-violet-600 text-white font-bold shadow-md shadow-violet-600/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <Cpu className="w-3.5 h-3.5" />
+            <span>{language === 'en' ? '2. Models in Production' : language === 'zh' ? '2. 运行模型解析' : language === 'ko' ? '2. 가동 모델 상세' : '2. Các Mô Hình Đang Chạy'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('TABS')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition ${
+              activeSection === 'TABS'
+                ? 'bg-cyan-600 text-white font-bold shadow-md shadow-cyan-600/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>{language === 'en' ? '3. 13-Tab Operation Guide' : language === 'zh' ? '3. 13个 Tab 功能详解' : language === 'ko' ? '3. 13개 탭 가이드' : '3. Hướng Dẫn 13 Tab'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('PLAYBOOK')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition ${
+              activeSection === 'PLAYBOOK'
+                ? 'bg-emerald-600 text-white font-bold shadow-md shadow-emerald-600/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <Target className="w-3.5 h-3.5" />
+            <span>{language === 'en' ? '4. 4-Step Trading Playbook' : language === 'zh' ? '4. 4步实盘操作流程' : language === 'ko' ? '4. 4단계 실전 플레이북' : '4. Quy Trình Săn Kèo 4 Bước'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSection('RISK')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 transition ${
+              activeSection === 'RISK'
+                ? 'bg-rose-600 text-white font-bold shadow-md shadow-rose-600/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>{language === 'en' ? '5. Risk Rules & Notices' : language === 'zh' ? '5. 风险与铁律' : language === 'ko' ? '5. 리스크 수칙' : '5. Lưu Ý & Quản Trị Rủi Ro'}</span>
+          </button>
+        </div>
+
+        {/* Main Body Content Container */}
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {/* SECTION 1: OVERVIEW & ARCHITECTURE */}
+          {activeSection === 'OVERVIEW' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
+              {/* Core Philosophy Banner */}
+              <div className="rounded-xl border border-amber-500/40 bg-gradient-to-br from-amber-950/30 via-slate-900 to-slate-950 p-4 space-y-2">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-sm uppercase">
+                  <Flame className="h-5 w-5 text-amber-400 animate-pulse" />
+                  <span>Mục Đích Của Ứng Dụng & Triết Lý Cốt Lõi</span>
+                </div>
+                <p className="text-xs text-slate-200 leading-relaxed">
+                  <strong>Đảo Vàng (PeakPulse Quant Center)</strong> là hệ thống định lượng chuyên biệt được thiết kế để giải quyết bài toán: <strong>Bắt đỉnh phân phối và đi lệnh Short đón đầu các đợt sập giá của coin bơm xả (Pump & Dump Altcoins/Memecoins) trên sàn Binance USDT Futures</strong>.
+                </p>
+                <div className="p-2.5 rounded-lg bg-slate-950/80 border border-amber-500/20 text-xs font-mono text-amber-200">
+                  🎯 <strong>Nguyên lý cốt tử:</strong> &ldquo;Tăng đột biến thì mới sụt đột biến&rdquo;. Hệ thống không đánh đuổi theo sóng tăng bất tận, mà chỉ săn lùng những tài sản đã bơm căng phồng từ +50% đến +300% và bắt đầu có dấu hiệu cạn kiệt thanh khoản, tháo chạy vị thế ngầm của tay to.
+                </div>
+              </div>
+
+              {/* 4-Tier Funnel Architecture Visual */}
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                  <Cpu className="h-4 w-4 text-violet-400" />
+                  <span>Kiến Trúc 4 Tầng Phễu Định Lượng (4-Tier Quant Pipeline)</span>
+                </h3>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* Tier 1 */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3.5 space-y-2 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 px-2 py-0.5 bg-violet-600/30 text-violet-300 font-mono text-[9px] font-bold rounded-bl">TẦNG 1</div>
+                    <div className="text-xs font-bold text-violet-300 flex items-center gap-1.5">
+                      <BarChart3 className="h-4 w-4 text-violet-400" />
+                      <span>Lọc Ứng Viên Bơm Xả</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Sàng lọc nhanh ~678 coin Binance Futures xuống còn <strong>Top 30 coin</strong> có biên độ bơm lớn nhất và bắt đầu kiệt sức động lượng.
+                    </p>
+                    <div className="text-[10px] font-mono text-slate-500 border-t border-slate-800/80 pt-1.5">
+                      ⚙️ Mô hình: Candidate Filter V2
+                    </div>
+                  </div>
+
+                  {/* Tier 2 */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3.5 space-y-2 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 px-2 py-0.5 bg-amber-600/30 text-amber-300 font-mono text-[9px] font-bold rounded-bl">TẦNG 2</div>
+                    <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                      <Zap className="h-4 w-4 text-amber-400" />
+                      <span>Kích Hoạt Dòng Lệnh 5m</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Soi dòng lệnh 5m/15m (OI sụt, Taker Sell vọt) để bắt trúng thời điểm xả thật, thiết lập <strong>Stop Loss siêu ngắn (2.2%)</strong> và 3 mức TP (-4%, -8%, -12%).
+                    </p>
+                    <div className="text-[10px] font-mono text-slate-500 border-t border-slate-800/80 pt-1.5">
+                      ⚙️ Mô hình: 2-Tier Climax Engine
+                    </div>
+                  </div>
+
+                  {/* Tier 3 */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3.5 space-y-2 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 px-2 py-0.5 bg-cyan-600/30 text-cyan-300 font-mono text-[9px] font-bold rounded-bl">TẦNG 3</div>
+                    <div className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                      <Cpu className="h-4 w-4 text-cyan-400" />
+                      <span>Tính Xác Suất Machine Learning</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Tính toán xác suất thực nghiệm chuẩn hóa (ví dụ: <strong>74.5%</strong>) dựa trên 25 chỉ số vi cấu trúc đối soát qua 600,000+ nến lịch sử.
+                    </p>
+                    <div className="text-[10px] font-mono text-slate-500 border-t border-slate-800/80 pt-1.5">
+                      ⚙️ Mô hình: LightGBM + Calibrator
+                    </div>
+                  </div>
+
+                  {/* Tier 4 */}
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3.5 space-y-2 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 px-2 py-0.5 bg-emerald-600/30 text-emerald-300 font-mono text-[9px] font-bold rounded-bl">TẦNG 4</div>
+                    <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+                      <ShieldCheck className="h-4 w-4 text-emerald-400" />
+                      <span>Lọc Bẫy & Bối Cảnh Thị Trường</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Phân loại Market Regime và áp dụng Meta-labeling để <strong>loại bỏ 55% - 60% tín hiệu giả</strong> khi Bitcoin đang biến động quá mạnh.
+                    </p>
+                    <div className="text-[10px] font-mono text-slate-500 border-t border-slate-800/80 pt-1.5">
+                      ⚙️ Mô hình: Meta-Labeling & Drift
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Tab Selector List */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {filteredGuides.map((guide) => {
-                const isSelected = selectedTab === guide.id;
-                const IconComponent = guide.icon;
-                return (
-                  <button
-                    key={guide.id}
-                    onClick={() => setSelectedTab(guide.id)}
-                    className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition ${
-                      isSelected
-                        ? 'bg-violet-950/80 border border-violet-600/80 text-white shadow-sm'
-                        : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <div className={`p-1.5 rounded-md ${isSelected ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
-                        <IconComponent className="h-3.5 w-3.5" />
-                      </div>
-                      <div className="truncate">
-                        <div className="text-xs font-bold truncate flex items-center gap-1.5">
-                          <span>{guide.name}</span>
+          {/* SECTION 2: MODELS IN PRODUCTION */}
+          {activeSection === 'MODELS' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              <div className="rounded-xl border border-violet-900/60 bg-slate-950/80 p-4 space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-violet-300 flex items-center gap-2">
+                  <Cpu className="h-4 w-4 text-violet-400" />
+                  <span>Danh Sách Toàn Bộ Các Mô Hình AI/ML Đang Vận Hành Trong Hệ Thống</span>
+                </h3>
+
+                <div className="space-y-3 text-xs">
+                  {/* Model 1 */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-violet-300 text-sm">1. Two-Tier Climax Engine (v2)</span>
+                      <span className="rounded bg-violet-950 px-2 py-0.5 text-[9px] font-bold text-violet-200 border border-violet-700">CHAMPION ENGINE</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">
+                      Mô hình định lượng 2 tầng chịu trách nhiệm chấm điểm phân phối, tính toán điểm vào lệnh (Entry), cắt lỗ (SL) và chốt lời (TP1/TP2/TP3). Thắng thế so với V1 với tỷ lệ R:R tăng gấp 2.1 lần ($4.08$) và đón đầu sớm hơn 10 phút.
+                    </p>
+                  </div>
+
+                  {/* Model 2 */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-amber-300 text-sm">2. Frozen Machine Learning Models (LightGBM)</span>
+                      <span className="rounded bg-amber-950 px-2 py-0.5 text-[9px] font-bold text-amber-200 border border-amber-700">5 CHECKPOINTS</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">
+                      Tập hợp 5 mô hình cây quyết định LightGBM đã được huấn luyện, cross-validation (Purged & Embargoed) và đóng băng trọng số để chống Overfitting. Đầu vào gồm 25 đặc trưng vi cấu trúc (Price momentum, OI changes, Taker ratio, Funding persistence,...).
+                    </p>
+                  </div>
+
+                  {/* Model 3 */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-cyan-300 text-sm">3. Isotonic Probability Calibrator</span>
+                      <span className="rounded bg-cyan-950 px-2 py-0.5 text-[9px] font-bold text-cyan-200 border border-cyan-700">HIỆU CHUẨN XÁC SUẤT</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">
+                      Bộ hiệu chuẩn toán học Isotonic Regression / Sigmoid đảm bảo xác suất dự báo phản ánh trung thực thực tế: Khi AI báo xác suất 75%, thực tế lịch sử có đúng 75% trường hợp giá sụt giảm &ge; 8%.
+                    </p>
+                  </div>
+
+                  {/* Model 4 */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-emerald-300 text-sm">4. HistGradientBoosting Meta-Labeling Model</span>
+                      <span className="rounded bg-emerald-950 px-2 py-0.5 text-[9px] font-bold text-emerald-200 border border-emerald-700">LỌC BẪY LỚP 2</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">
+                      Mô hình lớp 2 học từ các sai số của mô hình chính, chuyên thẩm định xem tín hiệu phát ra có đáng để vào lệnh thật hay không, giúp giảm tải 55% - 60% các cảnh báo sai khi thị trường biến động xấu.
+                    </p>
+                  </div>
+
+                  {/* Model 5 */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-rose-300 text-sm">5. Market Anomalies Engine & Drift Guardian</span>
+                      <span className="rounded bg-rose-950 px-2 py-0.5 text-[9px] font-bold text-rose-200 border border-rose-700">GIÁM SÁT SUY HAO</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed">
+                      Phát hiện 5 nhóm dị thường vi cấu trúc (Volume Climax, Bẫy Funding, OI Unwind, Taker Absorption, Crowded Longs) và liên tục đo lường chỉ số PSI để cảnh báo khi thuật toán có dấu hiệu suy giảm phong độ.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 3: 13-TAB OPERATION GUIDE */}
+          {activeSection === 'TABS' && (
+            <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+              {/* Left Sidebar: Tab List Selector */}
+              <div className="w-full md:w-64 bg-slate-950/60 border-b md:border-b-0 md:border-r border-slate-800 flex flex-col shrink-0">
+                {/* Search Input */}
+                <div className="p-2 border-b border-slate-800/80">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm Tab hoặc chỉ số..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/80 rounded-lg pl-7 pr-2 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-violet-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Tab Selector List */}
+                <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+                  {filteredGuides.map((guide) => {
+                    const isSelected = selectedTab === guide.id;
+                    const IconComponent = guide.icon;
+                    return (
+                      <button
+                        key={guide.id}
+                        onClick={() => setSelectedTab(guide.id)}
+                        className={`w-full flex items-center justify-between p-2 rounded-lg text-left transition ${
+                          isSelected
+                            ? 'bg-violet-950/80 border border-violet-600/80 text-white shadow-sm'
+                            : 'text-slate-300 hover:bg-slate-800/60 hover:text-white border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <div className={`p-1 rounded-md ${isSelected ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                            <IconComponent className="h-3 w-3" />
+                          </div>
+                          <div className="truncate">
+                            <div className="text-xs font-bold truncate">
+                              {guide.name}
+                            </div>
+                            <div className="text-[9px] text-slate-400 font-mono">
+                              {guide.id}
+                            </div>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {guide.id}
-                        </div>
+                        {isSelected && <ChevronRight className="h-3 w-3 text-violet-400 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right Content Area: Detailed Guide for Selected Tab */}
+              <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 bg-slate-900/40">
+                {/* Header of Selected Tab */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl border border-violet-900/60 bg-gradient-to-r from-violet-950/40 via-slate-900 to-slate-950">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 rounded-xl bg-violet-600/20 border border-violet-500/40 text-violet-300">
+                      {React.createElement(currentGuide.icon, { className: 'h-5 w-5' })}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm sm:text-base font-black text-white">{currentGuide.name}</h3>
+                        <span className="px-1.5 py-0.2 rounded bg-violet-900/80 border border-violet-700 text-[9px] font-mono text-violet-200 font-bold">
+                          {currentGuide.id}
+                        </span>
+                        {currentGuide.badge && (
+                          <span className="px-2 py-0.2 rounded-full bg-emerald-950/80 border border-emerald-700 text-[8px] text-emerald-300 font-semibold">
+                            {currentGuide.badge}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    {isSelected && <ChevronRight className="h-3.5 w-3.5 text-violet-400 shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Right Content Area: Detailed Guide for Selected Tab */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4 bg-slate-900/40">
-            {/* Header of Selected Tab */}
-            <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-xl border border-violet-900/60 bg-gradient-to-r from-violet-950/40 via-slate-900 to-slate-950">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-violet-600/20 border border-violet-500/40 text-violet-300">
-                  {React.createElement(currentGuide.icon, { className: 'h-6 w-6' })}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-black text-white">{currentGuide.name}</h3>
-                    <span className="px-2 py-0.5 rounded bg-violet-900/80 border border-violet-700 text-[10px] font-mono text-violet-200 font-bold">
-                      {currentGuide.id}
-                    </span>
-                    {currentGuide.badge && (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-700 text-[9px] text-emerald-300 font-semibold">
-                        {currentGuide.badge}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] text-slate-400 mt-0.5 font-mono">
-                    {getCategoryLabel(currentGuide.category)}
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Section 1: Purpose & Value */}
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                <Target className="h-4 w-4 text-violet-400" />
-                <span>{language === 'en' ? '1. Purpose & Core Value' : language === 'zh' ? '1. 核心定位与业务价值' : language === 'ko' ? '1. 핵심 목적 및 역할' : '1. Mục đích & Giá trị Cốt lõi'}</span>
-              </h4>
-              <p className="text-xs text-slate-300 leading-relaxed pl-5">
-                {currentGuide.purpose}
-              </p>
-            </div>
+                {/* Section 1: Purpose */}
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3.5 space-y-1.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                    <Target className="h-3.5 w-3.5 text-violet-400" />
+                    <span>1. Mục Đích & Giá Trị Cốt Lõi</span>
+                  </h4>
+                  <p className="text-xs text-slate-300 leading-relaxed pl-4">
+                    {currentGuide.purpose}
+                  </p>
+                </div>
 
-            {/* Section 2: Mechanism & Quant Engine */}
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-2.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                <Cpu className="h-4 w-4 text-amber-400" />
-                <span>{language === 'en' ? '2. Operating Mechanism & Quant Logic' : language === 'zh' ? '2. 底层机制与量化逻辑' : language === 'ko' ? '2. 작동 메커니즘 및 정량 로직' : '2. Cơ chế Vận hành & Thuật toán Định lượng'}</span>
-              </h4>
-              <div className="space-y-2 pl-5">
-                {currentGuide.mechanism.map((item, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-xs text-slate-300 leading-relaxed">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                    <span>{item}</span>
+                {/* Section 2: Mechanism */}
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3.5 space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                    <Cpu className="h-3.5 w-3.5 text-amber-400" />
+                    <span>2. Cơ Chế Vận Hành & Thuật Toán Định Lượng</span>
+                  </h4>
+                  <div className="space-y-1.5 pl-4">
+                    {currentGuide.mechanism.map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-xs text-slate-300 leading-relaxed">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>{item}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            {/* Section 3: Metrics Glossary */}
-            <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-2.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                <BarChart3 className="h-4 w-4 text-cyan-400" />
-                <span>{language === 'en' ? '3. Key Indicators & Metrics Glossary' : language === 'zh' ? '3. 关键指标与参数释义' : language === 'ko' ? '3. 주요 지표 및 매개변수 해설' : '3. Giải thích Thông số & Chỉ số Định lượng'}</span>
-              </h4>
-              <div className="grid gap-2 sm:grid-cols-2 pl-5">
-                {currentGuide.metrics.map((m, idx) => (
-                  <div key={idx} className="rounded-lg border border-slate-800/80 bg-slate-900/60 p-2.5 space-y-1">
-                    <div className="text-xs font-bold text-cyan-300 font-mono">{m.label}</div>
-                    <div className="text-[11px] text-slate-300 leading-normal">{m.desc}</div>
+                {/* Section 3: Metrics */}
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-3.5 space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                    <BarChart3 className="h-3.5 w-3.5 text-cyan-400" />
+                    <span>3. Giải Thích Thông Số & Chỉ Số Quan Trọng</span>
+                  </h4>
+                  <div className="grid gap-2 sm:grid-cols-2 pl-4">
+                    {currentGuide.metrics.map((m, idx) => (
+                      <div key={idx} className="rounded-lg border border-slate-800/80 bg-slate-900/60 p-2.5 space-y-1">
+                        <div className="text-xs font-bold text-cyan-300 font-mono">{m.label}</div>
+                        <div className="text-[11px] text-slate-300 leading-normal">{m.desc}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+
+                {/* Section 4: Playbook */}
+                <div className="rounded-xl border border-emerald-900/50 bg-gradient-to-br from-emerald-950/20 via-slate-950 to-slate-950 p-3.5 space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+                    <Lightbulb className="h-3.5 w-3.5 text-yellow-400" />
+                    <span>4. Chiến Lược Sử Dụng Thực Chiến Hiệu Quả</span>
+                  </h4>
+                  <div className="space-y-1.5 pl-4">
+                    {currentGuide.playbook.map((step, idx) => (
+                      <div key={idx} className="flex items-start gap-2 text-xs text-slate-200 leading-relaxed">
+                        <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600/30 text-[10px] font-bold text-emerald-400 border border-emerald-500/40 mt-0.5">
+                          {idx + 1}
+                        </div>
+                        <span>{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Section 4: Actionable Playbook */}
-            <div className="rounded-xl border border-emerald-900/50 bg-gradient-to-br from-emerald-950/20 via-slate-950 to-slate-950 p-4 space-y-2.5">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
-                <Lightbulb className="h-4 w-4 text-yellow-400" />
-                <span>{language === 'en' ? '4. Actionable Playbook & Best Practices' : language === 'zh' ? '4. 实盘操作指南与最佳实践' : language === 'ko' ? '4. 실전 트레이딩 플레이북' : '4. Chiến lược Sử dụng Thực chiến Hiệu quả'}</span>
-              </h4>
-              <div className="space-y-2 pl-5">
-                {currentGuide.playbook.map((step, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-xs text-slate-200 leading-relaxed">
-                    <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-600/30 text-[10px] font-bold text-emerald-400 border border-emerald-500/40 mt-0.5">
-                      {idx + 1}
+          {/* SECTION 4: 4-STEP TRADING PLAYBOOK */}
+          {activeSection === 'PLAYBOOK' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              <div className="rounded-xl border border-emerald-900/60 bg-slate-950/80 p-4 space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-2">
+                  <Target className="h-4 w-4 text-emerald-400" />
+                  <span>Quy Trình 4 Bước Săn Kèo Thực Chiến Chuẩn Định Lượng</span>
+                </h3>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {/* Step 1 */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-5 w-5 rounded-full bg-violet-600 text-white flex items-center justify-center font-bold text-xs">1</span>
+                      <span className="font-bold text-slate-200 text-xs uppercase">Bước 1: Quét Tín Hiệu (Tab Tín hiệu / Telegram)</span>
                     </div>
-                    <span>{step}</span>
+                    <p className="text-xs text-slate-300 leading-relaxed pl-7">
+                      Xem danh sách coin cảnh báo. Ưu tiên các coin có nhãn <strong>`FIRED`</strong> (đang bắt đầu xả) hoặc <strong>`HOT RISK`</strong> với xác suất $\ge 70\%$. Bấm vào coin để chuyển sang màn hình <em>Vào Lệnh</em>.
+                    </p>
                   </div>
-                ))}
+
+                  {/* Step 2 */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-5 w-5 rounded-full bg-amber-600 text-white flex items-center justify-center font-bold text-xs">2</span>
+                      <span className="font-bold text-slate-200 text-xs uppercase">Bước 2: Thẩm Định Buồng Lái (Tab Vào lệnh)</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed pl-7">
+                      Kiểm tra nến 15m/5m, đối chiếu <strong>Taker Sell Ratio $\ge 55\%$</strong> và <strong>Open Interest giảm</strong>. Đọc thẻ <em>Trade Setup</em> để lấy giá Entry, SL và 3 mức TP chuẩn xác.
+                    </p>
+                  </div>
+
+                  {/* Step 3 */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-5 w-5 rounded-full bg-cyan-600 text-white flex items-center justify-center font-bold text-xs">3</span>
+                      <span className="font-bold text-slate-200 text-xs uppercase">Bước 3: Đi Lệnh Kỷ Luật (Vào Lệnh & Cài SL)</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed pl-7">
+                      Vào lệnh Short trong vùng Entry, đặt <strong>Stop Loss bắt buộc</strong> ngay trên đỉnh nến gần nhất (trung bình 2.2%, tối đa 4%). Tuyệt đối không thả SL hoặc gồng lỗ.
+                    </p>
+                  </div>
+
+                  {/* Step 4 */}
+                  <div className="rounded-lg border border-slate-800 bg-slate-900/80 p-3.5 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-5 w-5 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">4</span>
+                      <span className="font-bold text-slate-200 text-xs uppercase">Bước 4: Quản Trị Vị Thế & Chốt Lời (Tab Vị thế)</span>
+                    </div>
+                    <p className="text-xs text-slate-300 leading-relaxed pl-7">
+                      Bấm &ldquo;Thêm vào Vị thế&rdquo; để theo dõi PnL trực tiếp. Khi giá chạm <strong>TP1 (-4%)</strong>: Chốt ngay 50% khối lượng và <strong>dời SL về điểm hòa vốn (Breakeven)</strong>. Gồng tiếp 30% tới TP2 (-8%) và 20% tới TP3 (-12%).
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
+
+          {/* SECTION 5: RISK & NOTICES */}
+          {activeSection === 'RISK' && (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+              <div className="rounded-xl border border-rose-900/60 bg-slate-950/80 p-4 space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-rose-300 flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-rose-400" />
+                  <span>5 Nguyên Tắc Quản Trị Rủi Ro & Lưu Ý Sống Còn</span>
+                </h3>
+
+                <div className="space-y-3 text-xs">
+                  <div className="p-3 rounded-lg bg-rose-950/30 border border-rose-800/60 text-rose-200 space-y-1">
+                    <div className="font-bold text-rose-300 flex items-center gap-1.5">
+                      <AlertTriangle className="h-4 w-4 text-rose-400" />
+                      <span>1. Đòn Bẩy Khuyến Nghị & Tỷ Lệ Đi Vốn (Position Sizing)</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed pl-5">
+                      Coin bơm xả (Altcoins/Memecoins) có biên độ giật rất mạnh. Khuyến nghị đòn bẩy tối đa <strong>$3x - 5x$ (tối đa không quá $10x$)</strong>. Mỗi lệnh chỉ nên chịu rủi ro tối đa <strong>$1\% - 2\%$ tổng tài khoản</strong> nếu dính Stop Loss.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-200 space-y-1">
+                    <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-amber-400" />
+                      <span>2. Kỷ Luật Cắt Lỗ — Không Bao Giờ Thả Stop Loss</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed pl-5">
+                      Nếu giá tăng vượt ngưỡng MAE cho phép (&gt; 4%) và cắn SL, hãy chấp nhận cắt lỗ ngay lập tức. Các đợt Short Squeeze điên cuồng có thể x3 x5 tài sản trong vài giờ, việc gồng lỗ Short là con đường nhanh nhất dẫn đến cháy tài khoản.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-200 space-y-1">
+                    <div className="font-bold text-cyan-300 flex items-center gap-1.5">
+                      <Info className="h-4 w-4 text-cyan-400" />
+                      <span>3. Kiểm Tra Bối Cảnh Thị Trường (Market Regime)</span>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed pl-5">
+                      Khi Bitcoin đang trong pha tăng điên cuồng (Bull Frenzy / ADX &gt; 40), các lệnh Short Altcoin sẽ chịu áp lực thanh lý rất lớn. Hãy ưu tiên đi lệnh mạnh khi Tab <em>Thị Trường</em> báo trạng thái `TRENDING_BEAR` hoặc `CHOPPY`.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-900/80 border border-slate-800 text-slate-200 space-y-1">
+                    <div className="font-bold text-slate-400 flex items-center gap-1.5">
+                      <Scale className="h-4 w-4 text-slate-400" />
+                      <span>4. Tuyên Bố Miễn Trừ Trách Nhiệm (Disclaimer)</span>
+                    </div>
+                    <p className="text-slate-400 leading-relaxed pl-5 text-[11px]">
+                      Hệ thống Đảo Vàng PeakPulse cung cấp các chỉ số, xác suất và phân tích định lượng độc lập nhằm hỗ trợ người dùng nâng cao chất lượng quyết định. Đây không phải là lời khuyên đầu tư tài chính hay ủy thác giao dịch. Mọi quyết định đi lệnh và quản trị vốn đều thuộc toàn quyền trách nhiệm của người sử dụng.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/80 text-[11px] text-slate-400 shrink-0">
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-slate-800 bg-slate-950/90 text-[11px] text-slate-400 shrink-0">
           <div className="flex items-center gap-1.5">
             <Lightbulb className="h-3.5 w-3.5 text-yellow-400" />
-            <span>{language === 'en' ? 'Tip: You can switch tabs on the left to read guides for any other tab anytime.' : language === 'zh' ? '提示：在左侧列表中可随意切换查阅任意 Tab 的功能说明。' : language === 'ko' ? '팁: 왼쪽 목록에서 언제든 다른 탭의 가이드를 선택하여 열람할 수 있습니다.' : 'Mẹo: Bạn có thể chọn bất kỳ tab nào ở cột bên trái để xem cơ chế của tab đó.'}</span>
+            <span>Mẹo: Bạn có thể chọn bất kỳ Tab nào ở cột bên trái hoặc chuyển chuyên mục ở thanh điều hướng trên cùng để tra cứu.</span>
           </div>
           <button
             onClick={onClose}
             className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-md text-xs font-medium transition"
           >
-            {language === 'en' ? 'Close' : language === 'zh' ? '关闭' : language === 'ko' ? '닫기' : 'Đóng'}
+            Đóng
           </button>
         </div>
       </div>

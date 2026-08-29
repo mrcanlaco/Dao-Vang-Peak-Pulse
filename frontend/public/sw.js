@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dao-vang-pwa-v3.2';
+const CACHE_NAME = 'dao-vang-pwa-v3.3';
 const STATIC_ASSETS = [
   '/favicon.svg',
   '/icon.svg',
