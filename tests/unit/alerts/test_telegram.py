@@ -243,13 +243,14 @@ class TestTelegramAlert:
             )
 
         text = captured.get("text", "")
-        assert "VÀO LỆNH SHORT NGAY" in text
+        assert "CẢNH BÁO TÍN HIỆU SHORT" in text
         assert "⭐⭐⭐⭐" in text
-        assert "Điểm hợp lưu 2 Tầng" in text
+        assert "Điểm phân phối 2 Tầng" in text
         assert "Funding tăng đột biến" in text
         assert "https://daovang.comaygiauco.com/#coin=ETHUSDT" in text
         assert "Báo cáo phân tích" in text
-
+        assert "binance.com" not in text.lower()
+        assert "okx.com" not in text.lower()
     def test_send_test(self, configured_notifier: TelegramNotifier) -> None:
         """Test message should be sent successfully."""
         mock_response = MagicMock()
@@ -342,11 +343,12 @@ class TestTelegramAlert:
             )
 
         text = captured.get("text", "")
-        assert "SHORT EXECUTION" in text
+        assert "DISTRIBUTION SIGNAL" in text
         assert "⭐⭐⭐⭐⭐" in text
         assert "Price-Volume Divergence" in text
         assert "https://trade.example.com/#coin=BNBUSDT" in text
-
+        assert "binance.com" not in text.lower()
+        assert "okx.com" not in text.lower()
     def test_send_cycle_digest_vietnamese(self, configured_notifier: TelegramNotifier) -> None:
         """Verify cycle digest formatting in Vietnamese."""
         captured: dict = {}
@@ -393,7 +395,7 @@ class TestTelegramAlert:
 
         assert result is True
         text = captured.get("text", "")
-        assert "TỔNG HỢP CẢNH BÁO CHU KỲ" in text
+        assert "TỔNG HỢP TÍN HIỆU PHÂN PHỐI CHU KỲ" in text
         assert "2 coin" in text
         assert "CRVUSDT" in text
         assert "DOGEUSDT" in text
@@ -401,7 +403,8 @@ class TestTelegramAlert:
         assert "78.0%" in text
         assert "⭐⭐⭐⭐" in text
         assert "BTC:* YẾU" in text
-
+        assert "binance.com" not in text.lower()
+        assert "okx.com" not in text.lower()
     def test_send_cycle_digest_english(self) -> None:
         """Verify cycle digest formatting in English for multiple coins."""
         config = TelegramConfig(
@@ -461,3 +464,42 @@ class TestTelegramAlert:
         assert "DOGEUSDT" in text
         assert "82.0%" in text
         assert "*BTC Context:* BULLISH HEAT (FOMO)" in text
+        assert "binance.com" not in text.lower()
+        assert "okx.com" not in text.lower()
+
+    def test_send_two_tier_alert_no_exchange_links(
+        self, configured_notifier: TelegramNotifier
+    ) -> None:
+        """Verify 2-tier alert formatting has no Binance/OKX links."""
+        captured: dict = {}
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"ok": True}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.side_effect = lambda url, json=None, **kw: (
+            captured.update(json or {}) or mock_response
+        )
+
+        with patch("dao_vang.alerts.telegram.httpx.Client", return_value=mock_client):
+            configured_notifier.send_two_tier_alert(
+                symbol="SOLUSDT",
+                stage="FIRED",
+                total_score=88.0,
+                htf_score=85.0,
+                ltf_score=90.0,
+                pump_pct=0.75,
+                pump_days=3,
+                close_price=150.0,
+                feature_time="2026-08-03T12:00:00+00:00",
+                web_url="https://daovang.comaygiauco.com/#coin=SOLUSDT",
+            )
+
+        text = captured.get("text", "")
+        assert "CẢNH BÁO TÍN HIỆU SHORT" in text
+        assert "SOLUSDT" in text
+        assert "https://daovang.comaygiauco.com/#coin=SOLUSDT" in text
+        assert "binance.com" not in text.lower()
+        assert "okx.com" not in text.lower()

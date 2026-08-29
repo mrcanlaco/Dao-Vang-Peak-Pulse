@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   ShieldCheck, Activity, BarChart3,
-  Layers, ArrowUpRight, ArrowDownRight, Eye, CheckCircle2, Zap, Radio, Terminal, Send, Clock, Play, Loader2, FlaskConical, LineChart as LineChartIcon, XCircle, RefreshCw, Target, Award, ChevronDown, ChevronUp, Cpu, HelpCircle
+  ArrowUpRight, ArrowDownRight, CheckCircle2, Zap, Radio, Terminal, Send, Clock, Play, Loader2, LineChart as LineChartIcon, RefreshCw, Target, Award, ChevronDown, ChevronUp, HelpCircle
 } from 'lucide-react';
 import { SignalFeed } from './SignalFeed';
 import { MultiCoinScan } from './MultiCoinScan';
@@ -171,6 +171,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const challengerMetrics = challengerVersion
     ? comparisonReport?.metrics?.[challengerVersion]
     : undefined;
+  const [isAbSectionExpanded, setIsAbSectionExpanded] = useState(false);
   const metricPercent = (value: number | null | undefined) => (
     value == null 
       ? t('badge_insufficient_data') 
@@ -208,7 +209,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const [listingRefreshing, setListingRefreshing] = useState(false);
   const [candleInterval, setCandleInterval] = useState('15m');
   const [candleDataOverride, setCandleDataOverride] = useState<CandlePoint[] | null>(null);
-  const [expandedComparisonGroup, setExpandedComparisonGroup] = useState<'champion' | 'challenger' | 'overlap' | 'challenger_only' | 'champion_only' | null>(null);
   const [candidateFilterSegment, setCandidateFilterSegment] = useState<'ALL' | 'V2_CHAMPION' | 'V1_CHALLENGER' | 'OVERLAP' | 'V2_UNIQUE' | 'V3_PREVIEW'>('ALL');
   const [isAiChatOpen, setIsAiChatOpen] = useState(true);
 
@@ -255,18 +255,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     };
   }, [candidateComparison]);
 
-  const expandedComparisonItems = expandedComparisonGroup
-    ? comparisonSelections[expandedComparisonGroup]
-    : [];
-  const expandedComparisonLabel = expandedComparisonGroup === 'champion'
-    ? t('candidate_arm_v2_selected_tooltip')
-    : expandedComparisonGroup === 'challenger'
-      ? t('candidate_arm_v1_selected_tooltip')
-      : expandedComparisonGroup === 'overlap'
-        ? t('candidate_arm_both_tooltip')
-        : expandedComparisonGroup === 'champion_only'
-          ? t('candidate_arm_v2_tooltip')
-          : t('candidate_arm_v1_tooltip');
 
   const filteredCandidates = useMemo(() => {
     if (candidateFilterSegment === 'ALL') {
@@ -956,439 +944,334 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
       {/* TAB 2: CANDIDATE SELL RANKING TABLE */}
       {activeTab === 'RANKING' && (
-        <div className="flex-1 overflow-y-auto pr-1">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-            <div>
-              <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase">
-                <BarChart3 className="w-3.5 h-3.5 text-violet-400" />
-                {t('ranking_title_full')}
-                <span className="rounded-full bg-violet-950/80 border border-violet-700/80 px-2 py-0.2 text-[9px] font-bold text-violet-300">
-                  {t('ranking_badge_v2_official')}
-                </span>
-                <span className="rounded-full bg-amber-950/60 border border-amber-800/60 px-2 py-0.2 text-[9px] font-medium text-amber-300">
-                  {t('ranking_badge_v1_ab')}
-                </span>
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                {t('ranking_desc_v2_v1')}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {onOpenTabHelp && (
+        <div className="flex-1 overflow-y-auto pr-1 space-y-3">
+          {/* Header Banner */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-3.5 shadow-md">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5 mb-2.5">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-violet-600/20 text-violet-300 border border-violet-500/30">
+                  <BarChart3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-slate-200 flex items-center gap-2 uppercase tracking-wider">
+                    <span>{t('ranking_title_full') || 'Bảng Xếp Hạng Top Coin Xả'}</span>
+                    <span className="rounded-full bg-violet-950 border border-violet-700/80 px-2 py-0.2 text-[9px] font-bold text-violet-300">
+                      V2 Champion
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    {language === 'zh'
+                      ? '实时监测全市场 678+ 币种，筛选高位滞涨、动能衰竭且最具暴跌潜力的做空候选标的'
+                      : language === 'ko'
+                      ? '678개 이상 코인 중 고점 분산 및 급락 가능성이 가장 높은 숏 후보 순위'
+                      : 'Sàng lọc từ 678+ coin Binance Futures, phát hiện các đồng coin bơm căng tạo đỉnh và có xác suất xả cao nhất.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {onOpenTabHelp && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenTabHelp('RANKING')}
+                    className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-medium text-slate-300 transition hover:border-violet-500/60 hover:text-violet-300 shadow-sm"
+                    title="Xem hướng dẫn chi tiết về cơ chế & chỉ số Bảng Ứng Viên"
+                  >
+                    <HelpCircle className="h-3 w-3 text-violet-400" />
+                    <span>{language === 'en' ? 'Guide' : language === 'zh' ? '功能说明' : language === 'ko' ? '도움말' : 'Hướng dẫn'}</span>
+                  </button>
+                )}
+                <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">{t('ranking_sorted_by_risk')}</span>
                 <button
                   type="button"
-                  onClick={() => onOpenTabHelp('RANKING')}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-medium text-slate-300 transition hover:border-violet-500/60 hover:text-violet-300"
-                  title="Xem hướng dẫn chi tiết về cơ chế & chỉ số Bảng Ứng Viên"
+                  onClick={() => onRefreshCandidates()}
+                  disabled={isRefreshingCandidates}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-[10px] font-bold text-slate-300 transition hover:border-violet-500/60 hover:text-violet-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 shadow-sm"
+                  title={t('ranking_refresh_tooltip')}
                 >
-                  <HelpCircle className="h-3 w-3 text-violet-400" />
-                  <span>{language === 'zh' ? '功能说明' : language === 'ko' ? '도움말' : 'Hướng dẫn'}</span>
+                  <RefreshCw className={`h-3 w-3 ${isRefreshingCandidates ? 'animate-spin text-amber-400' : ''}`} />
+                  <span>{isRefreshingCandidates ? t('ranking_scanning_status') : t('refresh')}</span>
                 </button>
-              )}
-              <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">{t('ranking_sorted_by_risk')}</span>
+              </div>
+            </div>
+
+            {/* Segment Filter Toolbar */}
+            <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto text-[11px] font-semibold [&::-webkit-scrollbar]:hidden">
+              <span className="text-[10px] uppercase font-bold text-slate-500 pl-1 pr-1 shrink-0">
+                {t('ranking_view_mode_label') || 'Lọc nhóm:'}
+              </span>
+
+              {/* All */}
               <button
                 type="button"
-                onClick={() => onRefreshCandidates()}
-                disabled={isRefreshingCandidates}
-                className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-medium text-slate-300 transition hover:border-violet-500/60 hover:text-violet-300 disabled:cursor-not-allowed disabled:opacity-60"
-                title={t('ranking_refresh_tooltip')}
+                onClick={() => setCandidateFilterSegment('ALL')}
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition shrink-0 ${
+                  candidateFilterSegment === 'ALL'
+                    ? 'bg-slate-700 text-white font-bold shadow-sm'
+                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
               >
-                <RefreshCw className={`h-3 w-3 ${isRefreshingCandidates ? 'animate-spin' : ''}`} />
-                {isRefreshingCandidates ? t('ranking_scanning_status') : t('refresh')}
+                <span>{t('ranking_filter_all')}</span>
+                <span className="rounded bg-slate-800/80 px-1.5 py-0.2 text-[9px] font-mono">
+                  {candidates.length}
+                </span>
+              </button>
+
+              {/* V2 Champion */}
+              <button
+                type="button"
+                onClick={() => setCandidateFilterSegment('V2_CHAMPION')}
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition shrink-0 ${
+                  candidateFilterSegment === 'V2_CHAMPION'
+                    ? 'bg-violet-950 border border-violet-500 text-violet-200 font-bold shadow-sm'
+                    : 'bg-slate-900 text-violet-400/80 hover:text-violet-200 border border-slate-800'
+                }`}
+              >
+                <span>👑 {t('ranking_filter_v2_champion')}</span>
+                <span className="rounded bg-violet-900/60 px-1.5 py-0.2 text-[9px] font-mono font-bold text-violet-300">
+                  {comparisonSelections.champion.length || candidates.length}
+                </span>
+              </button>
+
+              {/* V1 Challenger */}
+              <button
+                type="button"
+                onClick={() => setCandidateFilterSegment('V1_CHALLENGER')}
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition shrink-0 ${
+                  candidateFilterSegment === 'V1_CHALLENGER'
+                    ? 'bg-amber-950 border border-amber-500 text-amber-200 font-bold shadow-sm'
+                    : 'bg-slate-900 text-amber-400/80 hover:text-amber-200 border border-slate-800'
+                }`}
+              >
+                <span>📊 {t('ranking_filter_v1_baseline')}</span>
+                <span className="rounded bg-amber-900/60 px-1.5 py-0.2 text-[9px] font-mono text-amber-300">
+                  {comparisonSelections.challenger.length}
+                </span>
+              </button>
+
+              {/* Overlap */}
+              <button
+                type="button"
+                onClick={() => setCandidateFilterSegment('OVERLAP')}
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition shrink-0 ${
+                  candidateFilterSegment === 'OVERLAP'
+                    ? 'bg-emerald-950 border border-emerald-500 text-emerald-200 font-bold shadow-sm'
+                    : 'bg-slate-900 text-emerald-400/80 hover:text-emerald-200 border border-slate-800'
+                }`}
+              >
+                <span>🎯 {t('ranking_filter_high_conviction')}</span>
+                <span className="rounded bg-emerald-900/60 px-1.5 py-0.2 text-[9px] font-mono text-emerald-300 font-bold">
+                  {comparisonSelections.overlap.length}
+                </span>
+              </button>
+
+              {/* V2 Unique */}
+              <button
+                type="button"
+                onClick={() => setCandidateFilterSegment('V2_UNIQUE')}
+                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition shrink-0 ${
+                  candidateFilterSegment === 'V2_UNIQUE'
+                    ? 'bg-cyan-950 border border-cyan-500 text-cyan-200 font-bold shadow-sm'
+                    : 'bg-slate-900 text-cyan-400/80 hover:text-cyan-200 border border-slate-800'
+                }`}
+              >
+                <span>💡 {t('ranking_filter_v2_early')}</span>
+                <span className="rounded bg-cyan-900/60 px-1.5 py-0.2 text-[9px] font-mono text-cyan-300">
+                  {comparisonSelections.champion_only.length}
+                </span>
               </button>
             </div>
           </div>
 
-          {/* BỘ LỌC PHÂN ĐOẠN / FILTER SEGMENT TABS */}
-          <div className="mb-3 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-950/90 p-1.5">
-            <span className="px-2 text-[10px] font-semibold uppercase text-slate-400">
-              {t('ranking_view_mode_label')}
-            </span>
+          {/* MAIN CANDIDATE TABLE (HIỂN THỊ NGAY TRÊN CÙNG) */}
+          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1040px] text-left text-xs text-slate-300">
+                <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-mono text-[10px] uppercase">
+                  <tr>
+                    <th className="p-2.5">{t('col_coin')}</th>
+                    <th className="p-2.5">{language === 'zh' ? '筛选源 & 阶段' : language === 'ko' ? '필터링 출처 및 단계' : t('ranking_col_source_stage')}</th>
+                    <th className="p-2.5">{t('col_price')}</th>
+                    <th className="p-2.5">{t('col_score')}</th>
+                    <th className="p-2.5">{language === 'zh' ? '风险等级' : language === 'ko' ? '위험 등급' : t('ranking_col_risk_tier')}</th>
+                    <th className="p-2.5">{t('metric_oi_24h')}</th>
+                    <th className="p-2.5">{t('metric_funding')}</th>
+                    <th className="p-2.5">{t('metric_taker_sell')}</th>
+                    <th className="p-2.5">{t('metric_volume_24h')}</th>
+                    <th className="p-2.5">{language === 'vi' ? 'Bất thường' : language === 'zh' ? '异常' : language === 'ko' ? '이상 징후' : 'Anomalies'}</th>
+                    <th className="p-2.5 text-right">{t('col_action')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-mono">
+                  {filteredCandidates.length === 0 && (
+                    <tr>
+                      <td colSpan={11} className="p-8 text-center font-sans text-slate-500">
+                        {isRefreshingCandidates
+                          ? t('candidate_filter_pipeline_loading') : t('candidate_empty_segment_notice')}
+                      </td>
+                    </tr>
+                  )}
+                  {filteredCandidates.map((c, i) => {
+                    const isOverlap = comparisonSelections.overlap.some((item) => item.symbol === c.symbol);
+                    const isV2Only = comparisonSelections.champion_only.some((item) => item.symbol === c.symbol);
+                    const isV1Only = comparisonSelections.challenger_only.some((item) => item.symbol === c.symbol);
+                    const isV2Selected = comparisonSelections.champion.some((item) => item.symbol === c.symbol);
+                    const stageName = isOverlap
+                      ? t('cand_badge_overlap')
+                      : isV2Only
+                      ? t('cand_badge_unique')
+                      : isV1Only
+                      ? 'V1 PUMP'
+                      : isV2Selected
+                      ? 'V2 QUANT'
+                      : c.stage || 'ACTIVE';
 
-            {/* All */}
-            <button
-              type="button"
-              onClick={() => setCandidateFilterSegment('ALL')}
-              className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium transition ${
-                candidateFilterSegment === 'ALL'
-                  ? 'bg-slate-800 text-white font-bold shadow-sm'
-                  : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
-              }`}
-            >
-              <span>{t('ranking_filter_all')}</span>
-              <span className="rounded bg-slate-700/60 px-1.5 py-0.2 text-[9px] font-mono text-slate-300">
-                {candidates.length}
-              </span>
-            </button>
-
-            {/* V2 Champion */}
-            <button
-              type="button"
-              onClick={() => setCandidateFilterSegment('V2_CHAMPION')}
-              className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium transition ${
-                candidateFilterSegment === 'V2_CHAMPION'
-                  ? 'bg-violet-950 border border-violet-600 text-violet-200 font-bold shadow-sm'
-                  : 'text-violet-300/80 hover:bg-violet-950/40 hover:text-violet-200'
-              }`}
-            >
-              <span>👑 {t('ranking_filter_v2_champion')}</span>
-              <span className="rounded bg-violet-900/60 px-1.5 py-0.2 text-[9px] font-mono text-violet-300 font-bold">
-                {comparisonSelections.champion.length || candidates.length}
-              </span>
-            </button>
-
-            {/* V1 Challenger */}
-            <button
-              type="button"
-              onClick={() => setCandidateFilterSegment('V1_CHALLENGER')}
-              className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium transition ${
-                candidateFilterSegment === 'V1_CHALLENGER'
-                  ? 'bg-amber-950 border border-amber-600 text-amber-200 font-bold shadow-sm'
-                  : 'text-amber-300/80 hover:bg-amber-950/40 hover:text-amber-200'
-              }`}
-            >
-              <span>📊 {t('ranking_filter_v1_baseline')}</span>
-              <span className="rounded bg-amber-900/60 px-1.5 py-0.2 text-[9px] font-mono text-amber-300">
-                {comparisonSelections.challenger.length}
-              </span>
-            </button>
-
-            {/* {t('cand_badge_overlap')} */}
-            <button
-              type="button"
-              onClick={() => setCandidateFilterSegment('OVERLAP')}
-              className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium transition ${
-                candidateFilterSegment === 'OVERLAP'
-                  ? 'bg-emerald-950 border border-emerald-600 text-emerald-200 font-bold shadow-sm'
-                  : 'text-emerald-300/80 hover:bg-emerald-950/40 hover:text-emerald-200'
-              }`}
-            >
-              <span>🎯 {t('ranking_filter_high_conviction')}</span>
-              <span className="rounded bg-emerald-900/60 px-1.5 py-0.2 text-[9px] font-mono text-emerald-300">
-                {comparisonSelections.overlap.length}
-              </span>
-            </button>
-
-            {/* V2 Unique */}
-            <button
-              type="button"
-              onClick={() => setCandidateFilterSegment('V2_UNIQUE')}
-              className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium transition ${
-                candidateFilterSegment === 'V2_UNIQUE'
-                  ? 'bg-cyan-950 border border-cyan-600 text-cyan-200 font-bold shadow-sm'
-                  : 'text-cyan-300/80 hover:bg-cyan-950/40 hover:text-cyan-200'
-              }`}
-            >
-              <span>💡 {t('ranking_filter_v2_early')}</span>
-              <span className="rounded bg-cyan-900/60 px-1.5 py-0.2 text-[9px] font-mono text-cyan-300">
-                {comparisonSelections.champion_only.length}
-              </span>
-            </button>
-
-            {/* V3 Lab Preview */}
-            <button
-              type="button"
-              onClick={() => setCandidateFilterSegment('V3_PREVIEW')}
-              className={`inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium transition ml-auto ${
-                candidateFilterSegment === 'V3_PREVIEW'
-                  ? 'bg-indigo-950 border border-indigo-500 text-indigo-200 font-bold shadow-sm ring-1 ring-indigo-500/50'
-                  : 'text-indigo-300/80 hover:bg-indigo-950/40 hover:text-indigo-200 border border-indigo-900/50'
-              }`}
-            >
-              <span>🔬 {t('ranking_filter_v3_lab')}</span>
-              <span className="rounded bg-indigo-900/70 px-1.5 py-0.2 text-[9px] font-semibold text-indigo-300">
-                Ready
-              </span>
-            </button>
+                    return (
+                      <tr key={i} className="hover:bg-slate-900/60 transition group">
+                        <td className="p-2.5 font-bold text-white flex items-center gap-2">
+                          <span className="text-slate-500 font-normal text-[10px]">#{i + 1}</span>
+                          <CoinLink
+                            symbol={c.symbol}
+                            onClick={() => onSelectCandidate(c.symbol)}
+                            className="text-xs group-hover:text-amber-300 font-bold"
+                          />
+                        </td>
+                        <td className="p-2.5">
+                          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold ${
+                            isOverlap
+                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                              : isV2Only
+                              ? 'bg-cyan-950 text-cyan-300 border border-cyan-800'
+                              : isV1Only
+                              ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                              : 'bg-violet-950 text-violet-300 border border-violet-800'
+                          }`}>
+                            {isOverlap ? '🎯 ' : isV2Only ? '💡 ' : isV1Only ? '📊 ' : '👑 '}
+                            {stageName}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-amber-400 font-bold">${c.price > 0 ? (c.price < 1 ? c.price.toFixed(5) : c.price.toFixed(2)) : '—'}</td>
+                        <td className="p-2.5">
+                          <span className="font-bold text-red-400">{c.score.toFixed(1)} {language === 'zh' ? '分' : language === 'ko' ? '점' : t('unit_points')}</span>
+                        </td>
+                        <td className="p-2.5">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            c.risk === 'CRITICAL' ? 'bg-red-950 text-red-400 border border-red-800' :
+                            c.risk === 'HIGH' ? 'bg-amber-950 text-amber-400 border border-amber-800' :
+                            c.risk === 'MEDIUM' ? 'bg-yellow-950 text-yellow-300 border border-yellow-800' :
+                            'bg-emerald-950 text-emerald-400 border border-emerald-800'
+                          }`}>
+                            {riskLabels[c.risk] ?? c.risk}
+                          </span>
+                        </td>
+                        <td className="p-2.5 text-red-400">{c.oi_24h}</td>
+                        <td className="p-2.5 text-amber-300">{c.funding}</td>
+                        <td className="p-2.5">{c.taker_ratio}</td>
+                        <td className="p-2.5 text-slate-400">{c.volume_24h}</td>
+                        <td className="p-2.5">
+                          <div className="flex max-w-[190px] flex-wrap items-center gap-1">
+                            {c.anomalies && c.anomalies.length > 0 ? c.anomalies.slice(0, 3).map((anomaly) => (
+                              <span
+                                key={anomaly.code}
+                                className={`rounded px-1.5 py-0.2 text-[8px] font-bold uppercase tracking-tight ${
+                                  anomaly.severity === 'extreme'
+                                    ? 'border border-rose-600/70 bg-rose-950 text-rose-300'
+                                    : anomaly.severity === 'high'
+                                    ? 'border border-amber-600/70 bg-amber-950 text-amber-300'
+                                    : 'border border-slate-700 bg-slate-800 text-slate-300'
+                                }`}
+                                title={anomaly.explanation || anomaly.title}
+                              >
+                                {anomaly.title}
+                              </span>
+                            )) : (
+                              <span className="text-[9px] text-slate-600">—</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-2.5 text-right">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSelectCandidate(c.symbol);
+                              setActiveTab('DECISION');
+                            }}
+                            className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold rounded text-[10px] transition active:scale-95 shadow-sm"
+                          >
+                            Vào lệnh
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
-          {/* V3 LAB PREVIEW CARD (Khi bật tab V3) */}
-          {candidateFilterSegment === 'V3_PREVIEW' && (
-            <div className="mb-4 rounded-xl border border-indigo-700/80 bg-gradient-to-b from-slate-950 via-indigo-950/30 to-slate-950 p-4 shadow-xl shadow-indigo-950/30">
-              <div className="flex items-center justify-between border-b border-indigo-800/40 pb-2.5">
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-300">
-                  <Cpu className="h-4 w-4 text-indigo-400" />
-                  <span>{t('ranking_v3_blueprint_title')}</span>
+          {/* KHỐI ĐỐI SOÁT THỬ NGHIỆM A/B & TIẾN ĐỘ NGHIỆM THU V2 (GẬP MỞ GỌN GÀNG) */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3 shadow-md">
+            <button
+              type="button"
+              onClick={() => setIsAbSectionExpanded(v => !v)}
+              className="w-full flex flex-wrap items-center justify-between gap-2 text-left"
+            >
+              <div className="flex items-center gap-2">
+                <div className="p-1 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                  <Award className="h-4 w-4" />
                 </div>
-                <span className="rounded-full bg-indigo-900/80 border border-indigo-600 px-2.5 py-0.5 text-[10px] font-bold text-indigo-200">
-                  {t('ranking_v3_phase3_ready')}
-                </span>
-              </div>
-
-              <div className="mt-3 grid gap-3 md:grid-cols-3">
-                <div className="rounded-lg border border-indigo-900/80 bg-slate-950/80 p-3">
-                  <div className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-                    <Zap className="h-3.5 w-3.5 text-amber-400" />
-                    <span>{t('cand_tab_microstructure')}</span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-slate-300 leading-relaxed">
-                    Phân tích Orderbook Bid/Ask Depth Imbalance trực tiếp từ luồng WebSocket 100ms. Đo lường lực hấp thụ âm thầm (iceberg orders) trước khi giá đảo chiều.
-                  </p>
-                </div>
-
-                <div className="rounded-lg border border-indigo-900/80 bg-slate-950/80 p-3">
-                  <div className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-                    <Layers className="h-3.5 w-3.5 text-cyan-400" />
-                    <span>{t('cand_tab_deep_learning')}</span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-slate-300 leading-relaxed">
-                    Đồng bộ 3 khung thời gian (1m, 5m, 1h) để nhận diện mô hình tích lũy giả và bẫy thanh khoản (Liquidity sweeps) của Market Maker với độ trễ thấp hơn.
-                  </p>
-                </div>
-
-                <div className="rounded-lg border border-indigo-900/80 bg-slate-950/80 p-3">
-                  <div className="text-xs font-bold text-indigo-300 flex items-center gap-1.5">
-                    <Award className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>{t('cand_tab_comparison')}</span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-slate-300 leading-relaxed">
-                    Kiến trúc hệ thống cho phép cắm trực tiếp V3 vào làm Challenger thứ 2. Tự động đối chiếu P@10, Recall và False Alarms giữa cả 3 phiên bản đồng thời.
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                    <span>{language === 'zh' ? 'A/B 测试对照与 V2 验收进度' : language === 'ko' ? 'A/B 테스트 대조 및 V2 검증' : 'Đối Soát A/B Test & Tiến Độ Nghiệm Thu V2'}</span>
+                    <span className="text-[10px] text-violet-300 font-mono">Champion V2 vs Challenger V1</span>
+                  </h4>
+                  <p className="text-[10px] text-slate-400">
+                    {isAbSectionExpanded
+                      ? (language === 'zh' ? '点击折叠 A/B 测试详情与进度条' : language === 'ko' ? 'A/B 테스트 상세 접기' : 'Theo dõi chi tiết 3 tiêu chuẩn định lượng để nghiệm thu và gỡ bỏ hoàn toàn V1.')
+                      : (language === 'zh' ? '点击展开 3 条验收进度条、完工倒计时与 V2 vs V1 对决战报' : language === 'ko' ? 'A/B 검증 진행률 및 맞대결 스코어카드 열기' : 'Bấm để mở chi tiết 3 thanh tiến độ kiểm định, đếm ngược ngày hoàn tất và bảng đối đầu chỉ số.')}
                   </p>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* SO SÁNH 2 PHIÊN BẢN LỌC ỨNG VIÊN (V2 CHAMPION vs V1 CHALLENGER) */}
-          <div className="mb-4 rounded-xl border border-violet-900/80 bg-gradient-to-b from-slate-950 via-violet-950/20 to-slate-950 p-3.5 shadow-lg shadow-violet-950/20">
-            {/* Header */}
-            <div className="flex flex-wrap items-start justify-between gap-2 border-b border-violet-900/40 pb-2.5">
-              <div>
-                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-violet-300">
-                  <FlaskConical className="h-4 w-4 text-violet-400" />
-                  <span>
-                    {language === 'en'
-                      ? 'Candidate Filter Engine: V2 (Official Champion) vs V1 (A/B Test Baseline)'
-                      : language === 'zh'
-                      ? '候选币过滤器：V2（生产冠军版）vs V1（A/B 对照基准）'
-                      : language === 'ko'
-                      ? '후보 필터 엔진: V2(실서버 정식) vs V1(A/B 대조군)'
-                      : 'Hệ Thống Lọc Ứng Viên: V2 (Bản Chính Thức) vs V1 (Đối Soát A/B Test)'}
-                  </span>
-                </div>
-                <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
-                  {language === 'en'
-                    ? 'V2 (Champion) actively filters the primary table & Telegram alerts with multi-stage quantitative exhaustion. V1 (Challenger) runs in parallel to continuously benchmark baseline stability.'
-                    : language === 'zh'
-                    ? 'V2（生产冠军版）基于多阶段动能衰竭算法驱动主榜单与 Telegram 预警；V1（挑战者）保持并行运行以持续进行 A/B 测试对照。'
-                    : language === 'ko'
-                    ? 'V2(실서버 정식)가 다단계 정량 분산 알고리즘으로 랭킹과 텔레그램을 전담하며, V1(대조군)은 지속적인 A/B 테스트 검증을 위해 병렬 실행됩니다.'
-                    : 'V2 (Champion) đang vận hành bảng xếp hạng chính & Telegram bằng thuật toán định lượng đa tầng. V1 (Challenger) chạy song song đối soát A/B test liên tục.'}
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="rounded-full border border-violet-700 bg-violet-950/80 px-2.5 py-0.5 text-[10px] font-semibold text-violet-200">
-                  {t('ranking_badge_v2_champion_active')}
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-full bg-violet-950 border border-violet-700/80 text-[10px] font-mono font-bold text-violet-300">
+                  {isAbSectionExpanded
+                    ? (language === 'zh' ? '点击折叠' : language === 'ko' ? '접기' : 'Thu gọn')
+                    : (language === 'zh' ? '查看 A/B 对照' : language === 'ko' ? 'A/B 상세 보기' : 'Mở chi tiết A/B')}
                 </span>
-                <span className="rounded-full border border-amber-800 bg-amber-950/70 px-2.5 py-0.5 text-[10px] font-semibold text-amber-300">
-                  {t('ranking_badge_ab_shadow_baseline')}
-                </span>
+                {isAbSectionExpanded ? <ChevronUp className="w-4 h-4 text-violet-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+              </div>
+            </button>
+
+            {isAbSectionExpanded && (
+              <div className="mt-3 pt-3 border-t border-slate-800 space-y-3">
+            {/* 6 Mini Stats Pills */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2 text-center">
+                <div className="text-[9px] uppercase text-slate-400">{t('ranking_shared_universe')}</div>
+                <div className="text-base font-bold text-white mt-0.5">{candidateComparison?.universe_count ?? 150}</div>
+              </div>
+              <div className="rounded-lg border border-violet-800/60 bg-violet-950/20 p-2 text-center">
+                <div className="text-[9px] uppercase text-violet-400 font-bold">{t('ranking_v2_selected_label')}</div>
+                <div className="text-base font-bold text-violet-300 mt-0.5">{candidateComparison?.champion_selected ?? 30}</div>
+              </div>
+              <div className="rounded-lg border border-amber-800/60 bg-amber-950/20 p-2 text-center">
+                <div className="text-[9px] uppercase text-amber-400 font-bold">{t('ranking_v1_selected_label')}</div>
+                <div className="text-base font-bold text-amber-300 mt-0.5">{candidateComparison?.challenger_selected ?? 10}</div>
+              </div>
+              <div className="rounded-lg border border-emerald-800/60 bg-emerald-950/20 p-2 text-center">
+                <div className="text-[9px] uppercase text-emerald-400 font-bold">{t('ranking_both_selected_label')}</div>
+                <div className="text-base font-bold text-emerald-300 mt-0.5">{candidateComparison?.overlap ?? 9}</div>
+              </div>
+              <div className="rounded-lg border border-cyan-800/60 bg-cyan-950/20 p-2 text-center">
+                <div className="text-[9px] uppercase text-cyan-400 font-bold">{t('ranking_v2_discoveries_label')}</div>
+                <div className="text-base font-bold text-cyan-300 mt-0.5">{candidateComparison?.champion_only ?? 21}</div>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2 text-center">
+                <div className="text-[9px] uppercase text-slate-400">{t('ranking_both_excluded_label')}</div>
+                <div className="text-base font-bold text-slate-400 mt-0.5">{candidateComparison?.neither ?? 119}</div>
               </div>
             </div>
-
-            {/* Metric Cards Grid */}
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-              {/* Universe */}
-              <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-2.5">
-                <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">{t('ranking_shared_universe')}</div>
-                <div className="mt-1 text-xl font-bold text-white">{candidateComparison?.universe_count ?? 150}</div>
-                <div className="text-[9px] text-slate-500">{t('ranking_monitored_symbols')}</div>
-              </div>
-
-              {/* V2 Selected (Champion) */}
-              {(() => {
-                const isExpanded = expandedComparisonGroup === 'champion';
-                const isChampV2 = (candidateComparison?.champion_version || '').toLowerCase().includes('v2');
-                const rawCount = isChampV2 ? candidateComparison?.champion_selected : candidateComparison?.challenger_selected;
-                const count = rawCount ?? comparisonSelections.champion.length;
-                return (
-                  <button
-                    type="button"
-                    onClick={() => setExpandedComparisonGroup(isExpanded ? null : 'champion')}
-                    aria-expanded={isExpanded}
-                    className={`rounded-lg border bg-slate-950/90 p-2.5 text-left transition hover:bg-slate-900 focus:outline-none ${
-                      isExpanded
-                        ? 'border-violet-500 ring-2 ring-violet-500/40 bg-violet-950/20'
-                        : 'border-violet-800/80 hover:border-violet-500'
-                    }`}
-                    title={t('ranking_v2_selected_title')}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-violet-400">{t('ranking_v2_selected_label')}</span>
-                      <span className="rounded bg-violet-950/80 px-1 py-0.2 text-[8px] font-bold text-violet-300">{t('cand_badge_champion')}</span>
-                    </div>
-                    <div className="mt-1 text-xl font-bold text-violet-300">{count}</div>
-                    <div className="flex items-center gap-1 text-[9px] text-violet-400/80">
-                      <span>{isExpanded ? (t('ranking_click_collapse')) : (t('ranking_official_filter_tag'))}</span>
-                      {isExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
-                    </div>
-                  </button>
-                );
-              })()}
-
-              {/* V1 Selected (Challenger) */}
-              {(() => {
-                const isExpanded = expandedComparisonGroup === 'challenger';
-                const isChampV2 = (candidateComparison?.champion_version || '').toLowerCase().includes('v2');
-                const rawCount = isChampV2 ? candidateComparison?.challenger_selected : candidateComparison?.champion_selected;
-                const count = rawCount ?? comparisonSelections.challenger.length;
-                return (
-                  <button
-                    type="button"
-                    onClick={() => setExpandedComparisonGroup(isExpanded ? null : 'challenger')}
-                    aria-expanded={isExpanded}
-                    className={`rounded-lg border bg-slate-950/90 p-2.5 text-left transition hover:bg-slate-900 focus:outline-none ${
-                      isExpanded
-                        ? 'border-amber-500 ring-2 ring-amber-500/40 bg-amber-950/20'
-                        : 'border-amber-800/80 hover:border-amber-500'
-                    }`}
-                    title={t('ranking_v1_selected_title')}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-amber-400">{t('ranking_v1_selected_label')}</span>
-                      <span className="rounded bg-amber-950/80 px-1 py-0.2 text-[8px] font-medium text-amber-300">A/B Test</span>
-                    </div>
-                    <div className="mt-1 text-xl font-bold text-amber-300">{count}</div>
-                    <div className="flex items-center gap-1 text-[9px] text-amber-400/80">
-                      <span>{isExpanded ? (t('ranking_click_collapse')) : (t('ranking_baseline_shadow_tag'))}</span>
-                      {isExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
-                    </div>
-                  </button>
-                );
-              })()}
-
-              {/* {t('cand_badge_overlap')} */}
-              {(() => {
-                const isExpanded = expandedComparisonGroup === 'overlap';
-                const count = candidateComparison?.overlap ?? comparisonSelections.overlap.length;
-                return (
-                  <button
-                    type="button"
-                    onClick={() => setExpandedComparisonGroup(isExpanded ? null : 'overlap')}
-                    aria-expanded={isExpanded}
-                    className={`rounded-lg border bg-slate-950/90 p-2.5 text-left transition hover:bg-slate-900 focus:outline-none ${
-                      isExpanded
-                        ? 'border-emerald-500 ring-2 ring-emerald-500/40 bg-emerald-950/20'
-                        : 'border-emerald-800/80 hover:border-emerald-500'
-                    }`}
-                    title={t('ranking_both_selected_title')}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">{t('ranking_both_selected_label')}</span>
-                      <span className="rounded bg-emerald-950/80 px-1 py-0.2 text-[8px] font-medium text-emerald-300">{t('cand_badge_overlap')}</span>
-                    </div>
-                    <div className="mt-1 text-xl font-bold text-emerald-300">{count}</div>
-                    <div className="flex items-center gap-1 text-[9px] text-emerald-400/80">
-                      <span>{isExpanded ? (t('ranking_click_collapse')) : (t('ranking_high_conviction_tag'))}</span>
-                      {isExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
-                    </div>
-                  </button>
-                );
-              })()}
-
-              {/* V2 Discoveries */}
-              {(() => {
-                const isExpanded = expandedComparisonGroup === 'champion_only';
-                const isChampV2 = (candidateComparison?.champion_version || '').toLowerCase().includes('v2');
-                const rawCount = isChampV2 ? candidateComparison?.champion_only : candidateComparison?.challenger_only;
-                const count = rawCount ?? comparisonSelections.champion_only.length;
-                return (
-                  <button
-                    type="button"
-                    onClick={() => setExpandedComparisonGroup(isExpanded ? null : 'champion_only')}
-                    aria-expanded={isExpanded}
-                    className={`rounded-lg border bg-slate-950/90 p-2.5 text-left transition hover:bg-slate-900 focus:outline-none ${
-                      isExpanded
-                        ? 'border-cyan-500 ring-2 ring-cyan-500/40 bg-cyan-950/20'
-                        : 'border-cyan-800/80 hover:border-cyan-500'
-                    }`}
-                    title={t('ranking_v2_discoveries_title')}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-cyan-400">{t('ranking_v2_discoveries_label')}</span>
-                      <span className="rounded bg-cyan-950/80 px-1 py-0.2 text-[8px] font-medium text-cyan-300">Unique</span>
-                    </div>
-                    <div className="mt-1 text-xl font-bold text-cyan-300">{count}</div>
-                    <div className="flex items-center gap-1 text-[9px] text-cyan-400/80">
-                      <span>{isExpanded ? (language === 'zh' ? '点击折叠' : language === 'ko' ? '클릭하여 접기' : t('ranking_click_collapse')) : (language === 'zh' ? '早期信号' : language === 'ko' ? '조기 신호' : t('ranking_early_signals_tag'))}</span>
-                      {isExpanded ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />}
-                    </div>
-                  </button>
-                );
-              })()}
-
-              {/* Neither */}
-              <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-2.5">
-                <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold">{language === 'zh' ? '双方排除' : language === 'ko' ? '양측 제외' : t('ranking_both_excluded_label')}</div>
-                <div className="mt-1 text-xl font-bold text-slate-400">{candidateComparison?.neither ?? 111}</div>
-                <div className="text-[9px] text-slate-500">{language === 'zh' ? '无派发特征' : language === 'ko' ? '분산 신호 없음' : t('ranking_no_distribution_tag')}</div>
-              </div>
-            </div>
-
-            {/* Expanded Drill-down List of Selected Coins */}
-            {expandedComparisonGroup && (
-              <div className="mt-3 rounded-lg border border-violet-800/80 bg-slate-950/90 p-3 shadow-inner">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-violet-300">
-                      {expandedComparisonLabel} ({expandedComparisonItems.length} coin)
-                    </span>
-                    <span className="text-[10px] text-slate-400">
-                      {language === 'zh' ? '— 点击任意币种查看 K 线图表与量化指标' : language === 'ko' ? '— 차트 및 지표를 확인하려면 코인을 클릭하세요' : t('ranking_inspect_coin_hint')}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setExpandedComparisonGroup(null)}
-                    className="inline-flex items-center gap-1 rounded bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-300 transition hover:bg-slate-700 hover:text-white"
-                  >
-                    <XCircle className="h-3 w-3" />
-                    {t('btn_close')}
-                  </button>
-                </div>
-
-                {expandedComparisonItems.length > 0 ? (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-                    {expandedComparisonItems.map((item, idx) => {
-                      const isV2 = expandedComparisonGroup === 'champion' || expandedComparisonGroup === 'champion_only';
-                      const isOverlap = expandedComparisonGroup === 'overlap';
-                      return (
-                        <div
-                          key={item.symbol}
-                          className={`flex items-center justify-between rounded-md border p-1.5 transition ${
-                            isOverlap
-                              ? 'border-emerald-800/70 bg-emerald-950/30 hover:border-emerald-500'
-                              : isV2
-                              ? 'border-violet-800/70 bg-violet-950/30 hover:border-violet-500'
-                              : 'border-amber-800/70 bg-amber-950/30 hover:border-amber-500'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5 overflow-hidden">
-                            <span className="font-mono text-[9px] text-slate-500">#{item.rank ?? idx + 1}</span>
-                            <CoinLink
-                              symbol={item.symbol}
-                              onClick={() => onSelectCandidate(item.symbol)}
-                              className="font-bold text-xs"
-                            />
-                          </div>
-                          <div className="text-right">
-                            <span className={`inline-block rounded px-1 py-0.2 font-mono text-[8px] font-bold ${
-                              isOverlap ? 'bg-emerald-900/60 text-emerald-300' : isV2 ? 'bg-violet-900/60 text-violet-300' : 'bg-amber-900/60 text-amber-300'
-                            }`}>
-                              {item.stage || (isV2 ? 'EXHAUST' : 'PUMP')}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="py-2 text-center text-xs text-slate-500">
-                    {language === 'zh' ? '该分组暂无币种。' : language === 'ko' ? '이 그룹에 코인이 없습니다.' : t('ranking_no_coins_in_segment')}
-                  </div>
-                )}
-              </div>
-            )}
             {/* TIẾN ĐỘ THỬ NGHIỆM ĐỐI SOÁT A/B & DỰ KIẾN HOÀN TẤT */}
             {(() => {
               const comp = candidateComparison?.comparison;
@@ -1677,141 +1560,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 </div>
               </div>
             </div>
-          </div>
-
-          {filteredCandidates.some((candidate) => candidate.is_stale) && (
-            <div className="mb-2 rounded-lg border border-amber-800/70 bg-amber-950/30 px-3 py-2 text-[11px] text-amber-300">
-              {t('candidate_cache_notice')}
             </div>
           )}
-
-          <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-x-auto">
-            <table className="w-full min-w-[1040px] text-left text-xs text-slate-300">
-              <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-mono text-[10px] uppercase">
-                <tr>
-                  <th className="p-2.5">{t('col_coin')}</th>
-                  <th className="p-2.5">{language === 'zh' ? '筛选源 & 阶段' : language === 'ko' ? '필터링 출처 및 단계' : t('ranking_col_source_stage')}</th>
-                  <th className="p-2.5">{t('col_price')}</th>
-                  <th className="p-2.5">{t('col_score')}</th>
-                  <th className="p-2.5">{language === 'zh' ? '风险等级' : language === 'ko' ? '위험 등급' : t('ranking_col_risk_tier')}</th>
-                  <th className="p-2.5">{t('metric_oi_24h')}</th>
-                  <th className="p-2.5">{t('metric_funding')}</th>
-                  <th className="p-2.5">{t('metric_taker_sell')}</th>
-                  <th className="p-2.5">{t('metric_volume_24h')}</th>
-                  <th className="p-2.5">{language === 'vi' ? 'Bất thường' : language === 'zh' ? '异常' : language === 'ko' ? '이상 징후' : 'Anomalies'}</th>
-                  <th className="p-2.5 text-right">{t('col_action')}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 font-mono">
-                {filteredCandidates.length === 0 && (
-                  <tr>
-                    <td colSpan={11} className="p-8 text-center font-sans text-slate-500">
-                      {isRefreshingCandidates
-                        ? t('candidate_filter_pipeline_loading') : t('candidate_empty_segment_notice')}
-                    </td>
-                  </tr>
-                )}
-                {filteredCandidates.map((c, i) => {
-                  const isOverlap = comparisonSelections.overlap.some((item) => item.symbol === c.symbol);
-                  const isV2Only = comparisonSelections.champion_only.some((item) => item.symbol === c.symbol);
-                  const isV1Only = comparisonSelections.challenger_only.some((item) => item.symbol === c.symbol);
-                  const isV2Selected = comparisonSelections.champion.some((item) => item.symbol === c.symbol);
-                  const stageName = isOverlap
-                    ? t('cand_badge_overlap')
-                    : isV2Only
-                    ? t('cand_badge_unique')
-                    : isV1Only
-                    ? 'V1 PUMP'
-                    : isV2Selected
-                    ? 'V2 QUANT'
-                    : c.stage || 'ACTIVE';
-
-                  return (
-                    <tr key={i} className="hover:bg-slate-900/60 transition">
-                      <td className="p-2.5 font-bold text-white flex items-center gap-2">
-                        <span className="text-slate-500 font-normal">#{i + 1}</span>
-                        <CoinLink
-                          symbol={c.symbol}
-                          onClick={() => onSelectCandidate(c.symbol)}
-                        />
-                      </td>
-                      <td className="p-2.5">
-                        <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold ${
-                          isOverlap
-                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                            : isV2Only
-                            ? 'bg-cyan-950 text-cyan-300 border border-cyan-800'
-                            : isV1Only
-                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                            : 'bg-violet-950 text-violet-300 border border-violet-800'
-                        }`}>
-                          {isOverlap ? '🎯 ' : isV2Only ? '💡 ' : isV1Only ? '📊 ' : '👑 '}
-                          {stageName}
-                        </span>
-                      </td>
-                      <td className="p-2.5 text-amber-400 font-bold">${c.price}</td>
-                      <td className="p-2.5">
-                        <span className="font-bold text-red-400">{c.score.toFixed(1)} {language === 'zh' ? '分' : language === 'ko' ? '점' : t('unit_points')}</span>
-                      </td>
-                      <td className="p-2.5">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          c.risk === 'CRITICAL' ? 'bg-red-950 text-red-400 border border-red-800' :
-                          c.risk === 'HIGH' ? 'bg-amber-950 text-amber-400 border border-amber-800' :
-                          c.risk === 'MEDIUM' ? 'bg-yellow-950 text-yellow-300 border border-yellow-800' :
-                          'bg-emerald-950 text-emerald-400 border border-emerald-800'
-                        }`}>
-                          {riskLabels[c.risk] ?? c.risk}
-                        </span>
-                      </td>
-                      <td className="p-2.5 text-red-400">{c.oi_24h}</td>
-                      <td className="p-2.5 text-amber-300">{c.funding}</td>
-                      <td className="p-2.5">{c.taker_ratio}</td>
-                      <td className="p-2.5 text-slate-400">{c.volume_24h}</td>
-                      <td className="p-2.5">
-                        <div className="flex max-w-[190px] flex-wrap items-center gap-1">
-                          {c.anomalies && c.anomalies.length > 0 ? c.anomalies.slice(0, 3).map((anomaly) => (
-                            <span
-                              key={anomaly.code}
-                              className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold ${
-                                anomaly.severity === 'extreme'
-                                  ? 'border-red-700/80 bg-red-950/70 text-red-300'
-                                  : anomaly.severity === 'high'
-                                  ? 'border-amber-700/80 bg-amber-950/60 text-amber-300'
-                                  : 'border-violet-700/70 bg-violet-950/50 text-violet-300'
-                              }`}
-                              title={anomaly.explanation}
-                            >
-                              {language === 'vi' ? (anomaly.title_vi || anomaly.title) : anomaly.title}
-                            </span>
-                          )) : (
-                            <span className="text-[10px] text-slate-600">—</span>
-                          )}
-                        </div>
-                        {(c.anomaly_count ?? 0) > 3 && (
-                          <span className="mt-1 block text-[9px] text-slate-500">+{(c.anomaly_count ?? 0) - 3}</span>
-                        )}
-                      </td>
-                      <td className="p-2.5 text-right">
-                        <button
-                          onClick={() => {
-                            onSelectCandidate(c.symbol);
-                            setActiveTab('DECISION');
-                          }}
-                          className="px-2 py-0.5 bg-violet-500/10 hover:bg-violet-500/20 text-violet-300 border border-violet-500/30 rounded text-[10px] font-sans font-medium flex items-center gap-1 ml-auto transition"
-                        >
-                          <Eye className="w-3 h-3" />
-                          {t('view_detail')}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
         </div>
-      )}
-
+      </div>
+    )}
       {/* TAB 2.5: MULTI-COIN SCAN */}
       {activeTab === 'MULTISCAN' && (
         <MultiCoinScan onSelectCoin={onSelectCandidate} />

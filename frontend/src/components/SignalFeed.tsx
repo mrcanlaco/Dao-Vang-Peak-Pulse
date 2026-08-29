@@ -69,14 +69,14 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [localSearch, setLocalSearch] = useState('');
 
-  // Persistent view mode: GRID | TABLE | SPLIT
+  // Persistent view mode: TABLE (Compact Table as default) | GRID | SPLIT
   const [viewMode, setViewMode] = useState<RadarViewMode>(() => {
     try {
       const saved = localStorage.getItem('dao_vang_radar_view_mode');
       if (saved === 'GRID' || saved === 'TABLE' || saved === 'SPLIT') return saved;
-      return 'GRID';
+      return 'TABLE';
     } catch {
-      return 'GRID';
+      return 'TABLE';
     }
   });
 

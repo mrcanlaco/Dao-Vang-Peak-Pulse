@@ -6,6 +6,7 @@ and changelog data from local Git and GitHub repository.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import subprocess
