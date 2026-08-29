@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 import duckdb
 import typer
@@ -23,7 +24,7 @@ from dao_vang.experiments.forward_test import (
     freeze_model,
     list_frozen_models,
 )
-from dao_vang.experiments.runner import ExperimentConfig, run_experiment
+
 from dao_vang.experiments.self_learning import run_self_learning
 from dao_vang.features.builder import build_features
 from dao_vang.labels.engine_v1 import DistributionLabelEngineV1
@@ -39,6 +40,7 @@ features_app = typer.Typer(help="Feature generation commands")
 experiment_app = typer.Typer(help="Experiment and training commands")
 report_app = typer.Typer(help="Reporting commands")
 scanner_app = typer.Typer(help="24/7 scanner + Telegram alerts (post-MVP, ADR 0001)")
+backtest_app = typer.Typer(help="Historical Data Lake Backtest & Validation")
 alpha_lab_app = typer.Typer(
     help="Alpha Quality Lab — Signal Intelligence & Meta-Labeling commands"
 )
@@ -50,6 +52,7 @@ app.add_typer(data_app, name="data")
 app.add_typer(labels_app, name="labels")
 app.add_typer(features_app, name="features")
 app.add_typer(experiment_app, name="experiment")
+app.add_typer(backtest_app, name="backtest")
 app.add_typer(report_app, name="report")
 app.add_typer(scanner_app, name="scanner")
 app.add_typer(alpha_lab_app, name="alpha-lab")
@@ -327,6 +330,8 @@ def experiment_run(
     artifact_dir: str = "./artifacts",
 ) -> None:
     """Run an experiment and save to artifact registry."""
+    from dao_vang.experiments.runner import ExperimentConfig, run_experiment
+
     config = ExperimentConfig(
         hypothesis_id=hypothesis_id,
         baseline_model=baseline_model,
@@ -674,6 +679,46 @@ def report_generate(
 def main_callback() -> None:
     """Đảo Vàng - Predictive model for crypto distribution phases."""
     pass
+
+
+@backtest_app.command("run")
+def backtest_run(
+    start: str = typer.Option("2025-01-01", "--start", "-s", help="Start date (YYYY-MM-DD)"),
+    end: str = typer.Option("2025-06-30", "--end", "-e", help="End date (YYYY-MM-DD)"),
+    symbols: Optional[str] = typer.Option(None, "--symbols", help="Comma-separated symbols list (e.g. BTCUSDT,ETHUSDT)"),
+    horizon: int = typer.Option(12, "--horizon", "-h", help="Horizon hours for label (6, 12, 24)"),
+    data_dir: str = typer.Option("D:/Quant-trading/data_lake", "--data-dir", help="Data lake directory path"),
+    output_db: str = typer.Option("artifacts/backtest_results.duckdb", "--output-db", help="Output DuckDB file"),
+) -> None:
+    """Run full historical backtest pipeline using Quant-trading Data Lake."""
+    from dao_vang.experiments.backtest_runner import BacktestRunConfig, FullBacktestRunner
+
+    sym_list = [s.strip().upper() for s in symbols.split(",")] if symbols else None
+    master_db = Path(data_dir) / "quant_master.duckdb"
+
+    cfg = BacktestRunConfig(
+        start_date=start,
+        end_date=end,
+        symbols=sym_list,
+        horizon_hours=horizon,
+        data_lake_root=Path(data_dir),
+        master_duckdb_path=master_db,
+        output_db_path=Path(output_db),
+    )
+
+    typer.echo(f"🚀 Running historical backtest from {start} to {end} on {symbols or 'all symbols'}...")
+    runner = FullBacktestRunner(cfg)
+    results = runner.run()
+
+    typer.echo("\n" + "=" * 65)
+    typer.echo("  📊 HISTORICAL BACKTEST RESULTS SUMMARY")
+    typer.echo("=" * 65)
+    typer.echo(f"  • Date Range      : {results['start_date']} → {results['end_date']}")
+    typer.echo(f"  • Total Samples   : {results['total_samples']:,}")
+    typer.echo(f"  • Valid Labels    : {results['valid_labels']:,}")
+    typer.echo(f"  • Positive Events : {results['positive_events']:,} ({results['positive_rate']:.2%})")
+    typer.echo(f"  • Output Database : {results['output_db']}")
+    typer.echo("=" * 65)
 
 
 # ============================================================
