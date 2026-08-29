@@ -67,6 +67,7 @@ from dao_vang.experiments.forward_test import load_frozen_model
 from dao_vang.experiments.self_learning import run_self_learning
 from dao_vang.features.builder import build_features
 from dao_vang.alpha_lab.meta_labeling import MetaLabelingModel
+from dao_vang.alpha_lab.regime_classifier import RegimeState, MarketRegime, get_current_regime
 from dao_vang.logging import get_logger
 from dao_vang.scanner.anomalies import AnomalyReport, detect_market_anomalies
 from dao_vang.scanner.candidate_filter_comparison import (
@@ -598,6 +599,33 @@ class ScannerDaemon:
         # 3b. Compute BTC context for this cycle
         btc_context = self._compute_btc_context(db)
 
+        # 3c. Compute regime state (Regime Gate)
+        regime_state: RegimeState | None = None
+        regime_gate_enabled = getattr(self._scanner_cfg, "regime_gate_enabled", False)
+        if regime_gate_enabled:
+            try:
+                btc_klines = db.conn.execute("""
+                    SELECT close_time AS feature_time, open, high, low, close
+                    FROM kline
+                    WHERE symbol = 'BTCUSDT'
+                    ORDER BY close_time DESC
+                    LIMIT 300
+                """).fetchdf()
+                if len(btc_klines) >= 100:
+                    btc_klines = btc_klines.sort_values("feature_time")
+                    btc_ohlcv = btc_klines.set_index("feature_time")
+                    regime_state = get_current_regime(btc_ohlcv)
+                    logger.info(
+                        "regime_gate_computed",
+                        regime=regime_state.regime.value,
+                        allow_short=regime_state.allow_short,
+                        risk_multiplier=regime_state.risk_multiplier,
+                    )
+                else:
+                    logger.warning("regime_gate_insufficient_data", bars=len(btc_klines))
+            except Exception as exc:
+                logger.warning("regime_gate_error", error=str(exc))
+
         # 4. Score with composite scorer + alert (with optional cycle digest)
         n_alerts_sent = 0
         digest_mode = getattr(self._scanner_cfg, "telegram_digest_mode", True)
@@ -607,7 +635,9 @@ class ScannerDaemon:
             try:
                 pump_cand = pump_map.get(symbol)
                 res = self._score_and_alert_composite(
-                    symbol, db, btc_context, pump_cand, collect_for_digest=digest_mode
+                    symbol, db, btc_context, pump_cand,
+                    collect_for_digest=digest_mode,
+                    regime_state=regime_state,
                 )
                 if isinstance(res, dict):
                     qualifying_alerts.append(res)
@@ -1387,7 +1417,8 @@ class ScannerDaemon:
         btc_context: Any,
         pump_candidate: PumpCandidate | None,
         collect_for_digest: bool = False,
-    ) -> int | dict[str, Any]:
+        regime_state: RegimeState | None = None,
+    ) -> int | dict[str, Any] | None:
         """Score one symbol with composite scorer, send Telegram if score >= threshold.
 
         Returns number of alerts sent (0 or 1) or an alert dict if collect_for_digest is True.
@@ -1462,8 +1493,11 @@ class ScannerDaemon:
                         logger.warning("meta_model_not_found", path=str(model_path))
                 
                 if self._meta_model is not None:
-                    # btc_context could be a dict or a BtcContext dataclass
-                    regime = btc_context.get("regime", "SIDEWAY_DISTRIBUTION") if isinstance(btc_context, dict) else getattr(btc_context, "regime", "SIDEWAY_DISTRIBUTION")
+                    # Use real regime classification if available from regime_state
+                    if regime_state is not None and hasattr(regime_state, "regime"):
+                        regime = regime_state.regime.value if hasattr(regime_state.regime, "value") else str(regime_state.regime)
+                    else:
+                        regime = btc_context.get("regime", "SIDEWAY_DISTRIBUTION") if isinstance(btc_context, dict) else getattr(btc_context, "regime", "SIDEWAY_DISTRIBUTION")
                     meta_decision = self._meta_model.filter_signal(
                         features=feature_dict,
                         primary_prob=result.calibrated_probability or 0.0,
@@ -1484,6 +1518,30 @@ class ScannerDaemon:
                             result = dataclasses.replace(result, risk_tier="WATCH")
             except Exception as exc:
                 logger.warning("meta_model_error", symbol=symbol, error=str(exc))
+
+        # Regime Gate: filter out signals occurring during disallowed market regimes (e.g. TRENDING_BULL / HIGH_VOL_CHOP)
+        regime_gate_enabled = getattr(self._scanner_cfg, "regime_gate_enabled", False)
+        if result.alertable and regime_gate_enabled and regime_state is not None:
+            allowed_regimes = getattr(
+                self._scanner_cfg,
+                "regime_gate_allowed",
+                ["SIDEWAY_DISTRIBUTION", "TRENDING_BEAR"],
+            )
+            current_regime_name = (
+                regime_state.regime.value
+                if hasattr(regime_state.regime, "value")
+                else str(regime_state.regime)
+            )
+            if current_regime_name not in allowed_regimes:
+                logger.info(
+                    "regime_gate_suppressed",
+                    symbol=symbol,
+                    current_regime=current_regime_name,
+                    allowed_regimes=allowed_regimes,
+                    original_tier=result.risk_tier,
+                )
+                if result.risk_tier == "HIGH_CONFIDENCE":
+                    result = dataclasses.replace(result, risk_tier="WATCH")
 
         score = result.heuristic
 

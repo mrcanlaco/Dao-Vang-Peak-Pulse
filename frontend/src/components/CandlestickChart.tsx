@@ -362,17 +362,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           title: `${t('trade_target_2')} (-8%)`,
         });
       }
-    } else if (targetPrice && targetPrice > 0) {
-      candleSeries.createPriceLine({
-        price: targetPrice,
-        color: '#ef4444',
-        lineWidth: 2,
-        lineStyle: 2,
-        axisLabelVisible: true,
-        title: t('trade_ai_target_8'),
-      });
     }
-
     let signalMarkersApi: ReturnType<typeof createSeriesMarkers> | null = null;
     if (visibleSignalMarkers.length > 0 && normalizedCandles.length > 0) {
       const positiveSteps = normalizedCandles.slice(1).map((candle, index) =>

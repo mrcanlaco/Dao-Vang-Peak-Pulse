@@ -63,6 +63,9 @@ scanner:
   enable_meta_labeling: "active"
   meta_model_path: "data/artifacts/meta_model.joblib"
   meta_model_min_confidence: 0.5
+  # Regime Gate: filter signals to only fire during validated market regimes
+  regime_gate_enabled: true
+  regime_gate_allowed: ["SIDEWAY_DISTRIBUTION", "TRENDING_BEAR"]
 
 self_learning:
   enabled: true

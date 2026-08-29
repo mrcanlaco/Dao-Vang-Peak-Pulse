@@ -16,6 +16,7 @@ import {
   Zap,
   Settings,
   HelpCircle,
+  Brain,
 } from 'lucide-react';
 import { CoinLink } from './CoinLink';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -34,9 +35,9 @@ export type WorkspaceTab =
   | 'MARKET'
   | 'TELEMETRY'
   | 'HISTORY'
+  | 'MODELS'
   | 'UPDATES'
   | 'SETTINGS';
-
 export type TabCategory = 'TRADING' | 'LAB' | 'SYSTEM';
 
 interface TabItemConfig {
@@ -76,7 +77,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
   mobileTab = 'RADAR',
   onOpenTabHelp,
 }) => {
-  const { t } = useTranslation();
+  const { language, t } = useTranslation();
   const [openDropdown, setOpenDropdown] = useState<'LAB' | 'SYSTEM' | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -164,6 +165,13 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
       labelKey: 'ws_tab_history',
       descKey: 'ws_tab_history_desc',
       icon: Clock,
+      category: 'SYSTEM',
+    },
+    {
+      id: 'MODELS',
+      labelKey: 'ws_tab_models',
+      descKey: 'ws_tab_models_desc',
+      icon: Brain,
       category: 'SYSTEM',
     },
     {
@@ -479,7 +487,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
             title="Xem mô tả chi tiết & cơ chế hoạt động của tab này"
           >
             <HelpCircle className="w-3.5 h-3.5 text-violet-400" />
-            <span className="hidden lg:inline">Hướng dẫn Tab</span>
+            <span className="hidden lg:inline">{language === 'en' ? 'Tab Guide' : language === 'zh' ? 'Tab 帮助' : language === 'ko' ? '탭 가이드' : 'Hướng dẫn Tab'}</span>
           </button>
         )}
       </div>
@@ -598,7 +606,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
               className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-slate-300 bg-slate-900 border border-slate-800 hover:border-violet-500 hover:text-violet-200"
             >
               <HelpCircle className="w-3 h-3 text-violet-400" />
-              <span>Hướng dẫn Tab</span>
+              <span>{language === 'en' ? 'Tab Guide' : language === 'zh' ? 'Tab 帮助' : language === 'ko' ? '탭 가이드' : 'Hướng dẫn Tab'}</span>
             </button>
           </div>
         )}

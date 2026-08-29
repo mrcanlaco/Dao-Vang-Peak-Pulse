@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type {
   FilterTag, SignalItem, RiskLevel, SignalSort, TelegramFilter, MarketAnomaly,
-  RadarAdvancedFilterState, RadarStrategicPreset
+  RadarAdvancedFilterState
 } from '../types';
 import { getSignalTwoTierState, isSignalFired, isSignalArmed, DEFAULT_RADAR_ADVANCED_FILTERS } from '../types';
 import { parseSystemDate } from '../utils/time';
@@ -59,8 +59,8 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
   setActiveFilterTag,
   signalSort,
   setSignalSort,
-  telegramFilter,
-  setTelegramFilter,
+  telegramFilter: _telegramFilter,
+  setTelegramFilter: _setTelegramFilter,
   isCollapsed = false,
   onToggleCollapse
 }) => {
@@ -436,14 +436,6 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
     }
   };
 
-  const getTelegramFilterLabel = (filter: TelegramFilter) => {
-    switch (filter) {
-      case 'ALL': return t('feed_tg_all');
-      case 'SENT': return t('feed_tg_sent');
-      case 'UNSENT': return t('feed_tg_unsent');
-      default: return filter;
-    }
-  };
 
   return (
     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 sm:p-3.5 flex flex-col h-full overflow-hidden space-y-3">
@@ -539,110 +531,13 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
       </div>
 
       {!isCollapsed && (
-        <>
-          {/* 2. Interactive KPI Summary Banner */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {/* KPI 1: FIRED */}
-            <button
-              type="button"
-              onClick={() => setActiveFilterTag(activeFilterTag === 'FIRED' ? 'ALL' : 'FIRED')}
-              className={`p-2.5 rounded-xl border text-left transition-all relative overflow-hidden ${
-                activeFilterTag === 'FIRED'
-                  ? 'bg-red-950/70 border-red-500 ring-1 ring-red-500/50 shadow-md shadow-red-950/50'
-                  : 'bg-slate-950/70 border-slate-800/90 hover:border-red-900/80 hover:bg-slate-900/60'
-              }`}
-            >
-              <div className="flex items-center justify-between text-slate-400 mb-1">
-                <span className="text-[10px] uppercase font-bold tracking-wider flex items-center gap-1 text-red-400">
-                  <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
-                  {t('feed_kpi_fired')}
-                </span>
-                {kpiStats.fired > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
-                )}
-              </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-red-300">
-                {kpiStats.fired}
-              </div>
-              <div className="text-[9px] text-slate-500 mt-0.5 truncate">
-                {language === 'vi' ? 'Bùng nổ kích hoạt xả' : 'Triggered Climax Dump'}
-              </div>
-            </button>
-
-            {/* KPI 2: ARMED */}
-            <button
-              type="button"
-              onClick={() => setActiveFilterTag(activeFilterTag === 'ARMED' ? 'ALL' : 'ARMED')}
-              className={`p-2.5 rounded-xl border text-left transition-all relative overflow-hidden ${
-                activeFilterTag === 'ARMED'
-                  ? 'bg-amber-950/70 border-amber-500 ring-1 ring-amber-500/50 shadow-md shadow-amber-950/50'
-                  : 'bg-slate-950/70 border-slate-800/90 hover:border-amber-900/80 hover:bg-slate-900/60'
-              }`}
-            >
-              <div className="flex items-center justify-between text-slate-400 mb-1">
-                <span className="text-[10px] uppercase font-bold tracking-wider flex items-center gap-1 text-amber-400">
-                  <Compass className="w-3 h-3 text-amber-400" />
-                  {t('feed_kpi_armed')}
-                </span>
-                <span className="text-[9px] font-mono text-amber-500/80 font-bold">SETUP</span>
-              </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-amber-300">
-                {kpiStats.armed}
-              </div>
-              <div className="text-[9px] text-slate-500 mt-0.5 truncate">
-                {language === 'vi' ? 'Đang ngắm vùng đỉnh' : 'Pre-Peak Exhaustion'}
-              </div>
-            </button>
-
-            {/* KPI 3: SẮP HẾT HẠN */}
-            <button
-              type="button"
-              onClick={() => setActiveFilterTag(activeFilterTag === 'EXPIRING' ? 'ALL' : 'EXPIRING')}
-              className={`p-2.5 rounded-xl border text-left transition-all relative overflow-hidden ${
-                activeFilterTag === 'EXPIRING'
-                  ? 'bg-sky-950/70 border-sky-500 ring-1 ring-sky-500/50 shadow-md shadow-sky-950/50'
-                  : 'bg-slate-950/70 border-slate-800/90 hover:border-sky-900/80 hover:bg-slate-900/60'
-              }`}
-            >
-              <div className="flex items-center justify-between text-slate-400 mb-1">
-                <span className="text-[10px] uppercase font-bold tracking-wider flex items-center gap-1 text-sky-400">
-                  <Clock className="w-3 h-3 text-sky-400" />
-                  {t('feed_kpi_expiring')}
-                </span>
-                <span className="text-[9px] font-mono text-sky-500/80 font-bold">&lt; 2H</span>
-              </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-sky-300">
-                {kpiStats.expiring}
-              </div>
-              <div className="text-[9px] text-slate-500 mt-0.5 truncate">
-                {language === 'vi' ? 'Còn ít thời gian vào' : 'Expiring Signal Window'}
-              </div>
-            </button>
-
-            {/* KPI 4: XÁC SUẤT TB */}
-            <div className="p-2.5 rounded-xl border border-slate-800/90 bg-slate-950/70 text-left relative overflow-hidden">
-              <div className="flex items-center justify-between text-slate-400 mb-1">
-                <span className="text-[10px] uppercase font-bold tracking-wider flex items-center gap-1 text-emerald-400">
-                  <BarChart2 className="w-3 h-3 text-emerald-400" />
-                  {t('feed_kpi_avg_prob')}
-                </span>
-                <span className="text-[9px] font-mono text-emerald-400/80 font-bold">AVG</span>
-              </div>
-              <div className="text-xl sm:text-2xl font-black font-mono text-emerald-300">
-                {kpiStats.avgProb}%
-              </div>
-              <div className="text-[9px] text-slate-500 mt-0.5 truncate">
-                {language === 'vi' ? `Trên ${kpiStats.total} cảnh báo` : `Across ${kpiStats.total} alerts`}
-              </div>
-            </div>
-          </div>
-
-          {/* 3. Search & Filter Toolbar */}
-          <div className="rounded-xl border border-slate-800/90 bg-slate-950/80 p-2 sm:p-2.5 space-y-2">
-            {/* Top Toolbar Row: Search Box + Sort + Status Select */}
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-              {/* Instant Search Bar */}
-              <div className="sm:col-span-6 relative">
+        <div className="rounded-xl border border-slate-800/90 bg-slate-950/80 p-2 sm:p-2.5 space-y-2">
+          {/* Streamlined Main Action Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* Left: Search Bar & Core Tabs */}
+            <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+              {/* Search Box */}
+              <div className="relative w-full sm:w-56 shrink-0">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
@@ -661,220 +556,150 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 )}
               </div>
 
+              {/* 4 Core Focus Tabs */}
+              <div className="inline-flex items-center gap-1 p-0.5 rounded-lg bg-slate-900 border border-slate-800 overflow-x-auto max-w-full [&::-webkit-scrollbar]:hidden">
+                {/* ALL */}
+                <button
+                  type="button"
+                  onClick={() => setActiveFilterTag('ALL')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
+                    activeFilterTag === 'ALL'
+                      ? 'bg-slate-700 text-white shadow-sm font-bold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <span>{t('feed_tag_all')}</span>
+                  <span className="ml-1 text-[10px] opacity-80 font-mono">({kpiStats.total})</span>
+                </button>
+
+                {/* FIRED */}
+                <button
+                  type="button"
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'FIRED' ? 'ALL' : 'FIRED')}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
+                    activeFilterTag === 'FIRED'
+                      ? 'bg-red-950 border border-red-600 text-red-200 shadow-sm font-bold'
+                      : 'text-red-400 hover:bg-red-950/40'
+                  }`}
+                >
+                  <Zap className="w-3 h-3 fill-current" />
+                  <span>{t('feed_tag_fired')}</span>
+                  <span className="ml-0.5 text-[10px] font-mono font-bold">({kpiStats.fired})</span>
+                  {kpiStats.fired > 0 && <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />}
+                </button>
+
+                {/* ARMED */}
+                <button
+                  type="button"
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'ARMED' ? 'ALL' : 'ARMED')}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
+                    activeFilterTag === 'ARMED'
+                      ? 'bg-amber-950 border border-amber-600 text-amber-200 shadow-sm font-bold'
+                      : 'text-amber-400 hover:bg-amber-950/40'
+                  }`}
+                >
+                  <Compass className="w-3 h-3" />
+                  <span>{t('feed_tag_armed')}</span>
+                  <span className="ml-0.5 text-[10px] font-mono font-bold">({kpiStats.armed})</span>
+                </button>
+
+                {/* HOT RISK */}
+                <button
+                  type="button"
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'HOT_RISK' ? 'ALL' : 'HOT_RISK')}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
+                    activeFilterTag === 'HOT_RISK'
+                      ? 'bg-orange-950 border border-orange-600 text-orange-200 shadow-sm font-bold'
+                      : 'text-orange-400 hover:bg-orange-950/40'
+                  }`}
+                >
+                  <Flame className="w-3 h-3" />
+                  <span>{t('feed_tag_hot_risk')}</span>
+                  <span className="ml-0.5 text-[10px] font-mono font-bold">({kpiStats.hotRisk})</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Right: Sort Dropdown + Advanced Filter Drawer Trigger */}
+            <div className="flex items-center gap-2 shrink-0">
               {/* Sort Dropdown */}
-              <div className="sm:col-span-3">
-                <label className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-400">
-                  <span className="shrink-0 text-slate-500">{t('feed_filter_sort')}</span>
-                  <select
-                    value={signalSort}
-                    onChange={event => setSignalSort(event.target.value as SignalSort)}
-                    className="min-w-0 flex-1 rounded bg-slate-900 px-1 text-[11px] font-semibold text-slate-200 outline-none [color-scheme:dark]"
-                    aria-label="Sort alerts"
-                  >
-                    <option className="bg-slate-900 text-slate-200" value="NEWEST">{getSortLabel('NEWEST')}</option>
-                    <option className="bg-slate-900 text-slate-200" value="HIGHEST_PROBABILITY">{getSortLabel('HIGHEST_PROBABILITY')}</option>
-                    <option className="bg-slate-900 text-slate-200" value="HIGHEST_RISK">{getSortLabel('HIGHEST_RISK')}</option>
-                    <option className="bg-slate-900 text-slate-200" value="LARGEST_DRAWDOWN">{getSortLabel('LARGEST_DRAWDOWN')}</option>
-                    <option className="bg-slate-900 text-slate-200" value="EXPIRING_SOON">{getSortLabel('EXPIRING_SOON')}</option>
-                  </select>
-                </label>
-              </div>
+              <label className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1 text-[11px] text-slate-400">
+                <span className="shrink-0 text-slate-500 hidden sm:inline">{t('feed_filter_sort')}</span>
+                <select
+                  value={signalSort}
+                  onChange={event => setSignalSort(event.target.value as SignalSort)}
+                  className="min-w-0 rounded bg-slate-900 px-1 text-[11px] font-semibold text-slate-200 outline-none [color-scheme:dark]"
+                  aria-label="Sort alerts"
+                >
+                  <option className="bg-slate-900 text-slate-200" value="NEWEST">{getSortLabel('NEWEST')}</option>
+                  <option className="bg-slate-900 text-slate-200" value="HIGHEST_PROBABILITY">{getSortLabel('HIGHEST_PROBABILITY')}</option>
+                  <option className="bg-slate-900 text-slate-200" value="HIGHEST_RISK">{getSortLabel('HIGHEST_RISK')}</option>
+                  <option className="bg-slate-900 text-slate-200" value="LARGEST_DRAWDOWN">{getSortLabel('LARGEST_DRAWDOWN')}</option>
+                  <option className="bg-slate-900 text-slate-200" value="EXPIRING_SOON">{getSortLabel('EXPIRING_SOON')}</option>
+                </select>
+              </label>
 
-              {/* Telegram Filter Dropdown */}
-              <div className="sm:col-span-3">
-                <label className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1.5 text-[11px] text-slate-400">
-                  <span className="shrink-0 text-slate-500">{t('feed_filter_status')}</span>
-                  <select
-                    value={telegramFilter}
-                    onChange={event => setTelegramFilter(event.target.value as TelegramFilter)}
-                    className="min-w-0 flex-1 rounded bg-slate-900 px-1 text-[11px] font-semibold text-slate-200 outline-none [color-scheme:dark]"
-                    aria-label="Telegram filter"
-                  >
-                    <option className="bg-slate-900 text-slate-200" value="ALL">{getTelegramFilterLabel('ALL')}</option>
-                    <option className="bg-slate-900 text-slate-200" value="SENT">{getTelegramFilterLabel('SENT')}</option>
-                    <option className="bg-slate-900 text-slate-200" value="UNSENT">{getTelegramFilterLabel('UNSENT')}</option>
-                  </select>
-                </label>
-              </div>
-            </div>
-
-            {/* Bottom Toolbar Row: Filter Chips */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden">
-              <button
-                type="button"
-                onClick={() => setActiveFilterTag('ALL')}
-                className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
-                  activeFilterTag === 'ALL'
-                    ? 'border-slate-500 bg-slate-700 text-white shadow-sm'
-                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                }`}
-              >
-                {t('feed_tag_all')} ({kpiStats.total})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilterTag('FIRED')}
-                className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
-                  activeFilterTag === 'FIRED'
-                    ? 'border-red-600 bg-red-950 text-amber-300 ring-1 ring-red-500/50 shadow-sm'
-                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-red-900 hover:text-red-300'
-                }`}
-              >
-                <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
-                {t('feed_tag_fired')} ({kpiStats.fired})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilterTag('ARMED')}
-                className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
-                  activeFilterTag === 'ARMED'
-                    ? 'border-amber-600 bg-amber-950 text-amber-300 ring-1 ring-amber-500/50 shadow-sm'
-                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-amber-900 hover:text-amber-300'
-                }`}
-              >
-                <Compass className="w-3 h-3 text-amber-400" />
-                {t('feed_tag_armed')} ({kpiStats.armed})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilterTag('HOT_RISK')}
-                className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
-                  activeFilterTag === 'HOT_RISK'
-                    ? 'border-red-700 bg-red-950/80 text-red-300 shadow-sm'
-                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-red-900/70 hover:text-red-300'
-                }`}
-              >
-                <Flame className="w-3 h-3 text-red-400" />
-                {t('feed_tag_hot_risk')} ({kpiStats.hotRisk})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilterTag('EXPIRING')}
-                className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
-                  activeFilterTag === 'EXPIRING'
-                    ? 'border-sky-700 bg-sky-950/80 text-sky-300 shadow-sm'
-                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-sky-900/70 hover:text-sky-300'
-                }`}
-              >
-                <Clock className="w-3 h-3 text-sky-400" />
-                {t('feed_tag_expiring')} ({kpiStats.expiring})
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilterTag('VOLUME_SPIKE')}
-                className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
-                  activeFilterTag === 'VOLUME_SPIKE'
-                    ? 'border-amber-700 bg-amber-950/80 text-amber-300 shadow-sm'
-                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-amber-900/70 hover:text-amber-300'
-                }`}
-              >
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                {t('feed_tag_volume_spike')}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilterTag('ANOMALY')}
-                className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
-                  activeFilterTag === 'ANOMALY'
-                    ? 'border-violet-700 bg-violet-950/80 text-violet-300 shadow-sm'
-                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-violet-900/70 hover:text-violet-300'
-                }`}
-              >
-                <AlertOctagon className="w-3 h-3 text-violet-400" />
-                {language === 'vi' ? 'Bất thường' : language === 'zh' ? '异常' : language === 'ko' ? '이상 징후' : 'Anomalies'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilterTag('ACTIVE')}
-                className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
-                  activeFilterTag === 'ACTIVE'
-                    ? 'border-emerald-700 bg-emerald-950/80 text-emerald-300 shadow-sm'
-                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-emerald-900/70 hover:text-emerald-300'
-                }`}
-              >
-                {t('feed_tag_active')}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveFilterTag('EXPIRED')}
-                className={`shrink-0 rounded-lg border px-2.5 py-1 text-[10px] sm:text-[11px] font-semibold transition ${
-                  activeFilterTag === 'EXPIRED'
-                    ? 'border-slate-600 bg-slate-700 text-slate-200 shadow-sm'
-                    : 'border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                }`}
-              >
-                {t('feed_tag_expired')}
-              </button>
-            </div>
-
-            {/* Strategic Presets & Advanced Filter Button Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-slate-800/80">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden flex-1">
-                <span className="text-[10px] uppercase font-bold text-amber-500/90 flex items-center gap-1 shrink-0 pl-0.5">
-                  <Sparkles className="w-3 h-3 text-amber-400" />
-                  Preset:
-                </span>
-                {[
-                  { id: 'ALL', label: t('preset_all'), icon: '🌐' },
-                  { id: 'CLIMAX_DUMP', label: t('preset_climax_dump'), icon: '⚡' },
-                  { id: 'ARMED_SETUP', label: t('preset_armed_setup'), icon: '🧭' },
-                  { id: 'FUNDING_TRAP', label: t('preset_funding_trap'), icon: '🔥' },
-                  { id: 'OI_SQUEEZE', label: t('preset_oi_squeeze'), icon: '📈' },
-                  { id: 'HIGH_RR', label: t('preset_high_rr'), icon: '🎯' },
-                  { id: 'AI_MEME', label: t('preset_ai_meme'), icon: '🤖' },
-                  { id: 'LOWCAP_GEMS', label: t('preset_lowcap_gems'), icon: '💎' },
-                ].map(p => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => {
-                      handleApplyAdvancedFilters({
-                        ...advancedFilters,
-                        preset: p.id as RadarStrategicPreset,
-                      });
-                    }}
-                    className={`shrink-0 inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-semibold transition ${
-                      advancedFilters.preset === p.id
-                        ? 'border-amber-500 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40 shadow-sm font-bold'
-                        : 'border-slate-800/80 bg-slate-900/90 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                    }`}
-                  >
-                    <span>{p.icon}</span>
-                    <span>{p.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Advanced Filter Drawer Trigger Button */}
+              {/* Advanced Filter Trigger Button */}
               <button
                 type="button"
                 onClick={() => setIsFilterDrawerOpen(true)}
-                className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-bold transition ${
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition shadow-sm ${
                   activeAdvancedFilterCount > 0
-                    ? 'border-amber-500 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40 shadow-md shadow-amber-500/10'
-                    : 'border-slate-700 bg-slate-800 text-slate-200 hover:border-amber-500/60 hover:text-amber-300'
+                    ? 'border-amber-500 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40'
+                    : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-500/60 hover:text-amber-300'
                 }`}
-                title={t('radar_filter_btn_title')}
+                title="Mở bảng lọc nâng cao (Preset, Vốn hóa, Khối lượng, Sector...)"
               >
                 <Filter className="w-3.5 h-3.5 text-amber-400" />
-                <span>{t('radar_filter_btn_title')}</span>
+                <span>{language === 'en' ? 'Filters' : language === 'zh' ? '高级筛选' : language === 'ko' ? '필터' : 'Bộ lọc'}</span>
                 {activeAdvancedFilterCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black">
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black">
                     {activeAdvancedFilterCount}
                   </span>
                 )}
               </button>
             </div>
           </div>
-        </>
+
+          {/* Active Filter Tags Bar (Only appears when secondary filters are applied) */}
+          {(activeAdvancedFilterCount > 0 || (activeFilterTag !== 'ALL' && activeFilterTag !== 'FIRED' && activeFilterTag !== 'ARMED' && activeFilterTag !== 'HOT_RISK')) && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-slate-800/80 text-[10px]">
+              <span className="text-slate-400 font-semibold uppercase">{language === 'en' ? 'Active Filters:' : language === 'zh' ? '当前生效筛选:' : language === 'ko' ? '적용된 필터:' : 'Đang lọc:'}</span>
+
+              {advancedFilters.preset !== 'ALL' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-300 font-mono">
+                  Preset: {advancedFilters.preset}
+                  <button onClick={() => handleApplyAdvancedFilters({ ...advancedFilters, preset: 'ALL' })}><X className="w-2.5 h-2.5 hover:text-white" /></button>
+                </span>
+              )}
+
+              {advancedFilters.marketCapTier !== 'ALL' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-violet-950 border border-violet-800 text-violet-300 font-mono">
+                  Cap: {advancedFilters.marketCapTier}
+                  <button onClick={() => handleApplyAdvancedFilters({ ...advancedFilters, marketCapTier: 'ALL' })}><X className="w-2.5 h-2.5 hover:text-white" /></button>
+                </span>
+              )}
+
+              {!advancedFilters.sectors.includes('ALL') && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-950 border border-sky-800 text-sky-300 font-mono">
+                  Sector: {advancedFilters.sectors.join(', ')}
+                  <button onClick={() => handleApplyAdvancedFilters({ ...advancedFilters, sectors: ['ALL'] })}><X className="w-2.5 h-2.5 hover:text-white" /></button>
+                </span>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleResetAdvancedFilters();
+                  setActiveFilterTag('ALL');
+                }}
+                className="text-[10px] text-red-400 hover:text-red-300 font-bold ml-1 transition underline"
+              >
+                {language === 'en' ? 'Reset All' : language === 'zh' ? '清空全部' : language === 'ko' ? '모두 초기화' : 'Xóa tất cả'}
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       {/* 4. Main Signals Content Area (GRID / TABLE / SPLIT) */}

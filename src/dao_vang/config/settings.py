@@ -73,6 +73,11 @@ class ScannerConfig(BaseModel):
     enable_meta_labeling: Literal["disabled", "shadow", "active"] = "disabled"
     meta_model_path: Path | None = None
     meta_model_min_confidence: float = 0.5
+    # Regime Gate: filter alerts to only allowable market regimes (e.g. SIDEWAY_DISTRIBUTION, TRENDING_BEAR)
+    regime_gate_enabled: bool = False
+    regime_gate_allowed: list[str] = Field(
+        default_factory=lambda: ["SIDEWAY_DISTRIBUTION", "TRENDING_BEAR"]
+    )
     # Explicit opt-in for labelled observational Telegram messages for every
     # Radar detection while the scanner remains in shadow.
     shadow_telegram_enabled: bool = False

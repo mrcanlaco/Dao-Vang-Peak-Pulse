@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Target, ShieldAlert, TrendingDown, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 
+import type { SignalTradeSetup } from '../../types';
+
 interface TradeSetupCardV2Props {
   symbol?: string;
   currentPrice: number;
@@ -9,6 +11,7 @@ interface TradeSetupCardV2Props {
   targetPrice?: number | null;
   peakPrice?: number | null;
   invalidationPrice?: number | null;
+  tradeSetup?: SignalTradeSetup | null;
   onOpenOrderModal?: () => void;
 }
 
@@ -19,6 +22,7 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
   targetPrice,
   peakPrice,
   invalidationPrice,
+  tradeSetup,
   onOpenOrderModal,
 }) => {
   const { t } = useTranslation();
@@ -26,26 +30,26 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
   const [leverage, setLeverage] = useState<number>(5);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const entry = signalPrice && signalPrice > 0 ? signalPrice : currentPrice;
+  const entry = tradeSetup?.entry_price || (signalPrice && signalPrice > 0 ? signalPrice : currentPrice);
   if (!entry || entry <= 0) return null;
 
-  // Stop Loss calculation (Invalidation level or peak price + buffer or +4%)
-  const sl = invalidationPrice && invalidationPrice > entry
-    ? invalidationPrice
-    : peakPrice && peakPrice > entry
-    ? peakPrice * 1.008
-    : entry * 1.035;
+  // Stop Loss calculation (from tradeSetup or Invalidation level or peak price + buffer)
+  const sl = tradeSetup?.stop_loss
+    || (invalidationPrice && invalidationPrice > entry
+      ? invalidationPrice
+      : peakPrice && peakPrice > entry
+      ? peakPrice * 1.008
+      : entry * 1.032);
 
-  const tp1 = entry * 0.96; // -4%
-  const tp2 = targetPrice && targetPrice > 0 && targetPrice < entry ? targetPrice : entry * 0.92; // -8%
-  const tp3 = entry * 0.86; // -14% (Trailing / Deep Dump)
+  const tp1 = tradeSetup?.tp1 || (entry * 0.96); // -4%
+  const tp2 = tradeSetup?.tp2 || (targetPrice && targetPrice > 0 && targetPrice < entry ? targetPrice : entry * 0.92); // -8%
+  const tp3 = tradeSetup?.tp3 || (entry * 0.86); // -14% (Trailing / Deep Dump)
 
-  const slPct = ((sl - entry) / entry) * 100;
-  const tp1Pct = ((entry - tp1) / entry) * 100;
-  const tp2Pct = ((entry - tp2) / entry) * 100;
-  const tp3Pct = ((entry - tp3) / entry) * 100;
-  const rrRatio = slPct > 0 ? (tp2Pct / slPct) : 2.3;
-
+  const slPct = tradeSetup?.stop_loss_pct || Math.max(0.1, ((sl - entry) / entry) * 100);
+  const tp1Pct = tradeSetup?.tp1_pct || (((entry - tp1) / entry) * 100);
+  const tp2Pct = tradeSetup?.tp2_pct || (((entry - tp2) / entry) * 100);
+  const tp3Pct = tradeSetup?.tp3_pct || (((entry - tp3) / entry) * 100);
+  const rrRatio = tradeSetup?.rr_ratio || (slPct > 0 ? Number((tp2Pct / slPct).toFixed(1)) : 2.5);
   const totalPos = marginUsd * leverage;
   const maxLoss = totalPos * (slPct / 100);
   const maxProfitTp2 = totalPos * (tp2Pct / 100);

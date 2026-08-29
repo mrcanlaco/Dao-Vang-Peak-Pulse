@@ -502,14 +502,21 @@ export interface ModelAudit {
   target_drawdown: string;
   mae_allowed: string;
   sample_size: number;
+  total_alerts?: number;
   has_enough_data: boolean;
   metrics: {
     precision: number | null;
-    recall: number | null;
-    f1_score: number | null;
-    brier_score: number | null;
-    baseline_precision: number | null;
-    precision_uplift: string | null;
+    walk_forward_precision?: number | null;
+    ci_95_lower?: number | null;
+    ci_95_upper?: number | null;
+    recall?: number | null;
+    f1_score?: number | null;
+    brier_score?: number | null;
+    ece?: number | null;
+    baseline_precision?: number | null;
+    logreg_baseline_precision?: number | null;
+    precision_uplift?: string | null;
+    relative_gain_pct?: number | null;
   };
   precision_by_risk_level: Record<string, RiskLevelPrecision>;
   lead_time: {
@@ -518,6 +525,34 @@ export interface ModelAudit {
     min_hours: number | null;
     max_hours: number | null;
   };
+  regime_performance?: Record<string, {
+    precision: number;
+    n_eval?: number;
+    n_positives?: number;
+    ci_95?: [number, number];
+  }>;
+  feature_importance_ranking?: Array<{
+    feature: string;
+    importance_gain?: number;
+    importance_split?: number;
+    rank?: number;
+  }>;
+  stress_test_events?: Array<{
+    event: string;
+    date: string;
+    precision: number;
+    status: string;
+    notes?: string;
+  }>;
+  walk_forward_folds?: Array<{
+    fold: number;
+    train_range?: string;
+    test_range?: string;
+    lightgbm_precision?: number;
+    logreg_precision?: number;
+    lightgbm_ece?: number;
+  }>;
+  quality_gates?: Record<string, boolean>;
   validation_checks: {
     walk_forward_status: string;
     leakage_test: string;
@@ -568,6 +603,17 @@ export interface MarketOverviewData {
   scanned_volatile_top: number;
   market_regime: string;
   distribution_index: number;
+  macro_climate?: {
+    regime: string;
+    regime_label_vi?: string;
+    regime_label_en?: string;
+    adx?: number;
+    bb_width?: number;
+    atr_pct?: number;
+    allow_short?: boolean;
+    meta_labeling?: string;
+    drift_guardian?: string;
+  };
   top_gainers: MarketTicker[];
   top_losers: MarketTicker[];
 }

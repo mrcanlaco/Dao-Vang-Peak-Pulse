@@ -24,7 +24,8 @@ import {
   Zap,
   Info,
   ShieldAlert,
-  Compass
+  Compass,
+  Brain
 } from 'lucide-react';
 import { useTranslation } from '../i18n/LanguageContext';
 import type { WorkspaceTab } from './WorkspaceTabBar';
@@ -318,6 +319,28 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
             'Review multi-day performance trends to track signal frequency across different market weeks.'
           ]
         },
+        MODELS: {
+          id: 'MODELS',
+          name: 'Models & Architecture',
+          nameEn: 'Models & Architecture',
+          icon: Brain,
+          category: 'SYSTEM',
+          badge: 'ML & Regimes',
+          purpose: 'Detailed documentation of machine learning models, 2-tier heuristics, market regime gating, and historical validation milestones.',
+          mechanism: [
+            '3-Engine Architecture: V1 Heuristic (9-component distribution score), V2 Two-Tier Climax (HTF Armed / LTF Fired), and Frozen ML Pipeline (LightGBM/LogReg).',
+            'Regime Gate: ADX/BB/EMA filter that allows signals in SIDEWAY_DISTRIBUTION and TRENDING_BEAR while suppressing TRENDING_BULL & HIGH_VOLATILITY noise.',
+            'Calibration: Isotonic Regression calibrator guaranteeing empirical probabilities with ECE < 0.03.'
+          ],
+          metrics: [
+            { label: 'Champion Model', desc: 'LogisticRegression with 25 features for mega-cap coins.' },
+            { label: 'Challenger Model', desc: 'LightGBM with 14 features tuned for mid-cap altcoins (21.2% precision).' },
+            { label: 'Regime Precision', desc: 'Empirical precision across market regimes (31% in Sideway Distribution).' }
+          ],
+          playbook: [
+            'Consult the feature importance rankings and regime matrix before trading new signal setups.'
+          ]
+        },
         UPDATES: {
           id: 'UPDATES',
           name: 'Updates',
@@ -379,7 +402,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         ],
         metrics: [
           { label: 'Điểm Phân Phối (Distribution Score)', desc: 'Điểm số định lượng (0-100) đánh giá mức độ kiệt sức và tạo đỉnh phân phối.' },
-          { label: 'Xác Suất (%)', desc: 'Xác suất thực nghiệm đã hiệu chuẩn về khả năng giá sụt giảm >= 8% trong 24h.' },
+          { label: 'Xác Suất Xả (AI) (%)', desc: 'Xác suất thực nghiệm đã hiệu chuẩn về khả năng giá sụt giảm >= 8% trong 24h.' },
           { label: 'Funding Rate & APR', desc: 'Tỷ lệ phí funding quy đổi ra %/năm. Giúp nhận diện bẫy ép lệnh Long/Short.' },
           { label: 'Taker Sell Ratio', desc: 'Tỷ lệ lệnh bán chủ động cắn qua giá bid. Vượt > 55% cho thấy phe bán tổ chức đang xả mạnh.' },
           { label: 'Tỷ Lệ R:R (Risk/Reward)', desc: 'Tỷ lệ lợi nhuận / rủi ro tính theo (Biên độ TP1 / Biên độ SL).' }
@@ -608,6 +631,28 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         ],
         playbook: [
           'Xem lại lịch sử nhiều ngày để đánh giá tần suất cơ hội của thị trường trong các giai đoạn biến động khác nhau.'
+        ]
+      },
+      MODELS: {
+        id: 'MODELS',
+        name: 'Mô hình & Kiến trúc',
+        nameEn: 'Models & Architecture',
+        icon: Brain,
+        category: 'SYSTEM',
+        badge: 'ML & Regimes',
+        purpose: 'Tài liệu chi tiết về các mô hình Machine Learning, bộ quy tắc 2 tầng, bộ lọc chế độ thị trường (Regime Gate) và lịch sử đánh giá chất lượng qua các mốc kiểm định.',
+        mechanism: [
+          'Kiến Trúc 3 Động Cơ: V1 Heuristic (9 thành phần phân phối đỉnh), V2 Two-Tier Climax (HTF Armed / LTF Fired), và Frozen ML Pipeline (LightGBM/LogReg).',
+          'Bộ Lọc Regime Gate: Dựa trên ADX/BB/EMA chỉ cho phép tín hiệu trong SIDEWAY_DISTRIBUTION và TRENDING_BEAR, chặn nhiễu trong TRENDING_BULL & HIGH_VOLATILITY.',
+          'Hiệu Chuẩn Xác Suất: Isotonic Regression đảm bảo xác suất thực tế với ECE < 0.03.'
+        ],
+        metrics: [
+          { label: 'Mô Hình Champion', desc: 'LogisticRegression với 25 đặc trưng tối ưu cho top coin thanh khoản lớn.' },
+          { label: 'Mô Hình Challenger', desc: 'LightGBM với 14 đặc trưng tối ưu cho phân khúc Altcoins vừa và nhỏ (đạt precision 21.2%).' },
+          { label: 'Precision Theo Regime', desc: 'Độ chính xác theo chế độ thị trường (đạt 31% trong giai đoạn Phân phối Đi ngang).' }
+        ],
+        playbook: [
+          'Tham khảo bảng xếp hạng độ quan trọng đặc trưng (Feature Importance) và ma trận Regime trước khi giao dịch theo tín hiệu.'
         ]
       },
       UPDATES: {
