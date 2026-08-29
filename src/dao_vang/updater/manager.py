@@ -204,7 +204,7 @@ class UpdateManager:
         import urllib.request
 
         owner = "mrcanlaco"
-        repo = "dao_vang"
+        repo = "Dao-Vang-Peak-Pulse"
         headers = {"User-Agent": "DaoVang-Updater/2.0"}
 
         try:
@@ -360,12 +360,11 @@ class UpdateManager:
         else:
             logger.info("git_fetch_failed_trying_fallback error=%s", fetch_err)
 
-            # Try ls-remote (works even with read-only .git filesystem)
+            # Try ls-remote (works cleanly even with read-only .git filesystem)
             ls_code, ls_out, ls_err = self._run_cmd(["git", "ls-remote", remote_name, f"refs/heads/{branch_name}"])
             if ls_code != 0:
-                repo_url = "https://github.com/mrcanlaco/dao_vang.git"
+                repo_url = "https://github.com/mrcanlaco/Dao-Vang-Peak-Pulse.git"
                 ls_code, ls_out, ls_err = self._run_cmd(["git", "ls-remote", repo_url, f"refs/heads/{branch_name}"])
-
             if ls_code == 0 and ls_out:
                 remote_hash = ls_out.split()[0]
                 remote_short = remote_hash[:7] if remote_hash else ""
