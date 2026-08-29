@@ -288,6 +288,7 @@ export interface CandidateFilterComparison {
   };
   comparison?: {
     window_days: number;
+    evaluation_days?: number;
     champion_version: string;
     challenger_version: string;
     metrics: Record<string, CandidateFilterArmMetrics>;

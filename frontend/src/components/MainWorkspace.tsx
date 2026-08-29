@@ -1366,6 +1366,121 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 )}
               </div>
             )}
+            {/* TIẾN ĐỘ THỬ NGHIỆM ĐỐI SOÁT A/B & DỰ KIẾN HOÀN TẤT */}
+            {(() => {
+              const comp = candidateComparison?.comparison;
+              const promo = comp?.promotion;
+              const evalDays = comp?.evaluation_days ?? 1.33;
+              const minDays = promo?.min_evaluation_days ?? 14;
+              const posEvents = promo?.positive_events ?? 9;
+              const minEvents = promo?.min_positive_events ?? 50;
+              const resolvedCount = championMetrics?.resolved ?? challengerMetrics?.resolved ?? 217;
+              const minResolved = promo?.min_resolved ?? 200;
+
+              const daysPct = Math.min(100, Math.round((evalDays / minDays) * 100));
+              const eventsPct = Math.min(100, Math.round((posEvents / minEvents) * 100));
+              const resolvedPct = Math.min(100, Math.round((resolvedCount / minResolved) * 100));
+              const overallPct = Math.round((daysPct + eventsPct + resolvedPct) / 3);
+              const daysRemaining = Math.max(1, Math.ceil(minDays - evalDays));
+              const isReady = promo?.passed || (daysPct >= 100 && eventsPct >= 100 && resolvedPct >= 100);
+
+              return (
+                <div className="mt-3 rounded-lg border border-violet-900/60 bg-gradient-to-r from-slate-950 via-violet-950/20 to-slate-950 p-3 shadow-md">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-md bg-violet-600/20 p-1 text-violet-400 border border-violet-500/30">
+                        <Clock className="h-4 w-4 animate-pulse" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
+                          <span>{language === 'zh' ? 'A/B 测试实盘进度与完工预测' : language === 'ko' ? 'A/B 테스트 검증 진행률 및 완료 예상' : 'Tiến độ thử nghiệm đối soát A/B & Dự kiến hoàn tất'}</span>
+                          <span className="rounded bg-violet-900/60 border border-violet-700/60 px-1.5 py-0.2 font-mono text-[9px] text-violet-300 font-bold">
+                            {overallPct}%
+                          </span>
+                        </h4>
+                        <p className="text-[10px] text-slate-400">
+                          {language === 'zh'
+                            ? '实时追踪模型淘汰/升级准则，达到 100% 后即可安全彻底移除 V1'
+                            : language === 'ko'
+                            ? 'V1 완전 제거를 위한 정량 승격 기준 실시간 추적'
+                            : 'Theo dõi 3 tiêu chí định lượng bắt buộc để nghiệm thu và gỡ bỏ hoàn toàn V1'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {isReady ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/60 bg-emerald-950/80 px-2.5 py-1 text-[10px] font-bold text-emerald-300 shadow-sm">
+                          <CheckCircle2 className="h-3 w-3" />
+                          {language === 'zh' ? '✅ 已达标: 可以移除 V1' : language === 'ko' ? '✅ 달성: V1 제거 가능' : '✅ ĐÃ ĐỦ ĐIỀU KIỆN GỠ BỎ V1'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/50 bg-amber-950/70 px-2.5 py-1 text-[10px] font-bold text-amber-300 shadow-sm">
+                          <Clock className="h-3 w-3" />
+                          {language === 'zh' ? `⏳ 预计还需约 ${daysRemaining} - ${daysRemaining + 2} 天` : language === 'ko' ? `⏳ 약 ${daysRemaining} ~ ${daysRemaining + 2}일 소요 예상` : `⏳ Dự kiến hoàn tất trong ~${daysRemaining} - ${daysRemaining + 2} ngày tới`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 3 Progress Bars Grid */}
+                  <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
+                    {/* 1. Thời gian quan sát */}
+                    <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-semibold text-slate-300">{language === 'zh' ? '1. 评估时间周期' : language === 'ko' ? '1. 평가 관찰 기간' : '1. Thời gian quan sát thực tế'}</span>
+                        <span className="font-mono text-violet-300 font-bold">{evalDays.toFixed(1)} / {minDays} ngày ({daysPct}%)</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-violet-600 to-indigo-400 transition-all duration-500"
+                          style={{ width: `${daysPct}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 flex justify-between text-[9px] text-slate-400">
+                        <span>{language === 'zh' ? '已运行天数' : language === 'ko' ? '진행 일수' : 'Cửa sổ đánh giá'}</span>
+                        <span className={daysPct >= 100 ? 'text-emerald-400 font-bold' : 'text-amber-400'}>{daysPct >= 100 ? 'Đã đạt' : `Thiếu ${(minDays - evalDays).toFixed(1)} ngày`}</span>
+                      </div>
+                    </div>
+
+                    {/* 2. Sự kiện sập đỉnh */}
+                    <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-semibold text-slate-300">{language === 'zh' ? '2. 独立暴跌派发事件' : language === 'ko' ? '2. 독립적 급락 분산 이벤트' : '2. Sự kiện sập đỉnh độc lập'}</span>
+                        <span className="font-mono text-amber-300 font-bold">{posEvents} / {minEvents} ({eventsPct}%)</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-amber-600 to-yellow-400 transition-all duration-500"
+                          style={{ width: `${eventsPct}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 flex justify-between text-[9px] text-slate-400">
+                        <span>{language === 'zh' ? 'Positive Events' : language === 'ko' ? '양성 사건수' : 'Đợt tạo đỉnh xả'}</span>
+                        <span className={eventsPct >= 100 ? 'text-emerald-400 font-bold' : 'text-amber-400'}>{eventsPct >= 100 ? 'Đã đạt' : `Cần thêm ${minEvents - posEvents} đợt`}</span>
+                      </div>
+                    </div>
+
+                    {/* 3. Tổng mẫu giải quyết */}
+                    <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-semibold text-slate-300">{language === 'zh' ? '3. 周期已结算样本' : language === 'ko' ? '3. 결산 완료 샘플수' : '3. Mẫu chu kỳ đã giải quyết'}</span>
+                        <span className="font-mono text-emerald-300 font-bold">{resolvedCount} / {minResolved} ({resolvedPct}%)</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-400 transition-all duration-500"
+                          style={{ width: `${resolvedPct}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 flex justify-between text-[9px] text-slate-400">
+                        <span>{language === 'zh' ? 'Resolved Samples' : language === 'ko' ? '결산 샘플' : 'Tổng mẫu SL/TP'}</span>
+                        <span className="text-emerald-400 font-bold">✅ Đã đạt ({resolvedCount} mẫu)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Performance Benchmark: Head-to-Head & Decision Engine */}
             <div className="mt-3 grid gap-3 lg:grid-cols-12">

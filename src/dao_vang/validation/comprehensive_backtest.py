@@ -58,8 +58,19 @@ def run_comprehensive_validation(
     output_report_path: Path | str = Path("artifacts/backtest_report_latest.json"),
     n_folds: int = 10,
     sample_coins: int = 30,
+    lookback_days: int = 0,
+    min_daily_volume: float = 0.0,
+    max_daily_volume: float = 0.0,
 ) -> Dict[str, Any]:
-    """Execute complete validation suite across 2.6 years of historical data."""
+    """Execute complete validation suite on historical data.
+
+    Parameters
+    ----------
+    lookback_days : int
+        If > 0, only use last N days of data (0 = use all).
+    min_daily_volume / max_daily_volume : float
+        If > 0, filter coins by avg daily quote_volume range (proxy for market cap).
+    """
     master_db = Path(master_db_path)
     output_report = Path(output_report_path)
     output_report.parent.mkdir(parents=True, exist_ok=True)
@@ -67,18 +78,35 @@ def run_comprehensive_validation(
     conn = duckdb.connect(str(master_db), read_only=True)
     logger.info("Extracting historical data from Quant Master DuckDB...")
 
-    # Load representative coin set across volume rankings
-    symbols_res = conn.execute("""
-        SELECT symbol, SUM(quote_volume) as total_vol 
-        FROM klines_5m 
-        GROUP BY symbol 
-        ORDER BY total_vol DESC 
+    # Build time filter
+    time_filter = ""
+    if lookback_days > 0:
+        time_filter = f"WHERE close_time >= (SELECT MAX(close_time) FROM klines_5m) - INTERVAL '{lookback_days} days'"
+
+    # Build volume filter for coin selection
+    vol_having = "HAVING COUNT(*) > 50000"  # at least ~170 days
+    if min_daily_volume > 0:
+        vol_having += f" AND (SUM(quote_volume) / (COUNT(*) / 288.0)) >= {min_daily_volume}"
+    if max_daily_volume > 0:
+        vol_having += f" AND (SUM(quote_volume) / (COUNT(*) / 288.0)) < {max_daily_volume}"
+
+    symbols_res = conn.execute(f"""
+        SELECT symbol, SUM(quote_volume) / (COUNT(*) / 288.0) as avg_daily_vol
+        FROM klines_5m
+        {time_filter}
+        GROUP BY symbol
+        {vol_having}
+        ORDER BY avg_daily_vol DESC
         LIMIT ?
     """, [sample_coins]).fetchall()
     selected_symbols = [r[0] for r in symbols_res]
     sym_sql = ", ".join(f"'{s}'" for s in selected_symbols)
+    logger.info(f"Selected {len(selected_symbols)} coins (volume range filter applied)")
 
     # Query 5m data with funding rate, metrics (OI/ratios), and price
+    time_sql = ""
+    if lookback_days > 0:
+        time_sql = f"AND close_time >= (SELECT MAX(close_time) FROM klines_5m) - INTERVAL '{lookback_days} days'"
     query = f"""
     WITH k AS (
         SELECT 
@@ -90,7 +118,7 @@ def run_comprehensive_validation(
             (close - open) / NULLIF(open, 0) AS return_5m,
             (high - low) / NULLIF(open, 0) AS volatility_5m
         FROM klines_5m
-        WHERE symbol IN ({sym_sql})
+        WHERE symbol IN ({sym_sql}) {time_sql}
     ),
     m AS (
         SELECT
