@@ -14,7 +14,6 @@ import { useTranslation, type Language } from './i18n/LanguageContext';
 // Keep the authenticated shell small. Charts, modals, and secondary controls
 // are loaded only after the lock screen has been cleared.
 const MainWorkspace = lazy(() => import('./components/MainWorkspace').then(({ MainWorkspace: component }) => ({ default: component })));
-const ActionDrawer = lazy(() => import('./components/ActionDrawer').then(({ ActionDrawer: component }) => ({ default: component })));
 const GlossaryModal = lazy(() => import('./components/GlossaryModal').then(({ GlossaryModal: component }) => ({ default: component })));
 const WatchlistModal = lazy(() => import('./components/WatchlistModal').then(({ WatchlistModal: component }) => ({ default: component })));
 const ModelComparisonModal = lazy(() => import('./components/ModelComparisonModal').then(({ ModelComparisonModal: component }) => ({ default: component })));
@@ -104,7 +103,7 @@ export function App() {
   const [telegramFilter, setTelegramFilter] = useState<TelegramFilter>('ALL');
   const [threshold, setThreshold] = useState(0.25);
 
-  const [automationSettings, setAutomationSettings] = useState<AutomationSettings>({
+  const [automationSettings] = useState<AutomationSettings>({
     autoTelegramPush: true,
     autoPushThreshold: 0.80,
     audioAlertEnabled: true,
@@ -116,12 +115,9 @@ export function App() {
   const [loadingStep, setLoadingStep] = useState<string | null>(null);
   const [isTriggeringScan, setIsTriggeringScan] = useState(false);
   const [scanTriggeredSuccess, setScanTriggeredSuccess] = useState<string | null>(null);
-
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
   const [telegramSentSuccess, setTelegramSentSuccess] = useState<string | null>(null);
-
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('DECISION');
-  const [isActionDrawerOpen, setIsActionDrawerOpen] = useState(false);
 
   // GUI Version: 'v1' (Classic 3-column) | 'v2' (Pro Mobile / Binance-OKX Style)
   const [guiVersion, setGuiVersion] = useState<'v1' | 'v2'>(() => {
@@ -784,8 +780,6 @@ export function App() {
         trackingCount={trackingItems.filter(item => item.status !== 'CLOSED').length}
         activeScanMode={activeScanMode}
         autoTelegramEnabled={automationSettings.autoTelegramPush}
-        isActionDrawerOpen={isActionDrawerOpen}
-        onToggleActionDrawer={() => setIsActionDrawerOpen(v => !v)}
         onGoHome={() => {
           setActiveTab('DECISION');
           if (guiVersion === 'v2') setMobileTab('ANALYSIS');
@@ -817,13 +811,12 @@ export function App() {
       />
 
       {/* Main Workspace Layout - Full 12 columns by default (or 9 cols if Action Drawer open) */}
-      <main className={`flex-1 max-w-[1750px] w-full mx-auto p-2.5 sm:p-3.5 grid grid-cols-1 lg:grid-cols-12 gap-2.5 lg:gap-3.5 lg:overflow-hidden ${
+      {/* Main Workspace Layout - Full 100% Width */}
+      <main className={`flex-1 max-w-[1750px] w-full mx-auto p-2.5 sm:p-3.5 block lg:overflow-hidden ${
         guiVersion === 'v2' ? 'pb-24 sm:pb-3.5' : ''
       }`}>
         {/* Main Workspace & Charts */}
-        <div className={`min-w-0 h-auto lg:h-[calc(100vh-120px)] lg:min-h-[600px] block ${
-          isActionDrawerOpen ? 'lg:col-span-9' : 'lg:col-span-12'
-        }`}>
+        <div className="min-w-0 w-full h-auto lg:h-[calc(100vh-120px)] lg:min-h-[600px] block">
           <MainWorkspace
             signals={signals}
             selectedSignal={selectedSignal}
@@ -883,22 +876,6 @@ export function App() {
             onLogout={handleLogout}
           />
         </div>
-
-        {/* Right Column: Smart Automation & Action Drawer (3 cols) */}
-        {isActionDrawerOpen && (
-          <div className="lg:col-span-3 h-auto lg:h-[calc(100vh-120px)] lg:min-h-[600px]">
-            <ActionDrawer
-              selectedSignal={selectedSignal}
-              onPushTelegram={handlePushTelegram}
-              telegramSentSuccess={telegramSentSuccess}
-              automationSettings={automationSettings}
-              setAutomationSettings={setAutomationSettings}
-              onSelectCoin={handleSelectCandidate}
-              onCloseDrawer={() => setIsActionDrawerOpen(false)}
-            />
-          </div>
-        )}
-
       </main>
 
       {/* GUI V2 Mobile Bottom Navigation Bar */}
@@ -1026,6 +1003,15 @@ export function App() {
           }`}
         >
           {watchlistFeedback.message}
+        </div>
+      )}
+
+      {telegramSentSuccess && (
+        <div
+          role="status"
+          className="fixed bottom-4 left-3 right-3 sm:left-auto sm:right-4 sm:max-w-sm z-[60] rounded-xl border border-emerald-500/40 bg-emerald-950/95 text-emerald-200 px-4 py-3 text-xs shadow-2xl backdrop-blur-md"
+        >
+          {telegramSentSuccess}
         </div>
       )}
 

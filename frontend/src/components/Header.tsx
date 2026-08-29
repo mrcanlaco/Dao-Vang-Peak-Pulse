@@ -9,8 +9,6 @@ import {
   Eye,
   Globe,
   HelpCircle,
-  PanelRight,
-  PanelRightClose,
   RefreshCw,
   Search,
   Sliders,
@@ -53,8 +51,6 @@ interface HeaderProps {
   trackingCount: number;
   activeScanMode: string;
   autoTelegramEnabled: boolean;
-  isActionDrawerOpen: boolean;
-  onToggleActionDrawer: () => void;
   onGoHome?: () => void;
   availableModels?: ModelChoice[];
   selectedModelKey?: string;
@@ -93,8 +89,6 @@ export const Header: React.FC<HeaderProps> = ({
   trackingCount,
   activeScanMode,
   autoTelegramEnabled: _autoTelegramEnabled,
-  isActionDrawerOpen,
-  onToggleActionDrawer,
   onGoHome,
   availableModels = [],
   selectedModelKey = 'heuristic_composite',
@@ -548,39 +542,21 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Tracking Watchlist Button */}
+            {/* Tracking Watchlist Quick Button */}
             <button
               type="button"
               onClick={onOpenTracking}
-              className="relative inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/15 px-2.5 text-xs font-bold text-amber-300 shadow-sm transition hover:bg-amber-500/25 active:scale-95 shrink-0"
-              title={t('tracking')}
+              className="relative inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-950/40 px-2.5 text-xs font-bold text-violet-300 shadow-sm transition hover:bg-violet-900/60 hover:border-violet-500 active:scale-95 shrink-0"
+              title="Xem danh sách vị thế đang mở và quản lý PnL / SL / TP"
             >
-              <Eye className="h-3.5 w-3.5 text-amber-400" />
-              <span className="hidden xl:inline">{t('tracking')}</span>
+              <Eye className="h-3.5 w-3.5 text-violet-400" />
+              <span>{t('ws_tab_tracking')}</span>
               {trackingCount > 0 && (
-                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-black text-slate-950">
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[10px] font-black text-white shadow-sm">
                   {trackingCount}
                 </span>
               )}
             </button>
-
-            {/* Action Drawer Toggle Button */}
-            <button
-              type="button"
-              onClick={onToggleActionDrawer}
-              className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold shadow-sm transition active:scale-95 shrink-0 ${
-                isActionDrawerOpen
-                  ? 'border-amber-400 bg-amber-500 text-slate-950 shadow-amber-500/20'
-                  : 'border-slate-700 bg-slate-800 text-slate-200 hover:border-amber-500/40 hover:bg-slate-700'
-              }`}
-              title={isActionDrawerOpen ? t('close_drawer') : t('open_drawer')}
-            >
-              {isActionDrawerOpen ? <PanelRightClose className="h-3.5 w-3.5" /> : <PanelRight className="h-3.5 w-3.5 text-amber-400" />}
-              <span className="hidden xl:inline">
-                {isActionDrawerOpen ? t('btn_close') : t('open_drawer')}
-              </span>
-            </button>
-
             {/* Refresh Button */}
             <button
               type="button"
