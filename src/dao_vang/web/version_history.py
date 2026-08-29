@@ -198,6 +198,7 @@ def _get_current_git_info(cwd: Path) -> dict[str, str]:
             cwd=cwd,
             capture_output=True,
             text=True,
+            timeout=2,
             check=False,
         )
         if res.returncode == 0 and res.stdout.strip():
@@ -205,13 +206,28 @@ def _get_current_git_info(cwd: Path) -> dict[str, str]:
     except Exception:
         pass
 
-    # If git repo info is missing, fetch latest commit from GitHub API
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=2,
+            check=False,
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            info["head_hash"] = res.stdout.strip()
+    except Exception:
+        pass
+
+    # If git repo info is missing (e.g. inside Docker without .git), fetch latest commit from GitHub API
     if not info["head_hash"]:
         try:
+            import json
             import urllib.request
             gh_url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/commits/main"
             req = urllib.request.Request(gh_url, headers={"User-Agent": "DaoVang-App"})
-            with urllib.request.urlopen(req, timeout=8) as response:
+            with urllib.request.urlopen(req, timeout=3) as response:
                 if response.status == 200:
                     gh_commit = json.loads(response.read().decode("utf-8"))
                     info["head_hash"] = gh_commit.get("sha", "")
@@ -220,28 +236,15 @@ def _get_current_git_info(cwd: Path) -> dict[str, str]:
 
     try:
         res = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if res.returncode == 0 and res.stdout.strip():
-            info["head_hash"] = res.stdout.strip()
-    except Exception:
-        pass
-
-    try:
-        res = subprocess.run(
             ["git", "describe", "--tags"],
             cwd=cwd,
             capture_output=True,
             text=True,
+            timeout=2,
             check=False,
         )
         if res.returncode == 0 and res.stdout.strip():
             info["current_tag"] = res.stdout.strip()
-        else:
             # Try to read latest version from CHANGELOG.md
             changelog_file = cwd / "CHANGELOG.md"
             if changelog_file.exists():
@@ -275,7 +278,6 @@ def extract_git_commits(repo_root: Path, limit: int = 500) -> list[dict[str, Any
         "log",
         f"-n{limit}",
         f"--format={delimiter}%H|||%h|||%an|||%ae|||%aI|||%s|||%D",
-        "--shortstat",
     ]
 
     raw_output = ""
@@ -287,13 +289,13 @@ def extract_git_commits(repo_root: Path, limit: int = 500) -> list[dict[str, Any
             text=True,
             encoding="utf-8",
             errors="replace",
+            timeout=3,
             check=False,
         )
         if res.returncode == 0 and res.stdout.strip():
             raw_output = res.stdout
     except Exception as e:
         logger.warning("Local git log failed: %s", e)
-
     # Fallback to GitHub Public API if local git is unavailable (e.g. inside Docker container)
     if not raw_output:
         try:

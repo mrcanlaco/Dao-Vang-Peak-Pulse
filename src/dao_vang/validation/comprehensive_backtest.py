@@ -57,7 +57,7 @@ def run_comprehensive_validation(
     master_db_path: Path | str = DEFAULT_MASTER_DUCKDB,
     output_report_path: Path | str = Path("artifacts/backtest_report_latest.json"),
     n_folds: int = 10,
-    sample_coins: int = 150,
+    sample_coins: int = 30,
 ) -> Dict[str, Any]:
     """Execute complete validation suite across 2.6 years of historical data."""
     master_db = Path(master_db_path)
@@ -129,6 +129,10 @@ def run_comprehensive_validation(
     df = conn.execute(query).fetchdf()
     conn.close()
 
+    # Downcast floats to reduce memory usage
+    float_cols = df.select_dtypes(include=["float64"]).columns
+    df[float_cols] = df[float_cols].astype("float32")
+
     # Feature Engineering (Fast Vectorized Pandas)
     logger.info(f"Computing historical features for {len(df):,} rows...")
     df["funding_rate_raw"] = df["funding_rate"]
@@ -169,6 +173,9 @@ def run_comprehensive_validation(
     # Only require core price features + label (LightGBM handles NaN for derivatives natively)
     core_required = ["return_5m", "volatility_5m", "return_1h", "return_4h", "return_24h", "label"]
     df = df.dropna(subset=core_required).sort_values("feature_time").reset_index(drop=True)
+
+    # Clean inf values from pct_change / division operations
+    df[feature_cols] = df[feature_cols].replace([np.inf, -np.inf], np.nan)
 
     # 1. Walk-Forward 10-Fold
     logger.info(f"Executing {n_folds}-Fold Walk-Forward Validation...")
@@ -233,8 +240,8 @@ def run_comprehensive_validation(
 
         # Champion LogReg comparison
         imputer = SimpleImputer(strategy="median")
-        X_train_imp = imputer.fit_transform(X_train)
-        X_test_imp = imputer.transform(X_test)
+        X_train_imp = np.nan_to_num(imputer.fit_transform(X_train), nan=0.0, posinf=0.0, neginf=0.0)
+        X_test_imp = np.nan_to_num(imputer.transform(X_test), nan=0.0, posinf=0.0, neginf=0.0)
         lr = LogisticRegression(max_iter=500, random_state=42)
         lr.fit(X_train_imp, y_train)
         lr_preds = lr.predict_proba(X_test_imp)[:, 1]
@@ -285,8 +292,8 @@ def run_comprehensive_validation(
 
     if len(regime_test) > 0 and regime_train["label"].sum() >= 10:
         imp = SimpleImputer(strategy="median")
-        X_rt = imp.fit_transform(regime_train[feature_cols])
-        X_re = imp.transform(regime_test[feature_cols])
+        X_rt = np.nan_to_num(imp.fit_transform(regime_train[feature_cols]), nan=0.0, posinf=0.0, neginf=0.0)
+        X_re = np.nan_to_num(imp.transform(regime_test[feature_cols]), nan=0.0, posinf=0.0, neginf=0.0)
         dtrain_r = lgb.Dataset(X_rt, label=regime_train["label"])
         bst_regime = lgb.train(params, dtrain_r, num_boost_round=300)
         regime_preds = bst_regime.predict(X_re)
@@ -343,7 +350,7 @@ def run_comprehensive_validation(
             })
             continue
 
-        X_evt = imp_stress.transform(evt_data[feature_cols])
+        X_evt = np.nan_to_num(imp_stress.transform(evt_data[feature_cols]), nan=0.0, posinf=0.0, neginf=0.0)
         evt_preds = bst.predict(X_evt)
         evt_calibrated = iso.predict(evt_preds)
         evt_fired = (evt_calibrated >= threshold).astype(int)
