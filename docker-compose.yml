@@ -65,6 +65,7 @@ services:
       - ./frontend/dist:/app/frontend/dist:ro
       - ./.git:/app/.git:ro
       - ./CHANGELOG.md:/app/CHANGELOG.md:ro
+    depends_on:
       - scanner
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
