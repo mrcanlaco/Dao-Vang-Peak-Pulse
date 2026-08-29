@@ -677,6 +677,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 onSelectCandidate={onSelectCandidate}
                 isDeepAnalyzing={isDeepAnalyzing}
                 onOpenCoinSelector={onOpenCoinSelector}
+                probability={displayDetail.probability ?? selectedSignal?.probability}
+                riskLevel={displayDetail.risk_level ?? selectedSignal?.risk_level}
+                tradeSetup={selectedSignal?.trade_setup}
+                onOpenTabHelp={onOpenTabHelp ? () => onOpenTabHelp('DECISION') : undefined}
               />
 
               {/* 2. Main 2-Column Split-View Grid */}
