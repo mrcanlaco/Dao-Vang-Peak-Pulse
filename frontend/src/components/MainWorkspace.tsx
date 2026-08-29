@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   ShieldCheck, Activity, BarChart3,
-  Layers, ArrowUpRight, ArrowDownRight, Eye, CheckCircle2, Zap, Radio, Terminal, Send, Clock, Play, Loader2, FlaskConical, LineChart as LineChartIcon, XCircle, RefreshCw, Target, Award, ChevronDown, ChevronUp, Cpu
+  Layers, ArrowUpRight, ArrowDownRight, Eye, CheckCircle2, Zap, Radio, Terminal, Send, Clock, Play, Loader2, FlaskConical, LineChart as LineChartIcon, XCircle, RefreshCw, Target, Award, ChevronDown, ChevronUp, Cpu, HelpCircle
 } from 'lucide-react';
 import { SignalFeed } from './SignalFeed';
 import { MultiCoinScan } from './MultiCoinScan';
@@ -93,6 +93,7 @@ interface MainWorkspaceProps {
   setThreshold?: (val: number) => void;
   activeScanModes?: string[];
   onOpenWatchlistModal?: () => void;
+  onOpenTabHelp?: (tab?: WorkspaceTab) => void;
   onLogout?: () => void;
 }
 
@@ -151,6 +152,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   setThreshold,
   activeScanModes,
   onOpenWatchlistModal,
+  onOpenTabHelp,
   onLogout,
 }) => {
   const { language, t } = useTranslation();  
@@ -615,8 +617,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         candidateCount={candidates.length}
         signalCount={signals.length}
         isTelemetryActive={telemetryData ? telemetryData.scanner_engine_status !== 'ERROR' : true}
+        onOpenTabHelp={onOpenTabHelp}
       />
-
       {/* TAB: RADAR SIGNAL FEED */}
       {activeTab === 'RADAR' && (
         <div className="flex-1 overflow-hidden h-full min-h-[500px]">
@@ -962,7 +964,18 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-400 font-mono">{t('ranking_sorted_by_risk')}</span>
+              {onOpenTabHelp && (
+                <button
+                  type="button"
+                  onClick={() => onOpenTabHelp('RANKING')}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-[10px] font-medium text-slate-300 transition hover:border-violet-500/60 hover:text-violet-300"
+                  title="Xem hướng dẫn chi tiết về cơ chế & chỉ số Bảng Ứng Viên"
+                >
+                  <HelpCircle className="h-3 w-3 text-violet-400" />
+                  <span>{language === 'zh' ? '功能说明' : language === 'ko' ? '도움말' : 'Hướng dẫn'}</span>
+                </button>
+              )}
+              <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">{t('ranking_sorted_by_risk')}</span>
               <button
                 type="button"
                 onClick={() => onRefreshCandidates()}
@@ -1810,23 +1823,35 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   {language === 'zh' ? '监控扫描频率、Binance API 延迟及后台守护进程执行日志' : language === 'ko' ? '스캔 주기, 바이낸스 API 지연 시간 및 백그라운드 작업 로그 모니터링' : t('telemetry_subtitle_desc')}
                 </p>
               </div>
-
-              <button
-                onClick={onTriggerManualScan}
-                disabled={isTriggeringScan}
-                className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
-              >
+              <div className="flex items-center gap-2">
+                {onOpenTabHelp && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenTabHelp('TELEMETRY')}
+                    className="px-2.5 py-1.5 bg-slate-900 border border-slate-700 hover:border-violet-500 text-slate-300 hover:text-violet-200 font-medium rounded-lg text-xs flex items-center gap-1.5 transition"
+                    title="Xem hướng dẫn chi tiết về Hạ tầng & Giám sát Hệ thống"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 text-violet-400" />
+                    <span>{language === 'zh' ? '功能说明' : language === 'ko' ? '도움말' : 'Hướng dẫn'}</span>
+                  </button>
+                )}
+                <button
+                  onClick={onTriggerManualScan}
+                  disabled={isTriggeringScan}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+                >
                 <Play className="w-3.5 h-3.5 fill-current" />
                 {isTriggeringScan ? t('telemetry_scanning_coins_progress').replace('{count}', '48') : t('telemetry_manual_scan_btn')}
               </button>
             </div>
+          </div>
 
-            {scanTriggeredSuccess && (
-              <div className="p-2.5 mb-3 bg-emerald-950/90 border border-emerald-800 text-emerald-300 text-xs rounded-lg flex items-center gap-2 font-mono">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>{scanTriggeredSuccess}</span>
-              </div>
-            )}
+          {scanTriggeredSuccess && (
+            <div className="p-2.5 mb-3 bg-emerald-950/90 border border-emerald-800 text-emerald-300 text-xs rounded-lg flex items-center gap-2 font-mono">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{scanTriggeredSuccess}</span>
+            </div>
+          )}
 
             {/* Live Metrics Grid */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -1992,10 +2017,23 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       {activeTab === 'AUDIT' && auditData && (
         <div className="flex-1 overflow-y-auto space-y-3 pr-1">
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
-            <h3 className="text-xs font-bold text-slate-200 mb-2.5 flex items-center gap-1.5 uppercase">
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
-              {t('audit_matrix_title')}
-            </h3>
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5 uppercase">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                {t('audit_matrix_title')}
+              </h3>
+              {onOpenTabHelp && (
+                <button
+                  type="button"
+                  onClick={() => onOpenTabHelp('AUDIT')}
+                  className="px-2 py-1 bg-slate-900 border border-slate-700 hover:border-violet-500 text-slate-300 hover:text-violet-200 font-medium rounded-md text-[10px] flex items-center gap-1 transition"
+                  title="Xem hướng dẫn chi tiết về Kiểm định Mô hình"
+                >
+                  <HelpCircle className="w-3 h-3 text-violet-400" />
+                  <span>{language === 'zh' ? '功能说明' : language === 'ko' ? '도움말' : 'Hướng dẫn'}</span>
+                </button>
+              )}
+            </div>
 
             {!auditData.has_enough_data && (
               <div className="mb-3 px-3 py-2 rounded-lg bg-amber-950/50 border border-amber-800 text-[11px] text-amber-300">
@@ -2112,7 +2150,18 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   {t('market_binance_listing_title')}
                 </h4>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400">
+                  {onOpenTabHelp && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenTabHelp('MARKET')}
+                      className="px-2 py-0.5 text-[10px] text-slate-300 border border-slate-700 bg-slate-900 rounded hover:border-violet-500 hover:text-violet-200 flex items-center gap-1"
+                      title="Xem hướng dẫn chi tiết về Tổng quan Thị trường & Alpha Lab"
+                    >
+                      <HelpCircle className="w-3 h-3 text-violet-400" />
+                      <span>{language === 'zh' ? '功能说明' : language === 'ko' ? '도움말' : 'Hướng dẫn'}</span>
+                    </button>
+                  )}
+                  <span className="text-[10px] text-slate-400 hidden sm:inline">
                     `${t('market_updated_prefix')}${marketData.binance_listing.date}`
                   </span>
                   <button

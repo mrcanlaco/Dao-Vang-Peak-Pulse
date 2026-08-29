@@ -15,6 +15,7 @@ import {
   Check,
   Zap,
   Settings,
+  HelpCircle,
 } from 'lucide-react';
 import { CoinLink } from './CoinLink';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -59,6 +60,7 @@ interface WorkspaceTabBarProps {
   isTelemetryActive?: boolean;
   guiVersion?: 'v1' | 'v2';
   mobileTab?: MobileTabType;
+  onOpenTabHelp?: (tab?: WorkspaceTab) => void;
 }
 
 export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
@@ -72,6 +74,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
   isTelemetryActive = true,
   guiVersion = 'v2',
   mobileTab = 'RADAR',
+  onOpenTabHelp,
 }) => {
   const { t } = useTranslation();
   const [openDropdown, setOpenDropdown] = useState<'LAB' | 'SYSTEM' | null>(null);
@@ -466,6 +469,19 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Quick Tab Help Button (Desktop) */}
+        {onOpenTabHelp && (
+          <button
+            type="button"
+            onClick={() => onOpenTabHelp(activeTab)}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 bg-slate-900/90 border border-slate-700/80 hover:border-violet-500/80 hover:text-violet-200 hover:bg-violet-950/40 transition shrink-0 shadow-sm"
+            title="Xem mô tả chi tiết & cơ chế hoạt động của tab này"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-violet-400" />
+            <span className="hidden lg:inline">Hướng dẫn Tab</span>
+          </button>
+        )}
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -572,6 +588,20 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
             );
           })}
         </div>
+
+        {/* Quick Tab Help Button (Mobile) */}
+        {onOpenTabHelp && (
+          <div className="flex justify-end pt-0.5">
+            <button
+              type="button"
+              onClick={() => onOpenTabHelp(activeTab)}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-slate-300 bg-slate-900 border border-slate-800 hover:border-violet-500 hover:text-violet-200"
+            >
+              <HelpCircle className="w-3 h-3 text-violet-400" />
+              <span>Hướng dẫn Tab</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

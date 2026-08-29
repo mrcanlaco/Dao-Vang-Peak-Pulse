@@ -18,11 +18,11 @@ const ActionDrawer = lazy(() => import('./components/ActionDrawer').then(({ Acti
 const GlossaryModal = lazy(() => import('./components/GlossaryModal').then(({ GlossaryModal: component }) => ({ default: component })));
 const WatchlistModal = lazy(() => import('./components/WatchlistModal').then(({ WatchlistModal: component }) => ({ default: component })));
 const ModelComparisonModal = lazy(() => import('./components/ModelComparisonModal').then(({ ModelComparisonModal: component }) => ({ default: component })));
+const TabHelpModal = lazy(() => import('./components/TabHelpModal').then(({ TabHelpModal: component }) => ({ default: component })));
 const CoinSelectorModal = lazy(() => import('./components/CoinSelectorModal').then(({ CoinSelectorModal: component }) => ({ default: component })));
 const MobileBottomNav = lazy(() => import('./components/v2/MobileBottomNav').then(({ MobileBottomNav: component }) => ({ default: component })));
 const StickyActionBar = lazy(() => import('./components/v2/StickyActionBar').then(({ StickyActionBar: component }) => ({ default: component })));
 const OrderExecutionModal = lazy(() => import('./components/v2/OrderExecutionModal').then(({ OrderExecutionModal: component }) => ({ default: component })));
-
 export function App() {
   const { language, t } = useTranslation();
 
@@ -147,8 +147,8 @@ export function App() {
   const [mobileTab, setMobileTab] = useState<MobileTabType>('RADAR');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isModelComparisonOpen, setIsModelComparisonOpen] = useState(false);
+  const [isTabHelpModalOpen, setIsTabHelpModalOpen] = useState(false);
   const [isCoinSelectorOpen, setIsCoinSelectorOpen] = useState(false);
-
   const getStepText = (stepKey: string, _lang: Language) => {
     return t(`loading_${stepKey}`);
   };
@@ -879,6 +879,7 @@ export function App() {
             setThreshold={setThreshold}
             activeScanModes={activeScanModes}
             onOpenWatchlistModal={() => setIsWatchlistModalOpen(true)}
+            onOpenTabHelp={() => setIsTabHelpModalOpen(true)}
             onLogout={handleLogout}
           />
         </div>
@@ -993,6 +994,12 @@ export function App() {
         onClose={() => setIsModelComparisonOpen(false)}
       />
 
+      {/* Tab Mechanism & Operations Help Modal */}
+      <TabHelpModal
+        isOpen={isTabHelpModalOpen}
+        onClose={() => setIsTabHelpModalOpen(false)}
+        activeTab={activeTab}
+      />
       {/* Watchlist Preset Modal */}
       <WatchlistModal
         isOpen={isWatchlistModalOpen}
