@@ -75,17 +75,28 @@ export const LlmConfigModal: React.FC<LlmConfigModalProps> = ({
   const [testing, setTesting] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // The same modal can be opened by either assistant surface. Keep its form
+  // aligned when the shared LLM config changes elsewhere in the app.
+  React.useEffect(() => {
+    setProvider(config.provider || 'openai');
+    setApiKey(config.apiKey || '');
+    setModelId(config.modelId || 'antigravity/gemini-3.7-flash-tiered');
+    setBaseUrl(config.baseUrl || 'https://proxy-ai.comaygiauco.com/v1');
+    setEnabled(config.enabled !== false);
+    setTestResult(null);
+  }, [config.apiKey, config.baseUrl, config.enabled, config.modelId, config.provider]);
+
   // Auto-fetch default server AI config if fields are empty
   React.useEffect(() => {
     if (isOpen && !apiKey) {
       fetch('/api/ai/config')
         .then((res) => res.json())
         .then((data) => {
-          if (data && data.apiKey) {
-            setApiKey(data.apiKey);
+          if (data && (data.provider || data.modelId || data.baseUrl)) {
             if (data.provider) setProvider(data.provider);
             if (data.modelId) setModelId(data.modelId);
             if (data.baseUrl) setBaseUrl(data.baseUrl);
+            if (typeof data.enabled === 'boolean') setEnabled(data.enabled);
           }
         })
         .catch(() => {});
@@ -168,12 +179,12 @@ export const LlmConfigModal: React.FC<LlmConfigModalProps> = ({
     try {
       const res = await fetch('/api/ai/config');
       const data = await res.json();
-      if (data && data.apiKey) {
+      if (data && (data.provider || data.modelId || data.baseUrl)) {
         setProvider(data.provider || 'openai');
-        setApiKey(data.apiKey);
+        setApiKey('');
         setModelId(data.modelId || 'antigravity/gemini-3.7-flash-tiered');
         setBaseUrl(data.baseUrl || 'https://proxy-ai.comaygiauco.com/v1');
-        setEnabled(true);
+        setEnabled(data.enabled !== false);
         setTestResult(null);
         return;
       }

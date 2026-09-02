@@ -11,6 +11,12 @@ import type {
 } from '../../types';
 import { LlmConfigModal } from './LlmConfigModal';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import {
+  LLM_CONFIG_CHANGED_EVENT,
+  hasStoredLlmConfig,
+  readStoredLlmConfig,
+  saveStoredLlmConfig,
+} from '../../utils/llm';
 
 interface InteractiveAiAssistantProps {
   displayDetail: CoinDetail;
@@ -19,8 +25,6 @@ interface InteractiveAiAssistantProps {
   isOpen?: boolean;
   onToggleOpen?: () => void;
 }
-
-const STORAGE_CONFIG_KEY = 'dao_vang_llm_config';
 
 export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
   displayDetail,
@@ -50,21 +54,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
   const shapDrivers = displayDetail?.shap_drivers || [];
 
   // LLM Config state
-  const [llmConfig, setLlmConfig] = useState<LlmConfig>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_CONFIG_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // fallback
-    }
-    return {
-      provider: 'openai',
-      apiKey: '',
-      modelId: 'antigravity/gemini-3.7-flash-tiered',
-      baseUrl: 'https://proxy-ai.comaygiauco.com/v1',
-      enabled: true,
-    };
-  });
+  const [llmConfig, setLlmConfig] = useState<LlmConfig>(() => readStoredLlmConfig());
 
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -76,6 +66,17 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Keep the inline assistant and the global floating assistant on the same
+  // provider/model without requiring a page reload.
+  useEffect(() => {
+    const handleConfigChange = (event: Event) => {
+      const nextConfig = (event as CustomEvent<LlmConfig>).detail;
+      if (nextConfig) setLlmConfig(nextConfig);
+    };
+    window.addEventListener(LLM_CONFIG_CHANGED_EVENT, handleConfigChange);
+    return () => window.removeEventListener(LLM_CONFIG_CHANGED_EVENT, handleConfigChange);
+  }, []);
 
   // Close full screen on ESC
   useEffect(() => {
@@ -90,17 +91,17 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
 
   // Auto-fetch default server AI config if apiKey is empty
   useEffect(() => {
-    if (!llmConfig.apiKey) {
+    if (!llmConfig.apiKey && !hasStoredLlmConfig()) {
       fetch('/api/ai/config')
         .then((res) => res.json())
         .then((data) => {
-          if (data && data.apiKey) {
+          if (data && (data.provider || data.modelId || data.baseUrl)) {
             setLlmConfig((prev) => ({
               ...prev,
-              apiKey: data.apiKey,
-              provider: prev.provider || data.provider || 'openai',
-              modelId: prev.modelId || data.modelId || 'antigravity/gemini-3.7-flash-tiered',
-              baseUrl: prev.baseUrl || data.baseUrl || 'https://proxy-ai.comaygiauco.com/v1',
+              provider: data.provider || prev.provider || 'openai',
+              modelId: data.modelId || prev.modelId || 'antigravity/gemini-3.7-flash-tiered',
+              baseUrl: data.baseUrl || prev.baseUrl || 'https://proxy-ai.comaygiauco.com/v1',
+              enabled: data.enabled ?? prev.enabled,
             }));
           }
         })
@@ -144,11 +145,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
 
   const handleSaveConfig = (newConfig: LlmConfig) => {
     setLlmConfig(newConfig);
-    try {
-      localStorage.setItem(STORAGE_CONFIG_KEY, JSON.stringify(newConfig));
-    } catch (e) {
-      console.error('Failed to save LLM config to localStorage', e);
-    }
+    saveStoredLlmConfig(newConfig);
   };
 
   const handleSendQuestion = async (overrideQuestion?: string) => {

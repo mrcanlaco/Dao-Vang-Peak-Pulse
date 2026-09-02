@@ -27,7 +27,6 @@ import { TradeSetupCardV2 } from './v2/TradeSetupCardV2';
 import { AiDecisionCockpit } from './DecisionCenter/AiDecisionCockpit';
 import { AiShapAccordion } from './DecisionCenter/AiShapAccordion';
 import { AiExecutiveBriefing } from './DecisionCenter/AiExecutiveBriefing';
-import { InteractiveAiAssistant } from './DecisionCenter/InteractiveAiAssistant';
 import { CoinLink } from './CoinLink';
 import { formatSystemTime, parseSystemDate } from '../utils/time';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -95,6 +94,7 @@ interface MainWorkspaceProps {
   onOpenWatchlistModal?: () => void;
   onOpenTabHelp?: (tab?: WorkspaceTab) => void;
   onLogout?: () => void;
+  onOpenAiAssistant?: () => void;
 }
 
 export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
@@ -154,6 +154,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   onOpenWatchlistModal,
   onOpenTabHelp,
   onLogout,
+  onOpenAiAssistant,
 }) => {
   const { language, t } = useTranslation();  
   const riskLabels: Record<string, string> = {
@@ -210,8 +211,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const [candleInterval, setCandleInterval] = useState('15m');
   const [candleDataOverride, setCandleDataOverride] = useState<CandlePoint[] | null>(null);
   const [candidateFilterSegment, setCandidateFilterSegment] = useState<'ALL' | 'V2_CHAMPION' | 'V1_CHALLENGER' | 'OVERLAP' | 'V2_UNIQUE' | 'V3_PREVIEW'>('ALL');
-  const [isAiChatOpen, setIsAiChatOpen] = useState(true);
-
   const comparisonSelections = useMemo(() => {
     const champVer = (candidateComparison?.champion_version || '').toLowerCase();
     const challVer = (candidateComparison?.challenger_version || '').toLowerCase();
@@ -916,18 +915,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   selectedSignal={selectedSignal}
                   deepAnalysis={deepAnalysis}
                   tradeSetup={tradeSetup}
-                  onOpenAiChat={() => setIsAiChatOpen(true)}
-                />
-              </ErrorBoundary>
-
-              {/* 4. Interactive AI Assistant & Q&A Chat */}
-              <ErrorBoundary fallbackTitle="Lỗi hiển thị Trợ lý AI">
-                <InteractiveAiAssistant
-                  displayDetail={displayDetail}
-                  deepAnalysis={deepAnalysis}
-                  tradeSetup={tradeSetup}
-                  isOpen={isAiChatOpen}
-                  onToggleOpen={() => setIsAiChatOpen(prev => !prev)}
+                  onOpenAiChat={onOpenAiAssistant}
                 />
               </ErrorBoundary>
             </div>

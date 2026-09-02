@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from dao_vang.web.ai_analyst import (
     ask_ai_analyst,
+    build_app_context_summary,
     build_context_summary,
     build_system_prompt,
 )
@@ -51,6 +52,23 @@ def test_build_context_summary():
     assert "$112.5" in summary
 
 
+def test_build_app_context_summary_includes_current_screen_and_model():
+    summary = build_app_context_summary({
+        "app_context": {
+            "active_tab": "RADAR",
+            "active_tab_label": "Radar tín hiệu",
+            "gui_version": "v2",
+            "scanner_model_id": "frozen_demo",
+            "active_scan_modes": ["gainers", "volume"],
+            "dashboard_counts": {"active_signals": 3, "candidates": 12, "tracked_positions": 2},
+        },
+    })
+    assert "Radar tín hiệu" in summary
+    assert "frozen_demo" in summary
+    assert "gainers, volume" in summary
+    assert "ứng viên: 12" in summary
+
+
 def test_ask_ai_analyst_rule_based_fallback():
     context = {
         "current_price": 50.0,
@@ -77,6 +95,27 @@ def test_ask_ai_analyst_rule_based_fallback():
         # Test BTC scenario question
         res3 = ask_ai_analyst("Kịch bản nếu BTC tăng?", "LINKUSDT", context, llm_config={"enabled": False})
         assert "BTC" in res3["answer"] or "Bitcoin" in res3["answer"]
+
+
+def test_ask_ai_analyst_project_question_uses_app_context():
+    with patch("dao_vang.config.settings.AppSettings.ai", create=True) as mock_ai:
+        mock_ai.api_key = None
+        mock_ai.enabled = True
+        result = ask_ai_analyst(
+            "Ứng dụng này có những tính năng gì?",
+            "BTCUSDT",
+            {
+                "app_context": {
+                    "active_tab_label": "Radar tín hiệu",
+                    "scanner_model_id": "frozen_demo",
+                    "language": "vi",
+                },
+            },
+            llm_config={"enabled": False},
+        )
+    assert result["provider"] == "Built-in Quantitative Engine"
+    assert "Radar tín hiệu" in result["answer"]
+    assert "frozen_demo" in result["answer"]
 
 
 def test_ask_ai_analyst_gemini_mock():

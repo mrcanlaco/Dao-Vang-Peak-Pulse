@@ -17,9 +17,57 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def build_system_prompt(symbol: str, context_str: str) -> str:
+DEFAULT_PROJECT_KNOWLEDGE = """
+=== KIẾN THỨC NỀN VỀ DỰ ÁN DAO VANG / PEAKPULSE AI ===
+- DAO VANG là dashboard cảnh báo sớm cho thị trường Binance USD-M Futures. Mục tiêu là phát hiện dấu hiệu phân phối/tạo đỉnh và rủi ro đảo chiều của crypto; đây không phải hệ thống đảm bảo lợi nhuận hay lệnh giao dịch tự động.
+- Luồng dữ liệu chính gồm nến 5m và các dữ liệu phái sinh như Open Interest (OI), Funding Rate, Taker Sell/Buy, khối lượng, RSI và bối cảnh BTC. Dữ liệu được kiểm tra chất lượng và tính theo thời điểm thực tế để hạn chế nhìn trước tương lai.
+- Kết quả cần phân biệt rõ: calibrated/model probability là xác suất đã hiệu chuẩn của model; heuristic/composite score là điểm luật và tín hiệu định lượng; anomaly score là điểm radar bất thường độc lập, không phải xác suất.
+- Decision Center hiển thị chart, Trade Setup, metrics, AI Decision Cockpit, SHAP drivers và Executive Briefing cho coin đang chọn. Radar hiển thị tín hiệu và bộ lọc. Tracking/Watchlist theo dõi vị thế. Candidate Ranking xếp hạng ứng viên và so sánh các bộ lọc.
+- Nhóm Lab gồm Multi-Scan, Backtest Experiments và Forward Test. Nhóm System gồm Model Audit, Telemetry, System History, Models, Updates và System Settings.
+- Có giao diện V1 cổ điển và V2 responsive theo phong cách trading cockpit; V2 có thanh điều hướng mobile. Scanner chạy model frozen/champion đang được cấu hình; challenger/self-learning chỉ dùng để so sánh hoặc đề xuất và không tự động thay champion.
+- Model scanner (tạo tín hiệu) và model LLM (trả lời hội thoại) là hai cấu hình khác nhau; khi người dùng hỏi “model hiện tại”, hãy nói rõ đang nói đến loại nào. Trợ lý AI dùng provider/model trong cấu hình LLM hiện tại của ứng dụng; nếu API không khả dụng, hệ thống có thể chuyển sang Built-in Quantitative Engine. Khi trả lời, phải bám dữ liệu hiện tại được cung cấp, nói rõ khi thiếu dữ liệu và không tự bịa chỉ số.
+""".strip()
+
+
+def build_app_context_summary(context: dict[str, Any]) -> str:
+    """Serialize safe, current UI state for questions about using the app."""
+    app_context = context.get("app_context")
+    if not isinstance(app_context, dict):
+        return ""
+
+    counts = app_context.get("dashboard_counts")
+    count_text = ""
+    if isinstance(counts, dict):
+        count_text = (
+            f"Tín hiệu đang có: {counts.get('active_signals', 'N/A')}; "
+            f"ứng viên: {counts.get('candidates', 'N/A')}; "
+            f"vị thế theo dõi: {counts.get('tracked_positions', 'N/A')}"
+        )
+
+    scan_modes = app_context.get("active_scan_modes")
+    scan_text = ", ".join(str(mode) for mode in scan_modes) if isinstance(scan_modes, list) else str(scan_modes or "N/A")
+    lines = [
+        "=== TRẠNG THÁI GIAO DIỆN HIỆN TẠI ===",
+        f"- Ngôn ngữ: {app_context.get('language', 'vi')}",
+        f"- Màn hình đang mở: {app_context.get('active_tab_label') or app_context.get('active_tab', 'N/A')}",
+        f"- Phiên bản giao diện: {app_context.get('gui_version', 'N/A')}",
+        f"- Chế độ quét: {scan_text}",
+        f"- Model scanner hiện tại: {app_context.get('scanner_model_id', 'N/A')}",
+        f"- Khóa lựa chọn model: {app_context.get('selected_model_key', 'N/A')}",
+        f"- Provider/model LLM hội thoại: {app_context.get('llm_provider', 'N/A')} / {app_context.get('llm_model_id', 'N/A')}",
+        f"- Trạng thái scanner: {app_context.get('scanner_status', 'N/A')}",
+    ]
+    if count_text:
+        lines.append(f"- {count_text}")
+    return "\n".join(lines)
+
+
+def build_system_prompt(symbol: str, context_str: str, app_context_str: str = "") -> str:
+    project_context = app_context_str.strip() or "Không có thêm trạng thái giao diện động."
     return (
         f"Bạn là Đảo Vàng PeakPulse AI — Trợ lý Phân tích Định lượng & Cố vấn Chiến thuật Giao dịch Cấp cao (chuyên sâu thị trường Binance USD-M Futures).\n\n"
+        f"{DEFAULT_PROJECT_KNOWLEDGE}\n\n"
+        f"{project_context}\n\n"
         f"DƯỚI ĐÂY LÀ DỮ LIỆU ĐỊNH LƯỢNG THỰC TẾ CỦA {symbol} TRÊN SÀN BINANCE:\n"
         f"{context_str}\n\n"
         f"NGUYÊN TẮC GIAO TIẾP & ĐỊNH DẠNG BÁO CÁO:\n"
@@ -45,17 +93,24 @@ def build_context_summary(symbol: str, context: dict[str, Any]) -> str:
     trade_setup = context.get("trade_setup") or {}
     shap_drivers = context.get("shap_drivers") or []
 
-    drivers_text = ", ".join(
-        f"{d.get('feature_name', '')} ({d.get('impact_percentage', 0):.1f}%)"
-        for d in shap_drivers[:4]
-        if isinstance(d, dict)
-    ) or "Chưa có"
+    driver_parts: list[str] = []
+    for driver in shap_drivers[:4]:
+        if not isinstance(driver, dict):
+            continue
+        name = driver.get("feature_name") or driver.get("feature") or "unknown"
+        raw_impact = driver.get("impact_percentage", driver.get("impact_score", 0))
+        try:
+            impact = f"{float(raw_impact):.1f}%"
+        except (TypeError, ValueError):
+            impact = "N/A"
+        driver_parts.append(f"{name} ({impact})")
+    drivers_text = ", ".join(driver_parts) or "Chưa có"
 
     entry = trade_setup.get("entry_price") or signal_price or current_price
-    sl = trade_setup.get("invalidation_price") or trade_setup.get("sl_price") or "N/A"
-    tp1 = trade_setup.get("tp1_price") or "N/A"
-    tp2 = trade_setup.get("tp2_price") or "N/A"
-    rr = trade_setup.get("risk_reward_ratio") or "N/A"
+    sl = trade_setup.get("invalidation_price") or trade_setup.get("sl_price") or trade_setup.get("stop_loss") or "N/A"
+    tp1 = trade_setup.get("tp1_price") or trade_setup.get("tp1") or "N/A"
+    tp2 = trade_setup.get("tp2_price") or trade_setup.get("tp2") or "N/A"
+    rr = trade_setup.get("risk_reward_ratio") or trade_setup.get("rr_ratio") or "N/A"
 
     lines = [
         f"=== THÔNG TIN THỊ TRƯỜNG THỜI GIAN THỰC CHO {symbol} ===",
@@ -67,8 +122,8 @@ def build_context_summary(symbol: str, context: dict[str, Any]) -> str:
         f"- Cảnh báo Bơm Thẳng Đứng (Parabolic Pump): {'CÓ (Rất cao)' if is_pump else 'Bình thường'}",
         f"- Biến động OI 24h: {metrics.get('oi_change_24h', 'N/A')}",
         f"- Funding Rate: {metrics.get('funding_rate', 'N/A')}",
-        f"- Taker Sell/Buy: {metrics.get('taker_buy_ratio', 'N/A')}",
-        f"- RSI (14): {metrics.get('rsi_14', 'N/A')}",
+        f"- Taker Sell/Buy: {metrics.get('taker_buy_ratio', metrics.get('taker_sell_ratio', 'N/A'))}",
+        f"- RSI (14): {metrics.get('rsi_14', metrics.get('rsi_15m', 'N/A'))}",
         f"- Khối lượng Vol 24h: {metrics.get('volume_delta_24h', 'N/A')}",
         f"- Vùng vào lệnh (Entry Zone): ${entry}",
         f"- Mức cắt lỗ vi phạm (SL/Invalidation): ${sl}",
@@ -247,6 +302,38 @@ def _call_claude(
     return "Không nhận được phản hồi từ Claude API."
 
 
+def _generate_project_response(symbol: str, context: dict[str, Any]) -> str:
+    """Answer common product/how-to questions without requiring an external LLM."""
+    app_context = context.get("app_context") if isinstance(context.get("app_context"), dict) else {}
+    active_tab = app_context.get("active_tab_label") or app_context.get("active_tab") or "màn hình hiện tại"
+    scanner_model = app_context.get("scanner_model_id") or app_context.get("selected_model_key") or "model đang cấu hình"
+    llm_model = app_context.get("llm_model_id") or "LLM model đang cấu hình"
+    language = str(app_context.get("language") or "vi").lower()
+
+    if language == "en":
+        return (
+            f"### 🧭 DAO VANG app overview\n\n"
+            f"You are currently on **{active_tab}**, with **{symbol}** as the active context. DAO VANG is a Binance USD-M Futures early-warning dashboard for distribution/top-formation and reversal risk.\n\n"
+            f"- **Decision Center**: chart, trade setup, metrics, SHAP drivers and the executive AI brief.\n"
+            f"- **Radar**: active signals and advanced filters. **Tracking** stores positions to monitor. **Candidate Ranking** compares discovered coins and filters.\n"
+            f"- **Lab**: Multi-Scan, Backtest Experiments and Forward Test. **System**: Model Audit, Telemetry, History, Models, Updates and Settings.\n"
+            f"- The current scanner model is **{scanner_model}**. Frozen/champion output is the serving lane; challenger and self-learning results remain observational until explicitly promoted.\n"
+            f"- The conversation is handled by the configured LLM model **{llm_model}**.\n\n"
+            f"The assistant receives the current screen/coin context with every question. Missing data is reported as unavailable; scores are not guarantees or automatic orders."
+        )
+
+    return (
+        f"### 🧭 Tổng quan ứng dụng DAO VANG\n\n"
+        f"Bạn đang ở **{active_tab}**, với **{symbol}** là ngữ cảnh hiện tại. DAO VANG là dashboard cảnh báo sớm thị trường Binance USD-M Futures, tập trung phát hiện phân phối/tạo đỉnh và rủi ro đảo chiều.\n\n"
+        f"- **Decision Center**: biểu đồ, Trade Setup, các chỉ số, SHAP drivers và bản tin AI tổng hợp.\n"
+        f"- **Radar**: tín hiệu đang hoạt động và bộ lọc nâng cao. **Tracking** dùng để theo dõi vị thế. **Xếp hạng ứng viên** dùng để so sánh các coin/bộ lọc.\n"
+        f"- **Lab**: Multi-Scan, Backtest Experiments và Forward Test. **System**: Model Audit, Telemetry, History, Models, Updates và Settings.\n"
+        f"- Model scanner hiện tại là **{scanner_model}**. Model frozen/champion là luồng phục vụ; challenger và self-learning chỉ mang tính quan sát cho đến khi được duyệt rõ ràng.\n"
+        f"- Hội thoại đang dùng model LLM **{llm_model}**.\n\n"
+        f"Trợ lý nhận màn hình/coin hiện tại trong mỗi câu hỏi. Nếu thiếu dữ liệu, hệ thống sẽ báo chưa có; mọi điểm số chỉ là hỗ trợ phân tích, không phải cam kết lợi nhuận hay lệnh tự động."
+    )
+
+
 def _generate_rule_based_response(
     question: str,
     symbol: str,
@@ -264,19 +351,33 @@ def _generate_rule_based_response(
 
     cur_price = context.get("current_price") or context.get("price") or "—"
     entry = trade_setup.get("entry_price") or cur_price
-    sl = trade_setup.get("invalidation_price") or trade_setup.get("sl_price") or "—"
-    tp1 = trade_setup.get("tp1_price") or "—"
-    tp2 = trade_setup.get("tp2_price") or "—"
-    rr = trade_setup.get("risk_reward_ratio") or "—"
+    sl = trade_setup.get("invalidation_price") or trade_setup.get("sl_price") or trade_setup.get("stop_loss") or "—"
+    tp1 = trade_setup.get("tp1_price") or trade_setup.get("tp1") or "—"
+    tp2 = trade_setup.get("tp2_price") or trade_setup.get("tp2") or "—"
+    rr = trade_setup.get("risk_reward_ratio") or trade_setup.get("rr_ratio") or "—"
 
     oi_val = metrics.get("oi_change_24h", "N/A")
     funding_val = metrics.get("funding_rate", "N/A")
-    taker_val = metrics.get("taker_buy_ratio", "N/A")
+    taker_val = metrics.get("taker_buy_ratio", metrics.get("taker_sell_ratio", "N/A"))
 
     top_drivers_names = [
-        d.get("feature_name", "") for d in shap_drivers[:3] if isinstance(d, dict)
+        d.get("feature_name") or d.get("feature") or ""
+        for d in shap_drivers[:3]
+        if isinstance(d, dict)
     ]
     top_drivers_str = ", ".join(top_drivers_names) if top_drivers_names else "Kiệt sức mua & phân kỳ dòng tiền"
+
+    # Product/how-to questions should be answered before trading heuristics so
+    # a phrase such as "mô hình của ứng dụng" is not mistaken for a coin setup.
+    if any(k in q_lower for k in [
+        "tính năng", "tinh nang", "chức năng", "chuc nang", "cách dùng", "cach dung",
+        "hướng dẫn", "huong dan", "chi tiết", "chi tiet", "ứng dụng", "ung dung",
+        "dự án", "du an", "dao vang", "peakpulse", "tab", "màn hình", "man hinh",
+        "radar", "watchlist", "tracking", "backtest", "forward test", "telemetry",
+        "audit", "multi-scan", "multiscan", "cài đặt", "cai dat", "setting", "mô hình",
+        "mo hinh", "model", "llm", "provider",
+    ]):
+        return _generate_project_response(symbol, context)
 
     # 1. Câu hỏi về "Tại sao điểm cao / Tại sao có tín hiệu xả?"
     if any(k in q_lower for k in ["tại sao", "tai sao", "nguyên nhân", "nguyen nhan", "điểm cao", "diem cao", "lý do", "ly do", "why", "score"]):
@@ -374,7 +475,8 @@ def ask_ai_analyst(
     enabled = cfg.get("enabled", _app_settings.ai.enabled)
 
     context_str = build_context_summary(symbol, context)
-    system_prompt = build_system_prompt(symbol, context_str)
+    app_context_str = build_app_context_summary(context)
+    system_prompt = build_system_prompt(symbol, context_str, app_context_str)
     user_prompt = question.strip()
 
     used_provider = "Built-in Quantitative Engine"

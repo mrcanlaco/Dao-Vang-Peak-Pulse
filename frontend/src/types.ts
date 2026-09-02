@@ -1130,11 +1130,12 @@ export interface AiAskRequest {
     signal_price?: number;
     probability?: number;
     risk_level?: string;
-    trade_setup?: TradeSetup;
+    trade_setup?: TradeSetup | Record<string, unknown>;
     shap_drivers?: ShapDriver[];
     metrics?: Record<string, any>;
     btc_regime?: string;
     parabolic_pump?: boolean;
+    app_context?: Record<string, unknown>;
   };
   llm_config?: LlmConfig;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -1147,5 +1148,4 @@ export interface AiAskResponse {
   timestamp: string;
   tokens_used?: number;
 }
-
 

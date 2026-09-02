@@ -22,6 +22,7 @@ const CoinSelectorModal = lazy(() => import('./components/CoinSelectorModal').th
 const MobileBottomNav = lazy(() => import('./components/v2/MobileBottomNav').then(({ MobileBottomNav: component }) => ({ default: component })));
 const StickyActionBar = lazy(() => import('./components/v2/StickyActionBar').then(({ StickyActionBar: component }) => ({ default: component })));
 const OrderExecutionModal = lazy(() => import('./components/v2/OrderExecutionModal').then(({ OrderExecutionModal: component }) => ({ default: component })));
+const FloatingAiAssistant = lazy(() => import('./components/DecisionCenter/FloatingAiAssistant').then(({ FloatingAiAssistant: component }) => ({ default: component })));
 export function App() {
   const { language, t } = useTranslation();
 
@@ -145,6 +146,7 @@ export function App() {
   const [isModelComparisonOpen, setIsModelComparisonOpen] = useState(false);
   const [isTabHelpModalOpen, setIsTabHelpModalOpen] = useState(false);
   const [isCoinSelectorOpen, setIsCoinSelectorOpen] = useState(false);
+  const [isFloatingAiAssistantOpen, setIsFloatingAiAssistantOpen] = useState(false);
   const getStepText = (stepKey: string, _lang: Language) => {
     return t(`loading_${stepKey}`);
   };
@@ -874,9 +876,27 @@ export function App() {
             onOpenWatchlistModal={() => setIsWatchlistModalOpen(true)}
             onOpenTabHelp={() => setIsTabHelpModalOpen(true)}
             onLogout={handleLogout}
+            onOpenAiAssistant={() => setIsFloatingAiAssistantOpen(true)}
           />
         </div>
       </main>
+
+      <FloatingAiAssistant
+        open={isFloatingAiAssistantOpen}
+        onOpenChange={setIsFloatingAiAssistantOpen}
+        activeTab={activeTab}
+        guiVersion={guiVersion}
+        coinDetail={coinDetail}
+        selectedSignal={selectedSignal}
+        deepAnalysis={deepAnalysis}
+        candidatesCount={candidates.length}
+        signalCount={signals.length}
+        trackingCount={trackingItems.filter(item => item.status !== 'CLOSED').length}
+        activeScanModes={activeScanModes}
+        selectedModelKey={selectedModelKey}
+        scannerModelId={scannerModelId}
+        status={status}
+      />
 
       {/* GUI V2 Mobile Bottom Navigation Bar */}
       {guiVersion === 'v2' && (
