@@ -161,6 +161,16 @@ docker compose up -d  # tự recreate container với config mới
 DAO_VANG_COINGECKO__ENABLED=true
 ```
 
+### Market cap từ Binance Agent OS
+
+Market cap trên dashboard dùng Binance Agent OS làm nguồn chuẩn. Dữ liệu
+được truy vấn khi mở chi tiết token và cache mặc định 15 phút:
+
+```
+DAO_VANG_BINANCE_AGENT_OS__ENABLED=true
+DAO_VANG_BINANCE_AGENT_OS__CACHE_MINUTES=15
+```
+
 ## 7. Volumes
 
 Docker compose tạo 2 named volume:

@@ -131,6 +131,7 @@ def test_score_and_alert_composite_executes_without_name_errors():
         assert isinstance(digest_res, dict)
         assert digest_res["symbol"] == "BTCUSDT"
         assert digest_res["total_score"] == 85.0
+        assert digest_res["volume_24h_usd"] == 1_000_000.0
         assert digest_res["web_url"] == "https://daovang.comaygiauco.com/#coin=BTCUSDT"
 
         # Test collect_for_digest=False

@@ -68,8 +68,11 @@ class ScannerConfig(BaseModel):
         default="research",
         description="research/shadow/canary/production(_alerting)",
     )
-    global_daily_alert_limit: int = Field(default=15, ge=1)
-    coin_daily_alert_limit: int = Field(default=2, ge=1)
+    # Hard ceiling for successful Telegram deliveries in a rolling 24-hour
+    # window.  The scanner ranks candidates inside this budget; it never
+    # fabricates a signal merely to reach the target.
+    global_daily_alert_limit: int = Field(default=10, ge=1)
+    coin_daily_alert_limit: int = Field(default=1, ge=1)
     enable_meta_labeling: Literal["disabled", "shadow", "active"] = "disabled"
     meta_model_path: Path | None = None
     meta_model_min_confidence: float = 0.5
@@ -91,6 +94,13 @@ class ScannerConfig(BaseModel):
     telegram_tiers: list[str] = Field(default_factory=lambda: ["HIGH_CONFIDENCE"])
     # Telegram digest mode: if true, multiple qualifying alerts in a cycle are sent as a single clean digest.
     telegram_digest_mode: bool = True
+    # Delivery target is observational: 5 is the preferred minimum when the
+    # market supplies enough valid candidates, while the hard ceiling above
+    # remains the safety limit.
+    telegram_daily_target_min: int = Field(default=5, ge=0)
+    # Limit one digest to a small batch so a burst cannot consume the whole
+    # daily budget before later, stronger candidates are seen.
+    telegram_max_per_cycle: int = Field(default=2, ge=1)
     # A feature snapshot older than this must never produce an alert.
     max_feature_age_minutes: int = Field(default=10, ge=1, le=24 * 60)
     # Quality score is an explicit gate; missing score is derived from the
@@ -113,6 +123,14 @@ class ScannerConfig(BaseModel):
     include_btc: bool = Field(default=True)
     # exclude_stablecoins: bỏ USDT/USDC/DAI/TUSD/FDUSD/BUSD pairs (không short stablecoin)
     exclude_stablecoins: bool = Field(default=True)
+
+    @model_validator(mode="after")
+    def validate_telegram_selection(self) -> "ScannerConfig":
+        if self.telegram_daily_target_min > self.global_daily_alert_limit:
+            raise ValueError(
+                "telegram_daily_target_min must not exceed global_daily_alert_limit"
+            )
+        return self
 
 
 class SelfLearningConfig(BaseModel):
@@ -183,8 +201,11 @@ class CandidateComparisonConfig(BaseModel):
     """
 
     enabled: bool = False
-    champion_version: str = "candidate_filter_v2"
-    challenger_version: str = "pump_filter_v1"
+    # Keep the safe production lane as the default.  A live config may
+    # explicitly promote another version only after the comparison gates pass
+    # and a human approves the promotion.
+    champion_version: str = "pump_filter_v1"
+    challenger_version: str = "candidate_filter_v2"
     universe_size: int = Field(default=150, ge=10, le=500)
     max_candidates: int = Field(default=30, ge=1, le=100)
     max_workers: int = Field(default=4, ge=1, le=16)
@@ -273,6 +294,19 @@ class CoinGeckoConfig(BaseModel):
     price_mismatch_threshold: float = Field(default=0.05, ge=0.0, le=1.0)  # 5%
 
 
+class BinanceAgentOSConfig(BaseModel):
+    """Public Binance Agent OS token-information endpoint settings."""
+
+    enabled: bool = Field(default=True)
+    base_url: str = "https://web3.binance.com"
+    timeout_seconds: int = Field(default=10, gt=0)
+    cache_minutes: int = Field(default=15, ge=1, le=1440)
+    # The Agent OS query-token-info skill supports these chains. Searching
+    # across all of them keeps symbol-only lookups useful for Binance-listed
+    # spot/futures assets while the collector prefers an exact symbol match.
+    chain_ids: str = "1,56,8453,CT_501"
+
+
 class WebConfig(BaseModel):
     port: int = Field(default=8000, gt=0, le=65535)
     host: str = Field(default="127.0.0.1")
@@ -332,6 +366,7 @@ class AppSettings(BaseSettings):
     scoring: ScoringConfig = ScoringConfig()
 
     coingecko: CoinGeckoConfig = CoinGeckoConfig()
+    binance_agent_os: BinanceAgentOSConfig = BinanceAgentOSConfig()
 
     api_key: str | None = Field(default=None, exclude=True)
     api_secret: str | None = Field(default=None, exclude=True)

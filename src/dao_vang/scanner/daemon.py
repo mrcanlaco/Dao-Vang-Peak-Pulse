@@ -35,6 +35,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
+from numbers import Real
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +96,10 @@ from dao_vang.scanner.scan_results_store import (
     PredictionRecord,
     ScanResultRecord,
     ScanResultStore,
+)
+from dao_vang.scanner.telegram_selection import (
+    TelegramSelection,
+    select_top_alerts,
 )
 from dao_vang.scanner.watchlist import (
     build_comparison_universe,
@@ -445,6 +450,58 @@ class ScannerDaemon:
             )
             self._scanner_cfg.scan_mode = new_mode
 
+    def _select_daily_telegram_alerts(
+        self, alerts: list[dict[str, Any]]
+    ) -> TelegramSelection:
+        """Rank qualified candidates inside the rolling Telegram budget."""
+
+        daily_limit = int(getattr(self._scanner_cfg, "global_daily_alert_limit", 10))
+        target_min = int(getattr(self._scanner_cfg, "telegram_daily_target_min", 5))
+        max_per_cycle = int(getattr(self._scanner_cfg, "telegram_max_per_cycle", 2))
+        coin_daily_limit = int(getattr(self._scanner_cfg, "coin_daily_alert_limit", 1))
+
+        try:
+            sent_24h = self._scan_result_store.get_prediction_telegram_count(hours=24)
+            coin_sent_counts = (
+                self._scan_result_store.get_prediction_telegram_counts_by_symbol(hours=24)
+            )
+        except Exception as exc:
+            # A quota read failure must fail closed.  Sending without knowing
+            # the current budget can exceed the operator's daily limit.
+            logger.error("scanner_daily_selection_unavailable", error=str(exc))
+            sent_24h = max(1, daily_limit)
+            coin_sent_counts = {}
+
+        selection = select_top_alerts(
+            alerts,
+            sent_24h=sent_24h,
+            daily_limit=daily_limit,
+            max_per_cycle=max_per_cycle,
+            target_min=target_min,
+            coin_sent_counts=coin_sent_counts,
+            coin_daily_limit=coin_daily_limit,
+        )
+        logger.info(
+            "scanner_daily_selection",
+            candidate_count=selection.candidate_count,
+            eligible_count=selection.eligible_count,
+            selected_count=len(selection.selected),
+            sent_24h=selection.sent_24h,
+            projected_24h=selection.projected_24h,
+            daily_limit=selection.daily_limit,
+            target_min=selection.target_min,
+            max_per_cycle=selection.max_per_cycle,
+            symbols=[item["symbol"] for item in selection.selected],
+        )
+        if selection.target_unmet:
+            logger.info(
+                "scanner_daily_target_unmet",
+                projected_24h=selection.projected_24h,
+                target_min=selection.target_min,
+                eligible_count=selection.eligible_count,
+            )
+        return selection
+
     def _run_cycle(self) -> None:
         """One scan cycle: build list → pump filter → collect → score → alert."""
         self._consume_trigger()
@@ -647,21 +704,25 @@ class ScannerDaemon:
                 logger.error("scanner_symbol_error", symbol=symbol, error=str(exc))
 
         if digest_mode and qualifying_alerts:
-            # Sort by model probability descending so strongest distribution signals are first
-            qualifying_alerts.sort(
-                key=lambda a: (a.get("model_probability") or 0.0, a.get("total_score") or 0.0),
-                reverse=True,
-            )
+            # The per-cycle digest is the only delivery point in digest mode.
+            # Rank the complete candidate set here so later cycles cannot be
+            # crowded out by whichever symbol happened to be scored first.
+            selection = self._select_daily_telegram_alerts(qualifying_alerts)
+            selected_alerts = selection.selected
+        else:
+            selected_alerts = []
+
+        if digest_mode and selected_alerts:
             regime = btc_context.get("regime", "NEUTRAL") if isinstance(btc_context, dict) else "NEUTRAL"
             digest_sent = self._notifier.send_cycle_digest(
-                alerts=qualifying_alerts,
+                alerts=selected_alerts,
                 btc_regime=regime,
                 scan_time=datetime.now(timezone.utc).isoformat(),
                 operating_mode=self._operating_mode,
             )
             if digest_sent:
-                n_alerts_sent = len(qualifying_alerts)
-                for item in qualifying_alerts:
+                n_alerts_sent = len(selected_alerts)
+                for item in selected_alerts:
                     sig_time = item.get("sig_time")
                     sym = item.get("symbol")
                     pred_id = item.get("prediction_id")
@@ -672,8 +733,8 @@ class ScannerDaemon:
                 logger.info(
                     "scanner_cycle_digest_sent",
                     cycle=self._cycle_count,
-                    n_alerts=len(qualifying_alerts),
-                    symbols=[a["symbol"] for a in qualifying_alerts],
+                    n_alerts=len(selected_alerts),
+                    symbols=[a["symbol"] for a in selected_alerts],
                 )
 
         logger.info(
@@ -1299,7 +1360,7 @@ class ScannerDaemon:
             )
         )
         min_vol = getattr(self._scanner_cfg, "telegram_min_volume_usd", 500_000.0)
-        if min_vol > 0 and volume_24h_usd > 0 and volume_24h_usd < min_vol:
+        if min_vol > 0 and (volume_24h_usd <= 0 or volume_24h_usd < min_vol):
             logger.info(
                 "scanner_telegram_volume_suppressed",
                 symbol=symbol,
@@ -1307,6 +1368,42 @@ class ScannerDaemon:
                 min_volume=min_vol,
             )
             return False if not collect_for_digest else None
+
+        # Digest mode applies the quota after all symbols are ranked.  The
+        # direct-send path needs the same guard before sending one symbol.
+        if not collect_for_digest:
+            daily_limit = int(getattr(self._scanner_cfg, "global_daily_alert_limit", 10))
+            coin_daily_limit = int(getattr(self._scanner_cfg, "coin_daily_alert_limit", 1))
+            try:
+                sent_raw = self._scan_result_store.get_prediction_telegram_count(hours=24)
+                coin_raw = self._scan_result_store.get_prediction_telegram_count(
+                    symbol=symbol, hours=24
+                )
+            except Exception as exc:
+                logger.error("scanner_daily_budget_unavailable", symbol=symbol, error=str(exc))
+                return False
+            # Treat an unreadable count as exhausted rather than coercing an
+            # arbitrary mock/driver value into a number and sending blindly.
+            sent_24h = int(sent_raw) if isinstance(sent_raw, Real) else daily_limit
+            coin_sent = int(coin_raw) if isinstance(coin_raw, Real) else coin_daily_limit
+            if sent_24h >= daily_limit:
+                logger.info(
+                    "scanner_action_suppressed",
+                    symbol=symbol,
+                    mode=self._operating_mode,
+                    tier=result.risk_tier,
+                    reason="global_daily_budget_exhausted",
+                )
+                return False
+            if coin_sent >= coin_daily_limit:
+                logger.info(
+                    "scanner_action_suppressed",
+                    symbol=symbol,
+                    mode=self._operating_mode,
+                    tier=result.risk_tier,
+                    reason="coin_daily_budget_exhausted",
+                )
+                return False
 
         allowed_tiers = getattr(self._scanner_cfg, "telegram_tiers", ["HIGH_CONFIDENCE"])
         decision = evaluate_canary_policy(
@@ -1354,6 +1451,9 @@ class ScannerDaemon:
             "sig_time": sig_time,
             "invalidation_time": str(invalidation_time),
             "model_probability": result.calibrated_probability,
+            "quality_status": result.quality.status,
+            "evidence_groups": list(result.evidence_groups),
+            "volume_24h_usd": volume_24h_usd,
             "horizon_hours": horizon_hours,
             "data_quality_score": result.quality.score,
             "model_id": self._frozen_info.model_id,
@@ -1549,12 +1649,6 @@ class ScannerDaemon:
         if "close" in df.columns and pd.notna(latest.get("close")):
             close_price = float(latest["close"])
 
-        volume_24h_usd: float = float(
-            feature_dict.get("volume_24h", 0.0)
-            or feature_dict.get("volume_base", 0.0)
-            or 0.0
-        )
-
         horizon_hours = _horizon_hours(self._frozen_info)
         sig_raw = pd.Timestamp(latest.get("feature_time"))
         if pd.isna(sig_raw):
@@ -1566,6 +1660,33 @@ class ScannerDaemon:
         else:
             sig_time = sig_time.astimezone(timezone.utc)
         invalidation_time = sig_time + timedelta(hours=horizon_hours)
+
+        # The joined kline row is only the latest 5-minute candle.  It must
+        # never be treated as 24-hour volume: doing so suppresses liquid coins
+        # whenever that single candle is below the Telegram liquidity floor.
+        volume_24h_usd = 0.0
+        try:
+            volume_row = db.conn.execute(
+                """
+                SELECT COALESCE(SUM(volume_quote), 0.0)
+                FROM kline
+                WHERE symbol = ?
+                  AND interval = '5m'
+                  AND close_time > ?
+                  AND close_time <= ?
+                """,
+                [symbol, sig_time - timedelta(hours=24), sig_time],
+            ).fetchone()
+            if volume_row:
+                volume_24h_usd = float(volume_row[0] or 0.0)
+        except Exception as exc:
+            logger.warning("scanner_24h_volume_query_failed", symbol=symbol, error=str(exc))
+
+        # Pump candidates carry Binance's latest daily quote volume.  It is a
+        # safe fallback when the local 5m history has a gap or is still warm.
+        candidate_volume = float(pump_candidate.quote_volume or 0.0) if pump_candidate else 0.0
+        if candidate_volume > volume_24h_usd:
+            volume_24h_usd = candidate_volume
 
         # Persist EVERY scored symbol (Constitution Khối 6: record every
         # signal, not just the ones that crossed the alert threshold). This
@@ -1834,7 +1955,7 @@ class ScannerDaemon:
             )
 
         min_vol = getattr(self._scanner_cfg, "telegram_min_volume_usd", 500_000.0)
-        if min_vol > 0 and volume_24h_usd > 0 and volume_24h_usd < min_vol:
+        if min_vol > 0 and (volume_24h_usd <= 0 or volume_24h_usd < min_vol):
             logger.info(
                 "scanner_telegram_volume_suppressed",
                 symbol=symbol,
@@ -1906,6 +2027,9 @@ class ScannerDaemon:
             "sig_time": sig_time,
             "invalidation_time": str(invalidation_time),
             "model_probability": result.calibrated_probability,
+            "quality_status": result.quality.status,
+            "evidence_groups": list(result.evidence_groups),
+            "volume_24h_usd": volume_24h_usd,
             "horizon_hours": horizon_hours,
             "data_quality_score": result.quality.score,
             "model_id": self._frozen_info.model_id,

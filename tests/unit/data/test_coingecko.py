@@ -1,4 +1,7 @@
-from dao_vang.data.collectors.coingecko import CoinGeckoConfig, fetch_market_data
+from dao_vang.data.collectors.coingecko import (
+    CoinGeckoConfig,
+    fetch_market_data,
+)
 
 
 def test_fetch_market_data(monkeypatch):

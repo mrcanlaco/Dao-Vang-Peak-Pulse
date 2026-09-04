@@ -1,4 +1,4 @@
-import type { CoinSector, SignalItem } from '../types';
+import type { CoinSector, MarketCapFields } from '../types';
 
 export const SECTOR_MAPPING: Record<string, CoinSector> = {
   // AI & Big Data
@@ -210,7 +210,7 @@ export const getCoinSector = (symbol: string): CoinSector => {
 };
 
 export const formatMarketCap = (mcapUsd: number): string => {
-  if (!mcapUsd || mcapUsd <= 0) return 'N/A';
+  if (!Number.isFinite(mcapUsd) || mcapUsd <= 0) return 'N/A';
   if (mcapUsd >= 1_000_000_000_000) {
     return `$${(mcapUsd / 1_000_000_000_000).toFixed(2)}T`;
   }
@@ -225,18 +225,31 @@ export const formatMarketCap = (mcapUsd: number): string => {
 
 export const getCoinMarketCapInfo = (
   symbol: string,
-  existingSignal?: Partial<SignalItem> | null
-): { market_cap_usd: number; market_cap_str: string; market_cap_tier: 'LARGE' | 'MID' | 'SMALL' } => {
-  if (existingSignal?.market_cap_usd && existingSignal.market_cap_tier) {
-    const tier = (existingSignal.market_cap_tier.toUpperCase() === 'LARGE' || existingSignal.market_cap_tier.toUpperCase() === 'MEGA')
+  existingSignal?: Partial<MarketCapFields> | null
+): {
+  market_cap_usd: number;
+  market_cap_str: string;
+  market_cap_tier: 'LARGE' | 'MID' | 'SMALL';
+  market_cap_source: string;
+  market_cap_is_estimate: boolean;
+} => {
+  const existingValue = Number(existingSignal?.market_cap_usd);
+  if (Number.isFinite(existingValue) && existingValue > 0) {
+    const rawTier = String(existingSignal?.market_cap_tier || '').toUpperCase();
+    const tier = rawTier === 'LARGE' || rawTier === 'MEGA'
       ? 'LARGE'
-      : existingSignal.market_cap_tier.toUpperCase() === 'MID'
+      : rawTier === 'MID'
+      ? 'MID'
+      : existingValue >= 1_000_000_000
       ? 'MID'
       : 'SMALL';
+    const source = existingSignal?.market_cap_source || 'fallback_estimate';
     return {
-      market_cap_usd: existingSignal.market_cap_usd,
-      market_cap_str: existingSignal.market_cap_str || formatMarketCap(existingSignal.market_cap_usd),
+      market_cap_usd: existingValue,
+      market_cap_str: existingSignal?.market_cap_str || formatMarketCap(existingValue),
       market_cap_tier: tier,
+      market_cap_source: source,
+      market_cap_is_estimate: existingSignal?.market_cap_is_estimate ?? source !== 'binance_agent_os',
     };
   }
 
@@ -247,6 +260,8 @@ export const getCoinMarketCapInfo = (
       market_cap_usd: val,
       market_cap_str: formatMarketCap(val),
       market_cap_tier: 'LARGE',
+      market_cap_source: 'symbol_lookup',
+      market_cap_is_estimate: true,
     };
   }
   if (MID_CAP_LOOKUP[clean]) {
@@ -255,14 +270,18 @@ export const getCoinMarketCapInfo = (
       market_cap_usd: val,
       market_cap_str: formatMarketCap(val),
       market_cap_tier: 'MID',
+      market_cap_source: 'symbol_lookup',
+      market_cap_is_estimate: true,
     };
   }
 
   const defaultLowcap = 85_000_000;
   return {
     market_cap_usd: defaultLowcap,
-    market_cap_str: '',
+    market_cap_str: formatMarketCap(defaultLowcap),
     market_cap_tier: 'SMALL',
+    market_cap_source: 'fallback_estimate',
+    market_cap_is_estimate: true,
   };
 };
 
@@ -319,26 +338,43 @@ export const getSectorBadgeConfig = (
 export const getMarketCapBadgeConfig = (
   tier: string,
   mcapStr?: string | null,
-  language: string = 'vi'
+  language: string = 'vi',
+  isEstimate = false,
 ): { label: string; icon: string; className: string } => {
   const normTier = (tier || 'SMALL').toUpperCase();
+  const valueLabel = mcapStr ? `${isEstimate ? '≈' : ''}${mcapStr}` : '';
   if (normTier === 'LARGE' || normTier === 'MEGA') {
     return {
-      label: mcapStr ? mcapStr : (language === 'vi' ? 'Vốn hóa lớn' : 'Large Cap'),
+      label: valueLabel || (language === 'vi' ? 'Vốn hóa lớn' : 'Large Cap'),
       icon: '👑',
       className: 'bg-blue-950/70 text-blue-300 border-blue-700/50',
     };
   }
   if (normTier === 'MID') {
     return {
-      label: mcapStr ? mcapStr : (language === 'vi' ? 'Vốn hóa vừa' : 'Mid Cap'),
+      label: valueLabel || (language === 'vi' ? 'Vốn hóa vừa' : 'Mid Cap'),
       icon: '⚡',
       className: 'bg-indigo-950/70 text-indigo-300 border-indigo-700/50',
     };
   }
   return {
-    label: mcapStr ? mcapStr : (language === 'vi' ? 'Vốn hóa nhỏ' : 'Small Cap'),
+    label: valueLabel || (language === 'vi' ? 'Vốn hóa nhỏ' : 'Small Cap'),
     icon: '💎',
     className: 'bg-teal-950/70 text-teal-300 border-teal-700/50',
   };
+};
+
+export const getMarketCapSourceLabel = (source?: string | null, language: string = 'vi'): string => {
+  const normalized = (source || '').toLowerCase();
+  if (normalized === 'binance_agent_os' || normalized === 'binance-agent-os') return 'Binance Agent OS';
+  if (normalized === 'symbol_lookup') {
+    return language === 'vi' ? 'Bảng tra cứu nội bộ' : language === 'zh' ? '内部映射表' : language === 'ko' ? '내부 매핑' : 'Local lookup';
+  }
+  if (normalized === 'volume_estimate') {
+    return language === 'vi' ? 'Ước tính theo volume' : language === 'zh' ? '按成交量估算' : language === 'ko' ? '거래량 추정' : 'Volume estimate';
+  }
+  if (normalized === 'fallback_estimate') {
+    return language === 'vi' ? 'Ước tính dự phòng' : language === 'zh' ? '备用估算' : language === 'ko' ? '대체 추정' : 'Fallback estimate';
+  }
+  return source || (language === 'vi' ? 'Không rõ nguồn' : 'Unknown source');
 };

@@ -1,7 +1,8 @@
 """CoinGecko client — multi-source cross-reference for price/volume.
 
 Free API, no key required. Rate limit: ~10-30 req/min on free tier.
-Used to cross-validate Binance data and detect exchange manipulation.
+Used only to cross-validate Binance price/volume data and detect exchange
+manipulation. Market cap is sourced from Binance Agent OS.
 
 https://www.coingecko.com/api/documentation
 """
@@ -51,7 +52,7 @@ def _symbol_to_coingecko_id(symbol: str) -> str:
     Falls back to lowercase symbol if no mapping.
     """
     # Strip USDT suffix
-    base = symbol.replace("USDT", "").replace("USD", "").lower()
+    base = symbol.upper().replace("USDT", "").replace("USD", "").lower()
     # Common mappings (CoinGecko uses specific IDs)
     mapping: dict[str, str] = {
         "btc": "bitcoin",
@@ -92,7 +93,7 @@ def _symbol_to_coingecko_id(symbol: str) -> str:
         "pyth": "pyth-network",
         "jto": "jito-governance-token",
         "tia": "celestia",
-        "sei": "seismic-3",
+        "sei": "sei-network",
         "sui": "sui",
         "ton": "the-open-network",
     }

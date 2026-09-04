@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
+from sklearn.isotonic import IsotonicRegression
 
 from dao_vang.experiments.forward_test import (
     evaluate_frozen,
@@ -60,6 +61,29 @@ def test_freeze_and_load_model(tmp_path: Path):
     assert loaded.model_id == info.model_id
     assert loaded.threshold == 0.35
     assert loaded.feature_cols == feature_cols
+
+
+def test_freeze_identifies_fitted_isotonic_calibrator(tmp_path: Path):
+    """A fitted calibrator must not be serialized as the rejected identity policy."""
+    df = _make_synthetic_df()
+    feature_cols = ["feature_a", "feature_b"]
+    model = LogisticRegression(max_iter=100).fit(df[feature_cols], df["is_distribution"])
+    raw = model.predict_proba(df[feature_cols])[:, 1]
+    calibrator = IsotonicRegression(out_of_bounds="clip").fit(raw, df["is_distribution"])
+
+    info = freeze_model(
+        model=model,
+        threshold=0.35,
+        feature_cols=feature_cols,
+        config={"calibrator_id": "identity_v1"},
+        train_cutoff=df["feature_time"].max(),
+        calibrator=calibrator,
+        artifact_dir=tmp_path,
+    )
+
+    assert info.calibrator_id == "isotonic_v1"
+    metadata = info.metadata_path.read_text(encoding="utf-8")
+    assert '"calibration_method": "isotonic"' in metadata
 
 
 def test_list_frozen_models(tmp_path: Path):

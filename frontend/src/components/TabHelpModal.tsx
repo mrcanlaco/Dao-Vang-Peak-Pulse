@@ -131,10 +131,10 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           nameEn: 'Candidate Filter',
           icon: BarChart3,
           category: 'TRADING',
-          badge: 'Tier 1 Filter (V2 Champion)',
-          purpose: 'Tier 1 candidate screening ranking top climax candidates from 678+ Binance Futures coins, featuring live A/B verification progress.',
+          badge: 'Tier 1 Filter (Live Configured Role)',
+          purpose: 'Tier 1 candidate screening ranking top climax candidates from 678+ Binance Futures coins, with the official lane and challenger role read from live configuration.',
           mechanism: [
-            'Champion V2 vs Challenger V1: V2 (multi-stage quant filter, max 30 coins) runs main lane; V1 (hard threshold, 10 coins) runs parallel shadow baseline.',
+            'Configured official lane vs challenger: the live comparison payload determines whether V1 or V2 drives rankings and Telegram; the other version remains evaluation-only.',
             '72-Hour State Memory: Tracks pump lifecycle from Pump Active -> Climax Exhaustion -> Distribution -> Markdown.',
             'A/B Verification Progress: Live countdown tracking 3 promotion gates (14 evaluation days, 50 positive climax events, 200 resolved samples) before safely retiring V1.'
           ],
@@ -445,10 +445,10 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         nameEn: 'Candidate Filter',
         icon: BarChart3,
         category: 'TRADING',
-        badge: 'Bộ Lọc Tầng 1 (V2 Champion)',
-        purpose: 'Tầng 1 chọn lọc ứng viên tiềm năng nhất từ ~678 coin Binance Futures, tích hợp bảng theo dõi tiến độ kiểm định A/B để nghiệm thu V2.',
+        badge: 'Bộ Lọc Tầng 1 (Theo cấu hình live)',
+        purpose: 'Tầng 1 chọn lọc ứng viên tiềm năng nhất từ ~678 coin Binance Futures; vai trò bản chính và bản đối chiếu được lấy từ cấu hình live.',
         mechanism: [
-          'Champion V2 vs Challenger V1: V2 (lọc đa tầng định lượng, trần 30 coin) vận hành chính; V1 (ngưỡng cứng, 10 coin) chạy ngầm làm mốc đối chứng.',
+          'Bản chính vs bản đối chiếu: dữ liệu live quyết định V1 hay V2 điều phối xếp hạng và Telegram; phiên bản còn lại chỉ dùng để đối soát.',
           'Bộ Nhớ Trạng Thái 72 Giờ: Theo dõi chu kỳ bơm xả qua từng giai đoạn (Đang bơm -> Kiệt sức -> Phân phối -> Bắt đầu xả).',
           'Thanh Tiến Độ Kiểm Định A/B: Đo lường trực tiếp 3 điều kiện thăng hạng (14 ngày quan sát, 50 sự kiện sập đỉnh, 200 mẫu giải quyết) để biết thời điểm gỡ bỏ V1.'
         ],

@@ -213,3 +213,5 @@ def test_is_prediction_telegram_in_cooldown(tmp_path):
     assert store.is_prediction_telegram_in_cooldown("BTCUSDT:24h", 120)
     assert not store.is_prediction_telegram_in_cooldown("ETHUSDT", 24, 120)
     assert not store.is_prediction_telegram_in_cooldown("BTCUSDT", 6, 120)
+    assert store.get_prediction_telegram_count(hours=24) == 1
+    assert store.get_prediction_telegram_counts_by_symbol(hours=24) == {"BTCUSDT": 1}

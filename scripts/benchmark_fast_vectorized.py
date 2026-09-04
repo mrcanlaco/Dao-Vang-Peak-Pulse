@@ -1,6 +1,8 @@
 """Fast Vectorized Historical Benchmark: V1 (Heuristic) vs V2 (2-Tier Climax).
 
 Performs batch evaluation across historical snapshots with complete 24h forward outcomes.
+The target and stop-loss levels are configurable so risk profiles can be compared
+without changing the production scanner.
 """
 
 from __future__ import annotations
@@ -17,7 +19,15 @@ from dao_vang.scoring.distribution_scorer import compute_distribution_score
 from dao_vang.scoring.two_tier_scorer import compute_two_tier_distribution_score
 
 
-def run_fast_benchmark(db_path: str, limit: int = 1500) -> dict[str, Any]:
+def run_fast_benchmark(
+    db_path: str,
+    limit: int = 1500,
+    target_drop: float = 0.08,
+    stop_loss: float = 0.04,
+) -> dict[str, Any]:
+    if target_drop <= 0 or stop_loss <= 0:
+        raise ValueError("target_drop and stop_loss must be positive")
+
     conn = open_read_only_connection(db_path, prefer_snapshot=True)
     settings = AppSettings()
     btc_dummy = classify_btc(0.0, 0.0, 0.0, settings.scoring)
@@ -121,7 +131,8 @@ def run_fast_benchmark(db_path: str, limit: int = 1500) -> dict[str, Any]:
         mae = max(0.0, (max_high - entry_p) / entry_p)
         mfe = max(0.0, (entry_p - min_low) / entry_p)
 
-        hit_sl = False
+        hit_stop_loss = False
+        hit_target = False
         hit_tp3 = False
         hit_tp4 = False
         hit_tp6 = False
@@ -139,8 +150,8 @@ def run_fast_benchmark(db_path: str, limit: int = 1500) -> dict[str, Any]:
                 lead_min = (k_idx + 1) * 5.0
                 peak_found = True
 
-            if (k_high - entry_p) / entry_p >= 0.04:
-                hit_sl = True
+            if (k_high - entry_p) / entry_p >= stop_loss:
+                hit_stop_loss = True
                 break
 
             drop = (entry_p - k_low) / entry_p
@@ -154,13 +165,14 @@ def run_fast_benchmark(db_path: str, limit: int = 1500) -> dict[str, Any]:
                 hit_tp8 = True
             if drop >= 0.12:
                 hit_tp12 = True
+            if drop >= target_drop:
+                hit_target = True
+                break
 
-        if hit_sl:
-            net_pnl = -0.04
-        elif hit_tp8:
-            net_pnl = +0.08
-        elif hit_tp4:
-            net_pnl = +0.04
+        if hit_stop_loss:
+            net_pnl = -stop_loss
+        elif hit_target:
+            net_pnl = target_drop
         else:
             final_c = float(forward[-1]["close"])
             net_pnl = (entry_p - final_c) / entry_p
@@ -170,7 +182,9 @@ def run_fast_benchmark(db_path: str, limit: int = 1500) -> dict[str, Any]:
             "pump_pct": pump_pct,
             "mae": mae,
             "mfe": mfe,
-            "hit_sl_4pct": hit_sl,
+            "hit_stop_loss": hit_stop_loss,
+            "hit_target": hit_target,
+            "hit_sl_4pct": hit_stop_loss,
             "hit_tp_3pct": hit_tp3,
             "hit_tp_4pct": hit_tp4,
             "hit_tp_6pct": hit_tp6,
@@ -200,7 +214,8 @@ def run_fast_benchmark(db_path: str, limit: int = 1500) -> dict[str, Any]:
         tp6 = sum(1 for t in trades if t["hit_tp_6pct"])
         tp8 = sum(1 for t in trades if t["hit_tp_8pct"])
         tp12 = sum(1 for t in trades if t["hit_tp_12pct"])
-        sl = sum(1 for t in trades if t["hit_sl_4pct"])
+        target_hits = sum(1 for t in trades if t["hit_target"])
+        stop_losses = sum(1 for t in trades if t["hit_stop_loss"])
 
         maes = sorted([t["mae"] for t in trades])
         mfes = sorted([t["mfe"] for t in trades])
@@ -228,17 +243,21 @@ def run_fast_benchmark(db_path: str, limit: int = 1500) -> dict[str, Any]:
         def r_wr(group: list[dict[str, Any]]) -> float:
             if not group:
                 return 0.0
-            return sum(1 for t in group if t["hit_tp_4pct"]) / len(group) * 100.0
+            return sum(1 for t in group if t["hit_target"]) / len(group) * 100.0
 
         return {
             "engine_name": name,
             "total_signals": n,
+            "target_drop_pct": round(target_drop * 100, 1),
+            "stop_loss_pct": round(stop_loss * 100, 1),
+            "target_hit_rate_pct": round(target_hits / n * 100, 1),
+            "stop_loss_rate_pct": round(stop_losses / n * 100, 1),
             "hit_rate_tp1_4pct": round(tp4 / n * 100, 1),
             "hit_rate_tp_3pct": round(tp3 / n * 100, 1),
             "hit_rate_tp_6pct": round(tp6 / n * 100, 1),
             "hit_rate_tp2_8pct": round(tp8 / n * 100, 1),
             "hit_rate_tp3_12pct": round(tp12 / n * 100, 1),
-            "sl_breach_rate": round(sl / n * 100, 1),
+            "sl_breach_rate": round(stop_losses / n * 100, 1),
             "avg_mae_pct": round(avg_mae * 100, 2),
             "p50_mae_pct": round(p50_mae * 100, 2),
             "p90_mae_pct": round(p90_mae * 100, 2),
@@ -259,6 +278,8 @@ def run_fast_benchmark(db_path: str, limit: int = 1500) -> dict[str, Any]:
 
     return {
         "sample_evaluated": evaluated,
+        "target_drop_pct": round(target_drop * 100, 1),
+        "stop_loss_pct": round(stop_loss * 100, 1),
         "v1_metrics": aggregate(v1_trades, "V1 Heuristic Composite (Classic)"),
         "v2_metrics": aggregate(v2_trades, "V2 2-Tier Climax Engine (Pro)"),
     }
@@ -267,7 +288,9 @@ def run_fast_benchmark(db_path: str, limit: int = 1500) -> dict[str, Any]:
 if __name__ == "__main__":
     db_file = sys.argv[1] if len(sys.argv) > 1 else "data_live/live.duckdb"
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else 1500
-    res = run_fast_benchmark(db_file, limit)
+    target_drop = float(sys.argv[3]) if len(sys.argv) > 3 else 0.08
+    stop_loss = float(sys.argv[4]) if len(sys.argv) > 4 else 0.04
+    res = run_fast_benchmark(db_file, limit, target_drop, stop_loss)
     print("\n" + "=" * 75)
     print("      DETAILED STATISTICAL BENCHMARK REPORT: V1 vs V2 (REAL DATA)")
     print("=" * 75)

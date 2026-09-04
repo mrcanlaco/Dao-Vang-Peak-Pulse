@@ -37,7 +37,7 @@ class LiquidationCollector:
             collection_run_id=run_id,
             started_at=system_now(),
             completed_at=system_now(),
-            status=RunStatus.SUCCESS,
+            status=RunStatus.SUCCEEDED,
             data_type=self.data_type,
             range_start=start_time,
             range_end=end_time,

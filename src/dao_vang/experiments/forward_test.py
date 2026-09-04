@@ -81,6 +81,40 @@ class _IdentityCalibrator:
         return self.transform(values)
 
 
+def _calibrator_identifier(calibrator: Any, config: Dict[str, Any]) -> tuple[str, str]:
+    """Infer a truthful stable id and method for a serialized calibrator.
+
+    Older bundles used ``config['calibrator_id']`` as a fallback even when a
+    fitted sklearn calibrator was supplied.  That made an isotonic artifact
+    look like the explicitly rejected ``identity_v1`` calibrator at serving
+    time.  Prefer identifiers exposed by the object, then infer the supported
+    sklearn class, and only use a non-identity configured id as a final
+    fallback.
+    """
+
+    declared = getattr(calibrator, "calibrator_id", None) or getattr(
+        calibrator, "version", None
+    )
+    if declared:
+        normalized = str(declared).strip().lower()
+        if normalized != "identity_v1":
+            method = "platt" if "platt" in normalized or "sigmoid" in normalized else normalized.split("_", 1)[0]
+            return str(declared), method
+        return "identity_v1", "identity"
+
+    class_name = type(calibrator).__name__.strip().lower()
+    module_name = type(calibrator).__module__.strip().lower()
+    if class_name == "isotonicregression" or module_name == "sklearn.isotonic":
+        return "isotonic_v1", "isotonic"
+    if class_name == "logisticregression" and module_name.startswith("sklearn."):
+        return "platt_v1", "platt"
+
+    configured = str((config or {}).get("calibrator_id") or "").strip()
+    if configured and configured.lower() != "identity_v1":
+        return configured, configured.split("_", 1)[0].lower()
+    return "calibrator_v1", "custom"
+
+
 def _sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -162,10 +196,8 @@ def freeze_model(
     resolved_threshold_policy = dict(threshold_policy or {})
     resolved_threshold_policy.setdefault("version", config.get("threshold_policy_version", "frozen_threshold_v1"))
     resolved_threshold_policy.setdefault("threshold", float(threshold))
-    calibrator_id = str(
-        getattr(calibrator_obj, "version", None)
-        or (config.get("calibrator_id") if config else None)
-        or "identity_v1"
+    calibrator_id, calibration_method = _calibrator_identifier(
+        calibrator_obj, config or {}
     )
     checksums = {
         "model_sha256": _sha256(model_path),
@@ -186,6 +218,7 @@ def freeze_model(
         "thresholds": {"default": float(threshold)},
         "calibrator_id": calibrator_id,
         "calibrator": {"id": calibrator_id, "path": calibrator_path.name},
+        "calibration_method": calibration_method,
         "preprocessing": {
             "feature_cols": list(feature_cols),
             "missing_policy": "reject_at_serving",

@@ -45,7 +45,7 @@ def fetch_daily_klines(
     try:
         with httpx.Client(timeout=2.5) as client:
             resp = client.get(
-                f"{base_url}/fapi/v1/klines",
+                f"{base_url.rstrip('/')}/fapi/v1/klines",
                 params={
                     "symbol": symbol,
                     "interval": "1d",

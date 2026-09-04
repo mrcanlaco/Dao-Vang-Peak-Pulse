@@ -1,0 +1,1 @@
+import{F as e}from"./index-CKf-tZPP.js";var t=e(`chevron-up`,[[`path`,{d:`m18 15-6-6-6 6`,key:`153udz`}]]);export{t};

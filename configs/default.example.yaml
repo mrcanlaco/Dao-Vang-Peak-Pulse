@@ -18,6 +18,17 @@ web:
   # Địa chỉ người dùng mở được; Telegram sẽ nối thêm /#coin=SYMBOL.
   public_url: "http://127.0.0.1:8000"
 
+coingecko:
+  # Optional Binance-vs-CoinGecko price cross-reference only.
+  enabled: false
+
+binance_agent_os:
+  # Standard market-cap source for token size classification.
+  enabled: true
+  timeout_seconds: 10
+  cache_minutes: 15
+  chain_ids: "1,56,8453,CT_501"
+
 telegram:
   # bot_token + chat_id từ env var: DAO_VANG_TELEGRAM__BOT_TOKEN / __CHAT_ID
   api_base: "https://api.telegram.org"
@@ -97,8 +108,8 @@ market_anomalies:
 # (challenger). Challenger chỉ ghi audit/outcome, tuyệt đối không gửi Telegram.
 candidate_comparison:
   enabled: false
-  champion_version: candidate_filter_v2
-  challenger_version: pump_filter_v1
+  champion_version: pump_filter_v1
+  challenger_version: candidate_filter_v2
   universe_size: 150
   max_candidates: 30
   max_workers: 4

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dao_vang.web.api_server import (
     _build_market_cap_info,
+    _build_signal_outcomes,
     _build_signal_trade_setup,
     _build_signal_trigger_pattern,
-    _build_signal_outcomes,
 )
 
 
@@ -36,6 +36,23 @@ def test_build_market_cap_info_small_cap_fallback() -> None:
     assert info_small["market_cap_tier"] == "SMALL"
     assert info_small["market_cap_usd"] > 0
     assert "M" in info_small["market_cap_str"]
+    assert info_small["market_cap_is_estimate"] is True
+    assert info_small["market_cap_source"] == "volume_estimate"
+
+
+def test_build_market_cap_info_uses_provider_value_and_provenance() -> None:
+    info = _build_market_cap_info(
+        "NEWTOKENUSDT",
+        25_000_000.0,
+        market_cap_usd=2_250_000_000.0,
+        source="binance_agent_os",
+        updated_at="2026-09-03T00:00:00+07:00",
+    )
+    assert info["market_cap_tier"] == "MID"
+    assert info["market_cap_usd"] == 2_250_000_000.0
+    assert info["market_cap_is_estimate"] is False
+    assert info["market_cap_source"] == "binance_agent_os"
+    assert info["market_cap_updated_at"] == "2026-09-03T00:00:00+07:00"
 
 
 def test_build_signal_trade_setup() -> None:

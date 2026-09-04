@@ -63,13 +63,13 @@ def evaluate_scoring_engines_comparison(
 ) -> dict[str, Any]:
     """Compare V1 Heuristic vs V2 2-Tier Climax on real historical DuckDB data."""
     btc_dummy = BtcContext(
+        btc_ret_24h=0.0,
+        btc_ret_4h=0.0,
+        btc_ret_1h=0.0,
         regime="NEUTRAL",
-        ret_24h=0.0,
-        ret_4h=0.0,
-        ret_1h=0.0,
+        score_adjustment=50.0,
         explanation="Benchmark context",
     )
-
     # Fetch recent volatile alert candidates from feature_results with 24h subsequent klines
     try:
         query = """

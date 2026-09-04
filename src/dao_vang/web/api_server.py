@@ -115,6 +115,9 @@ _STATUS_RESP_CACHE: dict[str, Any] = {}
 _STATUS_RESP_TIME: float = 0.0
 _SIGNALS_RESP_CACHE: list[dict[str, Any]] = []
 _SIGNALS_RESP_TIME: float = 0.0
+_MARKET_CAP_CACHE_LOCK = threading.Lock()
+_MARKET_CAP_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_MARKET_CAP_FAILURE_TTL_SECONDS = 60.0
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -207,9 +210,29 @@ def _anomaly_fields(row: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
-def _build_market_cap_info(symbol: str, volume_24h_usd: float | None = None) -> dict[str, Any]:
-    """Provide estimated market cap tier, usd value, and formatted string."""
-    clean_sym = symbol.upper().replace("USDT", "").replace("BUSD", "").replace("USDC", "").strip()
+def _build_market_cap_info(
+    symbol: str,
+    volume_24h_usd: float | None = None,
+    market_cap_usd: float | None = None,
+    source: str | None = None,
+    updated_at: str | None = None,
+) -> dict[str, Any]:
+    """Build a market-cap payload, using a clearly labelled fallback if needed.
+
+    Binance Agent OS is the authoritative source when ``market_cap_usd`` is
+    passed in.  The local symbol table and volume heuristic only keep the UI
+    useful when the provider is unavailable; callers can distinguish those
+    values through ``market_cap_is_estimate`` and ``market_cap_source``.
+    """
+    clean_sym = (
+        str(symbol or "")
+        .upper()
+        .replace("USDT", "")
+        .replace("BUSD", "")
+        .replace("USDC", "")
+        .replace("PERP", "")
+        .strip()
+    )
 
     large_caps = {
         "BTC": 1_300_000_000_000, "ETH": 350_000_000_000, "BNB": 90_000_000_000,
@@ -236,23 +259,46 @@ def _build_market_cap_info(symbol: str, volume_24h_usd: float | None = None) -> 
         "WLD": 2_600_000_000, "POPCAT": 1_400_000_000, "THETA": 1_800_000_000,
     }
 
-    if clean_sym in large_caps:
+    is_estimate = True
+    resolved_source = source or "fallback_estimate"
+    try:
+        supplied_mcap = float(market_cap_usd) if market_cap_usd is not None else 0.0
+    except (TypeError, ValueError):
+        supplied_mcap = 0.0
+
+    if math.isfinite(supplied_mcap) and supplied_mcap > 0:
+        mcap = supplied_mcap
+        resolved_source = source or "binance_agent_os"
+        is_estimate = resolved_source != "binance_agent_os"
+    elif clean_sym in large_caps:
         mcap = float(large_caps[clean_sym])
-        tier = "LARGE"
+        resolved_source = "symbol_lookup"
     elif clean_sym in mid_caps:
         mcap = float(mid_caps[clean_sym])
-        tier = "MID"
-    elif volume_24h_usd and volume_24h_usd > 500_000_000:
-        mcap = float(volume_24h_usd * 2.5)
-        tier = "LARGE" if mcap >= 5_000_000_000 else "MID"
-    elif volume_24h_usd and volume_24h_usd > 100_000_000:
-        mcap = float(volume_24h_usd * 2.0)
-        tier = "MID" if mcap >= 1_000_000_000 else "SMALL"
-    elif volume_24h_usd and volume_24h_usd > 20_000_000:
-        mcap = float(volume_24h_usd * 1.5)
-        tier = "SMALL"
+        resolved_source = "symbol_lookup"
     else:
-        mcap = 85_000_000.0
+        try:
+            volume = float(volume_24h_usd or 0.0)
+        except (TypeError, ValueError):
+            volume = 0.0
+        if not math.isfinite(volume) or volume < 0:
+            volume = 0.0
+
+        if volume > 500_000_000:
+            mcap = volume * 2.5
+        elif volume > 100_000_000:
+            mcap = volume * 2.0
+        elif volume > 20_000_000:
+            mcap = volume * 1.5
+        else:
+            mcap = 85_000_000.0
+        resolved_source = "volume_estimate" if volume > 0 else "fallback_estimate"
+
+    if mcap >= 5_000_000_000:
+        tier = "LARGE"
+    elif mcap >= 1_000_000_000:
+        tier = "MID"
+    else:
         tier = "SMALL"
 
     if mcap >= 1_000_000_000_000:
@@ -268,7 +314,57 @@ def _build_market_cap_info(symbol: str, volume_24h_usd: float | None = None) -> 
         "market_cap_usd": mcap,
         "market_cap_str": mcap_str,
         "market_cap_tier": tier,
+        "market_cap_source": resolved_source,
+        "market_cap_is_estimate": is_estimate,
+        "market_cap_updated_at": updated_at,
     }
+
+
+def _resolve_market_cap_info(
+    symbol: str,
+    volume_24h_usd: float | None = None,
+    *,
+    fetch_remote: bool = False,
+) -> dict[str, Any]:
+    """Return cached provider data or a labelled local fallback.
+
+    The signals endpoint calls this with ``fetch_remote=False`` so a 150-coin
+    Radar refresh never fans out into 150 external requests.  The selected
+    coin detail endpoint opts in to one Binance Agent OS token search and
+    shares the result with later Radar responses.
+    """
+    fallback = _build_market_cap_info(symbol, volume_24h_usd)
+    cache_key = str(symbol or "").upper().replace("USDT", "").replace("BUSD", "").replace("USDC", "").replace("PERP", "").strip()
+    now_monotonic = time.monotonic()
+    with _MARKET_CAP_CACHE_LOCK:
+        cached = _MARKET_CAP_CACHE.get(cache_key)
+        if cached and cached[0] > now_monotonic:
+            return dict(cached[1])
+
+    if not fetch_remote or not _settings.binance_agent_os.enabled:
+        return fallback
+
+    info = fallback
+    ttl_seconds = _MARKET_CAP_FAILURE_TTL_SECONDS
+    try:
+        from dao_vang.data.collectors.binance_agent_os import fetch_market_cap
+
+        provider_mcap = fetch_market_cap(symbol, _settings.binance_agent_os)
+        if provider_mcap is not None and provider_mcap > 0:
+            info = _build_market_cap_info(
+                symbol,
+                volume_24h_usd,
+                market_cap_usd=provider_mcap,
+                source="binance_agent_os",
+                updated_at=_system_history_timestamp(datetime.now(timezone.utc)),
+            )
+            ttl_seconds = max(60.0, float(_settings.binance_agent_os.cache_minutes) * 60.0)
+    except Exception as exc:
+        logger.warning("market_cap_lookup_failed symbol=%s error=%s", symbol, exc)
+
+    with _MARKET_CAP_CACHE_LOCK:
+        _MARKET_CAP_CACHE[cache_key] = (now_monotonic + ttl_seconds, dict(info))
+    return info
 
 
 def _build_signal_trade_setup(
@@ -1066,6 +1162,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.get_ai_config()
             elif path in ('/api/version-history', '/api/updates', '/api/changelog'):
                 self.get_version_history()
+            elif path in ('/api/research/reports', '/api/research', '/api/research-reports'):
+                self.get_research_reports()
+            elif path.startswith('/api/research/reports/'):
+                report_id = path.replace('/api/research/reports/', '')
+                self.get_research_report_detail(report_id)
             elif path in ('/api/system/update-status', '/api/updater/status'):
                 self.get_system_update_status()
             elif path in ('/api/system/update-logs', '/api/updater/logs'):
@@ -2054,7 +2155,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "trade_setup": trade_setup,
                 "telegram_sent": r.get("telegram_sent"),
                 "drivers": drivers,
-                **_build_market_cap_info(r["symbol"], scan.get("volume_24h_usd") if scan else None),
+                **_resolve_market_cap_info(r["symbol"], scan.get("volume_24h_usd") if scan else None),
                 **anomaly_fields,
             })
 
@@ -2175,7 +2276,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "trade_setup": scan_setup,
                 "telegram_sent": False,
                 "drivers": [],
-                **_build_market_cap_info(sym, sr.get("volume_24h_usd")),
+                **_resolve_market_cap_info(sym, sr.get("volume_24h_usd")),
                 **anomaly_fields,
             })
 
@@ -2269,7 +2370,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "trade_setup": pred_setup,
                 "telegram_sent": bool(pr.get("telegram_sent")),
                 "drivers": [],
-                **_build_market_cap_info(sym, scan.get("volume_24h_usd")),
+                **_resolve_market_cap_info(sym, scan.get("volume_24h_usd")),
                 **anomaly_fields,
             })
 
@@ -2369,6 +2470,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "volume_24h": f"${r['volume_24h_usd'] / 1e6:.1f}M" if r.get("volume_24h_usd") else "N/A",
                 "age": age_str,
                 "is_stale": row_is_stale,
+                **_resolve_market_cap_info(r["symbol"], r.get("volume_24h_usd")),
                 **_anomaly_fields(r),
             })
         candidates.sort(key=lambda c: c["score"], reverse=True)
@@ -2383,8 +2485,12 @@ class APIHandler(BaseHTTPRequestHandler):
             # Synthesize dynamic comparison from candidate snapshot and historical metrics
             cand_snapshot = _read_json(CANDIDATE_SNAPSHOT_PATH) or {}
             rows = cand_snapshot.get("rows", [])
+            comparison_cfg = _settings.candidate_comparison
+            champion_version = comparison_cfg.champion_version
+            challenger_version = comparison_cfg.challenger_version
+            is_champion_v2 = "v2" in champion_version.lower()
             
-            # V2 candidates (Champion): multi-stage quantitative filter (pump_pct >= 30% or score >= 35)
+            # V2 candidates: multi-stage quantitative filter (pump_pct >= 30% or score >= 35)
             v2_rows = [
                 r for r in rows
                 if float(r.get("pump_pct", 0) or 0) >= 0.30 or float(r.get("score", 0) or 0) >= 35
@@ -2392,7 +2498,7 @@ class APIHandler(BaseHTTPRequestHandler):
             if not v2_rows and rows:
                 v2_rows = rows[:25]
 
-            # V1 candidates (Challenger/Baseline): pump_pct >= 50% or score >= 45
+            # V1 candidates: pump_pct >= 50% or score >= 45
             v1_rows = [
                 r for r in rows
                 if float(r.get("pump_pct", 0) or 0) >= 0.50 or float(r.get("score", 0) or 0) >= 45
@@ -2408,6 +2514,41 @@ class APIHandler(BaseHTTPRequestHandler):
             overlap_set = v2_set & v1_set
             v2_only_set = v2_set - v1_set
             v1_only_set = v1_set - v2_set
+
+            champion_symbols = v2_symbols if is_champion_v2 else v1_symbols
+            challenger_symbols = v1_symbols if is_champion_v2 else v2_symbols
+            champion_only_set = v2_only_set if is_champion_v2 else v1_only_set
+            challenger_only_set = v1_only_set if is_champion_v2 else v2_only_set
+
+            row_by_symbol = {str(r.get("symbol")): r for r in rows}
+
+            def _summaries(symbols: list[str], version: str) -> list[dict[str, Any]]:
+                version_is_v2 = "v2" in version.lower()
+                default_score = 75 if version_is_v2 else 70
+                return [
+                    {
+                        "symbol": symbol,
+                        "rank": index + 1,
+                        "rank_score": round(
+                            float(row_by_symbol.get(symbol, {}).get("score", default_score))
+                            / 100.0,
+                            2,
+                        ),
+                        "stage": (
+                            "DISTRIBUTING"
+                            if version_is_v2 and symbol in overlap_set
+                            else "EXHAUSTING"
+                            if version_is_v2
+                            else "PUMP_CANDIDATE"
+                        ),
+                        "reason_codes": [
+                            "candidate_filter_v2_selected"
+                            if version_is_v2
+                            else "pump_filter_v1_selected"
+                        ],
+                    }
+                    for index, symbol in enumerate(symbols)
+                ]
             
             universe_count = max(150, len(rows))
             neither_count = max(0, universe_count - len(v2_set | v1_set))
@@ -2431,11 +2572,13 @@ class APIHandler(BaseHTTPRequestHandler):
                 pass
 
             payload = {
-                "available": bool(payload and payload.get("universe_count")),
-                "enabled": True,
-                "status": "active_v2_champion",
-                "champion_version": "candidate_filter_v2",
-                "challenger_version": "pump_filter_v1",
+                # This is a defensive synthesis, not a scanner-published
+                # comparison artifact.  Keep the distinction explicit.
+                "available": False,
+                "enabled": bool(comparison_cfg.enabled),
+                "status": "fallback_configured_lane",
+                "champion_version": champion_version,
+                "challenger_version": challenger_version,
                 "future_versions": [
                     {
                         "version": "candidate_filter_v3",
@@ -2446,35 +2589,17 @@ class APIHandler(BaseHTTPRequestHandler):
                 ],
                 "universe_count": universe_count,
                 "paired_count": universe_count,
-                "champion_selected": len(v2_symbols),
-                "challenger_selected": len(v1_symbols),
+                "champion_selected": len(champion_symbols),
+                "challenger_selected": len(challenger_symbols),
                 "overlap": len(overlap_set),
-                "champion_only": len(v2_only_set),
-                "challenger_only": len(v1_only_set),
+                "champion_only": len(champion_only_set),
+                "challenger_only": len(challenger_only_set),
                 "neither": neither_count,
                 "generated_at": cand_snapshot.get("generated_at") or system_now().isoformat(),
                 "stale": False,
                 "selected": {
-                    "champion": [
-                        {
-                            "symbol": s,
-                            "rank": i + 1,
-                            "rank_score": round(float(next((r.get("score", 75) for r in rows if r.get("symbol") == s), 75)) / 100.0, 2),
-                            "stage": "DISTRIBUTING" if s in overlap_set else "EXHAUSTING",
-                            "reason_codes": ["price_structure_exhaustion", "order_flow_imbalance", "candidate_selected"],
-                        }
-                        for i, s in enumerate(v2_symbols)
-                    ],
-                    "challenger": [
-                        {
-                            "symbol": s,
-                            "rank": i + 1,
-                            "rank_score": round(float(next((r.get("score", 70) for r in rows if r.get("symbol") == s), 70)) / 100.0, 2),
-                            "stage": "PUMP_CANDIDATE",
-                            "reason_codes": ["daily_pump_threshold_met", "candidate_selected"],
-                        }
-                        for i, s in enumerate(v1_symbols)
-                    ],
+                    "champion": _summaries(champion_symbols, champion_version),
+                    "challenger": _summaries(challenger_symbols, challenger_version),
                     "overlap": [
                         {
                             "symbol": s,
@@ -2485,31 +2610,13 @@ class APIHandler(BaseHTTPRequestHandler):
                         }
                         for i, s in enumerate(sorted(overlap_set))
                     ],
-                    "champion_only": [
-                        {
-                            "symbol": s,
-                            "rank": i + 1,
-                            "rank_score": 0.78,
-                            "stage": "EXHAUSTING",
-                            "reason_codes": ["v2_unique_discovery"],
-                        }
-                        for i, s in enumerate(sorted(v2_only_set))
-                    ],
-                    "challenger_only": [
-                        {
-                            "symbol": s,
-                            "rank": i + 1,
-                            "rank_score": 0.72,
-                            "stage": "PUMP_CANDIDATE",
-                            "reason_codes": ["v1_pump_only"],
-                        }
-                        for i, s in enumerate(sorted(v1_only_set))
-                    ],
+                    "champion_only": _summaries(sorted(champion_only_set), champion_version),
+                    "challenger_only": _summaries(sorted(challenger_only_set), challenger_version),
                 },
                 "comparison": {
                     "window_days": 30,
-                    "champion_version": "candidate_filter_v2",
-                    "challenger_version": "pump_filter_v1",
+                    "champion_version": champion_version,
+                    "challenger_version": challenger_version,
                     "metrics": {
                         "candidate_filter_v2": {
                             "anchors": universe_count * 2,
@@ -2545,22 +2652,36 @@ class APIHandler(BaseHTTPRequestHandler):
                         },
                     },
                     "paired_deltas": {
-                        "precision_at_10": {"point": 0.111, "ci_lower": 0.032, "ci_upper": 0.190, "n": resolved_count, "n_blocks": 30},
-                        "event_recall": {"point": 0.064, "ci_lower": 0.012, "ci_upper": 0.116, "n": resolved_count, "n_blocks": 30},
+                        # The persisted comparison stores challenger - champion.
+                        # Keep that orientation even for the defensive fallback.
+                        "precision_at_10": {
+                            "point": -0.111 if is_champion_v2 else 0.111,
+                            "ci_lower": -0.190 if is_champion_v2 else 0.032,
+                            "ci_upper": -0.032 if is_champion_v2 else 0.190,
+                            "n": resolved_count,
+                            "n_blocks": 30,
+                        },
+                        "event_recall": {
+                            "point": -0.064 if is_champion_v2 else 0.064,
+                            "ci_lower": -0.116 if is_champion_v2 else 0.012,
+                            "ci_upper": -0.012 if is_champion_v2 else 0.116,
+                            "n": resolved_count,
+                            "n_blocks": 30,
+                        },
                         "confidence_level": 0.95,
                         "bootstrap_samples": 1000,
                     },
                     "promotion": {
-                        "ready": True,
-                        "passed": True,
-                        "requires_human_approval": False,
+                        "ready": False,
+                        "passed": False,
+                        "requires_human_approval": True,
                         "positive_anchors": pos_events_count * 2,
                         "positive_events": pos_events_count,
                         "min_resolved": 200,
                         "min_positive_events": 50,
                         "min_evaluation_days": 14,
                         "min_challenger_event_recall": 0.80,
-                        "reasons": ["v2_promoted_to_champion", "superior_precision_and_recall"],
+                        "reasons": ["fallback_snapshot_only", "awaiting_paired_outcomes"],
                     },
                 },
             }
@@ -2807,6 +2928,11 @@ class APIHandler(BaseHTTPRequestHandler):
         alert_rows = _alert_store.query(symbol=symbol, days=2, include_dismissed=True, limit=1)
         latest_alert = alert_rows[0] if alert_rows else None
         latest_scan = _scan_store.latest_for_symbol(symbol, max_age_hours=24)
+        market_cap_info = _resolve_market_cap_info(
+            symbol,
+            latest_scan.get("volume_24h_usd") if latest_scan else None,
+            fetch_remote=True,
+        )
 
         current_price = chart_points[-1]["price"] if chart_points else 0.0
         components: list[dict[str, Any]] = []
@@ -2853,6 +2979,7 @@ class APIHandler(BaseHTTPRequestHandler):
         detail = {
             "symbol": symbol,
             "name": symbol.replace("USDT", ""),
+            **market_cap_info,
             "current_price": current_price,
             "chart_source": chart_source,
             "has_alert": bool(latest_alert),
@@ -4328,6 +4455,153 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             logger.error("post_system_update_apply_failed error=%s", exc)
             err = json.dumps({"error": "Failed to trigger update", "detail": str(exc)}).encode("utf-8")
+            self._set_headers(500, content_length=len(err))
+            self.wfile.write(err)
+
+    def get_research_reports(self):
+        """Returns catalogue of all historical research papers and benchmark reports."""
+        try:
+            research_dir = REPO_ROOT / "docs" / "research"
+            reports: list[dict[str, Any]] = []
+
+            metadata_map = {
+                "01_so_sanh_heuristic_vs_machine_learning": {
+                    "id": "01_so_sanh_heuristic_vs_machine_learning",
+                    "code": "RES-2026-0830-01",
+                    "title": "So Sánh Đối Đầu: Mô Hình Heuristic 0–100 vs Machine Learning (LightGBM & LogReg)",
+                    "title_en": "Benchmark: V1 Heuristic (0-100) vs Machine Learning (LightGBM & LogReg)",
+                    "date": "2026-08-30",
+                    "category": "BENCHMARK",
+                    "tags": ["HEURISTIC", "LIGHTGBM", "ROC_AUC", "FEATURE_IMPORTANCE"],
+                    "key_metric": "LightGBM 20.93% vs Heuristic 13.28% (Gấp 1.6x)",
+                    "sample_size": "160 altcoins, 1.16M rows (1 năm)",
+                    "badge": "Mới nhất",
+                    "badge_color": "emerald",
+                    "abstract": "Kiểm định độc lập trên 160 altcoins chứng minh Heuristic gốc chỉ đạt 13.28% precision (ngưỡng >=70 đạt 0%). Regime + LightGBM đạt 20.93% nhờ khai thác tương quan phi tuyến và hiệu chuẩn xác suất.",
+                },
+                "02_thi_nghiem_8_chien_luoc_giao_dich": {
+                    "id": "02_thi_nghiem_8_chien_luoc_giao_dich",
+                    "code": "RES-2026-0830-02",
+                    "title": "Thí Nghiệm 8 Chiến Lược Giao Dịch Phân Phối Đỉnh Trên 210 Altcoins",
+                    "title_en": "Experiment: 8 Short Distribution Strategies on 210 Altcoins",
+                    "date": "2026-08-30",
+                    "category": "STRATEGY",
+                    "tags": ["STRATEGY_TUNING", "REGIME_GATE", "ENSEMBLE", "WALK_FORWARD"],
+                    "key_metric": "Regime Gate triệt tiêu 23% nhiễu, Ensemble thất bại (16.9%)",
+                    "sample_size": "209 altcoins, 1.35M rows (1 năm)",
+                    "badge": "Chiến lược",
+                    "badge_color": "amber",
+                    "abstract": "Thử nghiệm ngưỡng p98/p99/p99.5, Ensemble đa mô hình và Regime Gate. Kết luận: Regime + LGB p98 là chiến lược tối ưu nhất; từ chối Ensemble do LogReg kéo tụt hiệu năng.",
+                },
+                "03_kiem_dinh_altcoins_midcap_210_coins": {
+                    "id": "03_kiem_dinh_altcoins_midcap_210_coins",
+                    "code": "RES-2026-0830-03",
+                    "title": "Kiểm Định Mở Rộng Altcoins Vốn Hóa Vừa & Nhỏ (210 Coins × 1 Năm)",
+                    "title_en": "Mid-Cap Expansion: 210 Altcoins Historical Backtest (1 Year)",
+                    "date": "2026-08-30",
+                    "category": "SCALING",
+                    "tags": ["MID_CAP", "DERIVATIVES", "LIGHTGBM", "SCALABILITY"],
+                    "key_metric": "LightGBM 21.23% vs LogReg 14.87% (Thắng 8/8 Folds)",
+                    "sample_size": "210 altcoins, 19.37M rows thô",
+                    "badge": "Mở rộng",
+                    "badge_color": "cyan",
+                    "abstract": "Mở rộng kiểm định gấp 7 lần số coin từ 30 lên 210. Khẳng định LightGBM áp đảo trên nhóm vốn hóa vừa/nhỏ. Dữ liệu phái sinh Binance Vision chiếm 3/4 top feature quan trọng.",
+                },
+                "04_tham_dinh_va_kiem_dinh_toan_dien_2_6_nam": {
+                    "id": "04_tham_dinh_va_kiem_dinh_toan_dien_2_6_nam",
+                    "code": "RES-2026-0829-04",
+                    "title": "Thẩm Định Độc Lập & Kiểm Định Toàn Diện Hệ Thống (30 Coins × 2.6 Năm)",
+                    "title_en": "System Audit & Comprehensive 2.6-Year Benchmark (Top 30 Coins)",
+                    "date": "2026-08-29",
+                    "category": "AUDIT",
+                    "tags": ["AUDIT", "BENCHMARK", "REGIME_ANALYSIS", "STRESS_TEST"],
+                    "key_metric": "LogReg 27.84% trên Mega-Cap, Sideway đạt 30.99%",
+                    "sample_size": "30 coins, 2.6 năm (413K rows)",
+                    "badge": "Thẩm định",
+                    "badge_color": "purple",
+                    "abstract": "Phát hiện và xóa bỏ 2 lỗi số liệu giả (fake regime random & fake stress test). Xác lập benchmark thực: Logistic Regression là Champion cho Mega-cap; vùng Sideway Distribution đạt 31% precision.",
+                },
+                "05_kien_truc_7_cai_tien_do_chinh_xac": {
+                    "id": "05_kien_truc_7_cai_tien_do_chinh_xac",
+                    "code": "RES-2026-0829-05",
+                    "title": "Kiến Trúc 7 Cải Tiến Nâng Cao Độ Chính Xác Hệ Thống",
+                    "title_en": "7 Architectural Milestones for Accuracy Enhancement",
+                    "date": "2026-08-29",
+                    "category": "ARCHITECTURE",
+                    "tags": ["CALIBRATION", "META_LABELING", "ARCHITECTURE", "DATA_PIPELINE"],
+                    "key_metric": "Isotonic Calibration ECE giảm 0.03 -> 0.0004",
+                    "sample_size": "Toàn bộ hệ thống core",
+                    "badge": "Kiến trúc",
+                    "badge_color": "blue",
+                    "abstract": "Chi tiết 7 đột phá kỹ thuật nâng cấp Đảo Vàng 2.0: Lookback 30d, bảo toàn NULL, Meta-labeling active, Isotonic calibration, Multi-TF exhaustion, LightGBM bundle và Multi-horizon outcomes.",
+                },
+            }
+
+            if research_dir.exists():
+                for md_file in sorted(research_dir.glob("*.md")):
+                    file_id = md_file.stem
+                    content = md_file.read_text(encoding="utf-8")
+                    meta = metadata_map.get(file_id, {
+                        "id": file_id,
+                        "code": f"RES-{file_id[:10]}",
+                        "title": file_id.replace("_", " ").title(),
+                        "title_en": file_id.replace("_", " ").title(),
+                        "date": "2026-08-30",
+                        "category": "RESEARCH",
+                        "tags": ["RESEARCH"],
+                        "key_metric": "N/A",
+                        "sample_size": "N/A",
+                        "badge": "Nghiên cứu",
+                        "badge_color": "slate",
+                        "abstract": content[:200] + "...",
+                    })
+                    meta_copy = dict(meta)
+                    meta_copy["content"] = content
+                    meta_copy["file_size_bytes"] = len(content.encode("utf-8"))
+                    reports.append(meta_copy)
+
+            body = json.dumps({
+                "reports": reports,
+                "total_count": len(reports),
+                "last_updated": datetime.now(timezone.utc).isoformat(),
+            }, ensure_ascii=False).encode("utf-8")
+            self._set_headers(200, content_type="application/json; charset=utf-8", content_length=len(body))
+            self.wfile.write(body)
+        except Exception as exc:
+            logger.error("get_research_reports_failed error=%s", exc)
+            err = json.dumps({"error": "Failed to load research reports", "detail": str(exc)}).encode("utf-8")
+            self._set_headers(500, content_length=len(err))
+            self.wfile.write(err)
+
+    def get_research_report_detail(self, report_id: str):
+        """Returns single research paper content by id."""
+        try:
+            clean_id = Path(report_id).name
+            research_dir = REPO_ROOT / "docs" / "research"
+            target_file = research_dir / f"{clean_id}.md"
+            if not target_file.exists():
+                # Try finding by prefix
+                matches = list(research_dir.glob(f"*{clean_id}*.md"))
+                if matches:
+                    target_file = matches[0]
+                else:
+                    err = json.dumps({"error": "Report not found"}).encode("utf-8")
+                    self._set_headers(404, content_length=len(err))
+                    self.wfile.write(err)
+                    return
+
+            content = target_file.read_text(encoding="utf-8")
+            body = json.dumps({
+                "id": target_file.stem,
+                "content": content,
+                "file_name": target_file.name,
+                "file_size_bytes": len(content.encode("utf-8")),
+            }, ensure_ascii=False).encode("utf-8")
+            self._set_headers(200, content_type="application/json; charset=utf-8", content_length=len(body))
+            self.wfile.write(body)
+        except Exception as exc:
+            logger.error("get_research_report_detail_failed error=%s", exc)
+            err = json.dumps({"error": "Failed to load report detail", "detail": str(exc)}).encode("utf-8")
             self._set_headers(500, content_length=len(err))
             self.wfile.write(err)
 

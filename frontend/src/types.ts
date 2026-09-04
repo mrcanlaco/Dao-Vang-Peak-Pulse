@@ -71,7 +71,24 @@ export interface SignalTradeSetup {
   rr_ratio?: number;
 }
 
-export interface SignalItem {
+export type MarketCapTier = 'LARGE' | 'MID' | 'SMALL' | 'MICRO' | 'UNKNOWN' | string;
+
+export interface MarketCapFields {
+  /** Market capitalisation in USD. It may be an estimate when the provider is unavailable. */
+  market_cap_usd?: number | null;
+  /** Compact display value, for example `$1.2B` or `$85M`. */
+  market_cap_str?: string | null;
+  /** Normalised UI tier used by the Radar filter. */
+  market_cap_tier?: MarketCapTier | null;
+  /** Data provenance, for example `binance_agent_os` or `volume_estimate`. */
+  market_cap_source?: string | null;
+  /** True when the value comes from a local lookup/volume fallback. */
+  market_cap_is_estimate?: boolean;
+  /** Provider observation time, when available. */
+  market_cap_updated_at?: string | null;
+}
+
+export interface SignalItem extends MarketCapFields {
   id: string;
   symbol: string;
   name: string;
@@ -110,9 +127,6 @@ export interface SignalItem {
   trade_setup?: SignalTradeSetup;
   telegram_sent?: boolean;
   two_tier_state?: 'ARMED' | 'FIRED' | 'NORMAL' | 'WATCH' | 'STANDBY';
-  market_cap_usd?: number | null;
-  market_cap_str?: string | null;
-  market_cap_tier?: 'LARGE' | 'MID' | 'SMALL' | 'MICRO' | string;
 }
 
 export const getSignalTwoTierState = (sig: SignalItem): 'FIRED' | 'ARMED' | 'NORMAL' => {
@@ -187,7 +201,7 @@ export interface TrackingWatchlistItem {
   last_market_update?: string | null;
 }
 
-export interface CandidateCoin {
+export interface CandidateCoin extends MarketCapFields {
   symbol: string;
   scan_time?: string;
   price: number;
@@ -323,7 +337,7 @@ export interface ShapDriver {
   description: string;
 }
 
-export interface CoinDetail {
+export interface CoinDetail extends MarketCapFields {
   symbol: string;
   name: string;
   current_price: number;
@@ -1148,4 +1162,3 @@ export interface AiAskResponse {
   timestamp: string;
   tokens_used?: number;
 }
-

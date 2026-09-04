@@ -5,7 +5,7 @@ import type {
 } from '../types';
 import { getSignalTwoTierState, isSignalFired, isSignalArmed, DEFAULT_RADAR_ADVANCED_FILTERS } from '../types';
 import { parseSystemDate } from '../utils/time';
-import { getCoinSector, getCoinMarketCapInfo, getSectorBadgeConfig, getMarketCapBadgeConfig } from '../utils/sectors';
+import { getCoinSector, getCoinMarketCapInfo, getSectorBadgeConfig, getMarketCapBadgeConfig, getMarketCapSourceLabel } from '../utils/sectors';
 import { RadarFilterDrawer } from './RadarFilterDrawer';
 import {
   Clock, TrendingDown, Send, Copy, Check, Volume2, AlertOctagon, X,
@@ -758,7 +758,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                             const sector = getCoinSector(sig.symbol);
                             const sectorCfg = getSectorBadgeConfig(sector, language);
                             const capInfo = getCoinMarketCapInfo(sig.symbol, sig);
-                            const capCfg = getMarketCapBadgeConfig(capInfo.market_cap_tier, capInfo.market_cap_str, language);
+                            const capCfg = getMarketCapBadgeConfig(capInfo.market_cap_tier, capInfo.market_cap_str, language, capInfo.market_cap_is_estimate);
 
                             return (
                               <div className="space-y-1">
@@ -784,7 +784,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                                     <span>{sectorCfg.icon}</span>
                                     <span>{sectorCfg.label}</span>
                                   </span>
-                                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border flex items-center gap-1 ${capCfg.className}`} title={`Market Cap: ${capInfo.market_cap_str}`}>
+                                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border flex items-center gap-1 ${capCfg.className}`} title={`Market Cap: ${capInfo.market_cap_str} · Source: ${getMarketCapSourceLabel(capInfo.market_cap_source, language)}`}>
                                     <span>{capCfg.icon}</span>
                                     <span>{capCfg.label}</span>
                                   </span>
@@ -1004,7 +1004,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                           const inspSector = getCoinSector(activeInspectedSignal.symbol);
                           const inspSectorCfg = getSectorBadgeConfig(inspSector, language);
                           const inspCapInfo = getCoinMarketCapInfo(activeInspectedSignal.symbol, activeInspectedSignal);
-                          const inspCapCfg = getMarketCapBadgeConfig(inspCapInfo.market_cap_tier, inspCapInfo.market_cap_str, language);
+                          const inspCapCfg = getMarketCapBadgeConfig(inspCapInfo.market_cap_tier, inspCapInfo.market_cap_str, language, inspCapInfo.market_cap_is_estimate);
 
                           return (
                             <div>
@@ -1289,7 +1289,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                         const gridSector = getCoinSector(sig.symbol);
                         const gridSectorCfg = getSectorBadgeConfig(gridSector, language);
                         const gridCapInfo = getCoinMarketCapInfo(sig.symbol, sig);
-                        const gridCapCfg = getMarketCapBadgeConfig(gridCapInfo.market_cap_tier, gridCapInfo.market_cap_str, language);
+                        const gridCapCfg = getMarketCapBadgeConfig(gridCapInfo.market_cap_tier, gridCapInfo.market_cap_str, language, gridCapInfo.market_cap_is_estimate);
 
                         return (
                           <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
@@ -1311,7 +1311,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                                 <span>{gridSectorCfg.icon}</span>
                                 <span>{gridSectorCfg.label}</span>
                               </span>
-                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border flex items-center gap-1 ${gridCapCfg.className}`} title={`Vốn hóa: ${gridCapInfo.market_cap_str}`}>
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border flex items-center gap-1 ${gridCapCfg.className}`} title={`Vốn hóa: ${gridCapInfo.market_cap_str} · Nguồn: ${getMarketCapSourceLabel(gridCapInfo.market_cap_source, language)}`}>
                                 <span>{gridCapCfg.icon}</span>
                                 <span>{gridCapCfg.label}</span>
                               </span>

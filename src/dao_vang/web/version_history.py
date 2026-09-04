@@ -54,7 +54,7 @@ MILESTONES = [
         "highlights": [
             "24/7 Automated scanner daemon with Telegram cycle digests",
             "Multi-coin scanner with dynamic volatility filter",
-            "Candidate Filter V2 promoted to champion production lane",
+            "Candidate Filter V1 production lane with V2 shadow comparison",
             "Forward-test evaluation and model validation harness",
         ],
     },

@@ -29,6 +29,7 @@ import { AiShapAccordion } from './DecisionCenter/AiShapAccordion';
 import { AiExecutiveBriefing } from './DecisionCenter/AiExecutiveBriefing';
 import { CoinLink } from './CoinLink';
 import { formatSystemTime, parseSystemDate } from '../utils/time';
+import { getCoinMarketCapInfo, getMarketCapBadgeConfig, getMarketCapSourceLabel } from '../utils/sectors';
 import { useTranslation } from '../i18n/LanguageContext';
 import {
   getRiskLabel,
@@ -172,6 +173,14 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const challengerMetrics = challengerVersion
     ? comparisonReport?.metrics?.[challengerVersion]
     : undefined;
+  const versionShortLabel = (version?: string) => {
+    const normalized = (version || '').toLowerCase();
+    if (normalized.includes('v2')) return 'V2';
+    if (normalized.includes('v1')) return 'V1';
+    return version || 'Chưa xác định';
+  };
+  const championLabel = versionShortLabel(championVersion);
+  const challengerLabel = versionShortLabel(challengerVersion);
   const [isAbSectionExpanded, setIsAbSectionExpanded] = useState(false);
   const metricPercent = (value: number | null | undefined) => (
     value == null 
@@ -215,8 +224,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     const champVer = (candidateComparison?.champion_version || '').toLowerCase();
     const challVer = (candidateComparison?.challenger_version || '').toLowerCase();
 
-    // Dynamically check whether champion is v2 or v1 (live daemon has champion=pump_filter_v1, challenger=candidate_filter_v2)
-    const isChampV2 = champVer.includes('v2') || (!challVer.includes('v2') && !champVer.includes('v1'));
+    // The API arrays are always keyed by their actual champion/challenger
+    // roles.  Translate them to stable V1/V2 views without relabelling the
+    // production role as a particular version.
+    const isChampV2 = champVer.includes('v2')
+      || (!champVer.includes('v1') && !challVer.includes('v1'));
 
     const rawChamp = candidateComparison?.selected?.champion ?? [];
     const rawChall = candidateComparison?.selected?.challenger ?? [];
@@ -244,15 +256,56 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     return {
       v2,
       v1,
-      champion: v2, // Keep alias pointing to V2
-      challenger: v1, // Keep alias pointing to V1
+      champion: rawChamp,
+      challenger: rawChall,
       overlap: rawOverlap,
-      champion_only: v2Only, // V2 Unique Discoveries
-      challenger_only: v1Only, // V1 Only
+      champion_only: rawChampOnly,
+      challenger_only: rawChallOnly,
       v2_only: v2Only,
       v1_only: v1Only,
+      isChampionV2: isChampV2,
     };
   }, [candidateComparison]);
+
+  const isChampionV2 = comparisonSelections.isChampionV2;
+  const v2Version = isChampionV2 ? championVersion : challengerVersion;
+  const v1Version = isChampionV2 ? challengerVersion : championVersion;
+  const v2Metrics = v2Version ? comparisonReport?.metrics?.[v2Version] : undefined;
+  const v1Metrics = v1Version ? comparisonReport?.metrics?.[v1Version] : undefined;
+  const championSelectedCount = candidateComparison?.champion_selected ?? comparisonSelections.champion.length;
+  const challengerSelectedCount = candidateComparison?.challenger_selected ?? comparisonSelections.challenger.length;
+  const v2SelectedCount = isChampionV2 ? championSelectedCount : challengerSelectedCount;
+  const v1SelectedCount = isChampionV2 ? challengerSelectedCount : championSelectedCount;
+  const championOnlyCount = candidateComparison?.champion_only ?? comparisonSelections.champion_only.length;
+  const challengerOnlyCount = candidateComparison?.challenger_only ?? comparisonSelections.challenger_only.length;
+  const v2OnlyCount = isChampionV2 ? championOnlyCount : challengerOnlyCount;
+  const overlapCount = candidateComparison?.overlap ?? comparisonSelections.overlap.length;
+
+  const v2MinusV1Delta = (delta: { point: number | null; ci_lower: number | null; ci_upper: number | null } | undefined) => {
+    if (!delta || isChampionV2) return delta
+      ? {
+          point: delta.point == null ? null : -delta.point,
+          ci_lower: delta.ci_upper == null ? null : -delta.ci_upper,
+          ci_upper: delta.ci_lower == null ? null : -delta.ci_lower,
+        }
+      : undefined;
+    return delta;
+  };
+  const versionAdvantage = (
+    v2Value: number | null | undefined,
+    v1Value: number | null | undefined,
+    lowerIsBetter = false,
+  ) => {
+    if (v2Value == null || v1Value == null) return t('badge_insufficient_data');
+    if (v2Value === v1Value) return language === 'en' ? 'Tie' : language === 'zh' ? '持平' : language === 'ko' ? '동률' : 'Ngang nhau';
+    const v2Wins = lowerIsBetter ? v2Value < v1Value : v2Value > v1Value;
+    const winner = v2Wins ? 'V2' : 'V1';
+    return language === 'en' ? `${winner} better` : language === 'zh' ? `${winner} 更优` : language === 'ko' ? `${winner} 우위` : `${winner} tốt hơn`;
+  };
+  const officialRoleLabel = language === 'en' ? 'Official' : language === 'zh' ? '主版本' : language === 'ko' ? '주 버전' : 'Bản chính';
+  const challengerRoleLabel = language === 'en' ? 'Challenger' : language === 'zh' ? '对照版' : language === 'ko' ? '대조 버전' : 'Bản đối chiếu';
+  const v2RoleLabel = isChampionV2 ? officialRoleLabel : challengerRoleLabel;
+  const v1RoleLabel = isChampionV2 ? challengerRoleLabel : officialRoleLabel;
 
 
   const filteredCandidates = useMemo(() => {
@@ -260,11 +313,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       return candidates;
     }
     if (candidateFilterSegment === 'V2_CHAMPION') {
-      const v2Symbols = new Set(comparisonSelections.champion.map((c) => c.symbol));
-      return v2Symbols.size > 0 ? candidates.filter((c) => v2Symbols.has(c.symbol)) : candidates;
+      const v2Symbols = new Set(comparisonSelections.v2.map((c) => c.symbol));
+      return v2Symbols.size > 0 ? candidates.filter((c) => v2Symbols.has(c.symbol)) : [];
     }
     if (candidateFilterSegment === 'V1_CHALLENGER') {
-      const v1Symbols = new Set(comparisonSelections.challenger.map((c) => c.symbol));
+      const v1Symbols = new Set(comparisonSelections.v1.map((c) => c.symbol));
       return candidates.filter((c) => v1Symbols.has(c.symbol));
     }
     if (candidateFilterSegment === 'OVERLAP') {
@@ -272,7 +325,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       return candidates.filter((c) => overlapSymbols.has(c.symbol));
     }
     if (candidateFilterSegment === 'V2_UNIQUE') {
-      const v2UniqueSymbols = new Set(comparisonSelections.champion_only.map((c) => c.symbol));
+      const v2UniqueSymbols = new Set(comparisonSelections.v2_only.map((c) => c.symbol));
       return candidates.filter((c) => v2UniqueSymbols.has(c.symbol));
     }
     return candidates;
@@ -349,6 +402,12 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         return {
           symbol: selectedSignal.symbol,
           name: selectedSignal.name || selectedSignal.symbol,
+          market_cap_usd: selectedSignal.market_cap_usd,
+          market_cap_str: selectedSignal.market_cap_str,
+          market_cap_tier: selectedSignal.market_cap_tier,
+          market_cap_source: selectedSignal.market_cap_source,
+          market_cap_is_estimate: selectedSignal.market_cap_is_estimate,
+          market_cap_updated_at: selectedSignal.market_cap_updated_at,
           current_price: selectedSignal.signal_price,
           chart_source: 'api',
           probability: selectedSignal.probability * 100,
@@ -373,6 +432,12 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         return {
           symbol: c.symbol,
           name: c.symbol,
+          market_cap_usd: c.market_cap_usd,
+          market_cap_str: c.market_cap_str,
+          market_cap_tier: c.market_cap_tier,
+          market_cap_source: c.market_cap_source,
+          market_cap_is_estimate: c.market_cap_is_estimate,
+          market_cap_updated_at: c.market_cap_updated_at,
           current_price: c.price,
           chart_source: 'api',
           probability: c.score || 0,
@@ -412,6 +477,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       },
     };
   }, [coinDetail, selectedSignal, candidates]);
+
+  const displayMarketCap = useMemo(
+    () => (displayDetail ? getCoinMarketCapInfo(displayDetail.symbol, displayDetail) : null),
+    [displayDetail],
+  );
 
   const decisionContainerRef = useRef<HTMLDivElement>(null);
 
@@ -810,6 +880,62 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     />
                   )}
 
+                  {/* Market-cap context: show both size and data provenance. */}
+                  {displayMarketCap && (
+                    (() => {
+                      const marketCapBadge = getMarketCapBadgeConfig(
+                        displayMarketCap.market_cap_tier,
+                        displayMarketCap.market_cap_str,
+                        language,
+                        displayMarketCap.market_cap_is_estimate,
+                      );
+                      const marketCapSourceLabel = getMarketCapSourceLabel(displayMarketCap.market_cap_source, language);
+                      return (
+                        <div
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-800/50 bg-gradient-to-r from-blue-950/40 via-slate-950/80 to-slate-950 p-3"
+                          title={`${t('metric_market_cap', 'Market Cap')}: ${displayMarketCap.market_cap_str} · ${marketCapSourceLabel}`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-700/50 bg-blue-900/40 text-lg">
+                              📊
+                            </span>
+                            <div className="min-w-0">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                {t('metric_market_cap', 'Market Cap')}
+                              </div>
+                              <div className="font-mono text-lg font-black text-blue-300">
+                                {displayMarketCap.market_cap_is_estimate ? '≈' : ''}{displayMarketCap.market_cap_str}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2.5 text-right">
+                            <div>
+                              <div className="text-[9px] uppercase tracking-wider text-slate-500">
+                                {t('market_cap_size', 'Size')}
+                              </div>
+                              <div className="flex items-center justify-end gap-1 text-xs font-black text-slate-200">
+                                <span>{marketCapBadge.icon}</span>
+                                <span>{displayMarketCap.market_cap_tier}</span>
+                              </div>
+                            </div>
+                            <div className="border-l border-slate-800 pl-2.5">
+                              <div className="text-[9px] uppercase tracking-wider text-slate-500">
+                                {displayMarketCap.market_cap_is_estimate
+                                  ? t('market_cap_estimated', 'Estimated')
+                                  : t('market_cap_source_binance_agent_os', 'Source: Binance Agent OS')}
+                              </div>
+                              <div className="text-[10px] font-mono text-slate-400">
+                                {displayMarketCap.market_cap_is_estimate
+                                  ? marketCapSourceLabel
+                                  : 'Binance Agent OS'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
+
                   {/* Metrics grid — 6 cols */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 [&>div]:min-w-0">
                     <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
@@ -944,7 +1070,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <h3 className="text-xs font-bold text-slate-200 flex items-center gap-2 uppercase tracking-wider">
                     <span>{t('ranking_title_full') || 'Bảng Xếp Hạng Top Coin Xả'}</span>
                     <span className="rounded-full bg-violet-950 border border-violet-700/80 px-2 py-0.2 text-[9px] font-bold text-violet-300">
-                      V2 Champion
+                      {language === 'en' ? `${championLabel} Official` : language === 'zh' ? `${championLabel} 主版本` : language === 'ko' ? `${championLabel} 주 버전` : `${championLabel} Bản chính`}
                     </span>
                   </h3>
                   <p className="text-[11px] text-slate-400">
@@ -1005,7 +1131,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 </span>
               </button>
 
-              {/* V2 Champion */}
+              {/* V2 lane (role is resolved from the live comparison payload) */}
               <button
                 type="button"
                 onClick={() => setCandidateFilterSegment('V2_CHAMPION')}
@@ -1015,13 +1141,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     : 'bg-slate-900 text-violet-400/80 hover:text-violet-200 border border-slate-800'
                 }`}
               >
-                <span>👑 {t('ranking_filter_v2_champion')}</span>
+                <span>👑 V2 ({v2RoleLabel})</span>
                 <span className="rounded bg-violet-900/60 px-1.5 py-0.2 text-[9px] font-mono font-bold text-violet-300">
-                  {comparisonSelections.champion.length || candidates.length}
+                  {v2SelectedCount}
                 </span>
               </button>
 
-              {/* V1 Challenger */}
+              {/* V1 lane (role is resolved from the live comparison payload) */}
               <button
                 type="button"
                 onClick={() => setCandidateFilterSegment('V1_CHALLENGER')}
@@ -1031,9 +1157,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     : 'bg-slate-900 text-amber-400/80 hover:text-amber-200 border border-slate-800'
                 }`}
               >
-                <span>📊 {t('ranking_filter_v1_baseline')}</span>
+                <span>📊 V1 ({v1RoleLabel})</span>
                 <span className="rounded bg-amber-900/60 px-1.5 py-0.2 text-[9px] font-mono text-amber-300">
-                  {comparisonSelections.challenger.length}
+                  {v1SelectedCount}
                 </span>
               </button>
 
@@ -1065,7 +1191,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               >
                 <span>💡 {t('ranking_filter_v2_early')}</span>
                 <span className="rounded bg-cyan-900/60 px-1.5 py-0.2 text-[9px] font-mono text-cyan-300">
-                  {comparisonSelections.champion_only.length}
+                  {v2OnlyCount}
                 </span>
               </button>
             </div>
@@ -1101,9 +1227,16 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   )}
                   {filteredCandidates.map((c, i) => {
                     const isOverlap = comparisonSelections.overlap.some((item) => item.symbol === c.symbol);
-                    const isV2Only = comparisonSelections.champion_only.some((item) => item.symbol === c.symbol);
-                    const isV1Only = comparisonSelections.challenger_only.some((item) => item.symbol === c.symbol);
-                    const isV2Selected = comparisonSelections.champion.some((item) => item.symbol === c.symbol);
+                    const isV2Only = comparisonSelections.v2_only.some((item) => item.symbol === c.symbol);
+                    const isV1Only = comparisonSelections.v1_only.some((item) => item.symbol === c.symbol);
+                    const isV2Selected = comparisonSelections.v2.some((item) => item.symbol === c.symbol);
+                    const candidateCapInfo = getCoinMarketCapInfo(c.symbol, c);
+                    const candidateCapBadge = getMarketCapBadgeConfig(
+                      candidateCapInfo.market_cap_tier,
+                      candidateCapInfo.market_cap_str,
+                      language,
+                      candidateCapInfo.market_cap_is_estimate,
+                    );
                     const stageName = isOverlap
                       ? t('cand_badge_overlap')
                       : isV2Only
@@ -1123,6 +1256,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                             onClick={() => onSelectCandidate(c.symbol)}
                             className="text-xs group-hover:text-amber-300 font-bold"
                           />
+                          <span
+                            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold ${candidateCapBadge.className}`}
+                            title={`${t('metric_market_cap', 'Market Cap')}: ${candidateCapInfo.market_cap_str} · ${getMarketCapSourceLabel(candidateCapInfo.market_cap_source, language)}`}
+                          >
+                            <span>{candidateCapBadge.icon}</span>
+                            <span>{candidateCapBadge.label}</span>
+                          </span>
                         </td>
                         <td className="p-2.5">
                           <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold ${
@@ -1210,13 +1350,21 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 </div>
                 <div>
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-                    <span>{language === 'zh' ? 'A/B 测试对照与 V2 验收进度' : language === 'ko' ? 'A/B 테스트 대조 및 V2 검증' : 'Đối Soát A/B Test & Tiến Độ Nghiệm Thu V2'}</span>
-                    <span className="text-[10px] text-violet-300 font-mono">Champion V2 vs Challenger V1</span>
+                    <span>{language === 'zh' ? 'A/B 测试对照与升级评估进度' : language === 'ko' ? 'A/B 테스트 대조 및 승격 평가' : language === 'en' ? 'A/B Comparison & Promotion Readiness' : 'Đối soát A/B & Tiến độ đánh giá thăng hạng'}</span>
+                    <span className="text-[10px] text-violet-300 font-mono">
+                      {language === 'en'
+                        ? `Official: ${championLabel} vs Challenger: ${challengerLabel}`
+                        : language === 'zh'
+                        ? `主版本: ${championLabel} vs 对照版: ${challengerLabel}`
+                        : language === 'ko'
+                        ? `주 버전: ${championLabel} vs 대조 버전: ${challengerLabel}`
+                        : `Bản chính: ${championLabel} vs Bản đối chiếu: ${challengerLabel}`}
+                    </span>
                   </h4>
                   <p className="text-[10px] text-slate-400">
                     {isAbSectionExpanded
-                      ? (language === 'zh' ? '点击折叠 A/B 测试详情与进度条' : language === 'ko' ? 'A/B 테스트 상세 접기' : 'Theo dõi chi tiết 3 tiêu chuẩn định lượng để nghiệm thu và gỡ bỏ hoàn toàn V1.')
-                      : (language === 'zh' ? '点击展开 3 条验收进度条、完工倒计时与 V2 vs V1 对决战报' : language === 'ko' ? 'A/B 검증 진행률 및 맞대결 스코어카드 열기' : 'Bấm để mở chi tiết 3 thanh tiến độ kiểm định, đếm ngược ngày hoàn tất và bảng đối đầu chỉ số.')}
+                      ? (language === 'zh' ? '点击折叠 A/B 测试详情与进度条' : language === 'ko' ? 'A/B 테스트 상세 접기' : language === 'en' ? 'Inspect the three quantitative gates before any manual promotion.' : 'Theo dõi 3 tiêu chí định lượng trước khi xem xét thăng hạng thủ công.')
+                      : (language === 'zh' ? '点击展开 3 条评估进度条、完成预测与 V2 vs V1 对照' : language === 'ko' ? 'A/B 검증 진행률 및 맞대결 스코어카드 열기' : language === 'en' ? 'Open the three evaluation gates and V2 vs V1 comparison.' : 'Bấm để mở 3 tiêu chí đánh giá và bảng đối chiếu V2 với V1.')}
                   </p>
                 </div>
               </div>
@@ -1241,34 +1389,34 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               </div>
               <div className="rounded-lg border border-violet-800/60 bg-violet-950/20 p-2 text-center">
                 <div className="text-[9px] uppercase text-violet-400 font-bold">{t('ranking_v2_selected_label')}</div>
-                <div className="text-base font-bold text-violet-300 mt-0.5">{candidateComparison?.champion_selected ?? 30}</div>
+                <div className="text-base font-bold text-violet-300 mt-0.5">{v2SelectedCount}</div>
               </div>
               <div className="rounded-lg border border-amber-800/60 bg-amber-950/20 p-2 text-center">
                 <div className="text-[9px] uppercase text-amber-400 font-bold">{t('ranking_v1_selected_label')}</div>
-                <div className="text-base font-bold text-amber-300 mt-0.5">{candidateComparison?.challenger_selected ?? 10}</div>
+                <div className="text-base font-bold text-amber-300 mt-0.5">{v1SelectedCount}</div>
               </div>
               <div className="rounded-lg border border-emerald-800/60 bg-emerald-950/20 p-2 text-center">
                 <div className="text-[9px] uppercase text-emerald-400 font-bold">{t('ranking_both_selected_label')}</div>
-                <div className="text-base font-bold text-emerald-300 mt-0.5">{candidateComparison?.overlap ?? 9}</div>
+                <div className="text-base font-bold text-emerald-300 mt-0.5">{overlapCount}</div>
               </div>
               <div className="rounded-lg border border-cyan-800/60 bg-cyan-950/20 p-2 text-center">
                 <div className="text-[9px] uppercase text-cyan-400 font-bold">{t('ranking_v2_discoveries_label')}</div>
-                <div className="text-base font-bold text-cyan-300 mt-0.5">{candidateComparison?.champion_only ?? 21}</div>
+                <div className="text-base font-bold text-cyan-300 mt-0.5">{v2OnlyCount}</div>
               </div>
               <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2 text-center">
                 <div className="text-[9px] uppercase text-slate-400">{t('ranking_both_excluded_label')}</div>
-                <div className="text-base font-bold text-slate-400 mt-0.5">{candidateComparison?.neither ?? 119}</div>
+                <div className="text-base font-bold text-slate-400 mt-0.5">{candidateComparison?.neither ?? 0}</div>
               </div>
             </div>
             {/* TIẾN ĐỘ THỬ NGHIỆM ĐỐI SOÁT A/B & DỰ KIẾN HOÀN TẤT */}
             {(() => {
               const comp = candidateComparison?.comparison;
               const promo = comp?.promotion;
-              const evalDays = comp?.evaluation_days ?? 1.33;
+              const evalDays = comp?.evaluation_days ?? 0;
               const minDays = promo?.min_evaluation_days ?? 14;
-              const posEvents = promo?.positive_events ?? 9;
+              const posEvents = promo?.positive_events ?? 0;
               const minEvents = promo?.min_positive_events ?? 50;
-              const resolvedCount = championMetrics?.resolved ?? challengerMetrics?.resolved ?? 217;
+              const resolvedCount = championMetrics?.resolved ?? challengerMetrics?.resolved ?? 0;
               const minResolved = promo?.min_resolved ?? 200;
 
               const daysPct = Math.min(100, Math.round((evalDays / minDays) * 100));
@@ -1276,7 +1424,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               const resolvedPct = Math.min(100, Math.round((resolvedCount / minResolved) * 100));
               const overallPct = Math.round((daysPct + eventsPct + resolvedPct) / 3);
               const daysRemaining = Math.max(1, Math.ceil(minDays - evalDays));
-              const isReady = Boolean(promo?.passed && daysPct >= 100 && eventsPct >= 100 && resolvedPct >= 100);
+              const isReadyForReview = Boolean(promo?.passed && daysPct >= 100 && eventsPct >= 100 && resolvedPct >= 100);
               return (
                 <div className="mt-3 rounded-lg border border-violet-900/60 bg-gradient-to-r from-slate-950 via-violet-950/20 to-slate-950 p-3 shadow-md">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
@@ -1293,18 +1441,20 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         </h4>
                         <p className="text-[10px] text-slate-400">
                           {language === 'zh'
-                            ? '实时追踪模型淘汰/升级准则，达到 100% 后即可安全彻底移除 V1'
+                            ? `实时追踪 ${challengerLabel} 的升格准则；达到 100% 后仍需人工批准`
                             : language === 'ko'
-                            ? 'V1 완전 제거를 위한 정량 승격 기준 실시간 추적'
-                            : 'Theo dõi 3 tiêu chí định lượng bắt buộc để nghiệm thu và gỡ bỏ hoàn toàn V1'}
+                            ? `${challengerLabel} 승격 기준을 추적하며 100% 달성 후에도 수동 승인이 필요합니다.`
+                            : language === 'en'
+                            ? `Track ${challengerLabel} promotion gates; 100% still requires manual approval.`
+                            : `Theo dõi tiêu chí thăng hạng của ${challengerLabel}; đạt 100% vẫn phải được duyệt thủ công.`}
                         </p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      {isReady ? (
+                      {isReadyForReview ? (
                         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/60 bg-emerald-950/80 px-2.5 py-1 text-[10px] font-bold text-emerald-300 shadow-sm">
                           <CheckCircle2 className="h-3 w-3" />
-                          {language === 'zh' ? '✅ 已达标: 可以移除 V1' : language === 'ko' ? '✅ 달성: V1 제거 가능' : '✅ ĐÃ ĐỦ ĐIỀU KIỆN GỠ BỎ V1'}
+                          {language === 'zh' ? '✅ 已达标: 等待人工批准' : language === 'ko' ? '✅ 달성: 수동 승인 대기' : language === 'en' ? '✅ Gates met: manual approval required' : '✅ Đã đạt tiêu chí: chờ duyệt thủ công'}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/50 bg-amber-950/70 px-2.5 py-1 text-[10px] font-bold text-amber-300 shadow-sm">
@@ -1392,7 +1542,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="mb-2 flex items-center justify-between border-b border-slate-800 pb-1.5">
                   <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-200">
                     <Award className="h-3.5 w-3.5 text-violet-400" />
-                    <span>{language === 'zh' ? '对决战报: V2 冠军模型 vs V1 基准模型' : language === 'ko' ? '맞대결 스코어카드: V2 챔피언 vs V1 베이스라인' : t('h2h_scorecard_title')}</span>
+                    <span>
+                      {language === 'en'
+                        ? `Head-to-Head: V2 vs V1 (${championLabel} official)`
+                        : language === 'zh'
+                        ? `对决战报: V2 vs V1（${championLabel} 主版本）`
+                        : language === 'ko'
+                        ? `맞대결: V2 vs V1 (${championLabel} 주 버전)`
+                        : `Đối chiếu: V2 và V1 (${championLabel} là bản chính)`}
+                    </span>
                   </div>
                   <span className="text-[10px] text-violet-300 font-mono">
                     Δ V2 − V1 (95% CI Bootstrap)
@@ -1404,7 +1562,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     <thead>
                       <tr className="border-b border-slate-800/80 text-[10px] uppercase text-slate-400 font-mono">
                         <th className="pb-1.5 font-semibold">{language === 'zh' ? '评估指标' : language === 'ko' ? '평가 지표' : t('h2h_col_metric')}</th>
-                        <th className="pb-1.5 font-semibold text-violet-400">V2 (Quant 👑)</th>
+                        <th className="pb-1.5 font-semibold text-violet-400">V2 (Quant)</th>
                         <th className="pb-1.5 font-semibold text-amber-400">V1 (Pump)</th>
                         <th className="pb-1.5 font-semibold text-cyan-300">{t('cand_diff_delta')}</th>
                         <th className="pb-1.5 text-right font-semibold">{language === 'zh' ? '优势' : language === 'ko' ? '우위 평가' : t('h2h_col_advantage')}</th>
@@ -1417,16 +1575,16 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           {language === 'zh' ? 'Top 10 精准率 (P@10)' : language === 'ko' ? '상위 10개 정밀도 (P@10)' : t('h2h_p10_label')}
                         </td>
                         <td className="py-1.5 font-mono font-bold text-violet-300">
-                          {metricPercent(championMetrics?.precision_at_10 ?? 0.712)}
+                          {metricPercent(v2Metrics?.precision_at_10)}
                         </td>
                         <td className="py-1.5 font-mono font-bold text-amber-300">
-                          {metricPercent(challengerMetrics?.precision_at_10 ?? 0.601)}
+                          {metricPercent(v1Metrics?.precision_at_10)}
                         </td>
                         <td className="py-1.5 font-mono font-bold text-emerald-400">
-                          {deltaWithCi(comparisonReport?.paired_deltas?.precision_at_10 ?? { point: 0.111, ci_lower: 0.032, ci_upper: 0.190 })}
+                          {deltaWithCi(v2MinusV1Delta(comparisonReport?.paired_deltas?.precision_at_10))}
                         </td>
                         <td className="py-1.5 text-right font-semibold text-emerald-400">
-                          🟢 V2 +18.5%
+                          {versionAdvantage(v2Metrics?.precision_at_10, v1Metrics?.precision_at_10)}
                         </td>
                       </tr>
 
@@ -1436,16 +1594,16 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           {language === 'zh' ? '暴跌捕获率 (Event Recall)' : language === 'ko' ? '급락 포착률 (Event Recall)' : t('h2h_recall_label')}
                         </td>
                         <td className="py-1.5 font-mono font-bold text-violet-300">
-                          {metricPercent(championMetrics?.event_recall ?? 0.648)}
+                          {metricPercent(v2Metrics?.event_recall)}
                         </td>
                         <td className="py-1.5 font-mono font-bold text-amber-300">
-                          {metricPercent(challengerMetrics?.event_recall ?? 0.584)}
+                          {metricPercent(v1Metrics?.event_recall)}
                         </td>
                         <td className="py-1.5 font-mono font-bold text-emerald-400">
-                          {deltaWithCi(comparisonReport?.paired_deltas?.event_recall ?? { point: 0.064, ci_lower: 0.012, ci_upper: 0.116 })}
+                          {deltaWithCi(v2MinusV1Delta(comparisonReport?.paired_deltas?.event_recall))}
                         </td>
                         <td className="py-1.5 text-right font-semibold text-emerald-400">
-                          🟢 V2 bắt nhiều hơn
+                          {versionAdvantage(v2Metrics?.event_recall, v1Metrics?.event_recall)}
                         </td>
                       </tr>
 
@@ -1455,16 +1613,18 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           {language === 'zh' ? '每日误报候选数' : language === 'ko' ? '일일 오경보 후보 수' : t('h2h_false_alarm_label')}
                         </td>
                         <td className="py-1.5 font-mono text-violet-300 font-bold">
-                          {championMetrics?.false_candidates_per_day?.toFixed(1) ?? '2.2'} coin/d
+                          {v2Metrics?.false_candidates_per_day == null ? t('badge_insufficient_data') : `${v2Metrics.false_candidates_per_day.toFixed(1)} coin/d`}
                         </td>
                         <td className="py-1.5 font-mono text-amber-300">
-                          {challengerMetrics?.false_candidates_per_day?.toFixed(1) ?? '3.1'} coin/d
+                          {v1Metrics?.false_candidates_per_day == null ? t('badge_insufficient_data') : `${v1Metrics.false_candidates_per_day.toFixed(1)} coin/d`}
                         </td>
                         <td className="py-1.5 font-mono font-bold text-emerald-400">
-                          -0.9 coin/d (-29%)
+                          {v2Metrics?.false_candidates_per_day == null || v1Metrics?.false_candidates_per_day == null
+                            ? t('badge_insufficient_data')
+                            : `${(v2Metrics.false_candidates_per_day - v1Metrics.false_candidates_per_day) >= 0 ? '+' : ''}${(v2Metrics.false_candidates_per_day - v1Metrics.false_candidates_per_day).toFixed(1)} coin/d`}
                         </td>
                         <td className="py-1.5 text-right font-semibold text-emerald-400">
-                          🟢 V2 ít nhiễu hơn
+                          {versionAdvantage(v2Metrics?.false_candidates_per_day, v1Metrics?.false_candidates_per_day, true)}
                         </td>
                       </tr>
 
@@ -1474,16 +1634,22 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           {t('exp_median_lead_time')}
                         </td>
                         <td className="py-1.5 font-mono text-violet-300 font-bold">
-                          10.5h (630m)
+                          {v2Metrics?.median_lead_time_minutes == null
+                            ? t('badge_insufficient_data')
+                            : `${(v2Metrics.median_lead_time_minutes / 60).toFixed(1)}h (${v2Metrics.median_lead_time_minutes.toFixed(0)}m)`}
                         </td>
                         <td className="py-1.5 font-mono text-amber-300">
-                          9.8h (588m)
+                          {v1Metrics?.median_lead_time_minutes == null
+                            ? t('badge_insufficient_data')
+                            : `${(v1Metrics.median_lead_time_minutes / 60).toFixed(1)}h (${v1Metrics.median_lead_time_minutes.toFixed(0)}m)`}
                         </td>
                         <td className="py-1.5 font-mono font-bold text-emerald-400">
-                          +42 phút
+                          {v2Metrics?.median_lead_time_minutes == null || v1Metrics?.median_lead_time_minutes == null
+                            ? t('badge_insufficient_data')
+                            : `${(v2Metrics.median_lead_time_minutes - v1Metrics.median_lead_time_minutes) >= 0 ? '+' : ''}${(v2Metrics.median_lead_time_minutes - v1Metrics.median_lead_time_minutes).toFixed(0)} phút`}
                         </td>
                         <td className="py-1.5 text-right font-semibold text-emerald-400">
-                          🟢 V2 cảnh báo sớm hơn
+                          {versionAdvantage(v2Metrics?.median_lead_time_minutes, v1Metrics?.median_lead_time_minutes)}
                         </td>
                       </tr>
                     </tbody>
@@ -1497,7 +1663,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <div className="mb-2 flex items-center justify-between border-b border-slate-800 pb-1.5">
                     <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-200">
                       <Target className="h-3.5 w-3.5 text-violet-400" />
-                      <span>{language === 'zh' ? '运行状态: V2 冠军版' : language === 'ko' ? '운영 상태: V2 챔피언' : t('candidate_operating_status_title')}</span>
+                      <span>
+                        {language === 'en'
+                          ? `Operating Status: ${championLabel} Official`
+                          : language === 'zh'
+                          ? `运行状态: ${championLabel} 主版本`
+                          : language === 'ko'
+                          ? `운영 상태: ${championLabel} 주 버전`
+                          : `Trạng thái: ${championLabel} Bản chính`}
+                      </span>
                     </div>
                     <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
                       <CheckCircle2 className="h-3 w-3" />
@@ -1509,19 +1683,31 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <div className="space-y-2 text-[10px]">
                     <div className="rounded border border-violet-900/60 bg-violet-950/30 p-2 text-violet-200">
                       <div className="font-bold text-violet-300 flex items-center gap-1">
-                        <span>{t('cand_v2_quant_desc')}</span>
+                        <span>👑 {championLabel} ({officialRoleLabel})</span>
                       </div>
                       <p className="mt-0.5 text-slate-300">
-                        {t('candidate_v2_operational_desc')}
+                        {language === 'en'
+                          ? 'This configured production lane drives candidate ranking and Telegram decisions.'
+                          : language === 'zh'
+                          ? '该配置的主版本负责候选排名和 Telegram 决策。'
+                          : language === 'ko'
+                          ? '현재 구성된 주 버전이 후보 순위와 텔레그램 결정을 담당합니다.'
+                          : 'Phiên bản được cấu hình làm bản chính điều phối xếp hạng ứng viên và quyết định gửi Telegram.'}
                       </p>
                     </div>
 
                     <div className="rounded border border-amber-900/60 bg-amber-950/20 p-2 text-amber-200">
                       <div className="font-bold text-amber-300 flex items-center gap-1">
-                        <span>📊 V1 Pump Baseline (A/B Test):</span>
+                        <span>📊 {challengerLabel} ({challengerRoleLabel})</span>
                       </div>
                       <p className="mt-0.5 text-slate-300">
-                        {t('candidate_v1_shadow_desc')}
+                        {language === 'en'
+                          ? 'Runs for paired evaluation only; it does not send Telegram alerts or replace the official lane automatically.'
+                          : language === 'zh'
+                          ? '仅用于配对评估；不会发送 Telegram 警报，也不会自动替换主版本。'
+                          : language === 'ko'
+                          ? '대조 평가용으로만 실행되며 텔레그램을 발송하거나 자동으로 주 버전을 교체하지 않습니다.'
+                          : 'Chỉ chạy để đối soát song song; không tự gửi Telegram và không tự động thay thế bản chính.'}
                       </p>
                     </div>
 
@@ -1540,7 +1726,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="mt-2.5 rounded-md border border-violet-900/60 bg-violet-950/30 p-2 text-[10px] leading-relaxed text-violet-200">
                   <div className="font-bold flex items-center gap-1 text-violet-300">
                     <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                    <span>{language === 'zh' ? '实盘总结: V2 准确率领先 +18.5%' : language === 'ko' ? '실서버 요약: V2 정확도 +18.5% 우위' : t('candidate_conclusion_title')}</span>
+                    <span>
+                      {language === 'zh'
+                        ? `运行总结: ${championLabel} 为主版本`
+                        : language === 'ko'
+                        ? `실행 요약: ${championLabel} 주 버전`
+                        : language === 'en'
+                        ? `Production Summary: ${championLabel} Official`
+                        : `Tổng kết vận hành: ${championLabel} là bản chính`}
+                    </span>
                   </div>
                   <p className="mt-0.5 text-slate-300">
                     {t('candidate_conclusion_desc')}

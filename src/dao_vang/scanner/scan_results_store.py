@@ -403,6 +403,23 @@ class ScanResultStore:
         with self._conn() as conn:
             return int(conn.execute(f"SELECT count(*) FROM predictions WHERE {where}", params).fetchone()[0])
 
+    def get_prediction_telegram_counts_by_symbol(self, hours: int = 24) -> dict[str, int]:
+        """Count successful Telegram deliveries per symbol in a recent window."""
+
+        cutoff = system_now() - timedelta(hours=max(0, int(hours)))
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT symbol, count(*)
+                FROM predictions
+                WHERE created_at >= ?
+                  AND telegram_sent = TRUE
+                GROUP BY symbol
+                """,
+                [cutoff],
+            ).fetchall()
+        return {str(symbol).upper(): int(count) for symbol, count in rows}
+
     def prediction(self, prediction_id: str) -> dict[str, Any] | None:
         with self._conn() as conn:
             row = conn.execute(

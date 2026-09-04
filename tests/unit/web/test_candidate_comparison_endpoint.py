@@ -22,8 +22,8 @@ def test_candidate_filter_comparison_endpoint_serves_fallback(monkeypatch, tmp_p
 
     assert data["available"] is False
     assert "enabled" in data
-    assert data["champion_version"] == "candidate_filter_v2"
-    assert data["challenger_version"] == "pump_filter_v1"
+    assert data["champion_version"] == "pump_filter_v1"
+    assert data["challenger_version"] == "candidate_filter_v2"
 
 
 def test_candidate_filter_comparison_endpoint_serves_existing_snapshot(monkeypatch, tmp_path) -> None:

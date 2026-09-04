@@ -10,6 +10,17 @@ web:
   # Link mở thẳng trang phân tích của coin trong Telegram.
   public_url: https://daovang.comaygiauco.com
 
+coingecko:
+  # Optional Binance-vs-CoinGecko price cross-reference only.
+  enabled: false
+
+binance_agent_os:
+  # Standard market-cap source for token size classification.
+  enabled: true
+  timeout_seconds: 10
+  cache_minutes: 15
+  chain_ids: "1,56,8453,CT_501"
+
 collection:
   # Keep network workers bounded so collector responses do not accumulate in
   # memory while DuckDB is rebuilding the derived tables.
@@ -30,38 +41,49 @@ scanner:
   cooldown_minutes: 120
   telegram_cooldown_minutes: 120
   alert_levels: ["CAO", "TRUNG BÌNH"]
-  frozen_model_id: frozen_20260811_082824_96df7ec9
+  frozen_model_id: frozen_20260829_024243_8f0d32ea
   db_path: data_live/live.duckdb
   artifact_dir: artifacts
   watchlist_path: data_live/watchlist.json
   kill_switch_path: data_live/scanner_kill_switch.json
   rollback_state_path: data_live/scanner_rollback.json
   health_report_path: data_live/scanner_health.json
-  threshold_policy_version: "1.0"
+  threshold_policy_version: "frozen_threshold_v1"
   max_heartbeat_age_minutes: 15
   history_days: 30
   # Shadow Telegram delivery: respects cooldown, probability threshold, and volume gates.
   shadow_telegram_enabled: true
-  # Only send signals with calibrated probability strictly above 75%.
-  telegram_min_probability: 0.75
+  # The new frozen bundle's calibrated probabilities are in the 0.20–0.30
+  # range.  Rank inside this validated threshold; do not present it as a
+  # literal 75% win-rate guarantee.
+  telegram_min_probability: 0.20
   # Minimum 24h volume for Telegram alerts (avoids low liquidity spam).
   telegram_min_volume_usd: 500000
   # Only send high confidence signals to avoid weak signal noise.
-  telegram_tiers: ["HIGH_CONFIDENCE"]
-  # Send 1 clean digest message per cycle when multiple coins are detected.
+  # Prefer HIGH_CONFIDENCE; allow the strongest WATCH candidates as a
+  # labelled fallback so the rolling target of 5 can be reached when the
+  # market offers fewer high-confidence setups.  Probability/evidence gates
+  # and the hard daily cap still apply.
+  telegram_tiers: ["HIGH_CONFIDENCE", "WATCH"]
+  # Send a small ranked digest per cycle when multiple coins are detected.
   telegram_digest_mode: true
-  global_daily_alert_limit: 15
-  coin_daily_alert_limit: 2
+  global_daily_alert_limit: 18
+  coin_daily_alert_limit: 1
+  telegram_daily_target_min: 12
+  telegram_max_per_cycle: 3
   max_feature_age_minutes: 10
   min_data_quality_score: 0.8
   scan_mode: gainers
-  min_price_change_pct: 5.0
+  # Broaden discovery to catch distribution setups that are developing before
+  # a 5% 24h move; downstream model/evidence/liquidity gates remain strict.
+  min_price_change_pct: 3.0
   include_btc: true
   exclude_stablecoins: true
-  # Meta-labeling: HistGradientBoosting filter rejects weak signals from
-  # the primary model.  "active" blocks alerts; "shadow" only logs decisions.
-  enable_meta_labeling: "active"
-  meta_model_path: "data/artifacts/meta_model.joblib"
+  # Meta-labeling stays off until a real, checksum-pinned artifact is present
+  # on the live mount.  An absent model must not be reported as an active
+  # quality filter.
+  enable_meta_labeling: "disabled"
+  meta_model_path: null
   meta_model_min_confidence: 0.5
   # Regime Gate: filter signals to only fire during validated market regimes
   regime_gate_enabled: true
@@ -104,3 +126,9 @@ candidate_comparison:
 
 scoring:
   alert_score_threshold: 40.0
+
+threshold:
+  version: frozen_threshold_v1
+  high_confidence_min_prob: 0.20
+  watch_min_prob: 0.15
+  high_confidence_min_evidence_groups: 2
