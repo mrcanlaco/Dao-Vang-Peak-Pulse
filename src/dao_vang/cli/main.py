@@ -24,7 +24,6 @@ from dao_vang.experiments.forward_test import (
     freeze_model,
     list_frozen_models,
 )
-
 from dao_vang.experiments.self_learning import run_self_learning
 from dao_vang.features.builder import build_features
 from dao_vang.labels.engine_v1 import DistributionLabelEngineV1
@@ -691,7 +690,10 @@ def backtest_run(
     output_db: str = typer.Option("artifacts/backtest_results.duckdb", "--output-db", help="Output DuckDB file"),
 ) -> None:
     """Run full historical backtest pipeline using Quant-trading Data Lake."""
-    from dao_vang.experiments.backtest_runner import BacktestRunConfig, FullBacktestRunner
+    from dao_vang.experiments.backtest_runner import (
+        BacktestRunConfig,
+        FullBacktestRunner,
+    )
 
     sym_list = [s.strip().upper() for s in symbols.split(",")] if symbols else None
     master_db = Path(data_dir) / "quant_master.duckdb"

@@ -43,6 +43,11 @@ import pandas as pd  # type: ignore[reportMissingTypeStubs]
 
 from dao_vang.alerts.store import AlertRecord, AlertStore
 from dao_vang.alerts.telegram import TelegramNotifier, _coin_url
+from dao_vang.alpha_lab.meta_labeling import MetaLabelingModel
+from dao_vang.alpha_lab.regime_classifier import (
+    RegimeState,
+    get_current_regime,
+)
 from dao_vang.config.settings import AppSettings
 from dao_vang.data.collectors.binance_client import BinanceClient
 from dao_vang.data.collectors.coingecko import cross_reference
@@ -67,8 +72,6 @@ from dao_vang.domain.time import (
 from dao_vang.experiments.forward_test import load_frozen_model
 from dao_vang.experiments.self_learning import run_self_learning
 from dao_vang.features.builder import build_features
-from dao_vang.alpha_lab.meta_labeling import MetaLabelingModel
-from dao_vang.alpha_lab.regime_classifier import RegimeState, MarketRegime, get_current_regime
 from dao_vang.logging import get_logger
 from dao_vang.scanner.anomalies import AnomalyReport, detect_market_anomalies
 from dao_vang.scanner.candidate_filter_comparison import (

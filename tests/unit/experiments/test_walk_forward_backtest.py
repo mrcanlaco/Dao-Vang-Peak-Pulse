@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from dao_vang.experiments.walk_forward_backtest import (
     compute_backtest_metrics,

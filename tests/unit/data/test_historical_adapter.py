@@ -1,6 +1,11 @@
-import pytest
 from pathlib import Path
-from dao_vang.data.historical_adapter import HistoricalDataAdapter, DEFAULT_MASTER_DUCKDB
+
+import pytest
+
+from dao_vang.data.historical_adapter import (
+    DEFAULT_MASTER_DUCKDB,
+    HistoricalDataAdapter,
+)
 
 
 def test_historical_adapter_summary():

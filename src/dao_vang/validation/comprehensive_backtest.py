@@ -14,10 +14,9 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict
 
 import duckdb
 import lightgbm as lgb
@@ -26,10 +25,12 @@ import pandas as pd
 from sklearn.impute import SimpleImputer
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import brier_score_loss, precision_score, recall_score
+from sklearn.metrics import precision_score, recall_score
 
 from dao_vang.alpha_lab.regime_classifier import classify_market_regimes
-from dao_vang.data.historical_adapter import DEFAULT_DATA_LAKE_PATH, DEFAULT_MASTER_DUCKDB
+from dao_vang.data.historical_adapter import (
+    DEFAULT_MASTER_DUCKDB,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +198,7 @@ def run_comprehensive_validation(
 
 
     # Only evaluate & train on candidate conditions to match operational inference
-    df = df[df["is_exhaustion_candidate"] == True]
+    df = df[df["is_exhaustion_candidate"]]
     # Only require core price features + label (LightGBM handles NaN for derivatives natively)
     core_required = ["return_5m", "volatility_5m", "return_1h", "return_4h", "return_24h", "label"]
     df = df.dropna(subset=core_required).sort_values("feature_time").reset_index(drop=True)
@@ -313,7 +314,7 @@ def run_comprehensive_validation(
     df["_regime"] = df["feature_time"].map(regime_map).fillna("SIDEWAY_DISTRIBUTION")
 
     # Retrain final model on last fold for regime evaluation
-    last_fold_idx = max(0, len(folds_result) - 1)
+    _ = max(0, len(folds_result) - 1)
     last_train_end = int(len(df) * 0.8)
     regime_train = df.iloc[:last_train_end]
     regime_test = df.iloc[last_train_end + embargo_bars:]

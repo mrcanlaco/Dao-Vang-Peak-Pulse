@@ -1,10 +1,20 @@
+import logging
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import duckdb
 import numpy as np
 import pandas as pd
 from pydantic import BaseModel
 from sklearn.impute import SimpleImputer
+from sklearn.isotonic import IsotonicRegression
+from sklearn.metrics import brier_score_loss, precision_score
 
+from dao_vang.experiments.forward_test import freeze_model
+from dao_vang.experiments.models import get_lightgbm
+from dao_vang.experiments.walk_forward import _precision_first_threshold, embargo_split
+
+logger = logging.getLogger(__name__)
 
 class ExperimentConfig(BaseModel):
     """
@@ -640,23 +650,6 @@ def _data_quality_report(df: Any) -> Dict[str, Any]:
         }
 
     return report
-import logging
-from pathlib import Path
-from typing import Optional, Dict, Any
-import numpy as np
-import pandas as pd
-import duckdb
-from sklearn.impute import SimpleImputer
-import lightgbm as lgb
-from sklearn.isotonic import IsotonicRegression
-from sklearn.metrics import brier_score_loss, precision_score
-
-from dao_vang.experiments.models import get_lightgbm
-from dao_vang.experiments.walk_forward import embargo_split, _precision_first_threshold
-from dao_vang.experiments.forward_test import freeze_model
-
-logger = logging.getLogger(__name__)
-
 def _compute_ece(y_true: np.ndarray, y_prob: np.ndarray, n_bins: int = 10) -> float:
     bins = np.linspace(0., 1., n_bins + 1)
     binids = np.digitize(y_prob, bins) - 1
@@ -698,7 +691,7 @@ def train_lgbm_experiment(horizon_hours: int = 24, data_dir: Optional[Path] = No
     finally:
         try:
             conn.close()
-        except:
+        except Exception:
             pass
 
     if df.empty or 'is_distribution' not in df.columns:
@@ -813,7 +806,7 @@ def train_lgbm_experiment(horizon_hours: int = 24, data_dir: Optional[Path] = No
         precision = precision_score(y_test, y_pred, zero_division=0)
         try:
             brier = float(brier_score_loss(y_test, y_prob))
-        except:
+        except Exception:
             brier = 0.0
             
         ece = _compute_ece(y_test, y_prob)

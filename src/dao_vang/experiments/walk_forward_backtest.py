@@ -7,10 +7,8 @@ a multi-week live shadow period.
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -148,7 +146,7 @@ def compute_backtest_metrics(
 
     tp = int(np.sum((preds) & (labels_arr == 1)))
     fp = int(np.sum((preds) & (labels_arr == 0)))
-    fn = int(np.sum((~preds) & (labels_arr == 1)))
+    _ = int(np.sum((~preds) & (labels_arr == 1)))
     tn = int(np.sum((~preds) & (labels_arr == 0)))
 
     precision = tp / n_signals if n_signals > 0 else 0.0
