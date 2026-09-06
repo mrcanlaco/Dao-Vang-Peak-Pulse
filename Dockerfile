@@ -29,6 +29,7 @@ COPY src/ ./src/
 COPY configs/ ./configs/
 COPY scripts/ ./scripts/
 COPY tests/ ./tests/
+COPY docs/ ./docs/
 
 RUN uv sync --frozen
 
@@ -49,6 +50,7 @@ COPY --from=builder /app/src /app/src
 COPY --from=builder /app/configs /app/configs
 COPY --from=builder /app/scripts /app/scripts
 COPY --from=builder /app/pyproject.toml /app/uv.lock ./
+COPY --from=builder /app/docs /app/docs
 
 # Copy frontend dist vào frontend/dist (api_server.py serve từ đây)
 COPY --from=frontend /frontend/dist /app/frontend/dist
