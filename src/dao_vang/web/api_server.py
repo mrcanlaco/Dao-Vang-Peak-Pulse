@@ -4465,6 +4465,20 @@ class APIHandler(BaseHTTPRequestHandler):
             reports: list[dict[str, Any]] = []
 
             metadata_map = {
+                "06_chien_dich_ban_tia_49_7": {
+                    "id": "06_chien_dich_ban_tia_49_7",
+                    "code": "RES-2026-0906-01",
+                    "title": "Kỷ nguyên Bắn tỉa V3.2: Khai phá Phân kỳ Cá Mập & Cú sốc ROI 302%",
+                    "title_en": "Sniper Era V3.2: Whale Divergence & 302% ROI Breakthrough",
+                    "date": "2026-09-06",
+                    "category": "QUANT_REPORT",
+                    "tags": ["SMART_MONEY", "BACKTEST", "PROFIT_FACTOR"],
+                    "key_metric": "Precision 49.7% | Winrate 49.09% | ROI 302%",
+                    "sample_size": "Out-of-sample (Fold 5)",
+                    "badge": "Siêu phẩm",
+                    "badge_color": "rose",
+                    "abstract": "Hành trình mổ xẻ lỗi rò rỉ dữ liệu, giải quyết nút thắt Cartesian Explosion và tích hợp Phân kỳ Dòng tiền Cá mập. Bản Backtest thực chiến đòn bẩy x5 chốt hạ mức lợi nhuận điên rồ +302%.",
+                },
                 "01_so_sanh_heuristic_vs_machine_learning": {
                     "id": "01_so_sanh_heuristic_vs_machine_learning",
                     "code": "RES-2026-0830-01",
