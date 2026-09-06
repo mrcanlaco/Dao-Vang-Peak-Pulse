@@ -341,7 +341,21 @@ class UpdaterConfig(BaseModel):
     auto_deploy_remote: bool = Field(default=False)
 
 
+class ExecutionConfig(BaseModel):
+    """Configuration for isolated auto-trading ExecutionEngine."""
+    enabled: bool = Field(default=False)
+    paper_trading: bool = Field(default=True, description="Strictly True for Testnet. Live API keys are prohibited until validated.")
+    base_url: HttpUrl = HttpUrl("https://testnet.binancefuture.com")
+    api_key: str | None = Field(default=None, exclude=True)
+    api_secret: str | None = Field(default=None, exclude=True)
+    max_position_usd: float = Field(default=100.0, ge=10.0, description="Max absolute USD size per trade")
+    max_open_positions: int = Field(default=3, ge=1)
+    stop_loss_pct: float = Field(default=0.05, ge=0.01, le=0.5, description="5% default stop loss")
+    take_profit_pct: float = Field(default=0.10, ge=0.01, le=1.0, description="10% default take profit")
+
+
 class AiConfig(BaseModel):
+
     provider: str = Field(default="openai", description="Default LLM provider (openai, gemini, claude, deepseek, ollama)")
     api_key: str | None = Field(default=None, exclude=True, description="Default API key for AI analyst")
     model_id: str = Field(default="antigravity/gemini-3.7-flash-tiered", description="Default model ID")
@@ -358,16 +372,15 @@ class AppSettings(BaseSettings):
     paths: PathsConfig = PathsConfig()
     telegram: TelegramConfig = TelegramConfig()
     scanner: ScannerConfig = ScannerConfig()
+    scoring: ScoringConfig = ScoringConfig()
     self_learning: SelfLearningConfig = SelfLearningConfig()
     pump_filter: PumpFilterConfig = PumpFilterConfig()
     market_anomalies: MarketAnomalyConfig = MarketAnomalyConfig()
     candidate_comparison: CandidateComparisonConfig = CandidateComparisonConfig()
     threshold: ThresholdPolicy = ThresholdPolicy()
-    scoring: ScoringConfig = ScoringConfig()
-
-    coingecko: CoinGeckoConfig = CoinGeckoConfig()
     binance_agent_os: BinanceAgentOSConfig = BinanceAgentOSConfig()
-
+    execution: ExecutionConfig = ExecutionConfig()
+    coingecko: CoinGeckoConfig = CoinGeckoConfig()
     api_key: str | None = Field(default=None, exclude=True)
     api_secret: str | None = Field(default=None, exclude=True)
 

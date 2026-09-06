@@ -25,7 +25,8 @@ def test_build_features():
             1000 - i * 10 AS sell_volume,
             1.0 AS buy_sell_ratio,
             1.5 + i * 0.01 AS global_long_short_ratio,
-            1.0 + i * 0.01 AS top_long_short_ratio
+            1.0 + i * 0.01 AS top_long_short_ratio,
+            1.0 + i * 0.01 AS top_long_short_position_ratio
         FROM range(100) tbl(i)
         """
     )
