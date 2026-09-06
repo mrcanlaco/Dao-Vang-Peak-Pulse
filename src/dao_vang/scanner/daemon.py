@@ -633,7 +633,8 @@ class ScannerDaemon:
         now = datetime.now(timezone.utc)
         start_dt = now - timedelta(days=self._scanner_cfg.history_days)
         closed_candle_end = _last_closed_5m_end(now)
-        self._collect_all(score_symbols, start_dt, closed_candle_end)
+        symbols_to_collect = list(set(score_symbols + ["BTCUSDT"]))
+        self._collect_all(symbols_to_collect, start_dt, closed_candle_end)
         pipeline_changed = self._normalize_and_timeline()
 
         # 2b. Resolve legacy alert hits when possible. Full prediction-outcome
