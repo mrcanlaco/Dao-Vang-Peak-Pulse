@@ -98,7 +98,7 @@
           }
         });
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js?v=20260826_03').then((reg) => {
+          navigator.serviceWorker.register('/sw.js?v=20260906_01').then((reg) => {
             reg.update();
           }).catch(err => console.warn('[PWA] SW registration failed:', err));
         });
