@@ -99,3 +99,4 @@ dao_vang_docs*
 .DS_Store
 Thumbs.db
 desktop.ini
+configs/live.yaml
