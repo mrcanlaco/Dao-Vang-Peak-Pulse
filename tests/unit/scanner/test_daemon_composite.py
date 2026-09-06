@@ -143,3 +143,15 @@ def test_score_and_alert_composite_executes_without_name_errors():
             collect_for_digest=False,
         )
         assert sent_res in (0, 1)
+
+def test_collection_symbols_helper_preserves_order_and_adds_btc():
+    from dao_vang.scanner.daemon import _collection_symbols
+    
+    # Test 1: BTC absent, duplicates present
+    assert _collection_symbols(["ETH", "SOL", "ETH"]) == ["ETH", "SOL", "BTCUSDT"]
+    
+    # Test 2: BTC already present in middle
+    assert _collection_symbols(["ETH", "BTCUSDT", "SOL", "ETH"]) == ["ETH", "BTCUSDT", "SOL"]
+    
+    # Test 3: Empty list
+    assert _collection_symbols([]) == ["BTCUSDT"]

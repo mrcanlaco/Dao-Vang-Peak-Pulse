@@ -199,6 +199,11 @@ def _mode_allows_tier(mode: str, tier: str, alert_levels: list[str]) -> bool:
     return bool(configured.intersection(aliases.get(tier, set())))
 
 
+def _collection_symbols(score_symbols: list[str]) -> list[str]:
+    """Deduplicate symbols while preserving order and ensuring BTCUSDT is present."""
+    return list(dict.fromkeys(score_symbols + ["BTCUSDT"]))
+
+
 class ScannerDaemon:
     """24/7 scanner loop using a frozen model + Telegram alerts.
 
@@ -633,7 +638,7 @@ class ScannerDaemon:
         now = datetime.now(timezone.utc)
         start_dt = now - timedelta(days=self._scanner_cfg.history_days)
         closed_candle_end = _last_closed_5m_end(now)
-        symbols_to_collect = list(set(score_symbols + ["BTCUSDT"]))
+        symbols_to_collect = _collection_symbols(score_symbols)
         self._collect_all(symbols_to_collect, start_dt, closed_candle_end)
         pipeline_changed = self._normalize_and_timeline()
 
