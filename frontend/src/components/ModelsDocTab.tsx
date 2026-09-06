@@ -424,6 +424,19 @@ export const ModelsDocTab: React.FC = () => {
               </div>
             </div>
 
+                <div className="bg-slate-950 p-3 rounded border border-slate-800/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-semibold text-rose-400">V3.1 Sniper Target (Bản nâng cấp)</span>
+                    <span className="text-[9px] px-1.5 py-0.5 bg-rose-900/30 rounded text-rose-400">frozen_inference.py</span>
+                  </div>
+                  <p className="text-slate-400 mb-2">Đột phá Precision với chiến lược Bắn Tỉa (Sniper):</p>
+                  <ul className="list-disc pl-4 space-y-1 text-slate-300">
+                    <li><span className="text-rose-300">Zero Leakage</span> Sửa lỗi rò rỉ Threshold và nhân chéo dữ liệu đa khung giờ.</li>
+                    <li><span className="text-rose-300">Macro Context</span> Thêm btc_volatility_24h và funding_accumulated_7d.</li>
+                    <li><span className="text-rose-300">Pre-filter</span> Gác cổng tự động loại bỏ các coin có biên độ bơm &lt;10%/24h.</li>
+                    <li><span className="text-rose-300">Recall=0.05</span> Ép giới hạn tỷ lệ hú còi để tối đa hóa độ chính xác (&gt;36%).</li>
+                  </ul>
+                </div>
             {/* Section 2: Models Đang Dùng */}
             <div className="bg-slate-900 border border-slate-800 rounded-lg p-4">
               <div className="flex items-center space-x-2 mb-4">
@@ -443,8 +456,8 @@ export const ModelsDocTab: React.FC = () => {
                   <tbody className="divide-y divide-slate-800/50">
                     <tr className="text-slate-300">
                       <td className="py-2"><span className="text-amber-400 font-medium">Champion</span></td>
-                      <td className="py-2">LogisticRegression (25 features)</td>
-                      <td className="py-2 font-mono text-cyan-300">27.84% (Mega-Cap)</td>
+                      <td className="py-2">LightGBM V3.1 (35 features)</td>
+                      <td className="py-2 font-mono text-cyan-300">36.60% (Sniper)</td>
                       <td className="py-2"><span className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-900/50">Active</span></td>
                     </tr>
                     <tr className="text-slate-300">
