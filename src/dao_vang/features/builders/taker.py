@@ -41,11 +41,29 @@ PRICE_FLOW_DIVERGENCE_1H = FeatureDefinition(
     missing_policy="fill_zero",
 )
 
+TAKER_SELL_SPIKE_15M = FeatureDefinition(
+    id="taker_sell_spike_15m",
+    version="1.0",
+    description="Ratio of 15m Taker Sell Volume to the 4h average Taker Sell Volume. High = Whale Dumping.",
+    lookback_minutes=240,
+    missing_policy="fill_zero",
+)
+
+TAKER_BUY_SPIKE_15M = FeatureDefinition(
+    id="taker_buy_spike_15m",
+    version="1.0",
+    description="Ratio of 15m Taker Buy Volume to the 4h average Taker Buy Volume. High at peak = Retail FOMO trap.",
+    lookback_minutes=240,
+    missing_policy="fill_zero",
+)
+
 registry.register_feature(TAKER_BUY_RATIO)
 registry.register_feature(TAKER_BUY_RATIO_TREND_1H)
 registry.register_feature(TAKER_BUY_RATIO_TREND_4H)
 registry.register_feature(TAKER_BUY_RATIO_CHANGE_1H)
 registry.register_feature(PRICE_FLOW_DIVERGENCE_1H)
+registry.register_feature(TAKER_SELL_SPIKE_15M)
+registry.register_feature(TAKER_BUY_SPIKE_15M)
 
 
 def build_taker_features_sql(source_table: str) -> str:
@@ -82,11 +100,16 @@ def build_taker_features_sql(source_table: str) -> str:
             
             -- Divergence (price return * buy dominance)
             -- if price goes up (+) but buy_ratio is low (- dominance), divergence is negative
-            price_ret_1h * (avg(raw_buy_ratio) OVER w_12 - 0.5) AS {PRICE_FLOW_DIVERGENCE_1H.id}
+            price_ret_1h * (avg(raw_buy_ratio) OVER w_12 - 0.5) AS {PRICE_FLOW_DIVERGENCE_1H.id},
+            
+            -- Volume Spikes
+            (sum(sell_volume) OVER w_3) / NULLIF(avg(sell_volume) OVER w_48, 0) AS {TAKER_SELL_SPIKE_15M.id},
+            (sum(buy_volume) OVER w_3) / NULLIF(avg(buy_volume) OVER w_48, 0) AS {TAKER_BUY_SPIKE_15M.id},
             
         FROM taker_base
         WINDOW 
             w_all AS (PARTITION BY symbol ORDER BY feature_time),
+            w_3 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 2 PRECEDING AND CURRENT ROW),
             w_12 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 11 PRECEDING AND CURRENT ROW),
             w_48 AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 47 PRECEDING AND CURRENT ROW)
     )

@@ -3,8 +3,8 @@
 ## What this project does
 
 Cryptocurrency futures short-signal radar. Scans 150+ Binance USD-M futures every 5 minutes,
-scores distribution risk (0–100), and delivers alerts via Telegram + React dashboard.
-**No auto-trading.** Analytical radar only.
+scores distribution risk (0–100), delivers alerts via Telegram + React dashboard,
+and optionally executes trades via an isolated Execution Engine (Testnet paper-trading first).
 
 ---
 
@@ -19,6 +19,7 @@ Binance REST
   → DistributionScorer (composite 0-100)
   → Quality gate (>= 70% calibrated probability)
   → Telegram alerts + REST API + React UI
+  → [Optional] ExecutionEngine (Auto-trading, Testnet-first)
 ```
 
 ### Key module map
@@ -38,6 +39,7 @@ Binance REST
 | `src/dao_vang/scanner/anomalies.py` | Independent anomaly radar (0-100) |
 | `src/dao_vang/scanner/outcomes.py` | Empirical precision/PnL tracking |
 | `src/dao_vang/alerts/telegram.py` | Telegram delivery + dedup |
+| `src/dao_vang/execution/` | Isolated Auto-Trading Execution Engine |
 | `src/dao_vang/web/api_server.py` | ThreadingHTTPServer REST API |
 | `src/dao_vang/validation/` | Walk-forward splitter, leakage auditor |
 | `src/dao_vang/experiments/` | Training runner, forward test, self-learning |
@@ -119,6 +121,11 @@ cd frontend && npm ci && npm run build
 
 ### 5. Candidate comparison challenger — audit only
 - The challenger in `candidate_comparison` logs outcomes only. It must never trigger Telegram sends.
+
+### 6. Auto-trading safety — isolated execution
+- `ScannerDaemon` must **never** execute trades directly. It only produces `alertable = True` signals.
+- `ExecutionEngine` runs as a completely decoupled component, reading signals from the database or via webhook.
+- **Paper-trading first:** Auto-trading must strictly use `paper_trading=True` on Binance Testnet before any live deployment. Live API keys are prohibited until paper trading logic is fully validated.
 
 ---
 

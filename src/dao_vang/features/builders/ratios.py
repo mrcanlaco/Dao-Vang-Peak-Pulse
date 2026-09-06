@@ -41,11 +41,38 @@ SPREAD_TREND_4H = FeatureDefinition(
     missing_policy="fill_zero",
 )
 
+TOP_POS_RATIO = FeatureDefinition(
+    id="top_pos_ratio",
+    version="1.0",
+    description="Top trader long/short position (money) ratio",
+    lookback_minutes=0,
+    missing_policy="fill_mean",
+)
+
+SMART_MONEY_DIVERGENCE = FeatureDefinition(
+    id="smart_money_divergence",
+    version="1.0",
+    description="Spread between Retail Accounts (Global LS) and Whale Money (Top Position LS). High = Retail Long, Whales Short = Dump impending.",
+    lookback_minutes=0,
+    missing_policy="fill_zero",
+)
+
+SMART_MONEY_TREND_4H = FeatureDefinition(
+    id="smart_money_trend_4h",
+    version="1.0",
+    description="Moving average of Smart Money Divergence over 4 hours",
+    lookback_minutes=240,
+    missing_policy="fill_zero",
+)
+
 registry.register_feature(GLOBAL_LS_RATIO)
 registry.register_feature(TOP_LS_RATIO)
 registry.register_feature(RETAIL_TOP_SPREAD)
 registry.register_feature(SPREAD_TREND_1H)
 registry.register_feature(SPREAD_TREND_4H)
+registry.register_feature(TOP_POS_RATIO)
+registry.register_feature(SMART_MONEY_DIVERGENCE)
+registry.register_feature(SMART_MONEY_TREND_4H)
 
 
 def build_ratio_features_sql(source_table: str) -> str:
@@ -58,7 +85,8 @@ def build_ratio_features_sql(source_table: str) -> str:
         SELECT
             *,
             COALESCE(global_long_short_ratio, 1.0) AS global_ls,
-            COALESCE(top_long_short_ratio, 1.0) AS top_ls
+            COALESCE(top_long_short_ratio, 1.0) AS top_ls,
+            COALESCE(top_long_short_position_ratio, top_long_short_ratio, 1.0) AS top_pos_ls
         FROM {source_table}
     ),
     ratios_features AS (
@@ -76,7 +104,12 @@ def build_ratio_features_sql(source_table: str) -> str:
             avg(global_ls - top_ls) OVER w_12 AS {SPREAD_TREND_1H.id},
             
             -- Spread Trend 4h (48 periods)
-            avg(global_ls - top_ls) OVER w_48 AS {SPREAD_TREND_4H.id}
+            avg(global_ls - top_ls) OVER w_48 AS {SPREAD_TREND_4H.id},
+
+            -- Whale Money Features
+            top_pos_ls AS {TOP_POS_RATIO.id},
+            global_ls - top_pos_ls AS {SMART_MONEY_DIVERGENCE.id},
+            avg(global_ls - top_pos_ls) OVER w_48 AS {SMART_MONEY_TREND_4H.id}
             
         FROM ratios_base
         WINDOW 

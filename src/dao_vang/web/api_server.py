@@ -1984,6 +1984,9 @@ class APIHandler(BaseHTTPRequestHandler):
         self._set_headers(200)
         self.wfile.write(json.dumps(res, default=str).encode('utf-8'))
 
+    def get_watchlist_presets(self):
+        self._set_headers(200)
+        self.wfile.write(json.dumps({"presets": []}).encode("utf-8"))
     def get_watchlist(self):
         manual = load_manual_watchlist(WATCHLIST_PATH)
         scan_modes = _current_scan_modes()
@@ -3542,6 +3545,7 @@ class APIHandler(BaseHTTPRequestHandler):
             "top_gainers": [_ticker_entry(t) for t in gainers],
             "top_losers": [_ticker_entry(t) for t in losers],
         }
+        self._set_headers(200)
         self.wfile.write(json.dumps(res, default=str).encode('utf-8'))
 
     def get_alpha_lab_regime(self):
@@ -4579,7 +4583,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "total_count": len(reports),
                 "last_updated": datetime.now(timezone.utc).isoformat(),
             }, ensure_ascii=False).encode("utf-8")
-            self._set_headers(200, content_type="application/json; charset=utf-8", content_length=len(body))
+            self._set_headers(200, content_type="application/json; charset=utf-8", content_length=len(body), cache_control="no-cache, no-store, must-revalidate")
             self.wfile.write(body)
         except Exception as exc:
             logger.error("get_research_reports_failed error=%s", exc)
@@ -4611,7 +4615,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "file_name": target_file.name,
                 "file_size_bytes": len(content.encode("utf-8")),
             }, ensure_ascii=False).encode("utf-8")
-            self._set_headers(200, content_type="application/json; charset=utf-8", content_length=len(body))
+            self._set_headers(200, content_type="application/json; charset=utf-8", content_length=len(body), cache_control="no-cache, no-store, must-revalidate")
             self.wfile.write(body)
         except Exception as exc:
             logger.error("get_research_report_detail_failed error=%s", exc)

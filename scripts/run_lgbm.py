@@ -193,10 +193,8 @@ def train_lgbm_experiment(horizon_hours: int = 24, data_dir: Optional[Path] = No
         if precision > best_precision and ece <= 0.05:
             best_precision = precision
             # Full model fit
-            model = get_lightgbm()
-            model.fit(X_train_arr, y_train)
-            best_model = model # Need to store Pipeline? Yes, wait.
-            # Create pipeline to keep imputer
+            # Không học lại toàn bộ dữ liệu để tránh lệch pha Calibrator!
+            # Lấy luôn Pipeline có chứa Imputer và Model đã học trên 80% dữ liệu.
             from sklearn.pipeline import Pipeline
             best_model = Pipeline([('imputer', imputer), ('estimator', model)])
             best_calibrator = calibrator

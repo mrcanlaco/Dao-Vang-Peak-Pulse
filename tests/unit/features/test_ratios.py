@@ -11,7 +11,8 @@ def test_build_ratio_features():
             feature_time TIMESTAMP,
             symbol VARCHAR,
             global_long_short_ratio DOUBLE,
-            top_long_short_ratio DOUBLE
+            top_long_short_ratio DOUBLE,
+            top_long_short_position_ratio DOUBLE
         )
         """
     )
@@ -21,7 +22,7 @@ def test_build_ratio_features():
         gls = 1.5 + i * 0.01
         tls = 1.0 + i * 0.01
         db.execute(
-            f"INSERT INTO raw_timeline VALUES (epoch_ms({i * 300000}), 'BTCUSDT', {gls}, {tls})"
+            f"INSERT INTO raw_timeline VALUES (epoch_ms({i * 300000}), 'BTCUSDT', {gls}, {tls}, {tls})"
         )
 
     sql = build_ratio_features_sql("raw_timeline")
