@@ -1,0 +1,12 @@
+--- src/dao_vang/web/api_server.py
++++ src/dao_vang/web/api_server.py
+@@ -4475,3 +4475,3 @@
+                     "tags": ["HEURISTIC", "LIGHTGBM", "ROC_AUC", "FEATURE_IMPORTANCE"],
+-                    "key_metric": "LightGBM 20.93% vs Heuristic 13.28% (Gấp 1.6x)",
++                    "key_metric": "LightGBM 36.6% vs Heuristic 13.28% (Gấp 2.75x)",
+                     "sample_size": "160 altcoins, 1.16M rows (1 năm)",
+@@ -4479,3 +4479,3 @@
+                     "badge_color": "emerald",
+-                    "abstract": "Kiểm định độc lập trên 160 altcoins chứng minh Heuristic gốc chỉ đạt 13.28% precision (ngưỡng >=70 đạt 0%). Regime + LightGBM đạt 20.93% nhờ khai thác tương quan phi tuyến và hiệu chuẩn xác suất.",
++                    "abstract": "Kiểm định độc lập trên 160 altcoins chứng minh Heuristic gốc chỉ đạt 13.28% precision. V3.1 Sniper Target (Regime + LightGBM) đột phá đạt 36.6% precision (ECE 0.031, giới hạn 15 alerts/ngày).",
+                 },

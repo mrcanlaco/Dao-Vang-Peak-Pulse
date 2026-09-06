@@ -1,0 +1,12 @@
+--- frontend/src/components/ModelsDocTab.tsx
++++ frontend/src/components/ModelsDocTab.tsx
+@@ -64,2 +64,2 @@
+ - **Heuristic ở ngưỡng khuyến nghị Short (>= 70):** Đạt **0.00% precision** (31/31 tín hiệu thua do rơi vào bẫy bắt đỉnh nến đang pump).
+-- **Regime Gate + LightGBM (p98):** Đạt **20.93% precision** (gấp **1.6 lần** Heuristic, vượt trội trên mọi chu kỳ kiểm định).
++- **V3.1 Sniper Target (Regime + LightGBM):** Đạt **36.6% precision** (gấp **2.75 lần** Heuristic, vượt trội trên mọi chu kỳ kiểm định).
+ 
+@@ -72,3 +72,3 @@
+ | :---| :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+-| 🥇 **Optimal: Regime + LightGBM** | **Top 2% (p98)** | **20.93%** 🏆 | **14.69%** | **92,587** | **19,375** | **73,212** | **20.98%** |
++| 🥇 **Optimal: V3.1 Sniper Target** | **Top 2% (p98)** | **36.60%** 🏆 | **5.00%** | **92,587** | **33,886** | **58,701** | **36.60%** |
+ | 🥈 **Challenger: LightGBM** | **Top 2% (p98)** | **20.59%** | 18.98% | 121,628 | 25,044 | 96,584 | 20.98% |

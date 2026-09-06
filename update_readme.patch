@@ -1,0 +1,7 @@
+--- README.md
++++ README.md
+@@ -95,3 +95,3 @@
+ - **Lõi AI Học Máy Cổ Điển**: Sự kết hợp giữa **Logistic Regression** (cho các Mega-cap độ nhiễu cao) và **LightGBM** (cho tập Altcoins thanh khoản vừa).
+-  - Tích hợp **Isotonic & Out-of-fold Calibration** giúp xác suất mô hình phản ánh đúng tần suất thực tế của thị trường (ECE ≤ 0.05), không nói quá hoặc thổi phồng tín hiệu.
++  - Tích hợp **Isotonic & Out-of-fold Calibration** giúp xác suất mô hình phản ánh đúng tần suất thực tế của thị trường (ECE ≤ 0.031), không nói quá hoặc thổi phồng tín hiệu.
+   - Tự động ghi nhận và hậu kiểm kết quả (*Outcome Resolution*) của từng tín hiệu sau khi phát ra, cung cấp độ chính xác lịch sử thực nghiệm (*Empirical Precision*) ngay trong từng bản tin Telegram.

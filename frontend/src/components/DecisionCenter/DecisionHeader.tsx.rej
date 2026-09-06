@@ -1,0 +1,7 @@
+--- frontend/src/components/DecisionCenter/DecisionHeader.tsx
++++ frontend/src/components/DecisionCenter/DecisionHeader.tsx
+@@ -280,3 +280,3 @@
+               <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+-                <span>{language === 'en' ? 'AI Dump Probability' : language === 'zh' ? 'AI 暴跌/派发概率 (主要)' : language === 'ko' ? 'AI 급락/분산 확률 (주요)' : 'Xác suất xả (AI)'}</span>
++                <span>{language === 'en' ? 'AI Dump Prob (Decision)' : language === 'zh' ? 'AI 暴跌/派发概率 (主要)' : language === 'ko' ? 'AI 급락/분산 확률 (주요)' : 'Xác suất xả AI (Quyết định)'}</span>
+                 <span className="text-[8px] text-slate-500 font-mono">Tier 3</span>

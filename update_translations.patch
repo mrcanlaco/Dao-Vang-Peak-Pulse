@@ -1,0 +1,70 @@
+--- frontend/src/i18n/translations.ts
++++ frontend/src/i18n/translations.ts
+@@ -153,3 +153,3 @@
+     "candidate_col_risk": "Mức độ rủi ro",
+-    "candidate_col_prob": "Xác suất xả",
++    "candidate_col_prob": "Xác suất xả (Quyết định)",
+     "candidate_stage_hot": "Đang theo dõi",
+@@ -157,3 +157,3 @@
+     "candidate_stage_cold": "Chưa có dấu hiệu",
+-    "candidate_col_score": "Điểm phân phối",
++    "candidate_col_score": "Điểm V1 (Tham khảo)",
+     "candidate_col_source": "Nguồn lọc",
+@@ -231,3 +231,3 @@
+     "col_stage": "Trạng thái",
+-    "col_prob": "Xác suất ML",
++    "col_prob": "Xác suất ML (Quyết định)",
+     "col_price": "Giá hiện tại",
+-    "col_score": "Điểm tín hiệu",
++    "col_score": "Điểm V1 (Tham khảo)",
+     "col_action": "Thao tác",
+@@ -284,3 +284,3 @@
+     "feed_metrics_title": "Số liệu hệ thống",
+-    "feed_dist_prob": "Xác suất phân phối",
++    "feed_dist_prob": "Xác suất ML (Quyết định)",
+     "feed_target_drop": "Mục tiêu xả",
+@@ -308,3 +308,3 @@
+     "feed_col_coin": "Coin",
+-    "feed_col_prob": "Xác suất xả",
++    "feed_col_prob": "Xác suất ML (Chính)",
+     "feed_col_timing": "Thời điểm (T+)",
+@@ -525,3 +525,3 @@
+     "metric_distance_high_24h": "Khoảng cách đỉnh 24h",
+-    "metric_distribution_prob": "Xác suất xả (AI)",
++    "metric_distribution_prob": "Xác suất xả AI (Quyết định)",
+     "metric_model_conviction": "Độ tự tin của AI",
+@@ -942,3 +942,3 @@
+     "ws_dump_prob_desc": "Xác suất dự đoán giá giảm ≥8% trong vòng 24h kể từ thời điểm tín hiệu.",
+-    "ws_dump_prob_title": "XÁC SUẤT XẢ (AI)",
++    "ws_dump_prob_title": "XÁC SUẤT XẢ AI (QUYẾT ĐỊNH)",
+     "ws_evidence_title": "LUẬN ĐIỂM AI XÁC THỰC BỞI DỮ LIỆU ĐỊNH LƯỢNG",
+@@ -1266,3 +1266,3 @@
+     "candidate_stage_cold": "No signs",
+-    "candidate_col_score": "Distribution Score",
++    "candidate_col_score": "V1 Score (Ref)",
+     "candidate_col_source": "Filter Source",
+@@ -1342,3 +1342,3 @@
+     "col_price": "Current Price",
+-    "col_score": "Score",
++    "col_score": "V1 Score (Ref)",
+     "col_action": "Action",
+@@ -1395,3 +1395,3 @@
+     "feed_metrics_title": "System Metrics",
+-    "feed_dist_prob": "Distribution Probability",
++    "feed_dist_prob": "ML Prob (Main)",
+     "feed_target_drop": "Target Drop",
+@@ -1419,3 +1419,3 @@
+     "feed_col_coin": "Coin",
+-    "feed_col_prob": "Dump Probability",
++    "feed_col_prob": "ML Prob (Main)",
+     "feed_col_timing": "Timing (T+)",
+@@ -1636,3 +1636,3 @@
+     "metric_distance_high_24h": "Dist. from 24h High",
+-    "metric_distribution_prob": "AI Dump Probability",
++    "metric_distribution_prob": "AI Dump Prob (Decision)",
+     "metric_model_conviction": "AI Conviction",
+@@ -2053,3 +2053,3 @@
+     "ws_dump_prob_desc": "Predicted probability of price dropping ≥8% within 24h of signal.",
+-    "ws_dump_prob_title": "AI DUMP PROBABILITY",
++    "ws_dump_prob_title": "AI DUMP PROBABILITY (DECISION)",
+     "ws_evidence_title": "AI EVIDENCE VALIDATED BY QUANTITATIVE DATA",

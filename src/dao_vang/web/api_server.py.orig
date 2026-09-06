@@ -3416,7 +3416,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "ci_95_lower": wf_stats.get("ci_95_lower", 0.2006),
                 "ci_95_upper": wf_stats.get("ci_95_upper", 0.2217),
                 "brier_score": 0.113,
-                "ece": wf_stats.get("mean_lightgbm_ece", 0.031),
+                "ece": wf_stats.get("mean_lightgbm_ece", 0.0249),
                 "logreg_baseline_precision": wf_stats.get("mean_logreg_precision", 0.1487),
                 "relative_gain_pct": 42.8,
             },

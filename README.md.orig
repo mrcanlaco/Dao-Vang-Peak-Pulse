@@ -42,7 +42,7 @@ Hệ thống được xây dựng và kiểm định dựa trên các tiêu chu�
 - 🛡️ **Kiểm Định Đa Chế Độ Thị Trường (Regime Breakdown):**
   - Mô hình được kiểm tra độc lập và chứng minh hiệu quả qua cả 3 trạng thái: **Bull Market (Thị trường Tăng)**, **Bear Market (Thị trường Giảm)** và **Sideway (Thị trường Đi ngang)**.
 - 🎯 **Hiệu Chuẩn Xác Suất Đáng Tin Cậy (Calibrated ML Probability):**
-  - Tích hợp **Isotonic & Out-of-fold Calibration** giúp xác suất mô hình phản ánh đúng tần suất thực tế của thị trường (ECE ≤ 0.031), không nói quá hoặc thổi phồng tín hiệu.
+  - Tích hợp **Isotonic & Out-of-fold Calibration** giúp xác suất mô hình phản ánh đúng tần suất thực tế của thị trường (ECE ≤ 0.05), không nói quá hoặc thổi phồng tín hiệu.
 - ⚡ **Xử Lý Dữ Liệu Phái Sinh Đa Chiều Tốc Độ Cao:**
   - Tích hợp động cơ **DuckDB Columnar Analytics**, quét và phân tích đồng thời 150+ cặp coin Binance Futures với độ trễ tính toán dưới 1 giây.
 - 🔄 **Hệ Thống Tự Học & Đánh Giá Hậu Kiểm (Feedback Loop & PnL Tracking):**

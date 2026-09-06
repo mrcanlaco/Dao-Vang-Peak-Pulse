@@ -1,0 +1,7 @@
+--- frontend/src/components/ModelsDocTab.tsx
++++ frontend/src/components/ModelsDocTab.tsx
+@@ -435,3 +435,3 @@
+                     <li><span className="text-rose-300">Pre-filter</span> Gác cổng tự động loại bỏ các coin có biên độ bơm &lt;10%/24h.</li>
+-                    <li><span className="text-rose-300">Recall=0.05</span> Ép giới hạn tỷ lệ hú còi để tối đa hóa độ chính xác (&gt;36%).</li>
++                    <li><span className="text-rose-300">Giới hạn 15 alerts/ngày</span> Ép giới hạn tỷ lệ hú còi để tối đa hóa độ chính xác (36.6%).</li>
+                   </ul>

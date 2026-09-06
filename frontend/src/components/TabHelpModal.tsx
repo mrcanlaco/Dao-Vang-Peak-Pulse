@@ -330,10 +330,10 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           mechanism: [
             '3-Engine Architecture: V1 Heuristic (9-component distribution score), V2 Two-Tier Climax (HTF Armed / LTF Fired), and Frozen ML Pipeline (LightGBM/LogReg).',
             'Regime Gate: ADX/BB/EMA filter that allows signals in SIDEWAY_DISTRIBUTION and TRENDING_BEAR while suppressing TRENDING_BULL & HIGH_VOLATILITY noise.',
-            'Calibration: Isotonic Regression calibrator guaranteeing empirical probabilities with ECE < 0.03.'
+            'Calibration: Isotonic Regression calibrator guaranteeing empirical probabilities with ECE < 0.031.'
           ],
           metrics: [
-            { label: 'Champion Model', desc: 'LogisticRegression with 25 features for mega-cap coins.' },
+            { label: 'Champion Model', desc: 'V3.1 Sniper Target (LightGBM) with 35 features, achieving 36.6% precision, ECE 0.031, limited to 15 alerts/day.' },
             { label: 'Challenger Model', desc: 'LightGBM with 14 features tuned for mid-cap altcoins (21.2% precision).' },
             { label: 'Regime Precision', desc: 'Empirical precision across market regimes (31% in Sideway Distribution).' }
           ],
@@ -644,10 +644,10 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         mechanism: [
           'Kiến Trúc 3 Động Cơ: V1 Heuristic (9 thành phần phân phối đỉnh), V2 Two-Tier Climax (HTF Armed / LTF Fired), và Frozen ML Pipeline (LightGBM/LogReg).',
           'Bộ Lọc Regime Gate: Dựa trên ADX/BB/EMA chỉ cho phép tín hiệu trong SIDEWAY_DISTRIBUTION và TRENDING_BEAR, chặn nhiễu trong TRENDING_BULL & HIGH_VOLATILITY.',
-          'Hiệu Chuẩn Xác Suất: Isotonic Regression đảm bảo xác suất thực tế với ECE < 0.03.'
+          'Hiệu Chuẩn Xác Suất: Isotonic Regression đảm bảo xác suất thực tế với ECE < 0.031.'
         ],
         metrics: [
-          { label: 'Mô Hình Champion', desc: 'LogisticRegression với 25 đặc trưng tối ưu cho top coin thanh khoản lớn.' },
+          { label: 'Mô Hình Champion', desc: 'V3.1 Sniper Target (LightGBM) với 35 đặc trưng, đạt precision 36.6%, ECE 0.031 và giới hạn 15 alerts/ngày.' },
           { label: 'Mô Hình Challenger', desc: 'LightGBM với 14 đặc trưng tối ưu cho phân khúc Altcoins vừa và nhỏ (đạt precision 21.2%).' },
           { label: 'Precision Theo Regime', desc: 'Độ chính xác theo chế độ thị trường (đạt 31% trong giai đoạn Phân phối Đi ngang).' }
         ],
@@ -979,7 +979,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                     </div>
 
                     <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-4 pt-1">
-                      <span className="text-emerald-400 font-bold">✓ Tỷ lệ chạm TP1: 76.6%</span>
+                      <span className="text-emerald-400 font-bold">✓ Tỷ lệ chạm TP1: 36.6%</span>
                       <span className="text-emerald-400 font-bold">✓ Tỷ lệ dính SL: 14.9%</span>
                       <span className="text-cyan-400 font-bold">✓ Tỷ lệ R:R: 4.08 (Gấp 2.1 lần V1)</span>
                       <span className="text-amber-400 font-bold">✓ Đón đầu trước: 25.0 phút</span>

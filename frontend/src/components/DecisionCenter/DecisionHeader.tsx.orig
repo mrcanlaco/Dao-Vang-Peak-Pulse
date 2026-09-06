@@ -278,7 +278,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
             {/* 2. Xác suất AI */}
             <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-2.5 space-y-1">
               <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
-                <span>{language === 'en' ? 'AI Dump Prob (Decision)' : language === 'zh' ? 'AI 暴跌/派发概率' : language === 'ko' ? 'AI 급락/분산 확률' : 'Xác suất xả AI (Quyết định)'}</span>
+                <span>{language === 'en' ? 'AI Dump Probability' : language === 'zh' ? 'AI 暴跌/派发概率' : language === 'ko' ? 'AI 급락/분산 확률' : 'Xác suất xả (AI)'}</span>
                 <span className="text-[8px] text-slate-500 font-mono">Tier 3</span>
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -339,7 +339,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
             <div className="rounded-lg border border-slate-800 bg-slate-950/80 p-2.5 space-y-1">
               <div className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
                 <span>{language === 'en' ? 'Risk Level' : language === 'zh' ? '风险等级' : language === 'ko' ? '위험 등급' : 'Mức độ rủi ro'}</span>
-                <span className="text-[8px] text-slate-500 font-mono">{currentCandidate?.score ? `${language === 'en' ? 'V1 Score (Ref)' : 'Điểm V1 (Tham khảo)'}: ${currentCandidate.score.toFixed(0)}` : 'Risk'}</span>
+                <span className="text-[8px] text-slate-500 font-mono">{currentCandidate?.score ? `Score ${currentCandidate.score.toFixed(0)}` : 'Risk'}</span>
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 {currentRisk ? (

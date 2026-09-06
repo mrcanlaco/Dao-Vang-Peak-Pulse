@@ -62,7 +62,7 @@ Nghiên cứu này thực hiện kiểm định độc lập trên dữ liệu l
 - **Tỷ lệ nền ngẫu nhiên (Base Rate):** 11.74%
 - **Heuristic gốc ở cấu hình mặc định (>= 40):** Đạt **13.28% precision** (chỉ nhỉnh hơn ngẫu nhiên 1.54%, tỷ lệ báo động giả lên tới 86.7%).
 - **Heuristic ở ngưỡng khuyến nghị Short (>= 70):** Đạt **0.00% precision** (31/31 tín hiệu thua do rơi vào bẫy bắt đỉnh nến đang pump).
-- **V3.1 Sniper Target (Regime + LightGBM):** Đạt **36.6% precision** (gấp **2.75 lần** Heuristic, vượt trội trên mọi chu kỳ kiểm định).
+- **Regime Gate + LightGBM (p98):** Đạt **20.93% precision** (gấp **1.6 lần** Heuristic, vượt trội trên mọi chu kỳ kiểm định).
 
 ---
 
