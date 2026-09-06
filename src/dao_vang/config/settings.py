@@ -323,7 +323,7 @@ class WebConfig(BaseModel):
     # CORS is opt-in. Same-origin deployments do not need it, and a wildcard
     # origin is unsafe when authenticated cookies are in use.
     allowed_origins: list[str] = Field(default_factory=list)
-    auth_session_ttl_seconds: int = Field(default=3600, ge=300, le=86400)
+    auth_session_ttl_seconds: int = Field(default=2592000, ge=300, le=2592000, description="Session TTL, default 30 days")
 
 
 class UpdaterConfig(BaseModel):

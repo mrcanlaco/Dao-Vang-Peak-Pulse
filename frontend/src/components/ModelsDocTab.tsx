@@ -109,6 +109,7 @@ export const ModelsDocTab: React.FC = () => {
   const [reports, setReports] = useState<ResearchPaper[]>(FALLBACK_REPORTS);
   const [selectedReportId, setSelectedReportId] = useState<string>('01_so_sanh_heuristic_vs_machine_learning');
   const [selectedTag, setSelectedTag] = useState<string>('ALL');
+  const [sortOrder, setSortOrder] = useState<'NEWEST' | 'OLDEST'>('NEWEST');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -148,7 +149,7 @@ export const ModelsDocTab: React.FC = () => {
 
   // Filtered reports
   const filteredReports = useMemo(() => {
-    return reports.filter(r => {
+    const filtered = reports.filter(r => {
       const matchTag = selectedTag === 'ALL' || r.tags?.includes(selectedTag);
       const matchSearch = !searchQuery.trim() || 
         r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -156,7 +157,13 @@ export const ModelsDocTab: React.FC = () => {
         r.code.toLowerCase().includes(searchQuery.toLowerCase());
       return matchTag && matchSearch;
     });
-  }, [reports, selectedTag, searchQuery]);
+
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.date).getTime();
+      const dateB = new Date(b.date).getTime();
+      return sortOrder === 'NEWEST' ? dateB - dateA : dateA - dateB;
+    });
+  }, [reports, selectedTag, searchQuery, sortOrder]);
 
   const selectedReport = useMemo(() => {
     return reports.find(r => r.id === selectedReportId) || reports[0] || FALLBACK_REPORTS[0];
@@ -249,13 +256,23 @@ export const ModelsDocTab: React.FC = () => {
           <div className="w-full md:w-80 lg:w-96 border-r border-slate-800 flex flex-col bg-slate-900/40 shrink-0 h-1/2 md:h-full">
             {/* Filter & Search */}
             <div className="p-3 border-b border-slate-800 space-y-2 bg-slate-900/60">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm kiếm nghiên cứu, mô hình, mã..."
-                className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
-              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Tìm kiếm nghiên cứu..."
+                  className="flex-1 min-w-0 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                />
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as 'NEWEST' | 'OLDEST')}
+                  className="bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-amber-500/50 cursor-pointer shrink-0"
+                >
+                  <option value="NEWEST">Mới nhất</option>
+                  <option value="OLDEST">Cũ nhất</option>
+                </select>
+              </div>
               <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto no-scrollbar pt-1">
                 {allTags.map(tag => (
                   <button
