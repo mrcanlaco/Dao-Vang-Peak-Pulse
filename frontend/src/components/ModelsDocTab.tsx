@@ -586,6 +586,32 @@ export const ModelsDocTab: React.FC = () => {
             </div>
           </div>
 
+            {/* Section 5: MLOps Insights */}
+            <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 lg:col-span-2">
+              <div className="flex items-center space-x-2 mb-4">
+                <Shield className="w-4 h-4 text-rose-400" />
+                <h3 className="text-xs font-bold text-slate-200 uppercase">5. Sổ tay kỹ thuật (ADR & MLOps Insights)</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px]">
+                <div className="bg-slate-950 p-3 rounded border border-rose-900/30">
+                  <div className="font-semibold text-rose-400 mb-2">Từ chối Mô hình 52% (Ảo ảnh Thống kê)</div>
+                  <p className="text-slate-400 mb-1">Dù có Fold thử nghiệm đạt 52% Precision, mô hình vẫn bị loại bỏ do:</p>
+                  <ul className="list-disc pl-4 space-y-1 text-slate-300">
+                    <li><strong className="text-slate-200">Data Contamination:</strong> Calibrator (hiệu chuẩn) bị lệch pha vì huấn luyện trên 80% dữ liệu nhưng lại ghép với mô hình 100% dữ liệu.</li>
+                    <li><strong className="text-slate-200">ECE &gt; 0.05:</strong> Sai số dự báo quá lớn khiến rủi ro Kelly Sizing tăng cao, dễ dẫn đến thanh lý lệnh.</li>
+                  </ul>
+                </div>
+                <div className="bg-slate-950 p-3 rounded border border-emerald-900/30">
+                  <div className="font-semibold text-emerald-400 mb-2">Lựa chọn 36.6% (Chuẩn Quant)</div>
+                  <p className="text-slate-400 mb-1">Mô hình LightGBM (V3.1) được đẩy lên môi trường Live vì:</p>
+                  <ul className="list-disc pl-4 space-y-1 text-slate-300">
+                    <li><strong className="text-slate-200">Robustness:</strong> Được huấn luyện trên Fold cuối cùng bao trùm 90% dữ liệu lịch sử sát với hiện tại nhất.</li>
+                    <li><strong className="text-slate-200">ECE = 0.031:</strong> Hiệu chuẩn cực tốt, tỷ lệ báo sập và sập thực tế dính chặt với nhau, đảm bảo an toàn cho định cỡ lệnh.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
           {/* Quick Access to Research Archive Banner */}
           <div className="bg-gradient-to-r from-amber-500/10 via-slate-900 to-cyan-500/10 border border-amber-500/30 rounded-lg p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center space-x-3">
