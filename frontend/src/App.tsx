@@ -84,6 +84,23 @@ export function App() {
     type: 'success' | 'error';
     message: string;
   } | null>(null);
+  const [isDevMode, setIsDevMode] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem('peakpulse_dev_mode');
+      return stored ? JSON.parse(stored) : false;
+    } catch (e) {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('peakpulse_dev_mode', JSON.stringify(isDevMode));
+    } catch (e) {
+      // ignore
+    }
+  }, [isDevMode]);
+
 
   useEffect(() => {
     if (!watchlistFeedback) return undefined;
@@ -877,6 +894,8 @@ export function App() {
             onOpenTabHelp={() => setIsTabHelpModalOpen(true)}
             onLogout={handleLogout}
             onOpenAiAssistant={() => setIsFloatingAiAssistantOpen(true)}
+            isDevMode={isDevMode}
+            setIsDevMode={setIsDevMode}
           />
         </div>
       </main>

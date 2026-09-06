@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Settings, Key, Cpu, Globe, CheckCircle2,
   AlertTriangle, Loader2, Eye, EyeOff, Sparkles, RefreshCw,
-  Sliders, ShieldCheck, Zap, HardDrive, Check,
+  Sliders, ShieldCheck, Zap, Check,
   Bot, Server, Lock
 } from 'lucide-react';
 import { useTranslation, LANGUAGES } from '../i18n/LanguageContext';
@@ -16,6 +16,8 @@ interface SystemSettingsTabProps {
   activeScanModes?: string[];
   onOpenWatchlistModal?: () => void;
   onLogout?: () => void;
+  isDevMode?: boolean;
+  setIsDevMode?: (val: boolean) => void;
 }
 
 const STORAGE_CONFIG_KEY = 'dao_vang_llm_config';
@@ -73,6 +75,8 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
   activeScanModes = ['volatile'],
   onOpenWatchlistModal,
   onLogout,
+  isDevMode = false,
+  setIsDevMode,
 }) => {
   const { language, setLanguage, t } = useTranslation();
   const isEn = language === 'en';
@@ -326,6 +330,7 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
                           <span className="truncate">{opt.name}</span>
                           {opt.badge && (
                             <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-normal">
+
                               {opt.badge}
                             </span>
                           )}
@@ -629,11 +634,43 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
                 onClick={handleClearAppCache}
                 className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 rounded-lg text-xs flex items-center justify-center gap-1.5 transition"
               >
-                <HardDrive className="w-3.5 h-3.5" />
-                <span>{clearedCache ? (isEn ? 'Cache Cleared!' : 'Đã xóa bộ nhớ đệm!') : (isEn ? 'Clear Session Cache' : 'Xóa bộ nhớ đệm phiên làm việc')}</span>
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>{clearedCache ? 'Đã xóa bộ nhớ tạm' : 'Xóa Local Storage & Cache'}</span>
               </button>
             </div>
           </div>
+
+          {/* Developer Mode */}
+          <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800/80 mt-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-500/10 rounded-lg">
+                <Server className="w-5 h-5 text-purple-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-semibold text-slate-200">Developer Mode</h3>
+                <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+                  {isEn ? 'Enable advanced system tools (Backtest, Forward Test, Multiscan, Models, Telemetry) in the workspace tabs.' : isZh ? '启用高级系统工具（回测、前向测试、多重扫描、模型、遥测）。' : isKo ? '작업 공간 탭에서 고급 시스템 도구(백테스트, 포워드 테스트, 다중 스캔, 모델, 원격 측정)를 활성화합니다.' : 'Hiển thị các công cụ hệ thống nâng cao (Backtest, Forward Test, Multiscan, Models, Telemetry) trên thanh tab làm việc.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDevMode?.(!isDevMode)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-slate-900 ${
+                  isDevMode ? 'bg-purple-500' : 'bg-slate-700'
+                }`}
+                role="switch"
+                aria-checked={isDevMode}
+              >
+                <span className="sr-only">Toggle Developer Mode</span>
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    isDevMode ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

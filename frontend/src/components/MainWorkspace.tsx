@@ -96,6 +96,8 @@ interface MainWorkspaceProps {
   onOpenTabHelp?: (tab?: WorkspaceTab) => void;
   onLogout?: () => void;
   onOpenAiAssistant?: () => void;
+  isDevMode?: boolean;
+  setIsDevMode?: (val: boolean) => void;
 }
 
 export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
@@ -156,7 +158,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   onOpenTabHelp,
   onLogout,
   onOpenAiAssistant,
+  isDevMode = false,
+  setIsDevMode,
 }) => {
+
   const { language, t } = useTranslation();  
   const riskLabels: Record<string, string> = {
     CRITICAL: getRiskLabel('CRITICAL', language),
@@ -302,6 +307,15 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     const winner = v2Wins ? 'V2' : 'V1';
     return language === 'en' ? `${winner} better` : language === 'zh' ? `${winner} 更优` : language === 'ko' ? `${winner} 우위` : `${winner} tốt hơn`;
   };
+  useEffect(() => {
+    if (!isDevMode) {
+      const devTabs = ['MULTISCAN', 'BACKTEST', 'FORWARD', 'AUDIT', 'TELEMETRY', 'MODELS', 'UPDATES'];
+      if (devTabs.includes(activeTab)) {
+        setActiveTab('RADAR');
+      }
+    }
+  }, [isDevMode, activeTab, setActiveTab]);
+
   const officialRoleLabel = language === 'en' ? 'Official' : language === 'zh' ? '主版本' : language === 'ko' ? '주 버전' : 'Bản chính';
   const challengerRoleLabel = language === 'en' ? 'Challenger' : language === 'zh' ? '对照版' : language === 'ko' ? '대조 버전' : 'Bản đối chiếu';
   const v2RoleLabel = isChampionV2 ? officialRoleLabel : challengerRoleLabel;
@@ -596,7 +610,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       const json = await res.json();
       setChartData(json.klines || []);
     } catch (err) {
-      console.error('Chart fetch error:', err);
+      console.error('Fetch klines error:', err);
     } finally {
       setChartLoading(false);
     }
@@ -670,6 +684,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
       {/* Workspace Tab Bar (Grouped & Responsive for Desktop + Mobile) */}
       <WorkspaceTabBar
+        isDevMode={isDevMode}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         selectedSignal={selectedSignal}
@@ -2538,6 +2553,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       {activeTab === 'SETTINGS' && (
         <ErrorBoundary fallbackTitle="Lỗi hiển thị Cấu hình Hệ thống">
           <SystemSettingsTab
+            isDevMode={isDevMode}
+            setIsDevMode={setIsDevMode}
             guiVersion={guiVersion}
             onSelectGuiVersion={onSelectGuiVersion}
             threshold={threshold}

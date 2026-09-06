@@ -62,6 +62,7 @@ interface WorkspaceTabBarProps {
   guiVersion?: 'v1' | 'v2';
   mobileTab?: MobileTabType;
   onOpenTabHelp?: (tab?: WorkspaceTab) => void;
+  isDevMode?: boolean;
 }
 
 export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
@@ -75,6 +76,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
   isTelemetryActive = true,
   guiVersion = 'v2',
   mobileTab = 'RADAR',
+  isDevMode = false,
   onOpenTabHelp,
 }) => {
   const { language, t } = useTranslation();
@@ -120,7 +122,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
     },
   ], [trackingCount, candidateCount, signalCount]);
 
-  const labTabs: TabItemConfig[] = useMemo(() => [
+  const labTabs: TabItemConfig[] = useMemo(() => isDevMode ? [
     {
       id: 'MULTISCAN',
       labelKey: 'ws_tab_multiscan',
@@ -142,9 +144,10 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
       icon: Lock,
       category: 'LAB',
     },
-  ], []);
+  ] : [], [isDevMode]);
 
-  const systemTabs: TabItemConfig[] = useMemo(() => [
+  const systemTabs: TabItemConfig[] = useMemo(() => {
+    const tabs: TabItemConfig[] = [
     {
       id: 'AUDIT',
       labelKey: 'ws_tab_audit',
@@ -188,7 +191,9 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
       icon: Settings,
       category: 'SYSTEM',
     },
-  ], [isTelemetryActive]);
+    ];
+    return isDevMode ? tabs : tabs.filter(t => t.id === 'HISTORY' || t.id === 'SETTINGS');
+  }, [isTelemetryActive, isDevMode]);
 
   // Determine current active category
   const activeCategory: TabCategory = useMemo(() => {
