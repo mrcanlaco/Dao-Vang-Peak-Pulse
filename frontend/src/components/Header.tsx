@@ -24,8 +24,8 @@ import {
 import {
   getRiskLabel,
   getScanModeLabel,
-  getModelLabel,
-  getModelDescription,
+  
+  
 } from '../i18n/translations';
 import { PwaInstallButton } from './PwaInstallButton';
 
@@ -90,10 +90,6 @@ export const Header: React.FC<HeaderProps> = ({
   activeScanMode,
   autoTelegramEnabled: _autoTelegramEnabled,
   onGoHome,
-  availableModels = [],
-  selectedModelKey = 'heuristic_composite',
-  onSelectModel,
-  scannerModelId = '',
   guiVersion = 'v2',
   onSelectGuiVersion,
   mobileTab = 'RADAR',
@@ -105,8 +101,7 @@ export const Header: React.FC<HeaderProps> = ({
   signalCount = 0,
 }) => {
   const { language, setLanguage, t } = useTranslation();
-  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
-  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+    const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [moreToolsDropdownOpen, setMoreToolsDropdownOpen] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [commitsBehind, setCommitsBehind] = useState(0);
@@ -162,9 +157,7 @@ export const Header: React.FC<HeaderProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const selectedModel = availableModels.find((model) => model.key === selectedModelKey);
-  const isScannerActive = Boolean(scannerModelId && selectedModel?.frozen_model_id === scannerModelId);
-  const currentLangObj = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
+      const currentLangObj = LANGUAGES.find((l) => l.code === language) || LANGUAGES[0];
 
   const scanLabel = activeScanMode
     .split(' + ')
