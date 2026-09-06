@@ -467,7 +467,7 @@ class UpdateManager:
                 log_msg("Phát hiện trạng thái rebase dở dang. Đang hủy rebase (git rebase --abort)...")
                 self._run_cmd(["git", "rebase", "--abort"])
 
-            code, dirty_status, _ = self._run_cmd(["git", "status", "--porcelain"])
+            code, dirty_status, _ = self._run_cmd(["git", "status", "--porcelain", "-uno"])
             has_stashed = False
             stash_oid = ""
             if dirty_status:
@@ -497,8 +497,7 @@ class UpdateManager:
                             "git",
                             "stash",
                             "push",
-                            "--include-untracked",
-                            "--message",
+                                                        "--message",
                             "auto-stash-before-update",
                         ]
                     )
