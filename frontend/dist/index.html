@@ -91,17 +91,14 @@
     </div>
     <script>
       if ('serviceWorker' in navigator) {
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!refreshing) {
-            refreshing = true;
-            window.location.reload();
-          }
-        });
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js?v=20260906_01').then((reg) => {
-            reg.update();
-          }).catch(err => console.warn('[PWA] SW registration failed:', err));
+          // TẠM TẮT PWA: Hủy đăng ký tất cả Service Workers đang chạy
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (let reg of regs) {
+              reg.unregister();
+              console.log('[PWA] SW unregistered (PWA Mode Temporarily Disabled)');
+            }
+          });
         });
       }
     </script>
