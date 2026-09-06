@@ -41,7 +41,7 @@ scanner:
   cooldown_minutes: 120
   telegram_cooldown_minutes: 120
   alert_levels: ["CAO", "TRUNG BÌNH"]
-  frozen_model_id: frozen_20260829_024243_8f0d32ea
+  frozen_model_id: "frozen_20260906_081040_2fe76fde"
   db_path: data_live/live.duckdb
   artifact_dir: artifacts
   watchlist_path: data_live/watchlist.json

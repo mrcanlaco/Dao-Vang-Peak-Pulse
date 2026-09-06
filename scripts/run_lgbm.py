@@ -39,15 +39,16 @@ def train_lgbm_experiment(horizon_hours: int = 24, data_dir: Optional[Path] = No
     db_path = str(data_dir / "dev.duckdb")
     try:
         conn = duckdb.connect(db_path, read_only=True)
-        # Note: sometimes labels table doesn't have horizon_hours, let's just join simply
-        # or use horizon if it exists
+        # Note: we MUST filter by horizon_hours to avoid duplicating rows
+        # across multiple label horizons (6h, 12h, 24h) and creating label noise.
         df = conn.execute(
-            """
+            f"""
             SELECT f.*, l.label_value AS is_distribution
             FROM feature_results f
             INNER JOIN labels l
                 ON f.feature_time = l.signal_time
                 AND f.symbol = l.symbol
+            WHERE l.horizon_hours = {horizon_hours}
             """
         ).df()
     except Exception as e:
@@ -62,10 +63,21 @@ def train_lgbm_experiment(horizon_hours: int = 24, data_dir: Optional[Path] = No
     if df.empty or 'is_distribution' not in df.columns:
         logger.warning("No data found for training.")
         return
-        
+
     df = df.dropna(subset=['is_distribution'])
     df = df.sort_values(by="feature_time").reset_index(drop=True)
-    
+
+    # --- CANDIDATE PRE-FILTER (Mô phỏng Gác cổng hệ thống Live) ---
+    # Hệ thống Live chỉ gọi AI model khi coin đang bị Pump (tối thiểu 15% trong 24h theo candidate_filter_v2.py).
+    # Việc bắt mô hình dự đoán trên nến sideway là vô nghĩa và làm hỏng Precision.
+    # Chúng ta lọc cứng: Chỉ giữ lại các mẫu đã có sức nén (Pump >= 10% trong 24h).
+    if 'price_ret_24h' in df.columns:
+        ret = pd.to_numeric(df['price_ret_24h'], errors='coerce')
+        pump_mask = ret >= 0.10
+        n_before = len(df)
+        df = df[pump_mask].reset_index(drop=True)
+        logger.info(f"Candidate Pre-filter applied: kept {len(df)}/{n_before} pumped samples (>=10% 24h).")
+
     exclude_cols = [
         'feature_time', 'decision_time', 'is_distribution', 'quality_status',
         'symbol', 'lead_time_minutes', 'invalidation_time', 'prediction_id', 'horizon_hours'
@@ -114,7 +126,8 @@ def train_lgbm_experiment(horizon_hours: int = 24, data_dir: Optional[Path] = No
             fold["test_end"],
             embargo_minutes=24*60
         )
-        
+
+        # --- Đã tắt Regime Filter để đối chứng sức mạnh Feature mới ---
         if train_df.empty or test_df.empty:
             continue
             
@@ -158,9 +171,8 @@ def train_lgbm_experiment(horizon_hours: int = 24, data_dir: Optional[Path] = No
             calibrator.fit(cal_raw, cal_true)
             
             y_prob = calibrator.predict(model.predict_proba(X_test_arr)[:, 1])
-            
             thresh_prob = calibrator.predict(cal_raw)
-            threshold = _precision_first_threshold(thresh_prob, cal_true)
+            threshold = _precision_first_threshold(thresh_prob, cal_true, min_recall=0.05)
         else:
             calibrator = None
             y_prob = y_test_raw
@@ -178,7 +190,7 @@ def train_lgbm_experiment(horizon_hours: int = 24, data_dir: Optional[Path] = No
         
         logger.info(f"Fold {i+1}: Precision={precision:.3f}, Brier={brier:.3f}, ECE={ece:.3f}")
         
-        if precision > best_precision:
+        if precision > best_precision and ece <= 0.05:
             best_precision = precision
             # Full model fit
             model = get_lightgbm()
@@ -223,3 +235,8 @@ def train_lgbm_experiment(horizon_hours: int = 24, data_dir: Optional[Path] = No
         artifact_dir=output_dir,
         calibrator=best_calibrator
     )
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logger.info("Starting LGBM training experiment with new regime filters...")
+    train_lgbm_experiment(horizon_hours=24)

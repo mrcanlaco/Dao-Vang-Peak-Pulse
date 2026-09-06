@@ -49,9 +49,10 @@ def get_lightgbm(random_state: int = 42) -> lgb.LGBMClassifier:
     return lgb.LGBMClassifier(
         random_state=random_state,
         n_estimators=200,
-        learning_rate=0.05,
-        max_depth=5,
-        num_leaves=31,
+        learning_rate=0.03,
+        max_depth=3,
+        num_leaves=7,
+        min_child_samples=50,
         subsample=0.8,
         colsample_bytree=0.8,
         deterministic=True,
