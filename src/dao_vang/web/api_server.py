@@ -3966,7 +3966,8 @@ class APIHandler(BaseHTTPRequestHandler):
         mae_pct = f"{mae * 100:.0f}%" if isinstance(mae, (int, float)) else str(mae)
         horizon_h = f"{horizon_min // 60:.0f}h" if isinstance(horizon_min, (int, float)) else str(horizon_min)
         label_version = m.config.get("label_version", "v1")
-        friendly_name = f"Frozen LR {label_version} ({target_pct}/{mae_pct}/{horizon_h})"
+        short_id = str(m.model_id).split("_")[-1][:8]
+        friendly_name = f"Frozen LR {label_version} ({target_pct}/{mae_pct}/{horizon_h}) - {short_id}"
         description = (
             f"Logistic Regression đóng băng — dự đoán xác suất coin giảm "
             f">={target_pct} trong {horizon_h} (MAE <={mae_pct}). "
