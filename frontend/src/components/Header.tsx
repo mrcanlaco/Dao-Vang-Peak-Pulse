@@ -428,68 +428,16 @@ export const Header: React.FC<HeaderProps> = ({
             )}
 
             {/* AI Model Selector */}
-            {availableModels.length > 0 && onSelectModel && (
-              <div className="relative shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setModelDropdownOpen((open) => !open)}
-                  className="inline-flex max-w-[110px] lg:max-w-[150px] items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[11px] font-bold text-sky-300 transition hover:bg-sky-500/20"
-                  title={getModelDescription(selectedModel?.description || selectedModel?.key || '', language)}
-                >
-                  <Cpu className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">{getModelLabel(selectedModel?.label || selectedModel?.key || '', language)}</span>
-                  {isScannerActive && (
-                    <span className="text-emerald-400" title={t('online_247')}>●</span>
-                  )}
-                  <ChevronDown className="h-3 w-3 shrink-0 opacity-70" />
-                </button>
-                {modelDropdownOpen && (
-                  <>
-                    <button
-                      type="button"
-                      aria-label="Close model dropdown"
-                      className="fixed inset-0 z-40 h-full w-full cursor-default"
-                      onClick={() => setModelDropdownOpen(false)}
-                    />
-                    <div className="absolute left-0 top-full z-50 mt-1.5 w-72 max-h-96 overflow-y-auto rounded-xl border border-slate-700 bg-slate-900/95 p-2 shadow-2xl backdrop-blur-md">
-                      <div className="mb-1 border-b border-slate-800 px-2 py-1 text-[10px] font-bold uppercase text-slate-400 flex items-center gap-1.5">
-                        <Cpu className="w-3 h-3 text-sky-400" />
-                        {t('header_ai_models')}
-                      </div>
-                      {availableModels.map((model) => (
-                        <button
-                          type="button"
-                          key={model.key}
-                          onClick={() => {
-                            onSelectModel(model.key);
-                            setModelDropdownOpen(false);
-                          }}
-                          className={`flex w-full flex-col rounded-lg p-2 text-left transition ${
-                            model.key === selectedModelKey
-                              ? 'border border-sky-500/50 bg-sky-500/20 text-sky-200'
-                              : 'text-slate-300 hover:bg-slate-800'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-bold">{getModelLabel(model.label, language)}</span>
-                            {scannerModelId && model.frozen_model_id === scannerModelId && (
-                              <span className="rounded bg-emerald-950 px-1 py-0.5 text-[9px] font-bold text-emerald-400">
-                                {t('sys_heartbeat')}
-                              </span>
-                            )}
-                          </div>
-                          {model.description && (
-                            <span className="mt-0.5 text-[10px] text-slate-400">
-                              {getModelDescription(model.description, language)}
-                            </span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
+            <div className="relative shrink-0">
+              <div
+                className="inline-flex max-w-[120px] lg:max-w-[160px] items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[11px] font-bold text-sky-300 cursor-default shadow-sm"
+                title={language === 'en' ? 'Active AI Model running on the server' : language === 'zh' ? '服务器正在运行的AI模型' : language === 'ko' ? '서버에서 실행 중인 활성 AI 모델' : 'Mô hình AI đang vận hành trực tiếp trên máy chủ'}
+              >
+                <Cpu className="h-3.5 w-3.5 shrink-0 text-sky-400" />
+                <span className="truncate">V3.1 Sniper Target</span>
+                <span className="text-emerald-400 animate-pulse" title={t('online_247')}>●</span>
               </div>
-            )}
+            </div>
 
             {/* Target Scan Watchlist Button */}
             {watchlistButton}
