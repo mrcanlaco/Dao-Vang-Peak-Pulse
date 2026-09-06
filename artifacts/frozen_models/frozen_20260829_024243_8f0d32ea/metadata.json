@@ -1,0 +1,103 @@
+{
+  "schema_version": "frozen_bundle_v1",
+  "artifact_schema_version": "frozen_bundle_v1",
+  "model_id": "frozen_20260829_024243_8f0d32ea",
+  "freeze_time": "2026-08-29T02:42:43.228381+07:00",
+  "train_cutoff": "2026-08-08T14:11:39.999000+07:00",
+  "threshold": 0.2,
+  "feature_cols": [
+    "price_ret_5m",
+    "price_ret_1h",
+    "price_ret_4h",
+    "price_ret_24h",
+    "price_volatility_24h",
+    "distance_from_high_24h",
+    "volume_percentile_24h",
+    "momentum_deceleration_4h",
+    "fake_breakout_1h",
+    "funding_rate_raw",
+    "funding_percentile_7d",
+    "funding_percentile_30d",
+    "funding_zscore_30d",
+    "funding_change_8h",
+    "funding_change_24h",
+    "funding_persistence_7d",
+    "oi_change_1h",
+    "oi_change_4h",
+    "oi_change_24h",
+    "taker_buy_ratio",
+    "global_ls_ratio",
+    "top_ls_ratio",
+    "retail_top_spread",
+    "spread_trend_1h",
+    "spread_trend_4h"
+  ],
+  "config": {
+    "hypothesis_id": "lgbm_experiment",
+    "dataset_version": "1.0",
+    "baseline_model": "lightgbm"
+  },
+  "training_stats": {
+    "precision": 0.26182719691847484,
+    "brier": 0.12613671517737413,
+    "ece": 0.024803622372888346
+  },
+  "label_spec": {
+    "horizon_minutes": 1440,
+    "target_drawdown": 0.08,
+    "max_ae": 0.04,
+    "version": "distribution_short_v1",
+    "horizon_hours": 24
+  },
+  "threshold_policy": {
+    "version": "frozen_threshold_v1",
+    "threshold": 0.2
+  },
+  "thresholds": {
+    "default": 0.2
+  },
+  "calibrator_id": "isotonic_v1",
+  "calibrator": {
+    "id": "isotonic_v1",
+    "path": "calibrator.joblib"
+  },
+  "calibration_method": "isotonic",
+  "preprocessing": {
+    "feature_cols": [
+      "price_ret_5m",
+      "price_ret_1h",
+      "price_ret_4h",
+      "price_ret_24h",
+      "price_volatility_24h",
+      "distance_from_high_24h",
+      "volume_percentile_24h",
+      "momentum_deceleration_4h",
+      "fake_breakout_1h",
+      "funding_rate_raw",
+      "funding_percentile_7d",
+      "funding_percentile_30d",
+      "funding_zscore_30d",
+      "funding_change_8h",
+      "funding_change_24h",
+      "funding_persistence_7d",
+      "oi_change_1h",
+      "oi_change_4h",
+      "oi_change_24h",
+      "taker_buy_ratio",
+      "global_ls_ratio",
+      "top_ls_ratio",
+      "retail_top_spread",
+      "spread_trend_1h",
+      "spread_trend_4h"
+    ],
+    "missing_policy": "reject_at_serving"
+  },
+  "checksums": {
+    "model_sha256": "833a63a8410d3493ca034362011342fa259e4d5dad94dfed1ccbc2477eedad58",
+    "calibrator_sha256": "d1cf027b9cdc3ad0e67faf94430cd477b8e6f313b3782d895494c3bd9228b461"
+  },
+  "artifact_checksums": {
+    "model_sha256": "833a63a8410d3493ca034362011342fa259e4d5dad94dfed1ccbc2477eedad58",
+    "calibrator_sha256": "d1cf027b9cdc3ad0e67faf94430cd477b8e6f313b3782d895494c3bd9228b461"
+  }
+}

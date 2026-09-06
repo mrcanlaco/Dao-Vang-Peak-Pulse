@@ -60,7 +60,8 @@ reports/
 # Data, Live Databases & Artifacts
 /data/
 data_live/
-artifacts/
+artifacts/*
+!artifacts/frozen_models/
 *.duckdb
 *.duckdb.wal
 *.sqlite

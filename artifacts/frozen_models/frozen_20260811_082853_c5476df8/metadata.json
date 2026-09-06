@@ -1,0 +1,115 @@
+{
+  "schema_version": "frozen_bundle_v1",
+  "artifact_schema_version": "frozen_bundle_v1",
+  "model_id": "frozen_20260811_082853_c5476df8",
+  "freeze_time": "2026-08-11T08:28:53.932231+00:00",
+  "train_cutoff": "2026-08-10T14:34:59.999000+07:00",
+  "threshold": 0.55,
+  "feature_cols": [
+    "price_ret_5m",
+    "price_ret_1h",
+    "price_ret_4h",
+    "price_ret_24h",
+    "price_volatility_24h",
+    "distance_from_high_24h",
+    "volume_percentile_24h",
+    "momentum_deceleration_4h",
+    "fake_breakout_1h",
+    "funding_rate_raw",
+    "funding_percentile_7d",
+    "funding_percentile_30d",
+    "funding_zscore_30d",
+    "funding_change_8h",
+    "funding_change_24h",
+    "funding_persistence_7d",
+    "oi_change_1h",
+    "oi_change_4h",
+    "oi_change_24h",
+    "taker_buy_ratio",
+    "global_ls_ratio",
+    "top_ls_ratio",
+    "retail_top_spread",
+    "spread_trend_1h",
+    "spread_trend_4h"
+  ],
+  "config": {
+    "hypothesis_id": "forward_test",
+    "dataset_version": "live_v1",
+    "label_version": "distribution_short_v1",
+    "feature_set_version": "features_v1",
+    "threshold_policy_version": "1.0",
+    "seed": 42
+  },
+  "training_stats": {
+    "train_size": 250909,
+    "train_positives": 30448,
+    "threshold": 0.55,
+    "n_features": 25,
+    "dropped_unavailable_features": [
+      "oi_zscore_7d",
+      "oi_acceleration_1h",
+      "price_oi_divergence_1h",
+      "taker_buy_ratio_trend_1h",
+      "taker_buy_ratio_trend_4h",
+      "taker_buy_ratio_change_1h",
+      "price_flow_divergence_1h"
+    ]
+  },
+  "label_spec": {
+    "version": "distribution_short_v1",
+    "horizon_hours": 24,
+    "horizon_minutes": 1440
+  },
+  "threshold_policy": {
+    "version": "1.0",
+    "high_confidence_min_prob": 0.55,
+    "watch_min_prob": 0.41250000000000003,
+    "threshold": 0.55
+  },
+  "thresholds": {
+    "default": 0.55
+  },
+  "calibrator_id": "identity_v1",
+  "calibrator": {
+    "id": "identity_v1",
+    "path": "calibrator.joblib"
+  },
+  "preprocessing": {
+    "feature_cols": [
+      "price_ret_5m",
+      "price_ret_1h",
+      "price_ret_4h",
+      "price_ret_24h",
+      "price_volatility_24h",
+      "distance_from_high_24h",
+      "volume_percentile_24h",
+      "momentum_deceleration_4h",
+      "fake_breakout_1h",
+      "funding_rate_raw",
+      "funding_percentile_7d",
+      "funding_percentile_30d",
+      "funding_zscore_30d",
+      "funding_change_8h",
+      "funding_change_24h",
+      "funding_persistence_7d",
+      "oi_change_1h",
+      "oi_change_4h",
+      "oi_change_24h",
+      "taker_buy_ratio",
+      "global_ls_ratio",
+      "top_ls_ratio",
+      "retail_top_spread",
+      "spread_trend_1h",
+      "spread_trend_4h"
+    ],
+    "missing_policy": "reject_at_serving"
+  },
+  "checksums": {
+    "model_sha256": "a7f040ea94a88b30c0ddb8383a0c8df640f063375ef9f7de2a38f2df7c13488d",
+    "calibrator_sha256": "c99873e5936f5ce788daf4c28cead9ffa3d5862f20cf2ba45ae3313ae65eb929"
+  },
+  "artifact_checksums": {
+    "model_sha256": "a7f040ea94a88b30c0ddb8383a0c8df640f063375ef9f7de2a38f2df7c13488d",
+    "calibrator_sha256": "c99873e5936f5ce788daf4c28cead9ffa3d5862f20cf2ba45ae3313ae65eb929"
+  }
+}
