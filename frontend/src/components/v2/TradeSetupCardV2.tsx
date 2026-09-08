@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Target, ShieldAlert, TrendingDown, Zap, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 
-import type { SignalTradeSetup } from '../../types';
+import type { SignalTradeSetup, SignalItem } from '../../types';
+import { formatSystemTime } from '../../utils/time';
 
 interface TradeSetupCardV2Props {
   symbol?: string;
@@ -12,6 +13,7 @@ interface TradeSetupCardV2Props {
   peakPrice?: number | null;
   invalidationPrice?: number | null;
   tradeSetup?: SignalTradeSetup | null;
+  selectedSignal?: SignalItem | null;
   onOpenOrderModal?: () => void;
 }
 
@@ -23,6 +25,7 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
   peakPrice: _peakPrice,
   invalidationPrice: _invalidationPrice,
   tradeSetup,
+  selectedSignal,
   onOpenOrderModal,
 }) => {
   const { t } = useTranslation();
@@ -88,6 +91,19 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
           {isExpanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
         </div>
       </button>
+
+      {selectedSignal && (
+        <div className="flex flex-wrap items-center justify-between text-[10px] bg-slate-900/50 p-2 rounded-lg border border-slate-800 gap-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500 uppercase font-semibold">Tín hiệu lúc:</span>
+            <span className="font-mono text-amber-400 font-bold">{formatSystemTime(selectedSignal.signal_time)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-slate-500 uppercase font-semibold">Giá báo:</span>
+            <span className="font-mono text-slate-300 font-bold">${selectedSignal.signal_price ? formatPrice(selectedSignal.signal_price) : 'N/A'}</span>
+          </div>
+        </div>
+      )}
 
       {isExpanded && <>
         {/* Levels Grid (Entry, SL, TP1, TP2, TP3) */}

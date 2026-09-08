@@ -17,7 +17,7 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
   
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const sortedDrivers = [...shapDrivers].sort((a, b) => b.impact_score - a.impact_score);
+  const sortedDrivers = [...(shapDrivers || [])].sort((a, b) => b.impact_score - a.impact_score);
   const top3Drivers = sortedDrivers.slice(0, 3);
   const components = deepAnalysis?.components || [];
   const sortedComponents = [...components].sort((a, b) => b.weighted_score - a.weighted_score);

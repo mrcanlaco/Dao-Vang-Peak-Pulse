@@ -1,10 +1,10 @@
 import React from 'react';
 import {
-  TrendingDown, Eye, EyeOff, CheckCircle2, Zap, Send, XCircle, Loader2,
-  Activity, Flame
+  TrendingDown, Eye, EyeOff, CheckCircle2, Zap, Send, XCircle, Loader2
 } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
-import { getRiskLabel, getBtcRegimeLabel } from '../../i18n/translations';
+import { formatSystemTime } from '../../utils/time';
+import { getRiskLabel } from '../../i18n/translations';
 import { normalizeProbability, ALERT_THRESHOLD_PCT } from '../../types';
 import type { CoinDetail, DeepAnalysis, SignalItem } from '../../types';
 
@@ -22,7 +22,6 @@ interface AiDecisionCockpitProps {
   onAddWatchlist?: (symbol: string) => void | Promise<boolean | void>;
   onAddTracking?: (symbol: string) => void | Promise<boolean | void>;
   onRemoveTracking?: (symbol: string) => void | Promise<boolean | void>;
-  onOpenOrderModal?: () => void;
 }
 
 export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
@@ -39,7 +38,6 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
   onAddWatchlist,
   onAddTracking,
   onRemoveTracking,
-  onOpenOrderModal,
 }) => {
   const { language, t } = useTranslation();
   
@@ -51,17 +49,10 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
     SAFE: getRiskLabel('SAFE', language),
   };
 
-  const btcRegimeLabels: Record<string, string> = {
-    FOMO: getBtcRegimeLabel('FOMO', language),
-    WEAK: getBtcRegimeLabel('WEAK', language),
-    NEUTRAL: getBtcRegimeLabel('NEUTRAL', language),
-  };
 
   const isDeepMatching = Boolean(deepAnalysis && (!deepAnalysis.symbol || deepAnalysis.symbol.toUpperCase() === displayDetail.symbol.toUpperCase()));
   const rawDeepProb = isDeepMatching ? (deepAnalysis?.calibrated_probability ?? deepAnalysis?.model_probability) : null;
   const deepProbabilityPct = normalizeProbability(rawDeepProb);
-  const deepThreshold = isDeepMatching ? deepAnalysis?.probability_threshold : null;
-  const deepProbabilityThresholdPct = normalizeProbability(deepThreshold) ?? ALERT_THRESHOLD_PCT;
 
   const matchedSignal = selectedSignal && selectedSignal.symbol.toUpperCase() === displayDetail.symbol.toUpperCase() ? selectedSignal : null;
   const signalProbPct = normalizeProbability(matchedSignal?.probability);
@@ -78,183 +69,89 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
     ? 'WATCH'
     : (isDeepMatching ? (deepAnalysis?.recommendation === 'SHORT_CANDIDATE' ? 'WATCH' : deepAnalysis?.recommendation) : null) || 'STANDBY';
   return (
-    <div className="space-y-3 min-w-0">
-      {/* AI Recommendation Banner */}
-      <div className={`rounded-xl p-3.5 border-2 shadow-lg transition-all ${
+    <div className="space-y-2 min-w-0">
+      {/* 1. Ultra-compact AI Recommendation & Probability */}
+      <div className={`rounded-xl p-2.5 border-2 shadow-sm flex items-center justify-between gap-2 ${
         recommendation === 'SHORT_CANDIDATE'
-          ? 'bg-gradient-to-br from-red-950/60 via-slate-950 to-slate-900 border-red-700/80 shadow-red-950/30'
+          ? 'bg-gradient-to-r from-red-950/60 to-slate-900 border-red-700/80'
           : recommendation === 'WATCH'
-          ? 'bg-gradient-to-br from-amber-950/60 via-slate-950 to-slate-900 border-amber-700/80 shadow-amber-950/30'
-          : 'bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 border-slate-700 shadow-slate-950/30'
+          ? 'bg-gradient-to-r from-amber-950/60 to-slate-900 border-amber-700/80'
+          : 'bg-slate-900 border-slate-700'
       }`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner shrink-0 ${
-              recommendation === 'SHORT_CANDIDATE' ? 'bg-red-900/80 border border-red-500/50 text-red-200' :
-              recommendation === 'WATCH' ? 'bg-amber-900/80 border border-amber-500/50 text-amber-200' :
-              'bg-slate-800 border border-slate-700 text-slate-300'
+        <div className="flex items-center gap-2">
+          {recommendation === 'SHORT_CANDIDATE' ? <TrendingDown className="w-5 h-5 text-red-400" /> :
+           recommendation === 'WATCH' ? <Eye className="w-5 h-5 text-amber-400" /> :
+           <CheckCircle2 className="w-5 h-5 text-slate-400" />}
+          <div>
+            <div className={`text-sm font-black tracking-tight ${
+              recommendation === 'SHORT_CANDIDATE' ? 'text-red-400' :
+              recommendation === 'WATCH' ? 'text-amber-400' : 'text-slate-300'
             }`}>
-              {recommendation === 'SHORT_CANDIDATE' ? (
-                <TrendingDown className="w-6 h-6 text-red-400" />
-              ) : recommendation === 'WATCH' ? (
-                <Eye className="w-6 h-6 text-amber-400" />
-              ) : (
-                <CheckCircle2 className="w-6 h-6 text-slate-400" />
+              {recommendation === 'SHORT_CANDIDATE' ? t('ws_rec_short_badge') : recommendation === 'WATCH' ? t('ws_rec_watch_badge') : t('ws_rec_standby_badge')}
+            </div>
+            <div className="flex items-center gap-1 mt-0.5">
+              <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border uppercase ${
+                displayDetail.risk_level === 'CRITICAL' ? 'bg-red-950 text-red-300 border-red-800' :
+                displayDetail.risk_level === 'HIGH' ? 'bg-amber-950 text-amber-300 border-amber-800' :
+                displayDetail.risk_level === 'MEDIUM' ? 'bg-yellow-950 text-yellow-300 border-yellow-800' :
+                'bg-slate-800 text-slate-300 border-slate-700'
+              }`}>
+                {displayDetail.risk_level ? (riskLabels[displayDetail.risk_level] ?? displayDetail.risk_level) : 'N/A'}
+              </span>
+              {(matchedSignal || (isDeepMatching && deepAnalysis?.two_tier_analysis)) && (
+                <span className="text-[9px] font-mono text-violet-400 ml-1">
+                  Tier Score: {deepAnalysis?.two_tier_analysis?.total_score ?? '—'}
+                </span>
               )}
             </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">
-                {t('ws_ai_recommendation')}
+            {selectedSignal && (
+              <div className="text-[9px] font-mono text-slate-400 mt-1">
+                Lúc: <strong className="text-amber-400/90">{formatSystemTime(selectedSignal.signal_time)}</strong> • Giá báo: <strong className="text-slate-300">${selectedSignal.signal_price < 1 ? selectedSignal.signal_price.toFixed(5) : selectedSignal.signal_price.toFixed(2)}</strong>
               </div>
-              <div className={`text-base sm:text-lg font-black tracking-tight ${
-                recommendation === 'SHORT_CANDIDATE' ? 'text-red-400' :
-                recommendation === 'WATCH' ? 'text-amber-400' : 'text-slate-300'
-              }`}>
-                {recommendation === 'SHORT_CANDIDATE' ? t('ws_rec_short_badge') : recommendation === 'WATCH' ? t('ws_rec_watch_badge') : t('ws_rec_standby_badge')}
-              </div>
-              <div className="mt-0.5 flex items-center gap-1.5">
-                <span className={`px-2 py-0.2 rounded text-[9px] font-bold border ${
-                  displayDetail.risk_level === 'CRITICAL' ? 'bg-red-950 text-red-300 border-red-800' :
-                  displayDetail.risk_level === 'HIGH' ? 'bg-amber-950 text-amber-300 border-amber-800' :
-                  displayDetail.risk_level === 'MEDIUM' ? 'bg-yellow-950 text-yellow-300 border-yellow-800' :
-                  'bg-slate-800 text-slate-300 border-slate-700'
-                }`}>
-                  {displayDetail.risk_level ? (riskLabels[displayDetail.risk_level] ?? displayDetail.risk_level) : (t('metric_insufficient_data'))}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Probability Gauge */}
-          <div className="text-right shrink-0">
-            <div className="text-[10px] text-slate-400 uppercase font-mono">
-              {t('ws_dump_prob_title')}
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-tight">
-              {effectiveProbabilityPct != null
-                ? effectiveProbabilityPct.toFixed(1)
-                : '—'}
-            </div>
-            <div className="text-[9px] text-slate-400 font-mono">
-              {deepProbabilityThresholdPct != null ? `${t('threshold')}: ${deepProbabilityThresholdPct.toFixed(0)}` : ''}
-            </div>
+            )}
           </div>
         </div>
-
-        {/* Probability Gauge Progress Bar */}
-        <div className="mt-3">
-          <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                (effectiveProbabilityPct ?? 0) >= (deepProbabilityThresholdPct ?? ALERT_THRESHOLD_PCT)
-                  ? 'bg-gradient-to-r from-orange-500 to-red-500 shadow-md shadow-red-500/50'
-                  : (effectiveProbabilityPct ?? 0) >= 40
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500'
-                  : 'bg-slate-600'
-              }`}
-              style={{ width: `${Math.min(100, Math.max(0, effectiveProbabilityPct ?? 0))}%` }}
-            />
+        
+        <div className="text-right shrink-0">
+          <div className="text-[9px] text-slate-400 uppercase font-mono">{t('ws_dump_prob_title')}</div>
+          <div className="text-xl sm:text-2xl font-black text-amber-400 font-mono">
+            {effectiveProbabilityPct != null ? `${effectiveProbabilityPct.toFixed(1)}%` : '—'}
           </div>
         </div>
       </div>
+
+      {/* 2. Compact 2-Tier Climax Badges (No Text Walls) */}
       {(matchedSignal || (isDeepMatching && deepAnalysis?.two_tier_analysis)) && (
-        <div className="bg-slate-950/90 border border-violet-800/40 rounded-xl p-3 shadow-md space-y-2">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-violet-300">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>{t('two_tier_title') || 'Kiến Trúc 2 Tầng (2-Tier Climax)'}</span>
-            </div>
-            <span className="text-[10px] font-mono text-slate-400">
-              Score: <strong className="text-violet-300">
-                {deepAnalysis?.two_tier_analysis?.total_score ?? '—'}
-              </strong>
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className={`p-1.5 rounded-lg border flex items-center justify-between text-[9px] font-mono ${
+            matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED' || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED'
+              ? 'bg-red-950/40 border-red-800/60' : 'bg-slate-900/60 border-slate-800'
+          }`}>
+            <span className="text-slate-400">HTF (1)</span>
+            <span className={`px-1 py-0.5 rounded font-bold ${
+              matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED' || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED'
+                ? 'bg-red-900 text-red-200 animate-pulse' : 'text-slate-500'
+            }`}>
+              {((matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED') ? 'ARMED' : deepAnalysis?.two_tier_analysis?.htf_state) || '—'}
             </span>
           </div>
-
-          <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
-            {/* Tier 1: HTF Climax Context */}
-            <div className={`p-2 rounded-lg border ${
-              matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED' || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED'
-                ? 'bg-red-950/40 border-red-800/60 text-red-200'
-                : 'bg-slate-900/60 border-slate-800 text-slate-300'
-            }`}>
-              <div className="flex items-center justify-between font-bold">
-                <span className="text-slate-400">{t('two_tier_htf') || 'Tầng 1 (Khung lớn)'}</span>
-                <span className={`px-1.5 py-0.2 rounded text-[9px] ${
-                  matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED' || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED'
-                    ? 'bg-red-900 text-red-200 font-black animate-pulse'
-                    : 'bg-slate-800 text-slate-400'
-                }`}>
-                  {((matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED') ? 'ARMED' : deepAnalysis?.two_tier_analysis?.htf_state) || '—'}
-                </span>
-              </div>
-              <div className="mt-1 text-xs font-bold text-red-300">
-                {deepAnalysis?.two_tier_analysis?.htf_climax_score != null ? `${deepAnalysis.two_tier_analysis.htf_climax_score}/100` : '—'}
-              </div>
-              <div className="text-[9px] text-slate-400 truncate mt-0.5">
-                {((matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED') ? 'ARMED' : deepAnalysis?.two_tier_analysis?.htf_state) === 'ARMED' ? (t('two_tier_htf_armed') || 'Đã bơm nóng cực hạn') : '—'}
-              </div>
-            </div>
-
-            {/* Tier 2: LTF Real-time Trigger */}
-            <div className={`p-2 rounded-lg border ${
+          <div className={`p-1.5 rounded-lg border flex items-center justify-between text-[9px] font-mono ${
+            matchedSignal?.two_tier_state === 'FIRED' || deepAnalysis?.two_tier_analysis?.ltf_state === 'FIRED'
+              ? 'bg-amber-950/40 border-amber-800/60' : 'bg-slate-900/60 border-slate-800'
+          }`}>
+            <span className="text-slate-400">LTF (2)</span>
+            <span className={`px-1 py-0.5 rounded font-bold ${
               matchedSignal?.two_tier_state === 'FIRED' || deepAnalysis?.two_tier_analysis?.ltf_state === 'FIRED'
-                ? 'bg-amber-950/40 border-amber-800/60 text-amber-200'
-                : 'bg-slate-900/60 border-slate-800 text-slate-300'
+                ? 'bg-amber-500 text-slate-950' : 'text-slate-500'
             }`}>
-              <div className="flex items-center justify-between font-bold">
-                <span className="text-slate-400">{t('two_tier_ltf') || 'Tầng 2 (Dòng tiền 5m)'}</span>
-                <span className={`px-1.5 py-0.2 rounded text-[9px] ${
-                  matchedSignal?.two_tier_state === 'FIRED' || deepAnalysis?.two_tier_analysis?.ltf_state === 'FIRED'
-                    ? 'bg-amber-500 text-slate-950 font-black'
-                    : 'bg-slate-800 text-slate-400'
-                }`}>
-                  {matchedSignal?.two_tier_state === 'FIRED' ? 'FIRED' : (deepAnalysis?.two_tier_analysis?.ltf_state || '—')}
-                </span>
-              </div>
-              <div className="mt-1 text-xs font-bold text-amber-300">
-                {deepAnalysis?.two_tier_analysis?.ltf_trigger_score != null ? `${deepAnalysis.two_tier_analysis.ltf_trigger_score}/100` : '—'}
-              </div>
-              <div className="text-[9px] text-slate-400 truncate mt-0.5">
-                {matchedSignal?.two_tier_state === 'FIRED' || deepAnalysis?.two_tier_analysis?.ltf_state === 'FIRED' ? (t('two_tier_ltf_fired') || 'Lực xả 5m kích hoạt') : (deepAnalysis?.two_tier_analysis?.ltf_state === 'WATCH' ? (t('two_tier_ltf_watch') || 'Đang chờ áp lực bán') : '—')}
-              </div>
-            </div>
+              {matchedSignal?.two_tier_state === 'FIRED' ? 'FIRED' : (deepAnalysis?.two_tier_analysis?.ltf_state || '—')}
+            </span>
           </div>
-
-          <p className="text-[10px] text-slate-300 leading-snug bg-slate-900/40 p-1.5 rounded border border-slate-800/50">
-            {matchedSignal?.two_tier_state === 'FIRED'
-              ? '✓ [HTF CLIMAX ARMED] + [LTF 5M TRIGGER FIRED]: Dòng tiền bán chủ động bùng nổ, xác nhận vào sóng xả mạnh.'
-              : (matchedSignal?.two_tier_state === 'ARMED' || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED')
-              ? '⏳ [HTF CLIMAX ARMED] Bơm chạm đỉnh phân phối, đang canh dòng lệnh 5m.'
-              : (deepAnalysis?.two_tier_analysis?.explanation_summary || 'Đang theo dõi vùng rủi ro.')}
-          </p>
         </div>
       )}
 
-      {/* Action Buttons Grid */}
-      <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 shadow-md space-y-2.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-            {t('cockpit_quick_actions')}
-          </span>
-          {onOpenOrderModal && (
-            <span className="text-[10px] text-amber-400 font-mono font-bold">
-              1-Click Binance & OKX
-            </span>
-          )}
-        </div>
-
-        {/* Primary Short Setup Button */}
-        {onOpenOrderModal && (
-          <button
-            onClick={onOpenOrderModal}
-            className="w-full py-2.5 px-3 bg-gradient-to-r from-red-600 via-red-500 to-amber-500 hover:from-red-500 hover:to-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-red-600/25 active:scale-95 transition"
-          >
-            <Zap className="w-4 h-4 stroke-[2.5]" />
-            <span>{t('sticky_action_short')} (Binance / OKX Futures)</span>
-          </button>
-        )}
-
+      {/* 3. Ultra-compact Actions Grid */}
+      <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-2 shadow-sm space-y-2">
         <div className="grid grid-cols-2 gap-2">
           {/* Re-score Button */}
           <button
@@ -345,90 +242,6 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
           </button>
         )}
       </div>
-
-      {/* Market Context & Pump Card */}
-      {deepAnalysis && (
-        <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-3 sm:p-3.5 shadow-md space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-              <Activity className="w-3.5 h-3.5 text-amber-400" />
-              {t('cockpit_market_regime_pump')}
-            </h3>
-            <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
-              deepAnalysis.btc_regime === 'FOMO' ? 'bg-emerald-950 text-emerald-300 border-emerald-800' :
-              deepAnalysis.btc_regime === 'WEAK' ? 'bg-red-950 text-red-300 border-red-800' :
-              'bg-slate-900 text-slate-300 border-slate-700'
-            }`}>
-              BTC: {btcRegimeLabels[deepAnalysis.btc_regime] ?? deepAnalysis.btc_regime}
-            </span>
-          </div>
-
-          {/* Pump Analysis */}
-          <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
-            <div className="flex items-center justify-between text-xs mb-1">
-              <span className="text-[10px] text-slate-400 uppercase font-semibold flex items-center gap-1">
-                {deepAnalysis?.pump_analysis?.detected ? (
-                  <Flame className="w-3.5 h-3.5 text-orange-400" />
-                ) : (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-slate-500" />
-                )}
-                {t('cockpit_parabolic_detection')}
-              </span>
-              <span className={`font-mono font-bold text-xs ${deepAnalysis?.pump_analysis?.detected ? 'text-orange-400' : 'text-slate-400'}`}>
-                {deepAnalysis?.pump_analysis?.detected ? `+${deepAnalysis.pump_analysis.pump_pct}% (${deepAnalysis.pump_analysis.pump_days}d)` : (t('metric_insufficient_data'))}
-              </span>
-            </div>
-
-            {deepAnalysis?.pump_analysis?.detected ? (
-              <div className="mt-2 space-y-1.5">
-                <div className="flex justify-between text-[10px] font-mono text-slate-300">
-                  <span>{t('cockpit_pump_peak')} ${deepAnalysis.pump_analysis.peak_price?.toFixed(4) ?? '0.0000'}</span>
-                  <span className={(deepAnalysis.pump_analysis.current_vs_peak ?? 0) < -20 ? 'text-red-400 font-bold' : 'text-slate-300'}>
-                    {deepAnalysis.pump_analysis.current_vs_peak ?? 0}% {t('cockpit_pump_from_peak')}
-                  </span>
-                </div>
-                {/* Progress bar from peak */}
-                <div className="relative h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
-                  <div
-                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-600 to-orange-400"
-                    style={{ width: `${Math.max(0, Math.min(100, 100 + (deepAnalysis.pump_analysis.current_vs_peak ?? 0)))}%` }}
-                  />
-                </div>
-              </div>
-            ) : (
-              <p className="text-[10px] text-slate-500 mt-1">
-                {t('cockpit_no_pump_detected')}
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Validity & Track Record */}
-      {selectedSignal && (
-        <div className="grid grid-cols-3 gap-2 text-[10px] bg-slate-950/80 p-2.5 rounded-xl border border-slate-800">
-          <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800/80">
-            <div className="text-slate-500 uppercase">{t('ws_validity_left')}</div>
-            <div className="text-amber-300 font-mono font-bold mt-0.5">
-              {Math.floor(selectedSignal.validity_hours_left)}h {Math.floor((selectedSignal.validity_hours_left % 1) * 60)}m
-            </div>
-          </div>
-          <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800/80">
-            <div className="text-slate-500 uppercase">{t('ws_mean_lead_time')}</div>
-            <div className="text-sky-300 font-mono font-bold mt-0.5">
-              {selectedSignal.lead_time_avg_hours > 0 ? `${selectedSignal.lead_time_avg_hours.toFixed(1)}h` : '—'}
-            </div>
-          </div>
-          <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800/80">
-            <div className="text-slate-500 uppercase">{t('audit_empirical_precision')}</div>
-            <div className="text-emerald-300 font-mono font-bold mt-0.5">
-              {selectedSignal.evidence_precision != null
-                ? `${(selectedSignal.evidence_precision * 100).toFixed(0)}%`
-                : (t('metric_insufficient_data'))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
