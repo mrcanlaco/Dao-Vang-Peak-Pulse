@@ -119,6 +119,12 @@ export interface SignalItem extends MarketCapFields {
   evidence_precision?: number | null;
   evidence_n_judged?: number | null;
   hit?: boolean | null;
+  alert_episode_id?: string | null;
+  episode_role?: string | null;
+  episode_transition?: string | null;
+  alert_episode_id?: string | null;
+  episode_role?: string | null;
+  episode_transition?: string | null;
   outcome_status?: 'ACTIVE' | 'TARGET_HIT' | 'STOPPED_OUT' | 'EXPIRED' | 'FAILED' | 'EXCLUDED' | 'UNTRACKED' | string;
   mfe_pct?: number | null;
   mae_pct?: number | null;
@@ -192,6 +198,12 @@ export interface TrackingWatchlistItem {
   updated_at: string;
   signal_status: TrackingSignalStatus;
   hit?: boolean | null;
+  alert_episode_id?: string | null;
+  episode_role?: string | null;
+  episode_transition?: string | null;
+  alert_episode_id?: string | null;
+  episode_role?: string | null;
+  episode_transition?: string | null;
   hit_time?: string | null;
   validity_hours_left?: number | null;
   current_price?: number | null;

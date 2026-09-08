@@ -63,6 +63,26 @@ CREATE INDEX IF NOT EXISTS idx_alert_symbol_time
     ON alert_history(symbol, signal_time DESC);
 CREATE INDEX IF NOT EXISTS idx_alert_risk
     ON alert_history(risk_level, signal_time DESC);
+CREATE TABLE IF NOT EXISTS alert_lanes (
+    lane_id VARCHAR PRIMARY KEY,
+    symbol VARCHAR NOT NULL,
+    horizon_hours INTEGER NOT NULL,
+    state VARCHAR NOT NULL,
+    current_episode_id VARCHAR,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS alert_episodes (
+    episode_id VARCHAR PRIMARY KEY,
+    lane_id VARCHAR NOT NULL,
+    status VARCHAR NOT NULL,
+    close_reason VARCHAR,
+    flap_count INTEGER NOT NULL DEFAULT 0,
+    last_valid_observation_at TIMESTAMPTZ,
+    last_processed_time TIMESTAMPTZ,
+    start_time TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_alert_episodes_status ON alert_episodes(status, lane_id);
 """
 
 # Columns added after the initial release — applied via ALTER TABLE so that
@@ -84,7 +104,15 @@ _MIGRATIONS: list[str] = [
     "ALTER TABLE alert_history ADD COLUMN shadow_mode BOOLEAN",
     "ALTER TABLE alert_history ADD COLUMN reason_codes_json VARCHAR",
     "ALTER TABLE alert_history ADD COLUMN threshold_policy_version VARCHAR",
+    "ALTER TABLE alert_history ADD COLUMN alert_episode_id VARCHAR",
 ]
+
+
+@dataclass
+class AlertEpisodeResult:
+    episode_id: str | None
+    role: str       # 'FIRST', 'UPDATE', 'NONE'
+    transition: str # 'OPENED', 'CONTINUED', 'CLOSED', 'REARMED', 'NONE'
 
 
 @dataclass
@@ -117,6 +145,7 @@ class AlertRecord:
     shadow_mode: bool = False
     reason_codes_json: str | None = None
     threshold_policy_version: str | None = None
+    alert_episode_id: str | None = None
 
 
 class AlertStore:
@@ -152,7 +181,145 @@ class AlertStore:
         conn = duckdb.connect(self._db_path, read_only=self._read_only)
         configure_connection(conn, self._db_path)
         return conn
+    def get_episode_tracking_symbols(self) -> list[str]:
+        """Return symbols that have an ACTIVE lane or recently COOLING_DOWN (within 24h)."""
+        if self._read_only:
+            return []
+        try:
+            with self._conn() as conn:
+                rows = conn.execute("""
+                    SELECT DISTINCT symbol 
+                    FROM alert_lanes 
+                    WHERE state = 'ACTIVE' 
+                       OR (state = 'COOLING_DOWN' AND updated_at >= CURRENT_TIMESTAMP - INTERVAL 24 HOUR)
+                """).fetchall()
+                return [r[0] for r in rows]
+        except Exception as e:
+            logger.error("get_episode_tracking_symbols_failed", error=str(e))
+            return []
 
+    def process_snapshot(
+        self,
+        symbol: str,
+        horizon_hours: int,
+        probability: float | None,
+        threshold: float,
+        is_usable: bool,
+        timestamp: datetime,
+        flap_limit: int = 3,
+        alert_rearm_probability: float = 0.4,
+    ) -> AlertEpisodeResult:
+        """Process state machine for an alert episode."""
+        if self._read_only:
+            return AlertEpisodeResult(None, "NONE", "NONE")
+
+        import uuid
+        from datetime import timezone
+
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
+
+        lane_id = f"{symbol}:{horizon_hours}"
+
+        try:
+            with self._conn() as conn:
+                conn.begin()
+                try:
+                    row = conn.execute(
+                        "SELECT state, current_episode_id FROM alert_lanes WHERE lane_id = ?",
+                        [lane_id]
+                    ).fetchone()
+
+                    if not row:
+                        conn.execute(
+                            "INSERT INTO alert_lanes (lane_id, symbol, horizon_hours, state, updated_at) VALUES (?, ?, ?, 'ARMED', ?)",
+                            [lane_id, symbol, horizon_hours, timestamp]
+                        )
+                        state, current_episode_id = 'ARMED', None
+                    else:
+                        state, current_episode_id = row[0], row[1]
+
+                    role = "NONE"
+                    transition = "NONE"
+                    out_ep_id = current_episode_id
+                    
+                    # Pre-fetch episode details if ACTIVE
+                    if state == 'ACTIVE' and current_episode_id:
+                        ep_row = conn.execute(
+                            "SELECT flap_count, last_processed_time FROM alert_episodes WHERE episode_id = ?",
+                            [current_episode_id]
+                        ).fetchone()
+                        
+                        if ep_row:
+                            flap_count, last_processed_time = ep_row[0], ep_row[1]
+                            if last_processed_time:
+                                if last_processed_time.tzinfo is None:
+                                    last_processed_time = last_processed_time.replace(tzinfo=timezone.utc)
+                                if timestamp <= last_processed_time:
+                                    conn.rollback()
+                                    return AlertEpisodeResult(current_episode_id, "NONE", "NONE")
+                            
+                            if not is_usable or probability is None:
+                                pass # UNKNOWN/STALE
+                            elif probability >= threshold:
+                                conn.execute(
+                                    "UPDATE alert_episodes SET flap_count = 0, last_valid_observation_at = ?, last_processed_time = ?, updated_at = ? WHERE episode_id = ?",
+                                    [timestamp, timestamp, timestamp, current_episode_id]
+                                )
+                                role = "UPDATE"
+                                transition = "CONTINUED"
+                            else:
+                                flap_count += 1
+                                if flap_count >= flap_limit:
+                                    conn.execute(
+                                        "UPDATE alert_episodes SET status = 'CLOSED', close_reason = 'HYSTERESIS', flap_count = ?, last_valid_observation_at = ?, last_processed_time = ?, updated_at = ? WHERE episode_id = ?",
+                                        [flap_count, timestamp, timestamp, timestamp, current_episode_id]
+                                    )
+                                    state = 'COOLING_DOWN'
+                                    current_episode_id = None
+                                    role = "UPDATE"
+                                    transition = "CLOSED"
+                                else:
+                                    conn.execute(
+                                        "UPDATE alert_episodes SET flap_count = ?, last_valid_observation_at = ?, last_processed_time = ?, updated_at = ? WHERE episode_id = ?",
+                                        [flap_count, timestamp, timestamp, timestamp, current_episode_id]
+                                    )
+                                    role = "UPDATE"
+                                    transition = "NONE"
+                                    
+                    elif state == 'ARMED':
+                        if is_usable and probability is not None and probability >= threshold:
+                            ep_id = f"ep-{uuid.uuid4().hex[:12]}"
+                            conn.execute(
+                                """INSERT INTO alert_episodes 
+                                   (episode_id, lane_id, status, flap_count, last_valid_observation_at, last_processed_time, start_time, updated_at) 
+                                   VALUES (?, ?, 'OPEN', 0, ?, ?, ?, ?)""",
+                                [ep_id, lane_id, timestamp, timestamp, timestamp, timestamp]
+                            )
+                            state = 'ACTIVE'
+                            current_episode_id = ep_id
+                            out_ep_id = ep_id
+                            role = "FIRST"
+                            transition = "OPENED"
+
+                    elif state == 'COOLING_DOWN':
+                        if is_usable and probability is not None and probability < alert_rearm_probability:
+                            state = 'ARMED'
+                            role = "NONE"
+                            transition = "REARMED"
+
+                    conn.execute(
+                        "UPDATE alert_lanes SET state = ?, current_episode_id = ?, updated_at = ? WHERE lane_id = ?",
+                        [state, current_episode_id, timestamp, lane_id]
+                    )
+                    conn.commit()
+                    return AlertEpisodeResult(out_ep_id, role, transition)
+                except Exception as inner_e:
+                    conn.rollback()
+                    raise inner_e
+        except Exception as e:
+            logger.error("process_snapshot_failed", symbol=symbol, error=str(e))
+            return AlertEpisodeResult(None, "NONE", "NONE")
     def _init_schema(self) -> None:
         with self._conn() as conn:
             conn.execute(_SCHEMA)
@@ -239,9 +406,8 @@ class AlertStore:
                     telegram_sent, telegram_sent_at, dismissed,
                     components_json, evidence_precision, evidence_n_judged,
                     heuristic_score, calibrated_probability, data_quality_score, horizon_hours, model_probability,
-                    cooldown_key, shadow_mode, reason_codes_json, threshold_policy_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-
+                    cooldown_key, shadow_mode, reason_codes_json, threshold_policy_version, alert_episode_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     record.signal_time,
@@ -267,6 +433,7 @@ class AlertStore:
                     record.shadow_mode,
                     record.reason_codes_json,
                     record.threshold_policy_version,
+                    record.alert_episode_id,
 
                 ],
             )

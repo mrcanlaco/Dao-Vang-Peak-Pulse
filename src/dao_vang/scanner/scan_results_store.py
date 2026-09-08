@@ -86,7 +86,10 @@ CREATE TABLE IF NOT EXISTS predictions (
     snapshot_id                  VARCHAR,
     bundle_checksum              VARCHAR,
     latency_ms                   DOUBLE,
-    event_id                     VARCHAR
+    event_id                     VARCHAR,
+    alert_episode_id             VARCHAR,
+    episode_role                 VARCHAR,
+    episode_transition           VARCHAR
 );
 CREATE INDEX IF NOT EXISTS idx_predictions_pending
     ON predictions(invalidation_time, telegram_sent);
@@ -119,6 +122,9 @@ CREATE INDEX IF NOT EXISTS idx_prediction_outcomes_status
 
 # Migrations
 _MIGRATIONS: list[str] = [
+    "ALTER TABLE predictions ADD COLUMN alert_episode_id VARCHAR",
+    "ALTER TABLE predictions ADD COLUMN episode_role VARCHAR",
+    "ALTER TABLE predictions ADD COLUMN episode_transition VARCHAR",
     # DuckDB 1.5 can leave these legacy indexes stale after a fatal writer
     # interruption, causing MAX/ORDER BY scan_time to return old rows while
     # newer rows exist. scan_results is small enough for reliable table scans.
@@ -210,6 +216,9 @@ class PredictionRecord:
     bundle_checksum: str | None = None
     latency_ms: float | None = None
     event_id: str | None = None
+    alert_episode_id: str | None = None
+    episode_role: str | None = None
+    episode_transition: str | None = None
 
     @classmethod
     def stable_id(cls, symbol: str, signal_time: datetime, model_id: str, horizon_hours: int) -> str:
@@ -281,9 +290,10 @@ class ScanResultStore:
                     model_id, calibrator_id, threshold_policy_version,
                     candidate_passed, state, tier, threshold, reason_codes_json,
                     evidence_groups_json, shadow_mode, telegram_sent, cooldown_key,
-                    invalidation_time, snapshot_id, bundle_checksum, latency_ms, event_id
+                    invalidation_time, snapshot_id, bundle_checksum, latency_ms, event_id,
+                    alert_episode_id, episode_role, episode_transition
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (prediction_id) DO NOTHING
                 """,
                 [
@@ -321,6 +331,9 @@ class ScanResultStore:
                     record.bundle_checksum,
                     record.latency_ms,
                     record.event_id,
+                    record.alert_episode_id,
+                    record.episode_role,
+                    record.episode_transition,
                 ],
             )
             # DuckDB does not expose rowcount consistently across versions;
@@ -797,12 +810,13 @@ class ScanResultStore:
         limit: int = 100,
         max_age_hours: int = 72,
     ) -> list[dict[str, Any]]:
-        from dao_vang.utils.time import system_now
         from datetime import timedelta
+
+        from dao_vang.utils.time import system_now
         cutoff = system_now() - timedelta(hours=max_age_hours)
         with self._conn() as conn:
             rows = conn.execute(
-                f"""
+                """
                 SELECT p.prediction_id, p.symbol, p.signal_time, p.created_at,
                        p.horizon_hours, p.target_drawdown, p.calibrated_probability,
                        p.model_probability, p.data_quality_score, p.quality_status,
@@ -853,7 +867,7 @@ class ScanResultStore:
                        horizon_hours, target_drawdown, calibrated_probability,
                        model_probability, data_quality_score, quality_status,
                        tier, threshold, shadow_mode, telegram_sent,
-                       invalidation_time
+                       invalidation_time, alert_episode_id, episode_role, episode_transition
                 FROM (
                     SELECT *,
                         ROW_NUMBER() OVER (
@@ -885,6 +899,9 @@ class ScanResultStore:
                 "shadow_mode",
                 "telegram_sent",
                 "invalidation_time",
+                "alert_episode_id",
+                "episode_role",
+                "episode_transition",
             ]
         return [dict(zip(cols, r)) for r in rows]
 

@@ -1,5 +1,4 @@
 import logging
-import time
 from pathlib import Path
 
 import duckdb
@@ -38,9 +37,13 @@ class ExecutionEngine:
             logger.warning("No API credentials found. ExecutionEngine will run in dry mode.")
 
     def connect(self):
-        """Connect to DuckDB (read-only for safety since ScannerDaemon writes)."""
+        """Connect to database and Binance API."""
+        from pathlib import Path
         logger.info(f"Connecting ExecutionEngine to {self.db_path} (read-only)")
         self._db_conn = duckdb.connect(str(self.db_path), read_only=True)
+        exec_db_path = Path(self.db_path).parent / "execution.duckdb"
+        self._exec_conn = duckdb.connect(str(exec_db_path))
+        self._exec_conn.execute("CREATE TABLE IF NOT EXISTS executed_signals (prediction_id VARCHAR PRIMARY KEY, executed_at TIMESTAMP)")
 
     def run_loop(self):
         """Main loop: Poll database and execute trades."""
@@ -53,48 +56,78 @@ class ExecutionEngine:
         try:
             while True:
                 self.poll_signals()
+                import time
                 time.sleep(10)  # Poll every 10 seconds
         except KeyboardInterrupt:
             logger.info("ExecutionEngine stopped.")
         finally:
-            if self._db_conn:
+            if getattr(self, '_db_conn', None):
                 self._db_conn.close()
+            if getattr(self, '_exec_conn', None):
+                self._exec_conn.close()
 
     def poll_signals(self):
-        """Query DuckDB for new alertable signals."""
-        if not self._db_conn:
+        """Query DuckDB for new actionable alerts."""
+        if not getattr(self, '_db_conn', None) or not getattr(self, '_exec_conn', None):
             return
+            
+        executed = {r[0] for r in self._exec_conn.execute("SELECT prediction_id FROM executed_signals").fetchall()}
             
         query = """
             SELECT
-                epoch(signal_time) as ts, symbol, probability, close_price
+                alert_episode_id, symbol, probability, close_price
             FROM alert_history
-            WHERE epoch(signal_time) > ?
+            WHERE alert_episode_id IS NOT NULL
               AND COALESCE(shadow_mode, FALSE) = FALSE
             ORDER BY signal_time ASC
         """
         
         try:
-            results = self._db_conn.execute(query, [self.last_processed_timestamp]).fetchall()
+            results = self._db_conn.execute(query).fetchall()
             for row in results:
-                ts, symbol, probability, price = row
-                self.process_signal(symbol, probability, price, ts)
-                self.last_processed_timestamp = max(self.last_processed_timestamp, ts)
-
+                alert_episode_id, symbol, probability, price = row
+                if alert_episode_id in executed:
+                    continue
+                
+                success = self.process_signal(symbol, probability, price, alert_episode_id)
+                if success:
+                    self._exec_conn.execute("INSERT INTO executed_signals (prediction_id, executed_at) VALUES (?, CURRENT_TIMESTAMP)", [alert_episode_id])
         except Exception as e:
             logger.error(f"Error polling database: {e}")
 
-    def process_signal(self, symbol: str, probability: float, price: float, timestamp: int):
+    def process_signal(self, symbol: str, probability: float, price: float, prediction_id: str) -> bool:
         """Process a single signal and decide whether to enter a trade."""
         logger.info(f"ExecutionEngine evaluating signal: {symbol} probability={probability:.2f} price={price}")
         
+        # 0. Check open positions for duplicate symbol
+        if self.has_open_position(symbol):
+            logger.info(f"Already have open position for {symbol}. Skipping signal.")
+            return False
+
         # 1. Check open positions limit
         if self.get_open_positions_count() >= self.settings.max_open_positions:
             logger.info("Max open positions reached. Skipping signal.")
-            return
+            return False
             
-        # 2. Place order (Stub)
-        self.execute_trade(symbol, price)
+        # 2. Place order
+        return self.execute_trade(symbol, price)
+
+    def has_open_position(self, symbol: str) -> bool:
+        """Check if there is already an open position for this symbol on Binance."""
+        if not self._api_client:
+            return True # Fail-closed
+        try:
+            positions = self._api_client.get_open_positions()
+            return any(getattr(p, 'symbol', p.get('symbol', '')) == symbol for p in positions)
+        except Exception as e:
+            logger.error(f"Failed to check positions for {symbol}: {e}")
+            return True # Fail-closed
+        try:
+            positions = self._api_client.get_open_positions()
+            return any(getattr(p, 'symbol', p.get('symbol', '')) == symbol for p in positions)
+        except Exception as e:
+            logger.error(f"Failed to check positions for {symbol}: {e}")
+            return True # Fail-closed
 
     def get_open_positions_count(self) -> int:
         """Get current open positions count from Binance."""
@@ -107,11 +140,11 @@ class ExecutionEngine:
             logger.error(f"Failed to fetch open positions: {e}")
             return 999  # Fail-closed: return a high number to prevent new trades
 
-    def execute_trade(self, symbol: str, entry_price: float):
+    def execute_trade(self, symbol: str, entry_price: float) -> bool:
         """Execute the trade on Binance."""
         if not self.settings.paper_trading:
             logger.error("Live execution blocked by safety rules.")
-            return
+            return False
             
         size_usd = self.settings.max_position_usd
         stop_loss = entry_price * (1 + self.settings.stop_loss_pct)  # Short: SL is higher
@@ -129,5 +162,7 @@ class ExecutionEngine:
             try:
                 res = self._api_client.place_market_order(symbol, "SELL", quantity)
                 logger.info(f"Order placed successfully: {res.get('orderId')}")
+                return True
             except Exception as e:
                 logger.error(f"Failed to place order for {symbol}: {e}")
+                return False

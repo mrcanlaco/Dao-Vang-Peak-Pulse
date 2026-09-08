@@ -44,6 +44,8 @@ class ScannerConfig(BaseModel):
     min_volume_usd: float = Field(default=1_000_000, gt=0)
     cooldown_minutes: int = Field(default=120, ge=0)
     alert_levels: list[str] = Field(default_factory=lambda: ["CAO", "TRUNG BÌNH"])
+    alert_flap_limit: int = Field(default=3, ge=1)
+    alert_rearm_probability: float = Field(default=0.4, ge=0.0, le=1.0)
     frozen_model_id: str | None = None
     db_path: Path = Path("data/dev.duckdb")
     artifact_dir: Path = Path("artifacts")

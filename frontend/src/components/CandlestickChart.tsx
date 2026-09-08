@@ -5,9 +5,11 @@ import {
   ColorType,
   CandlestickSeries,
   HistogramSeries,
+  LineSeries,
 } from 'lightweight-charts';
-import { Camera, ChevronDown, Crosshair, Filter, Grid3X3, Maximize2, Minimize2, RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
+import { Camera, ChevronDown, Filter, Maximize2, Minimize2, RotateCcw, ZoomIn, ZoomOut, Settings } from 'lucide-react';
 import { formatSystemDateTime, parseSystemDate, SYSTEM_TIME_ZONE } from '../utils/time';
+import { calculateEMA } from '../utils/indicators';
 import { useTranslation } from '../i18n/LanguageContext';
 import type { TradeSetup } from '../types';
 
@@ -19,6 +21,8 @@ export interface CandlestickSignalMarker {
   probability?: number | null;
   isActive?: boolean;
   isValid?: boolean;
+  episodeRole?: string | null;
+  episodeTransition?: string | null;
 }
 
 interface CandlestickChartProps {
@@ -37,8 +41,9 @@ interface CandlestickChartProps {
   signalTime?: string;
   signalProbability?: number | null;
   tradeSetup?: TradeSetup | null;
+  interval?: string;
+  onIntervalChange?: (interval: string) => void;
 }
-
 export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   data,
   targetPrice,
@@ -47,20 +52,26 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   signalTime,
   signalProbability,
   tradeSetup,
+  interval,
+  onIntervalChange,
 }) => {
   const { language, t } = useTranslation();
-  
-
   const chartShellRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<any>(null);
   const alertMenuRef = useRef<HTMLDivElement>(null);
+  const settingsMenuRef = useRef<HTMLDivElement>(null);
+  const logicalRangeRef = useRef<any>(null);
   const [crosshairMode, setCrosshairMode] = useState<'magnet' | 'normal' | 'hidden'>('magnet');
   const [gridVisible, setGridVisible] = useState(true);
   const [priceAutoScale, setPriceAutoScale] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [alertVisibility, setAlertVisibility] = useState<AlertVisibilityMode>('all');
   const [alertMenuOpen, setAlertMenuOpen] = useState(false);
+  const [showTradeSetup, setShowTradeSetup] = useState(false);
+  const [showEMA, setShowEMA] = useState(false);
+  const [showVolume, setShowVolume] = useState(true);
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
   const getAlertVisibilityOptions = (): Array<{ value: AlertVisibilityMode; label: string; hint: string }> => {
     return [
@@ -203,6 +214,9 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       if (alertMenuRef.current && !alertMenuRef.current.contains(event.target as Node)) {
         setAlertMenuOpen(false);
       }
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target as Node)) {
+        setSettingsMenuOpen(false);
+      }
     };
     document.addEventListener('pointerdown', handleOutsidePointerDown);
     return () => document.removeEventListener('pointerdown', handleOutsidePointerDown);
@@ -262,7 +276,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const volumeData = normalizedCandles.map(d => ({
       time: d.time as any,
       value: d.volume,
-      color: d.close >= d.open ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)',
+      color: d.close >= d.open ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)',
     }));
 
     const chart = createChart(containerRef.current, {
@@ -304,20 +318,42 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       wickUpColor: '#10b981',
       wickDownColor: '#ef4444',
     });
-    candleSeries.setData(candleData);
+    
+    candleSeries.setData(candleData as any);
 
     // Volume series (histogram at bottom)
-    const volumeSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: 'volume' },
-      priceScaleId: 'vol',
-    });
-    chart.priceScale('vol').applyOptions({
-      scaleMargins: { top: 0.8, bottom: 0 },
-    });
-    volumeSeries.setData(volumeData);
+    if (showVolume) {
+      const volumeSeries = chart.addSeries(HistogramSeries, {
+        priceFormat: { type: 'volume' },
+        priceScaleId: 'vol',
+      });
+      chart.priceScale('vol').applyOptions({
+        scaleMargins: { top: 0.8, bottom: 0 },
+      });
+      volumeSeries.setData(volumeData);
+    }
+
+    // EMA series
+    if (showEMA) {
+      const ema20Series = chart.addSeries(LineSeries, {
+        color: '#facc15',
+        lineWidth: 1,
+        crosshairMarkerVisible: false,
+      });
+      // @ts-ignore - known type mismatch for lightweight-charts time
+      ema20Series.setData(calculateEMA(candleData, 20));
+
+      const ema50Series = chart.addSeries(LineSeries, {
+        color: '#c084fc',
+        lineWidth: 1,
+        crosshairMarkerVisible: false,
+      });
+      // @ts-ignore
+      ema50Series.setData(calculateEMA(candleData, 50));
+    }
 
     // Trade Setup & Target Price Lines
-    if (tradeSetup) {
+    if (tradeSetup && showTradeSetup) {
       // Entry Line
       if (tradeSetup.entryPrice > 0) {
         candleSeries.createPriceLine({
@@ -363,7 +399,8 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         });
       }
     }
-    let signalMarkersApi: ReturnType<typeof createSeriesMarkers> | null = null;
+
+    let signalMarkersApi: any = null;
     if (visibleSignalMarkers.length > 0 && normalizedCandles.length > 0) {
       const positiveSteps = normalizedCandles.slice(1).map((candle, index) =>
         Math.abs(candle.time - normalizedCandles[index].time),
@@ -402,23 +439,40 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           ? `${formatSignalTime(signal.time, true)} · ${(signal.probability).toFixed(1)}%`
           : `${formatSignalTime(signal.time, true)} · ${t('chart_distrib_label')}`;
 
+        
+        const isFirst = signal.episodeRole === 'FIRST';
+        const isUpdate = signal.episodeRole === 'UPDATE';
+        const shape = isFirst ? 'arrowDown' : 'circle';
+        const color = isFirst ? (signal.isActive ? '#f59e0b' : '#f97316') : '#94a3b8'; // gray for updates
+        const size = isFirst ? (signal.isActive ? 1.2 : 1) : 0.5;
+
         return [{
           id: signal.id || `${signalTimestamp}-${index}`,
           time: signalTimestamp as any,
-          position: 'aboveBar' as const,
-          shape: 'arrowDown' as const,
-          color: signal.isActive ? '#f59e0b' : '#f97316',
-          text: probabilityText,
-          size: signal.isActive ? 1.2 : 1,
+          position: isFirst ? 'aboveBar' : 'inBar',
+          shape: shape as any,
+          color: color,
+          text: isFirst ? probabilityText : '',
+          size: size,
         }];
       }).sort((a, b) => a.time - b.time || a.id.localeCompare(b.id));
 
       if (resolvedMarkers.length > 0) {
-        signalMarkersApi = createSeriesMarkers(candleSeries, resolvedMarkers, { zOrder: 'top' });
+        signalMarkersApi = createSeriesMarkers(candleSeries, resolvedMarkers as any, { zOrder: 'top' });
       }
     }
-
-    chart.timeScale().fitContent();
+    if (logicalRangeRef.current && candleData.length > 0) {
+      const maxIdx = candleData.length - 1;
+      const { from } = logicalRangeRef.current;
+      // Nếu range đã lưu nằm ngoài giới hạn data mới (ví dụ chuyển sang coin có ít nến hơn)
+      if (from > maxIdx + 10) {
+        chart.timeScale().fitContent();
+      } else {
+        chart.timeScale().setVisibleLogicalRange(logicalRangeRef.current);
+      }
+    } else {
+      chart.timeScale().fitContent();
+    }
 
     const handleResize = () => {
       if (containerRef.current && chartRef.current) {
@@ -430,12 +484,13 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     return () => {
       window.removeEventListener('resize', handleResize);
       if (chartRef.current) {
+        logicalRangeRef.current = chartRef.current.timeScale().getVisibleLogicalRange();
         signalMarkersApi?.detach();
         chartRef.current.remove();
         chartRef.current = null;
       }
     };
-  }, [data, targetPrice, visibleSignalMarkers, chartHeight, language]);
+  }, [data, targetPrice, visibleSignalMarkers, chartHeight, language, showTradeSetup, showEMA, showVolume]);
 
   return (
     <div
@@ -445,6 +500,21 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     >
       <div ref={containerRef} className="w-full" style={{ height: chartHeight }} />
       <div className="pointer-events-auto absolute left-2 right-2 top-2 z-20 flex max-w-[calc(100%-1rem)] items-center gap-1 overflow-x-auto rounded-md border border-slate-700/80 bg-slate-950/95 p-1 shadow-xl shadow-black/20 [&::-webkit-scrollbar]:hidden sm:left-auto sm:right-2 sm:max-w-none sm:overflow-visible">
+        {interval && onIntervalChange && (
+          <>
+            {['1m', '5m', '15m', '1h', '4h', '1d'].map(int => (
+              <button
+                key={int}
+                type="button"
+                onClick={() => onIntervalChange(int)}
+                className={`${toolButtonClass} ${interval === int ? 'border-amber-500/80 text-amber-300 bg-amber-500/10' : ''}`}
+              >
+                {int}
+              </button>
+            ))}
+            <div className="w-px h-4 bg-slate-700 mx-0.5 shrink-0"></div>
+          </>
+        )}
         <div ref={alertMenuRef} className="relative">
           <button
             type="button"
@@ -480,19 +550,71 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
             </div>
           )}
         </div>
-        <button
-          type="button"
-          className={`${toolButtonClass} ${crosshairMode === 'magnet' ? 'border-amber-500/80 text-amber-300' : ''}`}
-          title={t('chart_crosshair_title')}
-          onClick={() => setCrosshairMode(mode => mode === 'magnet' ? 'normal' : mode === 'normal' ? 'hidden' : 'magnet')}
-        >
-          <Crosshair className="h-3.5 w-3.5" />
-          {crosshairMode === 'magnet' 
-            ? t('chart_crosshair_magnet') 
-            : crosshairMode === 'normal' 
-            ? t('chart_crosshair_normal') 
-            : t('chart_crosshair_hidden')}
-        </button>
+        <div ref={settingsMenuRef} className="relative">
+          <button
+            type="button"
+            className={`${toolButtonClass} ${settingsMenuOpen ? 'border-slate-500 text-slate-200' : 'text-slate-500'}`}
+            title="Settings"
+            onClick={() => setSettingsMenuOpen(value => !value)}
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </button>
+          {settingsMenuOpen && (
+            <div className="absolute right-0 top-full z-50 mt-1 w-48 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 p-1 shadow-2xl shadow-black/50">
+              <div className="flex flex-col gap-0.5">
+                <button
+                  type="button"
+                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[10px] transition hover:bg-slate-800 ${showTradeSetup ? 'text-amber-400' : 'text-slate-300'}`}
+                  onClick={() => setShowTradeSetup(v => !v)}
+                >
+                  <span>Trade Setup</span>
+                  <span className="font-mono">{showTradeSetup ? 'ON' : 'OFF'}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[10px] transition hover:bg-slate-800 ${showEMA ? 'text-amber-400' : 'text-slate-300'}`}
+                  onClick={() => setShowEMA(v => !v)}
+                >
+                  <span>EMAs (20, 50)</span>
+                  <span className="font-mono">{showEMA ? 'ON' : 'OFF'}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[10px] transition hover:bg-slate-800 ${showVolume ? 'text-amber-400' : 'text-slate-300'}`}
+                  onClick={() => setShowVolume(v => !v)}
+                >
+                  <span>Volume</span>
+                  <span className="font-mono">{showVolume ? 'ON' : 'OFF'}</span>
+                </button>
+                <div className="my-1 border-t border-slate-700/50"></div>
+                <button
+                  type="button"
+                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[10px] transition hover:bg-slate-800 ${crosshairMode !== 'hidden' ? 'text-amber-400' : 'text-slate-300'}`}
+                  onClick={() => setCrosshairMode(mode => mode === 'magnet' ? 'normal' : mode === 'normal' ? 'hidden' : 'magnet')}
+                >
+                  <span>{t('chart_crosshair_title')}</span>
+                  <span className="font-mono capitalize">{crosshairMode}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[10px] transition hover:bg-slate-800 ${gridVisible ? 'text-amber-400' : 'text-slate-300'}`}
+                  onClick={() => setGridVisible(v => !v)}
+                >
+                  <span>{t('chart_toggle_grid')}</span>
+                  <span className="font-mono">{gridVisible ? 'ON' : 'OFF'}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-[10px] transition hover:bg-slate-800 ${priceAutoScale ? 'text-amber-400' : 'text-slate-300'}`}
+                  onClick={() => applyPriceScaleMode(!priceAutoScale)}
+                >
+                  <span>{t('chart_auto_scale_btn')}</span>
+                  <span className="font-mono">{priceAutoScale ? 'ON' : 'OFF'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
         <button type="button" className={toolButtonClass} title={t('chart_zoom_out')} onClick={() => adjustZoom(1.35)}>
           <ZoomOut className="h-3.5 w-3.5" />
         </button>
@@ -501,22 +623,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         </button>
         <button type="button" className={toolButtonClass} title={t('chart_reset')} onClick={handleResetView}>
           <RotateCcw className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          className={`${toolButtonClass} ${gridVisible ? 'border-slate-500 text-slate-200' : 'text-slate-500'}`}
-          title={t('chart_toggle_grid')}
-          onClick={() => setGridVisible(value => !value)}
-        >
-          <Grid3X3 className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          className={`${toolButtonClass} ${priceAutoScale ? 'border-slate-500 text-slate-200' : 'text-slate-500'}`}
-          title={t('chart_auto_scale')}
-          onClick={() => applyPriceScaleMode(!priceAutoScale)}
-        >
-          <span className="font-mono text-[9px]">{t('chart_auto_scale_btn')}</span>
         </button>
         <button type="button" className={toolButtonClass} title={t('chart_screenshot')} onClick={handleScreenshot}>
           <Camera className="h-3.5 w-3.5" />

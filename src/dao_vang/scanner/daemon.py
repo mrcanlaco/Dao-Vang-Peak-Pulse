@@ -622,6 +622,14 @@ class ScannerDaemon:
                 score_symbols = list(pump_map.keys()) if pump_map else symbols
         else:
             score_symbols = list(pump_map.keys()) if pump_map else symbols
+        # Append active/cooling lanes to ensure they are scored for anti-flap and rearm
+        try:
+            active_symbols = self._alert_store.get_episode_tracking_symbols()
+            if active_symbols:
+                score_symbols = list(dict.fromkeys(score_symbols + active_symbols))
+        except Exception as e:
+            logger.error("get_episode_tracking_symbols_failed", error=str(e))
+
 
         self._last_cycle_n_symbols = len(score_symbols)
         logger.info(
@@ -659,8 +667,8 @@ class ScannerDaemon:
         # Throttled materialization: only run every 12 cycles (~1 hour) to avoid DuckDB OOM on Windows temp pipelines
         if getattr(self, "_cycle_count", 0) % 12 == 1:
             try:
-                from dao_vang.scanner.scan_results_store import ScanResultStore
                 from dao_vang.scanner.outcomes import materialize_prediction_outcomes
+                from dao_vang.scanner.scan_results_store import ScanResultStore
                 scan_store = ScanResultStore(str(self._scanner_cfg.db_path))
                 n_mat = materialize_prediction_outcomes(scan_store, db)
                 if n_mat:
@@ -1754,7 +1762,28 @@ class ScannerDaemon:
         except Exception as exc:
             logger.warning("scan_result_save_failed", symbol=symbol, error=str(exc))
 
-        # Append the complete serving contract for every scored snapshot.
+        # Process state machine for episode lifecycle
+        ep_result = None
+        episode_allows_delivery = False  # Fail-closed default
+        try:
+            flap_limit = getattr(self._scanner_cfg, "alert_flap_limit", 3)
+            rearm_threshold = getattr(self._scanner_cfg, "alert_rearm_probability", 0.4)
+            ep_result = self._alert_store.process_snapshot(
+                symbol=symbol,
+                horizon_hours=horizon_hours,
+                probability=result.calibrated_probability,
+                threshold=result.threshold,
+                is_usable=result.quality.is_usable,
+                timestamp=sig_time,
+                flap_limit=flap_limit,
+                alert_rearm_probability=rearm_threshold,
+            )
+            # Only allow Telegram dispatch if the episode state machine actually did something relevant
+            if ep_result and ep_result.transition == "OPENED":
+                episode_allows_delivery = True
+        except Exception as exc:
+            logger.warning("episode_tracker_failed", symbol=symbol, error=str(exc))
+
         # This is separate from alert_history so shadow data cannot disappear
         # merely because a threshold or Telegram policy suppressed it.
         try:
@@ -1807,6 +1836,9 @@ class ScannerDaemon:
                     reason_codes=result.quality.reason_codes,
                     evidence_groups=groups,
                     shadow_mode=self._operating_mode in {"research", "shadow"},
+                    alert_episode_id=ep_result.episode_id if ep_result else None,
+                    episode_role=ep_result.role if ep_result else None,
+                    episode_transition=ep_result.transition if ep_result else None,
                     cooldown_key=f"{symbol}:{horizon_hours}h",
                     invalidation_time=invalidation_time,
                     snapshot_id=snapshot_id,
@@ -1816,6 +1848,12 @@ class ScannerDaemon:
             )
         except Exception as exc:
             logger.warning("prediction_audit_save_failed", symbol=symbol, error=str(exc))
+
+
+        # Drop out entirely if the episode tracker says NO_ACTION / CLOSE_EPISODE
+        if not episode_allows_delivery:
+            logger.info("scanner_telegram_suppressed_by_episode_tracker", symbol=symbol, transition=ep_result.transition if ep_result else "UNKNOWN")
+            return 0 if not collect_for_digest else None
 
         # Normal alert history remains restricted to alertable signals. In
         # shadow mode, however, the operator explicitly opted in to labelled
@@ -1924,6 +1962,7 @@ class ScannerDaemon:
             shadow_mode=self._operating_mode in {"research", "shadow"},
             reason_codes_json=json.dumps(list(result.quality.reason_codes)),
             threshold_policy_version=result.threshold_policy_version,
+            alert_episode_id=ep_result.episode_id if ep_result else None,
         )
         self._alert_store.save(record)
 
@@ -1956,7 +1995,6 @@ class ScannerDaemon:
                 self._alert_store.mark_telegram_sent(sig_time, symbol)
             return int(res)
 
-        # Send Telegram only when the operating-mode and tier policy permit it.
         cooldown_key = f"{symbol}:{horizon_hours}h"
         telegram_cooldown = getattr(
             self._scanner_cfg, "telegram_cooldown_minutes", self._scanner_cfg.cooldown_minutes

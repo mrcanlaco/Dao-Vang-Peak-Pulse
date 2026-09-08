@@ -23,6 +23,8 @@ scanner:
   enabled: true
   operating_mode: shadow
   poll_interval_minutes: 5
+  alert_flap_limit: 3
+  alert_rearm_probability: 0.4
   max_coins: 150
   min_volume_usd: 1000000
   cooldown_minutes: 120
