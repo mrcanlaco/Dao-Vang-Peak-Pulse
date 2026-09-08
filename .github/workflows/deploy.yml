@@ -38,13 +38,13 @@ jobs:
             git reset --hard origin/main
             chmod 644 /home/ubuntu/dao_vang/cloudflared/* 2>/dev/null || true
             rm -f data/web.lock data_live/web.lock data/scanner.lock data_live/scanner.lock
-            docker compose down
-            docker compose up -d --build --force-recreate
+            docker compose build
+            docker compose up -d --force-recreate
             sleep 8
             docker compose ps
             echo "Checking Web API health..."
             for i in $(seq 1 10); do
-              if curl -s -f http://localhost:8000/api/status >/dev/null; then
+              if curl -s -f http://localhost:8000/api/health >/dev/null; then
                 echo "✅ API Server is ONLINE and HEALTHY (HTTP 200)!"
                 exit 0
               fi

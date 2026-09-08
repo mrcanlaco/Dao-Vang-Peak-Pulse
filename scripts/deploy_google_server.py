@@ -27,7 +27,7 @@ commands = [
     ("Dọn dẹp lock files cũ", "cd /home/ubuntu/dao_vang && rm -f data/web.lock data_live/web.lock data/scanner.lock data_live/scanner.lock"),
     ("Dừng container cũ và build container mới", "cd /home/ubuntu/dao_vang && docker compose build && docker compose up -d --force-recreate"),
     ("Kiểm tra danh sách container", "cd /home/ubuntu/dao_vang && sleep 5 && docker compose ps"),
-    ("Kiểm tra sức khỏe Web API (Health Check)", "cd /home/ubuntu/dao_vang && sleep 5 && for i in $(seq 1 10); do if curl -s -f http://localhost:8000/api/status >/dev/null; then echo 'API Health: ONLINE & HEALTHY (HTTP 200)'; exit 0; fi; echo 'Dang cho API Server khoi dong... (thu lai '$i'/10)'; sleep 2; done; echo 'Canh bao: API chua san sang ngay luc nay.'"),
+    ("Kiểm tra sức khỏe Web API (Health Check)", "cd /home/ubuntu/dao_vang && sleep 5 && for i in $(seq 1 10); do if curl -s -f http://localhost:8000/api/health >/dev/null; then echo 'API Health: ONLINE & HEALTHY (HTTP 200)'; exit 0; fi; echo 'Dang cho API Server khoi dong... (thu lai '$i'/10)'; sleep 2; done; echo 'Canh bao: API chua san sang.' ; exit 1"),
 ]
 
 print(f"========================================================")
@@ -59,7 +59,9 @@ try:
             sys.stdout.flush()
         exit_status = stdout.channel.recv_exit_status()
         if exit_status != 0:
-            print(f"[WARN] Lệnh hoàn thành với mã: {exit_status}")
+            print(f"[ERROR] Lệnh thất bại với mã: {exit_status}")
+            success = False
+            break
 
     client.close()
 

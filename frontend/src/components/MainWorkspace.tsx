@@ -580,6 +580,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         probability: signal.probability * 100,
         isActive: selectedSignal?.id === signal.id,
         isValid: signal.validity_hours_left > 0,
+        episodeRole: signal.episode_role,
+        episodeTransition: signal.episode_transition,
       }));
 
     if (
