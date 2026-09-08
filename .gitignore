@@ -10,7 +10,6 @@ __pycache__/
 # Distribution / Packaging
 /build/
 /dist/
-!frontend/dist/**
 *.egg-info/
 *.egg
 
@@ -40,7 +39,6 @@ cloudflared/config.yml
 
 # Node / Frontend
 frontend/node_modules/
-# frontend/dist/ (tracked for self-contained web server delivery)
 frontend/.turbo/
 frontend/.next/
 frontend/*.log
@@ -100,3 +98,4 @@ dao_vang_docs*
 Thumbs.db
 desktop.ini
 configs/live.yaml
+frontend/dist/

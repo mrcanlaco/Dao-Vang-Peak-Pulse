@@ -51,4 +51,4 @@ jobs:
               echo "Waiting for API to initialize... (retry $i/10)"
               sleep 2
             done
-            echo "⚠️ Deployment finished. Container is initializing."
+            echo "❌ API chưa sẵn sàng. Hủy deploy." && exit 1
