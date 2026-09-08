@@ -2230,8 +2230,8 @@ class APIHandler(BaseHTTPRequestHandler):
         # already has an older alert_history row.
         scan_by_symbol = {str(sr.get("symbol", "")): sr for sr in scan_rows}
         try:
-            prediction_rows = _scan_store.latest_predictions_per_symbol(
-                limit=100,
+            prediction_rows = _scan_store.recent_predictions_history(
+                limit=500,
                 max_age_hours=72,
             )
         except Exception as exc:
