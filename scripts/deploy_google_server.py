@@ -73,9 +73,14 @@ except ImportError:
     if res.returncode != 0:
         print(f"[WARN] SSH client exited with code {res.returncode}")
         success = False
-
-print("\n========================================================")
-print("✅ [HOÀN TẤT] TRIỂN KHAI LÊN GOOGLE CLOUD SERVER THÀNH CÔNG!")
-print("   - Dashboard Live: https://daovang.comaygiauco.com")
-print(f"   - Server Direct: http://{host}:8000")
-print("========================================================\n")
+if success:
+    print("\n========================================================")
+    print("✅ [HOÀN TẤT] TRIỂN KHAI LÊN GOOGLE CLOUD SERVER THÀNH CÔNG!")
+    print("   - Dashboard Live: https://daovang.comaygiauco.com")
+    print(f"   - Server Direct: http://{host}:8000")
+    print("========================================================\n")
+else:
+    print("\n========================================================")
+    print("❌ [LỖI] TRIỂN KHAI THẤT BẠI. DỪNG QUÁ TRÌNH.")
+    print("========================================================\n")
+    sys.exit(1)
