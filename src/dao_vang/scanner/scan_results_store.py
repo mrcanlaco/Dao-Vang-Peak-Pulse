@@ -821,7 +821,7 @@ class ScanResultStore:
                        p.horizon_hours, p.target_drawdown, p.calibrated_probability,
                        p.model_probability, p.data_quality_score, p.quality_status,
                        p.tier, p.threshold, p.shadow_mode, p.telegram_sent,
-                       p.invalidation_time,
+                       p.invalidation_time, p.alert_episode_id, p.episode_role, p.episode_transition,
                        o.label_value, o.mfe, o.mae, o.outcome_status, o.exclusion_reason
                 FROM predictions p
                 INNER JOIN prediction_outcomes o ON p.prediction_id = o.prediction_id

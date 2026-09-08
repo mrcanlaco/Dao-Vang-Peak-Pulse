@@ -440,7 +440,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           : `${formatSignalTime(signal.time, true)} · ${t('chart_distrib_label')}`;
 
         
-        const isFirst = signal.episodeRole === 'FIRST';
+        const isFirst = signal.episodeRole === 'FIRST' || !signal.episodeRole; // Fallback for legacy signals
         const shape = isFirst ? 'arrowDown' : 'circle';
         const color = isFirst ? (signal.isActive ? '#f59e0b' : '#f97316') : '#94a3b8'; // gray for updates
         const size = isFirst ? (signal.isActive ? 1.2 : 1) : 0.5;
