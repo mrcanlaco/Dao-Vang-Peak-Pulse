@@ -107,7 +107,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
                   <CheckCircle2 className="w-3 h-3" /> {t('ws_hit_status')}
                 </span>
               )}
-              {selectedSignal?.outcome_status === 'STOPPED_OUT' && (
+              {['STOPPED_OUT', 'FAILED', 'EXPIRED'].includes(selectedSignal?.outcome_status || '') && (
                 <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-950 text-red-400 border border-red-800 rounded-md flex items-center gap-1">
                   <XCircle className="w-3 h-3" /> {t('ws_missed_status')}
                 </span>
