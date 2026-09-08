@@ -1,0 +1,113 @@
+{
+  "schema_version": "frozen_bundle_v1",
+  "artifact_schema_version": "frozen_bundle_v1",
+  "model_id": "frozen_20260907_064329_9bae597e",
+  "freeze_time": "2026-09-07T06:43:29.330855+07:00",
+  "train_cutoff": "2026-06-26T15:59:59.999000+00:00",
+  "threshold": 0.2,
+  "feature_cols": [
+    "price_ret_5m",
+    "price_ret_1h",
+    "price_ret_15m",
+    "price_ret_4h",
+    "price_ret_24h",
+    "price_volatility_24h",
+    "distance_from_high_24h",
+    "momentum_deceleration_4h",
+    "momentum_decel_15m",
+    "lower_high_4h",
+    "fake_breakout_1h",
+    "volume_percentile_24h",
+    "volume_zscore_24h",
+    "volume_ratio_1h",
+    "volume_dry_up_1h",
+    "btc_ret_4h",
+    "btc_ret_24h",
+    "btc_dominance_slope_24h",
+    "oi_change_1h",
+    "oi_change_4h",
+    "oi_change_24h",
+    "oi_zscore_7d",
+    "taker_buy_ratio",
+    "global_ls_ratio",
+    "top_ls_ratio",
+    "retail_top_spread",
+    "spread_trend_1h",
+    "spread_trend_4h",
+    "top_pos_ratio",
+    "smart_money_divergence",
+    "smart_money_trend_4h"
+  ],
+  "config": {
+    "hypothesis_id": "lean_champion_no_funding",
+    "note": "Removed funding group based on causal ablation"
+  },
+  "training_stats": {
+    "train_size": 642772,
+    "train_positives": 42504
+  },
+  "label_spec": {
+    "horizon_minutes": 1440,
+    "target_drawdown": 0.08,
+    "max_ae": 0.04,
+    "version": "distribution_short_v1",
+    "horizon_hours": 24
+  },
+  "threshold_policy": {
+    "version": "frozen_threshold_v1",
+    "threshold": 0.2
+  },
+  "thresholds": {
+    "default": 0.2
+  },
+  "calibrator_id": "isotonic_v1",
+  "calibrator": {
+    "id": "isotonic_v1",
+    "path": "calibrator.joblib"
+  },
+  "calibration_method": "isotonic",
+  "preprocessing": {
+    "feature_cols": [
+      "price_ret_5m",
+      "price_ret_1h",
+      "price_ret_15m",
+      "price_ret_4h",
+      "price_ret_24h",
+      "price_volatility_24h",
+      "distance_from_high_24h",
+      "momentum_deceleration_4h",
+      "momentum_decel_15m",
+      "lower_high_4h",
+      "fake_breakout_1h",
+      "volume_percentile_24h",
+      "volume_zscore_24h",
+      "volume_ratio_1h",
+      "volume_dry_up_1h",
+      "btc_ret_4h",
+      "btc_ret_24h",
+      "btc_dominance_slope_24h",
+      "oi_change_1h",
+      "oi_change_4h",
+      "oi_change_24h",
+      "oi_zscore_7d",
+      "taker_buy_ratio",
+      "global_ls_ratio",
+      "top_ls_ratio",
+      "retail_top_spread",
+      "spread_trend_1h",
+      "spread_trend_4h",
+      "top_pos_ratio",
+      "smart_money_divergence",
+      "smart_money_trend_4h"
+    ],
+    "missing_policy": "reject_at_serving"
+  },
+  "checksums": {
+    "model_sha256": "4ece276d4ce4ceaf3af5c0b05240ae61483a89f901fd79e94717ac5a1fa28302",
+    "calibrator_sha256": "2eae35082b637aa0978bd0c28e4875b51201f1b16b8017abe62486ba4d0212ed"
+  },
+  "artifact_checksums": {
+    "model_sha256": "4ece276d4ce4ceaf3af5c0b05240ae61483a89f901fd79e94717ac5a1fa28302",
+    "calibrator_sha256": "2eae35082b637aa0978bd0c28e4875b51201f1b16b8017abe62486ba4d0212ed"
+  }
+}

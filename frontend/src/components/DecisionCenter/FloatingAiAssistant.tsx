@@ -24,6 +24,7 @@ import type {
   SignalItem,
   SystemStatus,
 } from '../../types';
+import { normalizeProbability } from '../../types';
 import { LlmConfigModal } from './LlmConfigModal';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import {
@@ -88,14 +89,12 @@ export const FloatingAiAssistant = ({
   const symbol = coinDetail?.symbol || selectedSignal?.symbol || DEFAULT_SYMBOL;
   const currentPrice = coinDetail?.current_price ?? selectedSignal?.signal_price ?? null;
   const probability = coinDetail?.probability != null
-    ? coinDetail.probability
-    : selectedSignal?.probability != null
-      ? selectedSignal.probability * 100
-      : null;
+    ? normalizeProbability(coinDetail.probability)
+    : normalizeProbability(selectedSignal?.probability);
   const riskLevel = coinDetail?.risk_level || selectedSignal?.risk_level || 'N/A';
   const metrics = useMemo<Record<string, unknown>>(() => coinDetail?.metrics || ({
     oi_change_24h: selectedSignal?.oi_change_24h || 'N/A',
-    taker_sell_ratio: selectedSignal?.taker_sell_ratio ?? 0.5,
+    taker_sell_ratio: selectedSignal?.taker_sell_ratio ?? null,
     funding_rate: selectedSignal?.funding_rate || 'N/A',
     rsi_15m: null,
     volume_delta_24h: 'N/A',

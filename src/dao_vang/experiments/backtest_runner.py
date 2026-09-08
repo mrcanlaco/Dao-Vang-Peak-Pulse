@@ -46,6 +46,11 @@ class FullBacktestRunner:
         output_db.parent.mkdir(parents=True, exist_ok=True)
 
         conn = duckdb.connect(str(output_db))
+        
+        import os
+        os.makedirs("data/tmp", exist_ok=True)
+        conn.execute("SET memory_limit='6GB'")
+        conn.execute("SET temp_directory='data/tmp'")
         try:
             # 1. Attach Master DB
             master_posix = Path(self.config.master_duckdb_path).as_posix()

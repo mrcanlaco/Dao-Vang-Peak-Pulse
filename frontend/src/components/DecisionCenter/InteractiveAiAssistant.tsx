@@ -9,6 +9,7 @@ import type {
   CoinDetail, DeepAnalysis, TradeSetup,
   ChatMessage, LlmConfig, AiAskRequest, AiAskResponse
 } from '../../types';
+import { normalizeProbability } from '../../types';
 import { LlmConfigModal } from './LlmConfigModal';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import {
@@ -40,15 +41,15 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
 
   const symbol = displayDetail?.symbol || 'COIN';
   const currentPrice = displayDetail?.current_price || 0;
-  const prob = displayDetail?.probability || 0;
+  const prob = normalizeProbability(displayDetail?.probability) ?? 0;
   const riskLevel = displayDetail?.risk_level || 'MEDIUM';
   const btcRegime = deepAnalysis?.btc_regime || 'NEUTRAL';
   const isPump = deepAnalysis?.pump_analysis?.detected || false;
   const metrics = displayDetail?.metrics || {
     oi_change_24h: 'N/A',
-    taker_sell_ratio: 0.5,
+    taker_sell_ratio: null,
     funding_rate: 'N/A',
-    rsi_15m: 50,
+    rsi_15m: null,
     volume_delta_24h: 'N/A',
   };
   const shapDrivers = displayDetail?.shap_drivers || [];
@@ -231,7 +232,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
     const dateStr = new Date().toLocaleString();
     let text = `=== HỘI THOẠI VỚI TRỢ LÝ AI ĐẢO VÀNG — ${symbol} (${dateStr}) ===\n`;
     text += `Bối cảnh thị trường: Giá Mark $${currentPrice} | Xác suất xả AI: ${prob.toFixed(1)}% (${riskLevel}) | Trạng thái BTC: ${btcRegime}\n`;
-    text += `Chỉ số: OI 24h: ${metrics.oi_change_24h || 'N/A'} | Funding: ${metrics.funding_rate || 'N/A'} | Taker Buy/Sell: ${(metrics.taker_sell_ratio || 0.5) * 100}%\n`;
+    text += `Chỉ số: OI 24h: ${metrics.oi_change_24h || 'N/A'} | Funding: ${metrics.funding_rate || 'N/A'} | Taker Buy/Sell: ${metrics.taker_sell_ratio != null ? (metrics.taker_sell_ratio * 100).toFixed(1) + '%' : 'N/A'}\n`;
     text += `================================================================================\n\n`;
 
     messages.forEach((m) => {

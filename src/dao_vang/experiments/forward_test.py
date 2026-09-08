@@ -344,7 +344,7 @@ def score_frozen(
     artifact_dir: Path = Path("artifacts"),
     only_after_cutoff: bool = True,
 ) -> pd.DataFrame:
-    """Score new data with a frozen model.
+    """Score new data with a frozen model using strict batch inference.
 
     Args:
         model_id: Frozen model ID.
@@ -354,12 +354,12 @@ def score_frozen(
             train_cutoff (forward test data). If False, score all rows.
 
     Returns:
-        DataFrame with columns: feature_time, symbol, probability,
-        risk_level, threshold, invalidation_time, model_id.
+        DataFrame with columns matching the scoring contract.
     """
+    from dao_vang.config.settings import AppSettings
+    from dao_vang.experiments.batch_evaluator import score_snapshot_batch
+    
     info = load_frozen_model(model_id, artifact_dir)
-    model = joblib.load(info.model_path)
-
     cutoff = pd.Timestamp(info.train_cutoff)
 
     if only_after_cutoff and "feature_time" in df.columns:
@@ -368,62 +368,19 @@ def score_frozen(
         work = df.copy()
 
     if len(work) == 0:
-        return pd.DataFrame(columns=[
-            "feature_time", "symbol", "probability", "risk_level",
-            "threshold", "invalidation_time", "model_id",
-        ])
-
-    # A frozen bundle must not invent evidence for missing inputs.  Exclude
-    # incomplete rows from replay; the caller can audit them separately.
-    if any(col not in work.columns for col in info.feature_cols):
-        return pd.DataFrame(columns=[
-            "feature_time", "symbol", "probability", "risk_level",
-            "threshold", "invalidation_time", "model_id",
-        ])
-    complete = ~work[info.feature_cols].isna().any(axis=1)
-    work = work.loc[complete].copy()
-    if work.empty:
-        return pd.DataFrame(columns=[
-            "feature_time", "symbol", "probability", "risk_level",
-            "threshold", "invalidation_time", "model_id",
-        ])
-    X = work[info.feature_cols]
-
-    # Get probabilities
-    if hasattr(model, "predict_proba") and len(getattr(model, "classes_", [])) > 1:
-        proba = model.predict_proba(X)[:, 1]
-    else:
-        proba = np.zeros(len(work))
-
-    threshold = info.threshold
-    horizon_minutes = int(info.label_spec.get("horizon_minutes", 1440))
-
-    results = []
-    for i in range(len(work)):
-        prob = float(proba[i])
-        if prob >= threshold:
-            risk = "CAO" if prob >= threshold * 1.5 else "TRUNG BÃŒNH"
-        elif prob >= threshold * 0.5:
-            risk = "THáº¤P"
-        else:
-            risk = "Ráº¤T THáº¤P"
-
-        ft = work["feature_time"].iloc[i] if "feature_time" in work.columns else None
-        inv_time = (
-            ft + pd.Timedelta(minutes=horizon_minutes)
-            if ft is not None else None
-        )
-        results.append({
-            "feature_time": str(ft) if ft is not None else None,
-            "symbol": work["symbol"].iloc[i] if "symbol" in work.columns else "N/A",
-            "probability": prob,
-            "risk_level": risk,
-            "threshold": threshold,
-            "invalidation_time": str(inv_time) if inv_time is not None else None,
-            "model_id": model_id,
-        })
-
-    return pd.DataFrame(results)
+        return pd.DataFrame()
+    from dao_vang.config.settings import ThresholdPolicy
+    
+    safe_policy = ThresholdPolicy(high_confidence_min_prob=info.threshold, watch_min_prob=min(0.10, info.threshold * 0.5))
+    
+    try:
+        result_df = score_snapshot_batch(work, info, safe_policy)
+        result_df["probability"] = result_df["calibrated_probability"]
+        return result_df
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(f"score_frozen batch failed: {exc}")
+        return pd.DataFrame()
 
 
 def evaluate_frozen(
@@ -431,33 +388,23 @@ def evaluate_frozen(
     df: pd.DataFrame,
     artifact_dir: Path = Path("artifacts"),
 ) -> Dict[str, Any]:
-    """Evaluate a frozen model against materialized labels.
+    """Evaluate a frozen model against materialized labels using batch API.
 
-    Scores data after train_cutoff, then joins with labels (is_distribution)
-    that have now materialized (i.e., enough time has passed for the 24h
-    horizon to complete). Computes precision, recall, brier, and per-risk-level
-    breakdown.
-
-    Args:
-        model_id: Frozen model ID.
-        df: DataFrame with features + feature_time + symbol + is_distribution
-            (labels). Labels may be NaN for rows where the horizon hasn't
-            completed yet â€” those are excluded from metrics.
-        artifact_dir: Base artifacts directory.
-
-    Returns:
-        Dict with predictions, metrics, and summary.
+    Scores data after train_cutoff, then joins with labels (is_distribution).
+    Computes precision, recall, brier, and tracks excluded rows.
     """
     from sklearn.metrics import brier_score_loss, precision_score, recall_score
 
+    from dao_vang.config.settings import AppSettings
+    from dao_vang.experiments.batch_evaluator import score_snapshot_batch
+    
     info = load_frozen_model(model_id, artifact_dir)
     cutoff = pd.Timestamp(info.train_cutoff)
 
-    # Only evaluate rows after cutoff that have materialized labels
     if "is_distribution" not in df.columns:
-        return {"status": "no_labels", "message": "DataFrame missing is_distribution column"}
+        return {"status": "no_labels", "message": "DataFrame missing is_distribution column", "model_id": model_id}
     if "feature_time" not in df.columns:
-        return {"status": "no_time", "message": "DataFrame missing feature_time column"}
+        return {"status": "no_time", "message": "DataFrame missing feature_time column", "model_id": model_id}
 
     work = df[df["feature_time"] > cutoff].copy()
     work = work.dropna(subset=["is_distribution"])
@@ -468,80 +415,73 @@ def evaluate_frozen(
             "message": f"No labeled data after train_cutoff ({info.train_cutoff})",
             "model_id": model_id,
         }
-
-    # Score only complete snapshots; a frozen model must not turn missing
-    # evidence into a synthetic zero-valued feature.
-    missing_columns = [col for col in info.feature_cols if col not in work.columns]
-    if missing_columns:
-        return {
-            "status": "quality_failed",
-            "message": f"Missing frozen features: {', '.join(missing_columns)}",
-            "model_id": model_id,
-        }
-    complete = ~work[info.feature_cols].isna().any(axis=1)
-    work = work.loc[complete].copy()
-    if work.empty:
-        return {
-            "status": "quality_failed",
-            "message": "No complete feature rows after missing-data gate",
-            "model_id": model_id,
-        }
-    X = work[info.feature_cols]
-
-    if hasattr(info, "model_path"):
-        model = joblib.load(info.model_path)
-    else:
-        model = load_frozen_model_estimator(model_id, artifact_dir)
-
-    if hasattr(model, "predict_proba") and len(getattr(model, "classes_", [])) > 1:
-        proba = model.predict_proba(X)[:, 1]
-    else:
-        proba = np.zeros(len(work))
-
-    threshold = info.threshold
-    y_pred = (proba >= threshold).astype(int)
-    y_true = work["is_distribution"].astype(int).values
-
+        
+    from dao_vang.config.settings import ThresholdPolicy
+    
+    # Create a safe runtime threshold policy that respects the model's frozen threshold
+    # and explicitly lowers the watch threshold to avoid invalid order errors.
+    safe_policy = ThresholdPolicy(high_confidence_min_prob=info.threshold, watch_min_prob=min(0.10, info.threshold * 0.5))
+    
     try:
-        precision = float(precision_score(y_true, y_pred, zero_division=0))
-        recall = float(recall_score(y_true, y_pred, zero_division=0))
-        brier = float(brier_score_loss(y_true, proba))
-    except Exception:
-        precision, recall, brier = 0.0, 0.0, 0.0
-
-    # Per-risk-level breakdown
-    risk_levels = pd.Series(
-        ["CAO" if p >= threshold * 1.5 else
-         "TRUNG BÃŒNH" if p >= threshold else
-         "THáº¤P" if p >= threshold * 0.5 else "Ráº¤T THáº¤P"
-         for p in proba]
-    )
-    risk_breakdown = {}
-    for level in ["CAO", "TRUNG BÃŒNH", "THáº¤P", "Ráº¤T THáº¤P"]:
-        mask = risk_levels == level
-        n = int(mask.sum())
-        n_pos = int(y_true[mask.values].sum()) if n > 0 else 0
-        risk_breakdown[level] = {
-            "n_signals": n,
-            "n_actual_distribution": n_pos,
-            "precision": float(n_pos / n) if n > 0 else 0.0,
+        result_df = score_snapshot_batch(work, info, safe_policy)
+    except Exception as exc:
+        return {
+            "status": "inference_error",
+            "message": f"Batch scoring failed: {exc}",
+            "model_id": model_id,
         }
-
+        
+    usable_mask = result_df["is_usable"] == True
+    excluded_mask = ~usable_mask
+    excluded_reasons = result_df.loc[excluded_mask, "reason"].value_counts().to_dict()
+    
     n_total = len(work)
+    n_evaluated = int(usable_mask.sum())
+    n_excluded = n_total - n_evaluated
+    
+    if n_evaluated == 0:
+        return {
+            "status": "quality_failed",
+            "message": f"No usable rows after scoring. Reasons: {excluded_reasons}",
+            "model_id": model_id,
+            "n_forward_rows": n_total,
+            "n_excluded_rows": n_excluded,
+            "exclusion_reasons": excluded_reasons,
+        }
+        
+    proba = result_df.loc[usable_mask, "calibrated_probability"].values
+    y_true = work.loc[usable_mask, "is_distribution"].astype(int).values
+    threshold = result_df["threshold"].iloc[0]
+    y_pred = (proba >= threshold).astype(int)
+
+    precision = float(precision_score(y_true, y_pred, zero_division=0))
+    recall = float(recall_score(y_true, y_pred, zero_division=0))
+    brier = float(brier_score_loss(y_true, proba))
+
     n_positive = int(y_true.sum())
     n_predicted_positive = int(y_pred.sum())
 
-    # Compare with training stats
     train_stats = info.training_stats
-    train_precision = train_stats.get("precision", 0.0)
-    train_recall = train_stats.get("recall", 0.0)
+    train_precision = train_stats.get("precision", None)
+    train_recall = train_stats.get("recall", None)
+    
+    drift_check = {}
+    if train_precision is not None:
+        drift_check["precision_delta"] = precision - train_precision
+        drift_check["precision_drift"] = abs(precision - train_precision) > 0.1
+    if train_recall is not None:
+        drift_check["recall_delta"] = recall - train_recall
 
     return {
         "status": "ok",
         "model_id": model_id,
         "train_cutoff": info.train_cutoff,
         "threshold": threshold,
+        "label_spec": info.label_spec,
         "n_forward_rows": n_total,
+        "n_evaluated_usable_rows": n_evaluated,
+        "n_excluded_rows": n_excluded,
+        "exclusion_reasons": excluded_reasons,
         "n_positive_labels": n_positive,
         "n_predicted_positive": n_predicted_positive,
         "metrics": {
@@ -553,17 +493,13 @@ def evaluate_frozen(
             "precision": train_precision,
             "recall": train_recall,
         },
-        "risk_breakdown": risk_breakdown,
-        "drift_check": {
-            "precision_delta": precision - train_precision,
-            "recall_delta": recall - train_recall,
-            "precision_drift": abs(precision - train_precision) > 0.1,
-        },
+        "drift_check": drift_check,
         "summary": (
-            f"Forward test: {n_total} rows after {info.train_cutoff[:10]}, "
+            f"Forward test: {n_evaluated} usable rows (excluded {n_excluded}) after {info.train_cutoff[:10]}, "
             f"{n_positive} actual distributions, {n_predicted_positive} predicted. "
-            f"Precision {precision:.4f} (train: {train_precision:.4f}, "
-            f"drift: {precision - train_precision:+.4f}). "
-            f"Recall {recall:.4f} (train: {train_recall:.4f})."
+            f"Precision {precision:.4f} " +
+            (f"(train: {train_precision:.4f}, drift: {drift_check.get('precision_delta', 0.0):+.4f}). " if train_precision is not None else "") +
+            f"Recall {recall:.4f} " +
+            (f"(train: {train_recall:.4f})." if train_recall is not None else "")
         ),
     }

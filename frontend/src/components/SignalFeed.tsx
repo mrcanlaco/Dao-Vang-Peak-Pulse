@@ -11,7 +11,7 @@ import {
   Clock, TrendingDown, Send, Copy, Check, Volume2, AlertOctagon, X,
   ChevronDown, ChevronUp, Flame, Zap, Eye, EyeOff, LayoutGrid, List,
   Columns2, Search, Target, BarChart2, ShieldAlert, Sparkles, Compass,
-  Filter
+  Filter, CheckCircle2
 } from 'lucide-react';
 import { CoinLink } from './CoinLink';
 import { useTranslation } from '../i18n/LanguageContext';
@@ -282,9 +282,10 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
     const armed = baseSignalPool.filter(isSignalArmed).length;
     const hotRisk = baseSignalPool.filter(s => s.probability >= 0.75).length;
     const expiring = baseSignalPool.filter(s => s.validity_hours_left > 0 && s.validity_hours_left <= 2.0).length;
+    const resolved = baseSignalPool.filter(s => s.hit != null).length;
     const avgProb = total > 0 ? (baseSignalPool.reduce((acc, s) => acc + s.probability, 0) / total * 100).toFixed(1) : '0.0';
 
-    return { total, fired, armed, hotRisk, expiring, avgProb };
+    return { total, fired, armed, hotRisk, expiring, resolved, avgProb };
   }, [baseSignalPool]);
 
   // Keyboard navigation shortcuts: ↑ / ↓ to switch signal, Space to push Telegram
@@ -616,6 +617,21 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   <Flame className="w-3 h-3" />
                   <span>{t('feed_tag_hot_risk')}</span>
                   <span className="ml-0.5 text-[10px] font-mono font-bold">({kpiStats.hotRisk})</span>
+                </button>
+
+                {/* RESOLVED */}
+                <button
+                  type="button"
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'RESOLVED' ? 'ALL' : 'RESOLVED')}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
+                    activeFilterTag === 'RESOLVED'
+                      ? 'bg-emerald-950 border border-emerald-600 text-emerald-200 shadow-sm font-bold'
+                      : 'text-emerald-400 hover:bg-emerald-950/40'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>{language === 'en' ? 'RESOLVED' : language === 'zh' ? '已结算' : language === 'ko' ? '결과 도출' : 'CÓ KẾT QUẢ'}</span>
+                  <span className="ml-0.5 text-[10px] font-mono font-bold">({(kpiStats as any).resolved ?? 0})</span>
                 </button>
               </div>
             </div>
@@ -1166,17 +1182,17 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                       <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-800/80 flex items-center justify-between text-[11px] font-mono">
                         <div className="flex items-center gap-1.5">
                           <span className="text-slate-500">MFE:</span>
-                          <span className="font-bold text-emerald-400">{activeInspectedSignal.mfe_pct !== undefined && activeInspectedSignal.mfe_pct !== null ? `${activeInspectedSignal.mfe_pct.toFixed(1)}%` : '-2.8%'}</span>
+                          <span className="font-bold text-emerald-400">{activeInspectedSignal.mfe_pct !== undefined && activeInspectedSignal.mfe_pct !== null ? `${activeInspectedSignal.mfe_pct.toFixed(1)}%` : 'N/A'}</span>
                           <span className="text-slate-600">|</span>
                           <span className="text-slate-500">MAE:</span>
-                          <span className="font-bold text-red-400">{activeInspectedSignal.mae_pct !== undefined && activeInspectedSignal.mae_pct !== null ? `+${activeInspectedSignal.mae_pct.toFixed(1)}%` : '+1.1%'}</span>
+                          <span className="font-bold text-red-400">{activeInspectedSignal.mae_pct !== undefined && activeInspectedSignal.mae_pct !== null ? `+${activeInspectedSignal.mae_pct.toFixed(1)}%` : 'N/A'}</span>
                         </div>
                         <div>
-                          {activeInspectedSignal.outcome_status === 'TARGET_HIT' || activeInspectedSignal.hit === true ? (
+                          {activeInspectedSignal.outcome_status === 'TARGET_HIT' ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">
                               TARGET HIT
                             </span>
-                          ) : activeInspectedSignal.outcome_status === 'STOPPED_OUT' || activeInspectedSignal.hit === false ? (
+                          ) : activeInspectedSignal.outcome_status === 'STOPPED_OUT' ? (
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950 text-red-300 border border-red-700">
                               STOPPED OUT
                             </span>
@@ -1184,13 +1200,24 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-slate-400 border border-slate-700">
                               EXPIRED
                             </span>
+                          ) : activeInspectedSignal.outcome_status === 'FAILED' ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800">
+                              FAILED
+                            </span>
+                          ) : activeInspectedSignal.outcome_status === 'EXCLUDED' ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-slate-500 border border-slate-700">
+                              EXCLUDED
+                            </span>
+                          ) : activeInspectedSignal.outcome_status === 'UNTRACKED' ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-slate-500 border border-slate-700">
+                              UNTRACKED
+                            </span>
                           ) : (
                             <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-950 text-sky-300 border border-sky-800">
                               ACTIVE TRACKING
                             </span>
                           )}
                         </div>
-                      </div>
                     </div>
 
                     {/* Microstructure & Derivatives Box */}
@@ -1253,6 +1280,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                           </span>
                         ))}
                       </div>
+                    </div>
                     </div>
                   </>
                 ) : (
@@ -1392,23 +1420,27 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                       <div className="mb-2 px-2.5 py-1 rounded-lg bg-slate-950/70 border border-slate-800/70 flex items-center justify-between text-[10px] font-mono">
                         <div className="flex items-center gap-1">
                           <span className="text-slate-500">MFE:</span>
-                          <span className="font-bold text-emerald-400">{sig.mfe_pct !== undefined && sig.mfe_pct !== null ? `${sig.mfe_pct.toFixed(1)}%` : '-2.8%'}</span>
+                          <span className="font-bold text-emerald-400">{sig.mfe_pct !== undefined && sig.mfe_pct !== null ? `${sig.mfe_pct.toFixed(1)}%` : 'N/A'}</span>
                           <span className="text-slate-600">|</span>
                           <span className="text-slate-500">MAE:</span>
-                          <span className="font-bold text-red-400">{sig.mae_pct !== undefined && sig.mae_pct !== null ? `+${sig.mae_pct.toFixed(1)}%` : '+1.1%'}</span>
+                          <span className="font-bold text-red-400">{sig.mae_pct !== undefined && sig.mae_pct !== null ? `+${sig.mae_pct.toFixed(1)}%` : 'N/A'}</span>
                         </div>
                         <div>
-                          {sig.outcome_status === 'TARGET_HIT' || sig.hit === true ? (
+                          {sig.outcome_status === 'TARGET_HIT' ? (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">
                               TARGET HIT
                             </span>
-                          ) : sig.outcome_status === 'STOPPED_OUT' || sig.hit === false ? (
+                          ) : sig.outcome_status === 'STOPPED_OUT' ? (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-950 text-red-300 border border-red-700">
                               STOPPED OUT
                             </span>
                           ) : sig.outcome_status === 'EXPIRED' ? (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-900 text-slate-400 border border-slate-700">
                               EXPIRED
+                            </span>
+                          ) : sig.outcome_status === 'FAILED' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/80 text-amber-400 border border-amber-800">
+                              FAILED
                             </span>
                           ) : (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-950 text-sky-300 border border-sky-800">

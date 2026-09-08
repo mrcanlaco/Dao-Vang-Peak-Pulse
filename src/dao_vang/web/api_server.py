@@ -217,89 +217,37 @@ def _build_market_cap_info(
     source: str | None = None,
     updated_at: str | None = None,
 ) -> dict[str, Any]:
-    """Build a market-cap payload, using a clearly labelled fallback if needed.
+    """Build a market-cap payload with NO fallback fabrication.
 
-    Binance Agent OS is the authoritative source when ``market_cap_usd`` is
-    passed in.  The local symbol table and volume heuristic only keep the UI
-    useful when the provider is unavailable; callers can distinguish those
-    values through ``market_cap_is_estimate`` and ``market_cap_source``.
+    Binance Agent OS (or CoinGecko) is the authoritative source. If no value
+    is provided, it returns None/N/A.
     """
-    clean_sym = (
-        str(symbol or "")
-        .upper()
-        .replace("USDT", "")
-        .replace("BUSD", "")
-        .replace("USDC", "")
-        .replace("PERP", "")
-        .strip()
-    )
-
-    large_caps = {
-        "BTC": 1_300_000_000_000, "ETH": 350_000_000_000, "BNB": 90_000_000_000,
-        "SOL": 85_000_000_000, "XRP": 140_000_000_000, "DOGE": 35_000_000_000,
-        "ADA": 28_000_000_000, "AVAX": 12_000_000_000, "SUI": 10_000_000_000,
-        "LINK": 11_000_000_000, "SHIB": 15_000_000_000, "TON": 16_000_000_000,
-        "TRX": 18_000_000_000, "DOT": 9_000_000_000, "NEAR": 7_500_000_000,
-        "BCH": 9_500_000_000, "LTC": 8_000_000_000, "XLM": 12_000_000_000,
-        "HBAR": 11_000_000_000, "PEPE": 8_500_000_000, "APT": 6_500_000_000,
-    }
-
-    mid_caps = {
-        "UNI": 4_800_000_000, "FET": 3_500_000_000, "RENDER": 3_200_000_000,
-        "TAO": 4_200_000_000, "WIF": 2_800_000_000, "AAVE": 2_500_000_000,
-        "MKR": 1_800_000_000, "ARB": 2_100_000_000, "OP": 1_900_000_000,
-        "TIA": 1_600_000_000, "SEI": 1_700_000_000, "INJ": 2_200_000_000,
-        "FLOKI": 2_100_000_000, "BONK": 2_400_000_000, "PENDLE": 1_200_000_000,
-        "ENA": 1_500_000_000, "JUP": 1_800_000_000, "RUNE": 1_600_000_000,
-        "ICP": 4_500_000_000, "FIL": 3_100_000_000, "ETC": 3_800_000_000,
-        "KAS": 3_400_000_000, "STX": 2_900_000_000, "BEAM": 1_100_000_000,
-        "GALA": 1_300_000_000, "SAND": 1_400_000_000, "MANA": 1_200_000_000,
-        "CRV": 1_100_000_000, "LDO": 1_700_000_000, "ALGO": 2_500_000_000,
-        "VET": 3_200_000_000, "ATOM": 2_100_000_000, "POL": 3_900_000_000,
-        "WLD": 2_600_000_000, "POPCAT": 1_400_000_000, "THETA": 1_800_000_000,
-    }
-
-    is_estimate = True
-    resolved_source = source or "fallback_estimate"
     try:
-        supplied_mcap = float(market_cap_usd) if market_cap_usd is not None else 0.0
+        supplied_mcap = float(market_cap_usd) if market_cap_usd is not None else None
     except (TypeError, ValueError):
-        supplied_mcap = 0.0
+        supplied_mcap = None
+        
+    if supplied_mcap is None or not math.isfinite(supplied_mcap) or supplied_mcap <= 0:
+        return {
+            "market_cap_usd": None,
+            "market_cap_str": "N/A",
+            "market_cap_tier": "UNKNOWN",
+            "market_cap_source": "unavailable",
+            "market_cap_is_estimate": False,
+            "market_cap_updated_at": updated_at,
+        }
 
-    if math.isfinite(supplied_mcap) and supplied_mcap > 0:
-        mcap = supplied_mcap
-        resolved_source = source or "binance_agent_os"
-        is_estimate = resolved_source != "binance_agent_os"
-    elif clean_sym in large_caps:
-        mcap = float(large_caps[clean_sym])
-        resolved_source = "symbol_lookup"
-    elif clean_sym in mid_caps:
-        mcap = float(mid_caps[clean_sym])
-        resolved_source = "symbol_lookup"
-    else:
-        try:
-            volume = float(volume_24h_usd or 0.0)
-        except (TypeError, ValueError):
-            volume = 0.0
-        if not math.isfinite(volume) or volume < 0:
-            volume = 0.0
-
-        if volume > 500_000_000:
-            mcap = volume * 2.5
-        elif volume > 100_000_000:
-            mcap = volume * 2.0
-        elif volume > 20_000_000:
-            mcap = volume * 1.5
-        else:
-            mcap = 85_000_000.0
-        resolved_source = "volume_estimate" if volume > 0 else "fallback_estimate"
+    mcap = supplied_mcap
+    resolved_source = source or "binance_agent_os"
 
     if mcap >= 5_000_000_000:
         tier = "LARGE"
     elif mcap >= 1_000_000_000:
         tier = "MID"
-    else:
+    elif mcap >= 10_000_000:
         tier = "SMALL"
+    else:
+        tier = "MICRO"
 
     if mcap >= 1_000_000_000_000:
         mcap_str = f"${mcap / 1_000_000_000_000:.2f}T"
@@ -315,7 +263,7 @@ def _build_market_cap_info(
         "market_cap_str": mcap_str,
         "market_cap_tier": tier,
         "market_cap_source": resolved_source,
-        "market_cap_is_estimate": is_estimate,
+        "market_cap_is_estimate": False,
         "market_cap_updated_at": updated_at,
     }
 
@@ -341,24 +289,24 @@ def _resolve_market_cap_info(
         if cached and cached[0] > now_monotonic:
             return dict(cached[1])
 
-    if not fetch_remote or not _settings.binance_agent_os.enabled:
+    if not fetch_remote or not _settings.coingecko.market_cap_lookup_enabled:
         return fallback
 
     info = fallback
     ttl_seconds = _MARKET_CAP_FAILURE_TTL_SECONDS
     try:
-        from dao_vang.data.collectors.binance_agent_os import fetch_market_cap
+        from dao_vang.data.collectors.coingecko import fetch_market_data
 
-        provider_mcap = fetch_market_cap(symbol, _settings.binance_agent_os)
-        if provider_mcap is not None and provider_mcap > 0:
+        cg_data = fetch_market_data(symbol, _settings.coingecko)
+        if cg_data is not None and cg_data.market_cap_usd > 0:
             info = _build_market_cap_info(
                 symbol,
                 volume_24h_usd,
-                market_cap_usd=provider_mcap,
-                source="binance_agent_os",
+                market_cap_usd=cg_data.market_cap_usd,
+                source="coingecko",
                 updated_at=_system_history_timestamp(datetime.now(timezone.utc)),
             )
-            ttl_seconds = max(60.0, float(_settings.binance_agent_os.cache_minutes) * 60.0)
+            ttl_seconds = 3600.0
     except Exception as exc:
         logger.warning("market_cap_lookup_failed symbol=%s error=%s", symbol, exc)
 
@@ -429,12 +377,12 @@ def _build_signal_outcomes(
     validity_hours_left: float,
 ) -> tuple[str, float | None, float | None]:
     if hit is True:
-        return "TARGET_HIT", -8.2, 1.2
+        return "TARGET_HIT", None, None
     if hit is False:
-        return "STOPPED_OUT", -1.5, 3.9
+        return "EXPIRED", None, None
     if validity_hours_left <= 0:
-        return "EXPIRED", -3.4, 2.1
-    return "ACTIVE", -2.8, 1.1
+        return "EXPIRED", None, None
+    return "ACTIVE", None, None
 
 
 FundingPoint = tuple[int, float]
@@ -2115,11 +2063,7 @@ class APIHandler(BaseHTTPRequestHandler):
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
 
             prob_val = float(r.get("probability") or 0.0)
-            is_fired = (
-                prob_val >= 0.55
-                or (taker_sell is not None and taker_sell >= 0.58)
-                or r.get("risk_level") in {"CAO", "HIGH", "CRITICAL"}
-            )
+            is_fired = prob_val >= 0.70
             two_tier_state = "FIRED" if is_fired else "ARMED" if prob_val >= 0.35 else "NORMAL"
 
             trade_setup = _build_signal_trade_setup(close_price or 0.0, prob=prob_val, components=components)
@@ -2237,15 +2181,12 @@ class APIHandler(BaseHTTPRequestHandler):
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
             tier = str(sr.get("recommendation", "WAIT"))
             risk_level = _scan_risk_level(tier, prob)
-            is_scan_fired = (
-                prob >= 0.55
-                or (taker_sell is not None and taker_sell >= 0.58)
-                or risk_level in {"CAO", "HIGH", "CRITICAL"}
-            )
+            is_scan_fired = prob >= 0.70
             two_tier_state = "FIRED" if is_scan_fired else "ARMED" if prob >= 0.35 else "NORMAL"
             scan_setup = _build_signal_trade_setup(close_price or 0.0, prob=prob)
             scan_pat_en, scan_pat_vi = _build_signal_trigger_pattern([], anomaly_fields.get("anomalies"))
-            scan_outcome_stat, scan_mfe, scan_mae = _build_signal_outcomes(None, 24.0)
+            scan_v_left = max(0.0, (scan_invalidation_dt - datetime.now(timezone.utc)).total_seconds() / 3600.0) if scan_invalidation_dt else 24.0
+            scan_outcome_stat = "UNTRACKED"
 
             signals.append({
                 "id": f"{sym}-scan-{sig_time_str}",
@@ -2260,7 +2201,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "signal_price": close_price or 0.0,
                 "target_drawdown": target_drawdown,
                 "target_price": target_price,
-                "validity_hours_left": 24.0,
+                "validity_hours_left": scan_v_left,
                 "validity_hours_total": 24.0,
                 "invalidation_time": _system_history_timestamp(scan_invalidation_dt),
                 "lead_time_avg_hours": lead_stats["mean_hours"],
@@ -2272,8 +2213,8 @@ class APIHandler(BaseHTTPRequestHandler):
                 "evidence_n_judged": None,
                 "hit": None,
                 "outcome_status": scan_outcome_stat,
-                "mfe_pct": scan_mfe,
-                "mae_pct": scan_mae,
+                "mfe_pct": None,
+                "mae_pct": None,
                 "trigger_pattern": scan_pat_en,
                 "trigger_pattern_vi": scan_pat_vi,
                 "trade_setup": scan_setup,
@@ -2291,11 +2232,39 @@ class APIHandler(BaseHTTPRequestHandler):
         try:
             prediction_rows = _scan_store.latest_predictions_per_symbol(
                 limit=100,
-                max_age_hours=24,
+                max_age_hours=72,
             )
         except Exception as exc:
             logger.debug("signals_prediction_query_unavailable error=%s", exc)
             prediction_rows = []
+            
+        try:
+            resolved_rows = _scan_store.recent_resolved_predictions(limit=100, max_age_hours=72)
+        except Exception as exc:
+            logger.debug("signals_resolved_query_unavailable error=%s", exc)
+            resolved_rows = []
+
+        # Merge and deduplicate by prediction_id
+        pred_dict = {pr.get("prediction_id"): pr for pr in prediction_rows if pr.get("prediction_id")}
+        for rr in resolved_rows:
+            pred_dict[rr.get("prediction_id")] = rr
+        prediction_rows = list(pred_dict.values())
+
+        pred_ids = list(pred_dict.keys())
+        outcomes_map = _scan_store.get_prediction_outcomes(pred_ids)
+        
+        # Manually seed outcomes_map with data from recent_resolved_predictions to avoid redundant query
+        for rr in resolved_rows:
+            pid = rr.get("prediction_id")
+            if pid and pid not in outcomes_map:
+                outcomes_map[pid] = {
+                    "label_value": rr.get("label_value"),
+                    "mfe": rr.get("mfe"),
+                    "mae": rr.get("mae"),
+                    "outcome_status": rr.get("outcome_status"),
+                    "exclusion_reason": rr.get("exclusion_reason"),
+                }
+
 
         for pr in prediction_rows:
             calibrated_probability = pr.get("calibrated_probability")
@@ -2337,14 +2306,46 @@ class APIHandler(BaseHTTPRequestHandler):
             ) if invalidation_dt is not None else 24.0
             pred_setup = _build_signal_trade_setup(close_price or 0.0, prob=prob)
             pred_pat_en, pred_pat_vi = _build_signal_trigger_pattern([], anomaly_fields.get("anomalies"))
-            pred_outcome_stat, pred_mfe, pred_mae = _build_signal_outcomes(None, pred_v_left)
+            
+            pred_two_tier = "FIRED" if prob >= 0.70 else "ARMED" if prob >= 0.35 else "NORMAL"
+            pid = pr.get("prediction_id")
+            out = outcomes_map.get(pid, {}) if pid else {}
+            
+            raw_status = out.get("outcome_status")
+            lbl = out.get("label_value")
+            
+            pred_hit = None
+            pred_outcome_stat = "UNTRACKED"
+            pred_mfe = None
+            pred_mae = None
+            
+            if raw_status == "materialized":
+                if lbl == 1:
+                    pred_hit = True
+                    pred_outcome_stat = "TARGET_HIT"
+                else:
+                    pred_hit = False
+                    pred_outcome_stat = "FAILED"
+            elif raw_status == "excluded":
+                pred_hit = None
+                pred_outcome_stat = "EXCLUDED"
+            elif pid:
+                pred_outcome_stat = "EXPIRED" if pred_v_left <= 0 else "ACTIVE"
+            
+            raw_mfe = out.get("mfe")
+            raw_mae = out.get("mae")
+            if raw_mfe is not None:
+                pred_mfe = raw_mfe * -100.0
+            if raw_mae is not None:
+                pred_mae = raw_mae * 100.0
 
             signals.append({
-                "id": f"prediction-{pr.get('prediction_id', sym)}",
+                "id": f"prediction-{pid or sym}",
                 "symbol": sym,
                 "name": sym.replace("USDT", ""),
                 "probability": prob,
                 "risk_level": risk_level,
+                "two_tier_state": pred_two_tier,
                 "signal_time": _system_history_timestamp(signal_dt) if signal_dt is not None else str(pr.get("signal_time")),
                 "event_time": _system_history_timestamp(observed_dt),
                 "telegram_sent_at": _system_history_timestamp(observed_dt) if pr.get("telegram_sent") else None,
@@ -2364,7 +2365,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "rsi_divergence": False,
                 "evidence_precision": None,
                 "evidence_n_judged": None,
-                "hit": None,
+                "hit": pred_hit,
                 "outcome_status": pred_outcome_stat,
                 "mfe_pct": pred_mfe,
                 "mae_pct": pred_mae,
@@ -2377,8 +2378,15 @@ class APIHandler(BaseHTTPRequestHandler):
                 **anomaly_fields,
             })
 
+        # Collapse duplicate streams prioritizing predictions (appended last)
+        unique_signals = {}
+        for s in reversed(signals):
+            key = f"{s['symbol']}-{s['signal_time']}"
+            if key not in unique_signals:
+                unique_signals[key] = s
+        signals = list(unique_signals.values())
+
         # The Radar's primary order is the observation/delivery time.  The
-        # frontend can still apply the user's selected secondary sort.
         signals.sort(
             key=lambda s: s.get("event_time") or s.get("signal_time") or "",
             reverse=True,

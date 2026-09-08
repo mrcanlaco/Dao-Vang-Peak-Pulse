@@ -656,6 +656,18 @@ class ScannerDaemon:
         except Exception as exc:
             logger.warning("scanner_outcome_resolution_failed", error=str(exc))
 
+        # Throttled materialization: only run every 12 cycles (~1 hour) to avoid DuckDB OOM on Windows temp pipelines
+        if getattr(self, "_cycle_count", 0) % 12 == 1:
+            try:
+                from dao_vang.scanner.scan_results_store import ScanResultStore
+                from dao_vang.scanner.outcomes import materialize_prediction_outcomes
+                scan_store = ScanResultStore(str(self._scanner_cfg.db_path))
+                n_mat = materialize_prediction_outcomes(scan_store, db)
+                if n_mat:
+                    logger.info("scanner_predictions_materialized", n_materialized=n_mat)
+            except Exception as exc:
+                logger.warning("scanner_predictions_materialization_failed", error=str(exc))
+
         # 3. Build features only when collection produced new normalized data.
         # Rebuilding all rolling windows on every heartbeat was the main RAM
         # and disk-I/O amplifier when a cycle returned no new candles.

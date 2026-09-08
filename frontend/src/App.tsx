@@ -351,6 +351,10 @@ export function App() {
       } catch {
         // keep previous snapshot
       }
+      try {
+        const telemRes = await fetchJsonOr<ScannerTelemetry | null>('/api/scanner/telemetry', null);
+        if (telemRes) setTelemetryData(telemRes);
+      } catch {}
       const freshComparison = await loadCandidateComparison();
       if (freshComparison !== null) setCandidateComparison(freshComparison);
     }, 30_000);
@@ -722,6 +726,8 @@ export function App() {
       matchesTag = sig.validity_hours_left > 0;
     } else if (activeFilterTag === 'EXPIRED') {
       matchesTag = sig.validity_hours_left <= 0;
+    } else if (activeFilterTag === 'RESOLVED') {
+      matchesTag = sig.hit != null;
     }
 
     return matchesSearch && matchesRisk && matchesThreshold && matchesTelegram && matchesTag;
@@ -975,6 +981,7 @@ export function App() {
           onUntrackPosition={handleUntrackCurrentCoin}
           isSymbolTracked={Boolean((coinDetail?.symbol || selectedSignal?.symbol) && trackingItems.some(item => item.status !== 'CLOSED' && item.symbol === (coinDetail?.symbol || selectedSignal?.symbol)?.toUpperCase()))}
           isTrackingLoading={isTrackingLoading}
+          tradeSetup={selectedSignal?.trade_setup}
         />
       )}
 

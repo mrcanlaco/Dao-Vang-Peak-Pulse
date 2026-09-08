@@ -517,6 +517,17 @@ def experiment_forward_test(
     Scores all labeled data after the frozen model's train_cutoff and computes
     precision, recall, brier, and drift vs training metrics.
     """
+    from dao_vang.experiments.forward_test import load_frozen_model
+    
+    try:
+        info = load_frozen_model(model_id, Path(artifact_dir))
+    except Exception as exc:
+        typer.echo(f"Cannot load frozen model {model_id}: {exc}", err=True)
+        raise typer.Exit(code=1)
+        
+    horizon_hours = info.label_spec.get("horizon_hours", 24)
+    label_version = info.label_spec.get("version", "distribution_short_v1")
+    
     conn = duckdb.connect(db_path, read_only=True)
     try:
         df = conn.execute(
@@ -525,7 +536,9 @@ def experiment_forward_test(
             FROM feature_results f
             INNER JOIN labels l
                 ON f.feature_time = l.signal_time AND f.symbol = l.symbol
-            """
+            WHERE l.horizon_hours = ? AND l.label_version = ?
+            """,
+            [horizon_hours, label_version]
         ).df()
     finally:
         conn.close()
@@ -545,9 +558,18 @@ def experiment_forward_test(
     typer.echo(f"  Actual distributions: {result['n_positive_labels']}")
     typer.echo(f"  Predicted positive: {result['n_predicted_positive']}")
     m = result["metrics"]
-    tm = result["training_metrics"]
-    typer.echo(f"  Precision: {m['precision']:.4f} (train: {tm['precision']:.4f}, drift: {m['precision'] - tm['precision']:+.4f})")
-    typer.echo(f"  Recall: {m['recall']:.4f} (train: {tm['recall']:.4f})")
+    tm = result.get("training_metrics", {})
+    dc = result.get("drift_check", {})
+    
+    train_prec = tm.get('precision')
+    prec_str = f"{train_prec:.4f}" if train_prec is not None else "N/A"
+    drift_str = f"{dc.get('precision_delta', 0.0):+.4f}" if train_prec is not None else "N/A"
+    typer.echo(f"  Precision: {m['precision']:.4f} (train: {prec_str}, drift: {drift_str})")
+    
+    train_rec = tm.get('recall')
+    rec_str = f"{train_rec:.4f}" if train_rec is not None else "N/A"
+    typer.echo(f"  Recall: {m['recall']:.4f} (train: {rec_str})")
+    
     typer.echo(f"  Brier: {m['brier']:.4f}")
     typer.echo(f"  {result['summary']}")
 

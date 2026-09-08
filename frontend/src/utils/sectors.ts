@@ -224,12 +224,12 @@ export const formatMarketCap = (mcapUsd: number): string => {
 };
 
 export const getCoinMarketCapInfo = (
-  symbol: string,
+  _symbol: string,
   existingSignal?: Partial<MarketCapFields> | null
 ): {
   market_cap_usd: number;
   market_cap_str: string;
-  market_cap_tier: 'LARGE' | 'MID' | 'SMALL';
+  market_cap_tier: 'LARGE' | 'MID' | 'SMALL' | 'MICRO' | 'UNKNOWN';
   market_cap_source: string;
   market_cap_is_estimate: boolean;
 } => {
@@ -240,9 +240,13 @@ export const getCoinMarketCapInfo = (
       ? 'LARGE'
       : rawTier === 'MID'
       ? 'MID'
+      : rawTier === 'MICRO'
+      ? 'MICRO'
       : existingValue >= 1_000_000_000
       ? 'MID'
-      : 'SMALL';
+      : existingValue >= 10_000_000
+      ? 'SMALL'
+      : 'MICRO';
     const source = existingSignal?.market_cap_source || 'fallback_estimate';
     return {
       market_cap_usd: existingValue,
@@ -253,35 +257,12 @@ export const getCoinMarketCapInfo = (
     };
   }
 
-  const clean = getCleanSymbol(symbol);
-  if (LARGE_CAP_LOOKUP[clean]) {
-    const val = LARGE_CAP_LOOKUP[clean];
-    return {
-      market_cap_usd: val,
-      market_cap_str: formatMarketCap(val),
-      market_cap_tier: 'LARGE',
-      market_cap_source: 'symbol_lookup',
-      market_cap_is_estimate: true,
-    };
-  }
-  if (MID_CAP_LOOKUP[clean]) {
-    const val = MID_CAP_LOOKUP[clean];
-    return {
-      market_cap_usd: val,
-      market_cap_str: formatMarketCap(val),
-      market_cap_tier: 'MID',
-      market_cap_source: 'symbol_lookup',
-      market_cap_is_estimate: true,
-    };
-  }
-
-  const defaultLowcap = 85_000_000;
   return {
-    market_cap_usd: defaultLowcap,
-    market_cap_str: formatMarketCap(defaultLowcap),
-    market_cap_tier: 'SMALL',
-    market_cap_source: 'fallback_estimate',
-    market_cap_is_estimate: true,
+    market_cap_usd: 0,
+    market_cap_str: 'N/A',
+    market_cap_tier: 'UNKNOWN',
+    market_cap_source: 'unavailable',
+    market_cap_is_estimate: false,
   };
 };
 
@@ -355,6 +336,20 @@ export const getMarketCapBadgeConfig = (
       label: valueLabel || (language === 'vi' ? 'Vốn hóa vừa' : 'Mid Cap'),
       icon: '⚡',
       className: 'bg-indigo-950/70 text-indigo-300 border-indigo-700/50',
+    };
+  }
+  if (normTier === 'MICRO') {
+    return {
+      label: valueLabel || (language === 'vi' ? 'Vốn hóa siêu nhỏ' : 'Micro Cap'),
+      icon: '⚠️',
+      className: 'bg-orange-950/70 text-orange-400 border-orange-700/50',
+    };
+  }
+  if (normTier === 'UNKNOWN') {
+    return {
+      label: valueLabel || (language === 'vi' ? 'Chưa xác định' : 'Unknown Cap'),
+      icon: '❓',
+      className: 'bg-slate-900/40 text-slate-500 border-slate-800 hidden',
     };
   }
   return {

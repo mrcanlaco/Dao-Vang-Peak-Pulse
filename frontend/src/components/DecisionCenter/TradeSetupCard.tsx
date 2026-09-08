@@ -14,35 +14,28 @@ interface TradeSetupCardProps {
 }
 
 export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
-  currentPrice,
-  signalPrice,
-  targetPrice,
-  peakPrice,
-  invalidationPrice,
+  currentPrice: _currentPrice,
+  signalPrice: _signalPrice,
+  targetPrice: _targetPrice,
+  peakPrice: _peakPrice,
+  invalidationPrice: _invalidationPrice,
   tradeSetup,
 }) => {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
   
-  const entry = tradeSetup?.entry_price || (signalPrice && signalPrice > 0 ? signalPrice : currentPrice);
-  if (!entry || entry <= 0) return null;
+  if (!tradeSetup || !tradeSetup.entry_price || !tradeSetup.stop_loss || !tradeSetup.tp1 || !tradeSetup.tp2) return null;
 
-  // Stop Loss calculation (from tradeSetup or Invalidation level or peak price + buffer)
-  const sl = tradeSetup?.stop_loss
-    || (invalidationPrice && invalidationPrice > entry
-      ? invalidationPrice
-      : peakPrice && peakPrice > entry
-      ? peakPrice * 1.015
-      : entry * 1.035);
+  const entry = tradeSetup.entry_price;
+  const sl = tradeSetup.stop_loss;
+  const tp1 = tradeSetup.tp1;
+  const tp2 = tradeSetup.tp2;
 
-  const tp1 = tradeSetup?.tp1 || (entry * 0.96); // -4%
-  const tp2 = tradeSetup?.tp2 || (targetPrice && targetPrice > 0 && targetPrice < entry ? targetPrice : entry * 0.92); // -8%
+  const slPct = tradeSetup.stop_loss_pct || Math.max(0.1, ((sl - entry) / entry) * 100);
+  const tp1Pct = tradeSetup.tp1_pct || (((entry - tp1) / entry) * 100);
+  const tp2Pct = tradeSetup.tp2_pct || (((entry - tp2) / entry) * 100);
 
-  const slPct = tradeSetup?.stop_loss_pct || Math.max(0.1, ((sl - entry) / entry) * 100);
-  const tp1Pct = tradeSetup?.tp1_pct || (((entry - tp1) / entry) * 100);
-  const tp2Pct = tradeSetup?.tp2_pct || (((entry - tp2) / entry) * 100);
-
-  const rrRatio = tradeSetup?.rr_ratio || (slPct > 0 ? Number((tp2Pct / slPct).toFixed(1)) : 2.5);
+  const rrRatio = tradeSetup.rr_ratio || (slPct > 0 ? Number((tp2Pct / slPct).toFixed(1)) : 2.5);
   const formatPrice = (p: number) => {
     if (p < 0.001) return p.toFixed(6);
     if (p < 1) return p.toFixed(5);

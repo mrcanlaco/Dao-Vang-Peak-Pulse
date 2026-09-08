@@ -153,7 +153,7 @@ def run_lowcap_backtest():
 
     models_eval = {
         "Champion (Logistic Regression)": {"y_true": [], "y_prob": [], "y_pred": [], "pnl": []},
-        "Challenger (LightGBM + Calibrated)": {"y_true": [], "y_prob": [], "y_pred": [], "pnl": []},
+        "Challenger (LightGBM + Calibrated)": {"y_true": [], "y_prob": [], "y_pred": [], "pnl": [], "symbol": []},
         "Baseline 0 (Random Calibrated)": {"y_true": [], "y_prob": [], "y_pred": [], "pnl": []},
         "Baseline 1 (Price Return 24h > 15%)": {"y_true": [], "y_prob": [], "y_pred": [], "pnl": []},
         "Baseline 2 (Funding Rate > 0.05%)": {"y_true": [], "y_prob": [], "y_pred": [], "pnl": []},
@@ -220,7 +220,7 @@ def run_lowcap_backtest():
         models_eval["Challenger (LightGBM + Calibrated)"]["y_prob"].extend(prob_lgb)
         models_eval["Challenger (LightGBM + Calibrated)"]["y_pred"].extend(pred_lgb)
         models_eval["Challenger (LightGBM + Calibrated)"]["pnl"].extend(short_pnl * pred_lgb)
-
+        models_eval["Challenger (LightGBM + Calibrated)"]["symbol"].extend(test_data["symbol"].values)
         imputer = SimpleImputer(strategy="median")
         X_train_imp = np.nan_to_num(imputer.fit_transform(X_train), nan=0.0, posinf=0.0, neginf=0.0)
         X_test_imp = np.nan_to_num(imputer.transform(X_test), nan=0.0, posinf=0.0, neginf=0.0)
@@ -340,6 +340,28 @@ def run_lowcap_backtest():
     logger.info(f"Successfully updated backtest metrics in {OUTPUT_PATH}")
     print("BACKTEST_COMPLETED_SUCCESSFULLY")
 
+    # --- COMPUTE TOP LOW CAP COINS FOR CHALLENGER ---
+    challenger_data = models_eval["Challenger (LightGBM + Calibrated)"]
+    df_res = pd.DataFrame({
+        "symbol": challenger_data["symbol"],
+        "y_true": challenger_data["y_true"],
+        "y_pred": challenger_data["y_pred"]
+    })
+    triggered = df_res[df_res["y_pred"] == 1]
+    stats = triggered.groupby("symbol").agg(
+        total_signals=("y_true", "count"),
+        wins=("y_true", "sum")
+    )
+    stats["win_rate"] = stats["wins"] / stats["total_signals"]
+    stats = stats[stats["total_signals"] >= 15]
+    stats = stats.sort_values("win_rate", ascending=False)
+    
+    print("\n" + "="*50)
+    print("🌟 TOP 15 LOW-CAP COINS CÓ TỈ LỆ THẮNG CAO NHẤT (Challenger)")
+    print("="*50)
+    for idx, (sym, row) in enumerate(stats.head(15).iterrows(), 1):
+        print(f"{idx:2d}. {sym:12s} | Winrate: {row['win_rate']*100:5.2f}% | Lệnh thắng: {row['wins']:3.0f}/{row['total_signals']:3.0f}")
+    print("="*50)
 
 if __name__ == "__main__":
     run_lowcap_backtest()

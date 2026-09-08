@@ -4,6 +4,7 @@ import {
   Compass, TrendingDown, CheckCircle, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
+import { normalizeProbability, ALERT_THRESHOLD_PCT } from '../../types';
 import type { CoinDetail, DeepAnalysis, SignalItem, TradeSetup, TradeReadinessStatus, ConvictionGrade } from '../../types';
 
 interface AiExecutiveBriefingProps {
@@ -28,31 +29,39 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
 
   const symbol = displayDetail?.symbol || 'COIN';
   const currentPrice = displayDetail?.current_price || 0;
-  const prob = displayDetail?.probability || 0;
+  const prob = normalizeProbability(displayDetail?.probability) ?? 0;
   const btcRegime = deepAnalysis?.btc_regime || 'NEUTRAL';
   const isPump = deepAnalysis?.pump_analysis?.detected || false;
   const metrics = displayDetail?.metrics || {
     oi_change_24h: 'N/A',
-    taker_sell_ratio: 0.5,
+    taker_sell_ratio: null,
     funding_rate: 'N/A',
     funding_interval_hours: null,
     funding_apr: null,
     funding_cost_per_1000_usdt: null,
     funding_payer: 'unknown' as const,
-    rsi_15m: 50,
+    rsi_15m: null,
     volume_delta_24h: 'N/A',
   };
   const shapDrivers = displayDetail?.shap_drivers || [];
 
-  const entry = tradeSetup?.entryPrice || currentPrice;
-  const sl = tradeSetup?.stopLossPrice || entry * 1.04;
-  const tp1 = tradeSetup?.tp1Price || entry * 0.96;
-  const tp2 = tradeSetup?.tp2Price || entry * 0.92;
-  const rr = tradeSetup?.riskRewardRatio ? tradeSetup.riskRewardRatio.toFixed(2) : '1.8';
+  const entry = tradeSetup?.entryPrice ?? null;
+  const sl = tradeSetup?.stopLossPrice ?? null;
+  const tp1 = tradeSetup?.tp1Price ?? null;
+  const tp2 = tradeSetup?.tp2Price ?? null;
+  const rr = tradeSetup?.riskRewardRatio ? tradeSetup.riskRewardRatio.toFixed(2) : null;
 
   // 1. Tính toán Trade Readiness Status
   const readiness: { status: TradeReadinessStatus; label: string; badgeClass: string; desc: string } = useMemo(() => {
-    if (prob < 60) {
+    if (!tradeSetup || entry == null) {
+      return {
+        status: 'STANDBY',
+        label: isZh ? '⚪ 观望等待' : isKo ? '⚪ 관망 대기' : isEn ? '⚪ STANDBY / WATCHLIST' : '⚪ ĐỨNG NGOÀI / THEO DÕI',
+        badgeClass: 'bg-slate-800 text-slate-300 border-slate-700',
+        desc: isZh ? '尚未满足做空派发触发条件，建议保持观望。' : isKo ? '숏 포지션 분산 조건이 미충족되었습니다. 관망을 권장합니다.' : isEn ? 'Setup conditions not yet ripe for distribution short. Standby.' : 'Hệ thống chưa cấp setup giao dịch, hoặc không đủ dữ liệu tính toán. Khuyến nghị đứng ngoài.',
+      };
+    }
+    if (prob < ALERT_THRESHOLD_PCT) {
       return {
         status: 'STANDBY',
         label: isZh ? '⚪ 观望等待' : isKo ? '⚪ 관망 대기' : isEn ? '⚪ STANDBY / WATCHLIST' : '⚪ ĐỨNG NGOÀI / THEO DÕI',
@@ -117,8 +126,8 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
     }
 
     // Factor 4: Taker Sell Dominance or Favorable BTC Context
-    const takerSell = metrics.taker_sell_ratio ?? 50;
-    if (btcRegime === 'WEAK' || isPump || takerSell > 52) {
+    const takerSell = metrics.taker_sell_ratio ?? null;
+    if (btcRegime === 'WEAK' || isPump || (takerSell != null && takerSell >= 0.52)) {
       score += 20;
       reasons.push(isZh ? '主动卖盘占优 / 巨鲸抛压' : isKo ? '테이커 매도 우세 / 고래 매도' : isEn ? 'Taker Sell Dominance / Trap' : 'Áp lực bán Taker / Bẫy giá cá mập');
     }
@@ -137,22 +146,24 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
   }, [prob, metrics, shapDrivers, btcRegime, isPump, isEn, isZh, isKo]);
 
   // 3. Xây dựng 3 luận điểm diễn giải tự nhiên (Conversational Narratives)
-  const topDriversText = shapDrivers.slice(0, 3).map(d => d.feature).join(', ') || 'Volume Exhaustion & Divergence';
+  const topDriversText = shapDrivers.slice(0, 3).map(d => d.feature).join(', ') || 'N/A';
 
   const storyWhale = useMemo(() => {
+    if (!shapDrivers || shapDrivers.length === 0 || !metrics.oi_change_24h || metrics.oi_change_24h === 'N/A' || !metrics.funding_rate || metrics.funding_rate === 'N/A') return null;
     if (isZh) {
-      return `当前 **${symbol}** 正在经历典型的庄家拉高出货（Wyckoff 派发）阶段。24h 持仓量 (OI) 变动达 **${metrics.oi_change_24h || 'N/A'}**，伴随资金费率 **${metrics.funding_rate || 'N/A'}**。多头正支付高额持仓费用，而主动买单动能明显衰竭。SHAP 模型监测到核心驱动因子为 \`${topDriversText}\`，表明大资金正趁市场 FOMO 情绪暗中转移筹码。`;
+      return `当前观测到 **${symbol}** 的数据特征。24h 持仓量 (OI) 变动为 **${metrics.oi_change_24h || 'N/A'}**，资金费率为 **${metrics.funding_rate || 'N/A'}**。SHAP 模型监测到核心驱动因子为 \`${topDriversText}\`，这是当前风险评分的主要构成。`;
     }
     if (isKo) {
-      return `현재 **${symbol}**은 전형적인 고래 세력의 펌핑 후 물량 분산(Wyckoff Distribution) 국면에 진입했습니다. 24시간 미결제약정(OI) 변화율은 **${metrics.oi_change_24h || 'N/A'}**이며 펀딩비는 **${metrics.funding_rate || 'N/A'}**입니다. 매수 세력의 모멘텀이 소진되고 있으며, SHAP 분석 결과 \`${topDriversText}\` 요인이 급락 리스크를 강하게 지목하고 있습니다.`;
+      return `현재 **${symbol}**에 대한 관측 지표입니다. 24시간 미결제약정(OI) 변화율은 **${metrics.oi_change_24h || 'N/A'}**이며 펀딩비는 **${metrics.funding_rate || 'N/A'}**입니다. SHAP 분석 결과 \`${topDriversText}\` 요인이 현재 리스크 점수의 주요 원인으로 식별되었습니다.`;
     }
     if (isEn) {
-      return `**${symbol}** is exhibiting signature institutional distribution characteristics. Open Interest expansion stands at **${metrics.oi_change_24h || 'N/A'}** with Funding Rate at **${metrics.funding_rate || 'N/A'}**, signaling crowded retail longs paying steep premiums. Machine learning SHAP decomposition highlights \`${topDriversText}\` as primary catalysts, indicating smart money is offloading liquidity into late buyers.`;
+      return `Observed metrics for **${symbol}**: Open Interest change is **${metrics.oi_change_24h || 'N/A'}** with Funding Rate at **${metrics.funding_rate || 'N/A'}**. Machine learning SHAP decomposition highlights \`${topDriversText}\` as the primary catalysts for the current risk score.`;
     }
-    return `Cặp **${symbol}** đang bước vào giai đoạn phân phối đỉnh điển hình của tạo lập (Wyckoff Distribution). Chỉ số OI ghi nhận **${metrics.oi_change_24h || 'N/A'}** cùng tỷ lệ Funding **${metrics.funding_rate || 'N/A'}**, cho thấy phe Mua đuổi đang phải trả chi phí rất lớn để duy trì vị thế. Bóc tách SHAP chỉ ra động cơ chính gồm \`${topDriversText}\` — dòng tiền lớn đang tận dụng nhịp hưng phấn để xả hàng chốt lời.`;
+    return `Dữ liệu quan sát của **${symbol}**: Chỉ số OI thay đổi **${metrics.oi_change_24h || 'N/A'}** cùng tỷ lệ Funding **${metrics.funding_rate || 'N/A'}**. Bóc tách SHAP chỉ ra động cơ chính gồm \`${topDriversText}\`, đóng góp lớn nhất vào điểm số rủi ro hiện tại.`;
   }, [symbol, metrics, topDriversText, isEn, isZh, isKo]);
 
   const gameplan = useMemo(() => {
+    if (!tradeSetup || entry == null || sl == null || tp1 == null || tp2 == null || rr == null) return null;
     if (isZh) {
       return `1. **入场策略**: 建议关注 **$${entry}** 附近区域。${readiness.status === 'READY_TO_ENTER' ? '当前价位极佳，可按计划执行。' : '建议分批建仓，切勿单次重仓市价开单。'}\n2. **止损防护**: 严格在 **$${sl}** 设置止损单。\n3. **止盈阶梯**: 第一止盈位 **$${tp1}** (-4%) 建议平仓 50% 并将止损移至开仓价（保本）；第二目标位 **$${tp2}** (-8%)。综合盈亏比: **${rr}**。`;
     }
@@ -166,6 +177,7 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
   }, [entry, sl, tp1, tp2, rr, readiness.status, isEn, isZh, isKo]);
 
   const riskAlert = useMemo(() => {
+    if (!tradeSetup || sl == null) return null;
     if (isZh) {
       return `⚠️ **失效规则**: 若比特币（BTC 目前为 ${btcRegime}）突然放量大阳线突破关键阻力，或 ${symbol} 15分钟收盘突破 **$${sl}**，则必须坚决平仓离场。单笔交易风险严格控制在账户总额的 1%–2% 以内。`;
     }
@@ -253,26 +265,28 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
               <span>{isZh ? '1. 巨鲸动向与资金流故事' : isKo ? '1. 고래 자금 흐름 스토리' : isEn ? '1. Whale Flow & Dynamics' : '1. Dòng Tiền & Hành Vi Cá Mập'}</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              {storyWhale}
+              {storyWhale || (isEn ? 'Insufficient data for whale flow narrative.' : 'Không đủ dữ liệu tạo lập để phân tích dòng tiền.')}
             </p>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400 font-mono">
-            <span>OI: <strong className="text-sky-400">{metrics.oi_change_24h || 'N/A'}</strong></span>
-            <span>Funding: <strong className="text-amber-400">{metrics.funding_rate || 'N/A'}</strong></span>
-            {metrics.funding_interval_hours != null && (
-              <span>{t('funding_cadence')}: <strong className="text-slate-300">{metrics.funding_interval_hours.toFixed(metrics.funding_interval_hours % 1 === 0 ? 0 : 2)}h</strong></span>
-            )}
-            {metrics.funding_apr && (
-              <span>{t('funding_apr_label')}: <strong className="text-amber-300">{metrics.funding_apr}</strong></span>
-            )}
-            {metrics.funding_cost_per_1000_usdt != null
-              && (metrics.funding_payer === 'long' || metrics.funding_payer === 'short') && (
-              <span>
-                {metrics.funding_payer === 'long' ? t('funding_long_pays') : t('funding_short_pays')}{' '}
-                <strong className="text-amber-300">${metrics.funding_cost_per_1000_usdt.toFixed(2)} USDT {t('funding_per_1000')}</strong>
-              </span>
-            )}
-          </div>
+          {storyWhale && (
+            <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400 font-mono">
+              <span>OI: <strong className="text-sky-400">{metrics.oi_change_24h || 'N/A'}</strong></span>
+              <span>Funding: <strong className="text-amber-400">{metrics.funding_rate || 'N/A'}</strong></span>
+              {metrics.funding_interval_hours != null && (
+                <span>{t('funding_cadence')}: <strong className="text-slate-300">{metrics.funding_interval_hours.toFixed(metrics.funding_interval_hours % 1 === 0 ? 0 : 2)}h</strong></span>
+              )}
+              {metrics.funding_apr && (
+                <span>{t('funding_apr_label')}: <strong className="text-amber-300">{metrics.funding_apr}</strong></span>
+              )}
+              {metrics.funding_cost_per_1000_usdt != null
+                && (metrics.funding_payer === 'long' || metrics.funding_payer === 'short') && (
+                <span>
+                  {metrics.funding_payer === 'long' ? t('funding_long_pays') : t('funding_short_pays')}{' '}
+                  <strong className="text-amber-300">${metrics.funding_cost_per_1000_usdt.toFixed(2)} USDT {t('funding_per_1000')}</strong>
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Section 2: Actionable Gameplan */}
@@ -291,12 +305,14 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
           </button>
           {isGameplanExpanded && <>
             <div className="text-[11px] text-slate-300 leading-relaxed whitespace-pre-line space-y-1">
-              {gameplan}
+              {gameplan || (isEn ? 'No Trade Setup provided by the signal.' : 'Hệ thống chưa cấp setup giao dịch cho tín hiệu này.')}
             </div>
-            <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-              <span>Entry: <strong className="text-amber-400">${entry}</strong></span>
-              <span>TP1: <strong className="text-emerald-400">${tp1}</strong></span>
-            </div>
+            {gameplan && (
+              <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                <span>Entry: <strong className="text-amber-400">${entry}</strong></span>
+                <span>TP1: <strong className="text-emerald-400">${tp1}</strong></span>
+              </div>
+            )}
           </>}
         </div>
 
@@ -305,16 +321,18 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
           <div>
             <div className="flex items-center gap-1.5 text-xs font-bold text-rose-300 uppercase mb-2">
               <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
-              <span>{isZh ? '3. 风险警报与失效规则' : isKo ? '3. 리스크 경보 및 무효화' : isEn ? '3. Invalidation & Risk Alerts' : '3. Cảnh Báo Rủi Ro & Điều Kiện Hủy Kèo'}</span>
+              <span>{isZh ? '3. 风险与失效规则' : isKo ? '3. 리스크 및 무효화 규칙' : isEn ? '3. Risk & Invalidation' : '3. Quản Trị Rủi Ro & Hủy Setup'}</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              {riskAlert}
+              {riskAlert || (isEn ? 'No invalidation criteria provided.' : 'Chưa có quy tắc hủy setup lệnh.')}
             </p>
           </div>
-          <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
-            <span>SL: <strong className="text-rose-400">${sl}</strong></span>
-            <span>BTC: <strong className="text-indigo-400">{btcRegime}</strong></span>
-          </div>
+          {riskAlert && (
+            <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between text-[10px] text-slate-400 font-mono">
+              <span>SL: <strong className="text-rose-400">${sl}</strong></span>
+              <span>BTC: <strong className="text-indigo-400">{btcRegime}</strong></span>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -187,6 +187,18 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const championLabel = versionShortLabel(championVersion);
   const challengerLabel = versionShortLabel(challengerVersion);
   const [isAbSectionExpanded, setIsAbSectionExpanded] = useState(false);
+  const [localCountdown, setLocalCountdown] = useState<number | null>(telemetryData?.next_scan_in_seconds ?? null);
+
+  useEffect(() => {
+    setLocalCountdown(telemetryData?.next_scan_in_seconds ?? null);
+  }, [telemetryData?.next_scan_in_seconds]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLocalCountdown(prev => (prev != null && prev > 0) ? prev - 1 : prev);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
   const metricPercent = (value: number | null | undefined) => (
     value == null 
       ? t('badge_insufficient_data') 
@@ -432,10 +444,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           chart_data: [],
           metrics: {
             oi_change_24h: selectedSignal.oi_change_24h ?? 'N/A',
-            taker_sell_ratio: selectedSignal.taker_sell_ratio ?? 0.5,
+            taker_sell_ratio: selectedSignal.taker_sell_ratio ?? null,
             funding_rate: selectedSignal.funding_rate ?? 'N/A',
             funding_rate_source: 'signal_snapshot',
-            rsi_15m: 50,
+            rsi_15m: null,
             volume_delta_24h: 'N/A',
           },
           shap_drivers: [],
@@ -462,10 +474,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           chart_data: [],
           metrics: {
             oi_change_24h: c.oi_24h ?? 'N/A',
-            taker_sell_ratio: c.taker_ratio ?? 0.5,
+            taker_sell_ratio: c.taker_ratio ?? null,
             funding_rate: c.funding ?? 'N/A',
             funding_rate_source: 'signal_snapshot',
-            rsi_15m: 50,
+            rsi_15m: null,
             volume_delta_24h: c.volume_24h ?? 'N/A',
           },
           shap_drivers: [],
@@ -487,7 +499,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         // The selected signal contains a historical scanner snapshot. Keep
         // the detail panel on the live Binance value from coinDetail.
         funding_rate: coinDetail.metrics?.funding_rate ?? 'N/A',
-        taker_sell_ratio: selectedSignal.taker_sell_ratio ?? coinDetail.metrics?.taker_sell_ratio ?? 0.5,
+        taker_sell_ratio: selectedSignal.taker_sell_ratio ?? coinDetail.metrics?.taker_sell_ratio ?? null,
       },
     };
   }, [coinDetail, selectedSignal, candidates]);
@@ -521,24 +533,23 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   // Compute trade setup levels (Entry, SL, TP1, TP2, R:R) only when an active signal exists
   const tradeSetup: TradeSetup | null = useMemo(() => {
     if (!displayDetail || displayDetail.current_price <= 0) return null;
-    // Nếu coin không có tín hiệu cảnh báo nào, không tự ý vẽ các đường Entry/SL/TP giả định lên biểu đồ
     if (!hasActiveSignal) return null;
 
     const matchedSig = selectedSignal && selectedSignal.symbol.toUpperCase() === displayDetail.symbol.toUpperCase() ? selectedSignal : null;
-    const entry = matchedSig?.trade_setup?.entry_price || matchedSig?.signal_price || displayDetail.current_price;
-    const peakPrice = deepAnalysis?.pump_analysis?.peak_price;
-    const sl = matchedSig?.trade_setup?.stop_loss
-      || (peakPrice && peakPrice > entry ? peakPrice * 1.015 : entry * 1.032);
-    const tp1 = matchedSig?.trade_setup?.tp1 || (entry * 0.96);
-    const tp2 = matchedSig?.trade_setup?.tp2
-      || (displayDetail.target_price && displayDetail.target_price > 0 && displayDetail.target_price < entry
-        ? displayDetail.target_price
-        : entry * 0.92);
+    const ts = matchedSig?.trade_setup;
+    
+    // Strict requirement: Backend MUST provide a valid trade setup. No frontend fabrication.
+    if (!ts || !ts.entry_price || !ts.stop_loss || !ts.tp1 || !ts.tp2) return null;
 
-    const slPct = matchedSig?.trade_setup?.stop_loss_pct || Math.max(0.1, ((sl - entry) / entry) * 100);
-    const tp1Pct = matchedSig?.trade_setup?.tp1_pct || (((entry - tp1) / entry) * 100);
-    const tp2Pct = matchedSig?.trade_setup?.tp2_pct || (((entry - tp2) / entry) * 100);
-    const riskRewardRatio = matchedSig?.trade_setup?.rr_ratio || (slPct > 0 ? Number((tp2Pct / slPct).toFixed(1)) : 2.5);
+    const entry = ts.entry_price;
+    const sl = ts.stop_loss;
+    const tp1 = ts.tp1;
+    const tp2 = ts.tp2;
+
+    const slPct = ts.stop_loss_pct || Math.max(0.1, ((sl - entry) / entry) * 100);
+    const tp1Pct = ts.tp1_pct || (((entry - tp1) / entry) * 100);
+    const tp2Pct = ts.tp2_pct || (((entry - tp2) / entry) * 100);
+    const riskRewardRatio = ts.rr_ratio || (slPct > 0 ? Number((tp2Pct / slPct).toFixed(1)) : 2.5);
 
     return {
       entryPrice: entry,
@@ -552,7 +563,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       tp2Pct: tp2Pct,
       riskRewardRatio,
     };
-  }, [displayDetail, selectedSignal, deepAnalysis, hasActiveSignal]);
+  }, [displayDetail, selectedSignal, hasActiveSignal]);
   // The radar can emit several alerts for the same coin. Keep all of them
   // available to the chart; selectedSignal only represents the card currently
   // focused in the feed.
@@ -937,12 +948,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                               <div className="text-[9px] uppercase tracking-wider text-slate-500">
                                 {displayMarketCap.market_cap_is_estimate
                                   ? t('market_cap_estimated', 'Estimated')
-                                  : t('market_cap_source_binance_agent_os', 'Source: Binance Agent OS')}
+                                  : t('market_cap_source', 'Source')}
                               </div>
                               <div className="text-[10px] font-mono text-slate-400">
-                                {displayMarketCap.market_cap_is_estimate
-                                  ? marketCapSourceLabel
-                                  : 'Binance Agent OS'}
+                                {marketCapSourceLabel}
                               </div>
                             </div>
                           </div>
@@ -1831,7 +1840,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   {scannerStatusLabels[telemetryData.scanner_engine_status] ?? telemetryData.scanner_engine_status}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  `${t('telemetry_interval_prefix')} ${telemetryData.poll_interval_minutes} ${t('telemetry_cycles_unit')}`
+                  {`${t('telemetry_interval_prefix')} ${telemetryData.poll_interval_minutes} ${t('telemetry_cycles_unit')}`}
                 </div>
               </div>
 
@@ -1839,14 +1848,14 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <div className="text-[10px] text-slate-400">{t('telemetry_next_scan_countdown')}</div>
                 <div className="text-sm font-bold text-amber-400 font-mono mt-0.5 flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
-                  {telemetryData.next_scan_in_seconds != null
+                  {localCountdown != null
                     ? (language === 'zh'
-                      ? `~${Math.floor(telemetryData.next_scan_in_seconds / 60)}分 ${telemetryData.next_scan_in_seconds % 60}秒`
+                      ? `~${Math.floor(localCountdown / 60)}分 ${localCountdown % 60}秒`
                       : language === 'ko'
-                      ? `~${Math.floor(telemetryData.next_scan_in_seconds / 60)}분 ${telemetryData.next_scan_in_seconds % 60}초`
+                      ? `~${Math.floor(localCountdown / 60)}분 ${localCountdown % 60}초`
                       : language === 'en'
-                      ? `~${Math.floor(telemetryData.next_scan_in_seconds / 60)}m ${telemetryData.next_scan_in_seconds % 60}s`
-                      : `~${Math.floor(telemetryData.next_scan_in_seconds / 60)} phút ${telemetryData.next_scan_in_seconds % 60} giây`)
+                      ? `~${Math.floor(localCountdown / 60)}m ${localCountdown % 60}s`
+                      : `~${Math.floor(localCountdown / 60)} phút ${localCountdown % 60} giây`)
                     : (t('metric_insufficient_data'))}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
@@ -1868,7 +1877,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   {telemetryData.scanned_pairs_count} {t('telemetry_pairs_unit')} / <span className="text-red-400">{telemetryData.signals_triggered_count} {t('telemetry_alerts_unit')}</span>
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  `${t('telemetry_excluded_prefix')} ${telemetryData.stablecoins_excluded_count ?? 'N/A'} ${t('telemetry_stablecoins_unit')}`
+                  {`${t('telemetry_excluded_prefix')} ${telemetryData.stablecoins_excluded_count ?? 'N/A'} ${t('telemetry_stablecoins_unit')}`}
                 </div>
               </div>
             </div>
@@ -1898,7 +1907,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5">
             <h4 className="text-xs font-bold text-slate-200 mb-2 flex items-center gap-1.5 uppercase font-mono">
               <Terminal className="w-3.5 h-3.5 text-amber-400" />
-              `${t('telemetry_realtime_logs_title')} ${telemetryData.logs.length} ${t('telemetry_records_count')}`
+              {`${t('telemetry_realtime_logs_title')} ${telemetryData.logs.length} ${t('telemetry_records_count')}`}
             </h4>
 
             <div className="overflow-x-auto border border-slate-800 rounded-lg max-h-72 overflow-y-auto">
@@ -2467,7 +2476,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-slate-200 flex items-center gap-1.5">
                 <LineChartIcon className="w-4 h-4 text-amber-400" />
-                `${t('market_chart_72h_title')} — ${chartCoin}`
+                {`${t('market_chart_72h_title')} — ${chartCoin}`}
               </h3>
               <button onClick={() => setChartCoin(null)} className="p-1 text-slate-400 hover:text-slate-200 text-xs">
                 {t('market_chart_close_btn')}

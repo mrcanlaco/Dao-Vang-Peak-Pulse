@@ -148,7 +148,8 @@ def classify_market_regimes(
         .rolling(window=100, min_periods=20)
         .quantile(bb_width_high_pct / 100.0)
     )
-    rolling_bb_threshold = rolling_bb_threshold.fillna(res["bb_width"].median())
+    # Fix lookahead: use expanding median instead of total median
+    rolling_bb_threshold = rolling_bb_threshold.fillna(res["bb_width"].expanding(min_periods=1).median())
 
     # 4. Relative ATR
     tr1 = high - low

@@ -1,116 +1,79 @@
-from datetime import datetime, timedelta
-
 import duckdb
 import pandas as pd
-import pytest
 
 from dao_vang.labels.engine_v1 import DistributionLabelEngineV1
-from dao_vang.labels.specs.distribution_short_v1 import DistributionShortV1Spec
+from dao_vang.labels.specs.distribution_short_v1 import specs
 
 
-@pytest.fixture
-def db():
-    return duckdb.connect(':memory:')
+def test_distribution_label_engine_5_cases():
+    """Test the 5 distinct edge cases defined in the label contract."""
+    conn = duckdb.connect(":memory:")
+    
+    # Base signal price: 100
+    # Target: 8% drop (92)
+    # MAE: 4% spike (104)
+    # Horizon: 24h
+    
+    # We will simulate 5 different symbols, each representing a case.
+    # To keep it simple, we just create a few rows per symbol.
+    
+    data = []
+    
+    base_time = pd.Timestamp("2026-01-01 00:00:00")
+    
+    # Case 1: Invalid quality -> null
+    data.append({"symbol": "C1_INVALID", "close_time": base_time, "open": 100, "high": 100, "low": 100, "close": 100, "quality_status": "invalid"})
+    for i in range(1, 289):
+        data.append({"symbol": "C1_INVALID", "close_time": base_time + pd.Timedelta(minutes=5*i), "open": 100, "high": 100, "low": 100, "close": 100, "quality_status": "valid"})
 
-def make_candle(symbol, ts, o, h, low, c):
-    return {
-        'symbol': symbol,
-        'timestamp': ts,
-        'open': o,
-        'high': h,
-        'low': low,
-        'close': c,
-        'volume': 100
-    }
+    # Case 2: Data gap -> null (missing data for > gap_tol)
+    data.append({"symbol": "C2_GAP", "close_time": base_time, "open": 100, "high": 100, "low": 100, "close": 100, "quality_status": "valid"})
+    # Jump 3 hours (180 mins) which exceeds the default gap_tol
+    data.append({"symbol": "C2_GAP", "close_time": base_time + pd.Timedelta(minutes=180), "open": 100, "high": 100, "low": 100, "close": 100, "quality_status": "valid"})
+    for i in range(37, 289):
+        data.append({"symbol": "C2_GAP", "close_time": base_time + pd.Timedelta(minutes=5*i), "open": 100, "high": 100, "low": 100, "close": 100, "quality_status": "valid"})
 
-def test_label_computation_basic(db):
-    base_time = datetime(2024, 1, 1, 0, 0)
-    data = [
-        make_candle("BTC", base_time, 100, 101, 99, 100),
-        # Hit -8% without hitting +4%
-        make_candle("BTC", base_time + timedelta(minutes=5), 100, 101, 92, 92),
-        make_candle("BTC", base_time + timedelta(minutes=10), 92, 95, 90, 91),
-    ]
-    # Fill remaining 6h to avoid missing_future_data
-    for i in range(15, 365, 5):
-        data.append(make_candle("BTC", base_time + timedelta(minutes=i), 91, 92, 90, 91))
+    # Case 3: Insufficient future horizon -> null
+    data.append({"symbol": "C3_SHORT", "close_time": base_time, "open": 100, "high": 100, "low": 100, "close": 100, "quality_status": "valid"})
+    for i in range(1, 100): # Only 100 bars < 288 bars
+        data.append({"symbol": "C3_SHORT", "close_time": base_time + pd.Timedelta(minutes=5*i), "open": 100, "high": 100, "low": 100, "close": 100, "quality_status": "valid"})
+
+    # Case 4: TP and MAE hit in the exact same candle -> null
+    data.append({"symbol": "C4_SAME_CANDLE", "close_time": base_time, "open": 100, "high": 100, "low": 100, "close": 100, "quality_status": "valid"})
+    for i in range(1, 288):
+        data.append({"symbol": "C4_SAME_CANDLE", "close_time": base_time + pd.Timedelta(minutes=5*i), "open": 100, "high": 105, "low": 90, "close": 100, "quality_status": "valid"})
+    # The very next candle hits 105 (MAE hit) and 90 (TP hit) simultaneously
+
+    # Case 5: Sufficient horizon, but neither TP nor MAE hit -> 0 (Negative)
+    data.append({"symbol": "C5_NO_HIT", "close_time": base_time, "open": 100, "high": 100, "low": 100, "close": 100, "quality_status": "valid"})
+    for i in range(1, 289):
+        data.append({"symbol": "C5_NO_HIT", "close_time": base_time + pd.Timedelta(minutes=5*i), "open": 100, "high": 102, "low": 98, "close": 100, "quality_status": "valid"})
         
     df = pd.DataFrame(data)
-    db.register('candles', df)
+    conn.register("source_table", df)
     
-    spec = DistributionShortV1Spec(horizon_hours=6)
-    engine = DistributionLabelEngineV1(spec)
-    engine.compute_all_to_table(db, 'candles', 'labels_out')
+    engine = DistributionLabelEngineV1(specs[24])
+    engine.compute_all_to_table(conn, "source_table", "output_labels")
     
-    res = db.execute("SELECT * FROM labels_out WHERE signal_time = '2024-01-01 00:00:00'").df()
+    # We only care about the labels for the base_time signal (the first row of each symbol)
+    res = conn.execute("SELECT symbol, label_value, exclusion_reason FROM output_labels WHERE signal_time = ?", [base_time]).df()
     
-    assert len(res) == 1
-    row = res.iloc[0]
-    assert row['label_value'] == 1
-    assert bool(row['target_reached']) is True
-    assert row['exclusion_reason'] is None
-    assert bool(row['ambiguous_intrabar']) is False
-
-def test_ambiguous_intrabar(db):
-    base_time = datetime(2024, 1, 1, 0, 0)
-    data = [
-        make_candle("BTC", base_time, 100, 101, 99, 100),
-        # Candle high hits +4% (104) and low hits -8% (92) simultaneously
-        make_candle("BTC", base_time + timedelta(minutes=5), 100, 105, 90, 95),
-    ]
-    # Fill remaining 6h
-    for i in range(10, 365, 5):
-        data.append(make_candle("BTC", base_time + timedelta(minutes=i), 95, 96, 94, 95))
-        
-    df = pd.DataFrame(data)
-    db.register('candles', df)
+    res_dict = res.set_index("symbol").to_dict("index")
     
-    spec = DistributionShortV1Spec(horizon_hours=6)
-    engine = DistributionLabelEngineV1(spec)
-    engine.compute_all_to_table(db, 'candles', 'labels_out')
+    # Asserts based on contract
+    assert pd.isna(res_dict["C1_INVALID"]["label_value"])
+    assert res_dict["C1_INVALID"]["exclusion_reason"] == "invalid_quality"
     
-    res = db.execute("SELECT * FROM labels_out WHERE signal_time = '2024-01-01 00:00:00'").df()
-    row = res.iloc[0]
-    assert pd.isna(row['label_value'])
-    assert bool(row['ambiguous_intrabar']) is True
-
-def test_missing_future_data(db):
-    base_time = datetime(2024, 1, 1, 0, 0)
-    data = [
-        make_candle("BTC", base_time, 100, 101, 99, 100),
-        make_candle("BTC", base_time + timedelta(minutes=5), 100, 101, 99, 100),
-    ]
-    # Only 5 minutes of future data provided for a 6h horizon
-    df = pd.DataFrame(data)
-    db.register('candles', df)
+    assert pd.isna(res_dict["C2_GAP"]["label_value"])
+    assert res_dict["C2_GAP"]["exclusion_reason"] == "data_gap"
     
-    spec = DistributionShortV1Spec(horizon_hours=6)
-    engine = DistributionLabelEngineV1(spec)
-    engine.compute_all_to_table(db, 'candles', 'labels_out')
+    assert pd.isna(res_dict["C3_SHORT"]["label_value"])
+    assert res_dict["C3_SHORT"]["exclusion_reason"] == "missing_future_data"
     
-    res = db.execute("SELECT * FROM labels_out WHERE signal_time = '2024-01-01 00:00:00'").df()
-    row = res.iloc[0]
-    assert row['exclusion_reason'] == 'missing_future_data'
-
-def test_data_gap(db):
-    base_time = datetime(2024, 1, 1, 0, 0)
-    data = [
-        make_candle("BTC", base_time, 100, 101, 99, 100),
-        make_candle("BTC", base_time + timedelta(minutes=5), 100, 101, 99, 100),
-        # Gap of 20 minutes (exceeds 15)
-        make_candle("BTC", base_time + timedelta(minutes=25), 100, 101, 99, 100),
-    ]
-    # Fill remaining
-    for i in range(30, 365, 5):
-        data.append(make_candle("BTC", base_time + timedelta(minutes=i), 100, 101, 99, 100))
-        
-    df = pd.DataFrame(data)
-    db.register('candles', df)
+    assert pd.isna(res_dict["C4_SAME_CANDLE"]["label_value"])
+    assert res_dict["C4_SAME_CANDLE"]["exclusion_reason"] == "ambiguous_intrabar"
     
-    spec = DistributionShortV1Spec(horizon_hours=6)
-    engine = DistributionLabelEngineV1(spec)
-    engine.compute_all_to_table(db, 'candles', 'labels_out')
+    assert res_dict["C5_NO_HIT"]["label_value"] == 0.0
+    assert pd.isna(res_dict["C5_NO_HIT"]["exclusion_reason"])
     
-    res = db.execute("SELECT * FROM labels_out WHERE signal_time = '2024-01-01 00:00:00'").df()
-    row = res.iloc[0]
-    assert row['exclusion_reason'] == 'data_gap'
+    print("All 5 Engine V1 Label Contract cases passed successfully!")

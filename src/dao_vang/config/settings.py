@@ -288,6 +288,7 @@ class ScoringConfig(BaseModel):
 
 class CoinGeckoConfig(BaseModel):
     enabled: bool = Field(default=False)
+    market_cap_lookup_enabled: bool = Field(default=True)
     base_url: str = "https://api.coingecko.com/api/v3"
     timeout_seconds: int = Field(default=15, gt=0)
     max_retries: int = Field(default=3, ge=0)

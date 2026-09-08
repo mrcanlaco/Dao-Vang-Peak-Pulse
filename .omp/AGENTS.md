@@ -127,6 +127,13 @@ cd frontend && npm ci && npm run build
 - `ExecutionEngine` runs as a completely decoupled component, reading signals from the database or via webhook.
 - **Paper-trading first:** Auto-trading must strictly use `paper_trading=True` on Binance Testnet before any live deployment. Live API keys are prohibited until paper trading logic is fully validated.
 
+
+### 7. Low-cap Universe Selection (Pump & Dump Target)
+- **Strict Criteria**: The project exclusively targets mid-to-low cap coins susceptible to massive distribution pumps (50-300%).
+- **Volume Constraint (Binance)**: Minimum 24h volume of **$5,000,000** to guarantee liquidity and prevent extreme spread/slippage.
+- **Market Cap Constraint (CoinGecko)**: Strictly between **$10,000,000 and $1,000,000,000**. Coins exceeding $1B (e.g., BTC, ETH, SOL) are "dinosaur" large-caps and must be excluded. Micro-caps under $10M are discarded as dead or purely manipulated wash-trading.
+- **Generation**: Always use `scripts/generate_true_lowcap_universe.py` to cross-reference Binance USD-M active perpetuals with CoinGecko market caps before downloading backtest data.
+
 ---
 
 ## Data schemas and generated artifacts

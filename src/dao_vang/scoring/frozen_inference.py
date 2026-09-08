@@ -31,10 +31,11 @@ from dao_vang.scoring.evidence import evaluate_evidence
 
 logger = get_logger(__name__)
 
-
 class FrozenInferenceError(ValueError):
     """A frozen bundle cannot safely score the supplied snapshot."""
-
+    def __init__(self, message: str, reason_code: str = "model_inference_failed"):
+        super().__init__(message)
+        self.reason_code = reason_code
 
 @dataclass(frozen=True)
 class SnapshotQuality:
@@ -360,6 +361,80 @@ def _apply_calibrator(
         )
     return calibrated, str(calibrator_id) if calibrator_id else path.name, None
 
+def load_verified_bundle(
+    frozen_info: FrozenModelInfo,
+    metadata: Mapping[str, Any],
+) -> tuple[Any, Any, bool]:
+    """Load and verify a frozen model and its calibrator.
+    
+    Returns:
+        (model, calibrator_obj, is_precalibrated)
+    Raises:
+        FrozenInferenceError: If checksums fail, files are missing, or calibrator is invalid.
+    """
+    checksum_reason = _verify_bundle_checksums(frozen_info, metadata)
+    if checksum_reason:
+        raise FrozenInferenceError(f"Checksum verification failed: {checksum_reason}", reason_code=checksum_reason)
+        
+    calibrator_id = _metadata_value(metadata, "calibrator_id", "calibration_id")
+    if str(calibrator_id or "").strip().lower() == "identity_v1":
+        raise FrozenInferenceError("Unvalidated identity calibrator rejected", reason_code="calibrator_unvalidated_identity")
+        
+    ref = _metadata_value(metadata, "calibrator_path", "calibrator_ref", "calibrator_file", "calibrator")
+    calibrator_obj = None
+    is_precalibrated = False
+    
+    if ref is None:
+        method = _metadata_value(metadata, "calibration_method")
+        if method in {"precalibrated", "embedded", "pipeline"}:
+            is_precalibrated = True
+        else:
+            raise FrozenInferenceError("Calibrator missing and not marked as precalibrated", reason_code="calibrator_missing")
+    else:
+        path = _resolve_artifact_ref(ref, frozen_info.metadata_path)
+        if path is None or not path.exists():
+            raise FrozenInferenceError("Calibrator artifact file missing", reason_code="calibrator_missing")
+        try:
+            calibrator_obj = joblib.load(path)
+        except Exception as exc:
+            raise FrozenInferenceError(f"Failed to load calibrator: {exc}", reason_code="calibrator_error")
+            
+    try:
+        model = joblib.load(frozen_info.model_path)
+    except Exception as exc:
+        raise FrozenInferenceError(f"Failed to load model: {exc}", reason_code="model_inference_failed")
+        
+    return model, calibrator_obj, is_precalibrated
+
+
+def _apply_loaded_calibrator(
+    model_probability: float,
+    calibrator_obj: Any,
+    is_precalibrated: bool,
+    calibrator_id: str | None,
+) -> tuple[float | None, str | None, str | None]:
+    """Apply an already loaded calibrator to a single probability."""
+    if is_precalibrated:
+        return model_probability, str(calibrator_id or "precalibrated"), None
+        
+    try:
+        if hasattr(calibrator_obj, "predict_proba"):
+            calibrated = float(calibrator_obj.predict_proba([[model_probability]])[0, 1])
+        elif hasattr(calibrator_obj, "transform"):
+            calibrated = float(calibrator_obj.transform([model_probability])[0])
+        elif callable(calibrator_obj):
+            calibrator_func = cast(Callable[[float], float], calibrator_obj)
+            calibrated = float(calibrator_func(model_probability))
+        else:
+            return None, str(calibrator_id) if calibrator_id else None, "calibrator_invalid"
+    except Exception:
+        return None, str(calibrator_id) if calibrator_id else None, "calibrator_error"
+        
+    if not math.isfinite(calibrated) or not 0.0 <= calibrated <= 1.0:
+        return None, str(calibrator_id) if calibrator_id else None, "calibrator_out_of_range"
+        
+    return calibrated, str(calibrator_id) if calibrator_id else "loaded_calibrator", None
+
 
 def _threshold_contract(
     frozen_info: FrozenModelInfo,
@@ -439,43 +514,46 @@ def score_snapshot(
     reasons = list(quality_result.reason_codes)
 
     if quality_result.is_usable:
-        checksum_reason = _verify_bundle_checksums(frozen_info, metadata)
-        if checksum_reason:
-            reasons.append(checksum_reason)
-        else:
-            try:
-                model = joblib.load(frozen_info.model_path)
-                frame = pd.DataFrame(
-                    [{name: feature_dict[name] for name in frozen_info.feature_cols}]
-                )
-                # Do not fill missing values here; assess_snapshot_quality already
-                # rejected them.  This keeps live and replay semantics explicit.
-                if hasattr(model, "predict_proba"):
-                    probabilities = model.predict_proba(frame)
-                    model_probability = float(probabilities[0, 1])
-                else:
-                    prediction = float(model.predict(frame)[0])
-                    model_probability = 1.0 if prediction > 0.5 else 0.0
-                if not math.isfinite(model_probability) or not (
-                    0.0 <= model_probability <= 1.0
-                ):
-                    reasons.append("model_probability_out_of_range")
-                    model_probability = None
-            except Exception as exc:  # fail closed; scanner records quality reason
-                logger.warning(
-                    "frozen_model_inference_failed",
-                    model_id=frozen_info.model_id,
-                    error=str(exc),
-                )
-                reasons.append("model_inference_failed")
-
+        try:
+            model, calibrator_obj, is_precalibrated = load_verified_bundle(frozen_info, metadata)
+            frame = pd.DataFrame(
+                [{name: feature_dict[name] for name in frozen_info.feature_cols}]
+            )
+            
+            if hasattr(model, "predict_proba"):
+                probabilities = model.predict_proba(frame)
+                model_probability = float(probabilities[0, 1])
+            else:
+                prediction = float(model.predict(frame)[0])
+                model_probability = 1.0 if prediction > 0.5 else 0.0
+                
+            if not math.isfinite(model_probability) or not (0.0 <= model_probability <= 1.0):
+                reasons.append("model_probability_out_of_range")
+                model_probability = None
+                
+        except FrozenInferenceError as exc:
+            # Exact reason code from loader
+            reasons.append(exc.reason_code)
+            logger.warning(
+                "frozen_model_inference_failed",
+                model_id=frozen_info.model_id,
+                reason=exc.reason_code,
+                error=str(exc),
+            )
+        except Exception as exc:
+            logger.warning(
+                "frozen_model_inference_failed",
+                model_id=frozen_info.model_id,
+                error=str(exc),
+            )
+            reasons.append("model_inference_failed")
         if model_probability is not None:
-            calibrated_probability, calibrator_id, calibration_reason = (
-                _apply_calibrator(model_probability, frozen_info, metadata)
+            calibrator_id_meta = _metadata_value(metadata, "calibrator_id", "calibration_id")
+            calibrated_probability, calibrator_id, calibration_reason = _apply_loaded_calibrator(
+                model_probability, calibrator_obj, is_precalibrated, calibrator_id_meta
             )
             if calibration_reason:
                 reasons.append(calibration_reason)
-
     if reasons:
         quality_result = SnapshotQuality(
             status="invalid",

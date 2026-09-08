@@ -4,6 +4,7 @@ import {
   Copy, Check, Eye, CheckCircle2, Loader2, DollarSign
 } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
+import type { SignalTradeSetup } from '../../types';
 
 interface OrderExecutionModalProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ interface OrderExecutionModalProps {
   onUntrackPosition?: (symbol: string) => void | Promise<void | boolean>;
   isSymbolTracked?: boolean;
   isTrackingLoading?: boolean;
+  tradeSetup?: SignalTradeSetup | null;
 }
 
 export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
@@ -27,16 +29,13 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
   onClose,
   symbol,
   currentPrice,
-  signalPrice,
-  targetPrice,
-  peakPrice,
-  invalidationPrice,
   probability,
   riskLevel: _riskLevel,
   onTrackPosition,
   onUntrackPosition,
   isSymbolTracked = false,
   isTrackingLoading = false,
+  tradeSetup,
 }) => {
   const { t } = useTranslation();
 
@@ -47,28 +46,37 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
 
   if (!isOpen) return null;
 
-  const entry = signalPrice && signalPrice > 0 ? signalPrice : currentPrice;
-  const sl = invalidationPrice && invalidationPrice > entry
-    ? invalidationPrice
-    : peakPrice && peakPrice > entry
-    ? peakPrice * 1.008
-    : entry * 1.035;
+  // Strict validation: Require backend trade setup. Do not synthesize execution levels.
+  if (!tradeSetup || !tradeSetup.entry_price || !tradeSetup.stop_loss || !tradeSetup.tp1 || !tradeSetup.tp2) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-sm">
+        <div className="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-sm p-6 text-center shadow-xl">
+          <div className="text-amber-400 mb-3 flex justify-center"><X className="w-8 h-8" /></div>
+          <h3 className="text-slate-200 font-bold mb-2">Setup Unavailable</h3>
+          <p className="text-slate-400 text-xs mb-4">Cannot open execution modal: Backend did not provide a valid trade setup for this signal.</p>
+          <button onClick={onClose} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-bold transition">Close</button>
+        </div>
+      </div>
+    );
+  }
 
-  const tp1 = entry * 0.96; // -4%
-  const tp2 = targetPrice && targetPrice > 0 && targetPrice < entry ? targetPrice : entry * 0.92; // -8%
-  const tp3 = entry * 0.86; // -14% (Trailing)
+  const entry = tradeSetup.entry_price;
+  const sl = tradeSetup.stop_loss;
+  const tp1 = tradeSetup.tp1;
+  const tp2 = tradeSetup.tp2;
+  const tp3 = tradeSetup.tp3 || null;
 
-  const slPct = entry > 0 ? ((sl - entry) / entry) * 100 : 3.5;
-  const tp1Pct = entry > 0 ? ((entry - tp1) / entry) * 100 : 4.0;
-  const tp2Pct = entry > 0 ? ((entry - tp2) / entry) * 100 : 8.0;
-  const tp3Pct = entry > 0 ? ((entry - tp3) / entry) * 100 : 14.0;
-  const rrRatio = slPct > 0 ? (tp2Pct / slPct) : 2.3;
+  const slPct = tradeSetup.stop_loss_pct || Math.max(0.1, ((sl - entry) / entry) * 100);
+  const tp1Pct = tradeSetup.tp1_pct || (((entry - tp1) / entry) * 100);
+  const tp2Pct = tradeSetup.tp2_pct || (((entry - tp2) / entry) * 100);
+  const tp3Pct = tradeSetup.tp3_pct || (tp3 ? (((entry - tp3) / entry) * 100) : null);
+  const rrRatio = tradeSetup.rr_ratio || (slPct > 0 ? Number((tp2Pct / slPct).toFixed(1)) : 2.5);
 
   const totalPositionSize = marginUsd * leverage;
   const maxLossUsd = totalPositionSize * (slPct / 100);
   const estProfitTp1Usd = totalPositionSize * (tp1Pct / 100) * 0.5; // 50% vol
   const estProfitTp2Usd = totalPositionSize * (tp2Pct / 100) * 0.3; // 30% vol
-  const estProfitTp3Usd = totalPositionSize * (tp3Pct / 100) * 0.2; // 20% vol
+  const estProfitTp3Usd = tp3Pct ? totalPositionSize * (tp3Pct / 100) * 0.2 : 0; // 20% vol
   const totalEstProfit = estProfitTp1Usd + estProfitTp2Usd + estProfitTp3Usd;
 
   const formatPrice = (p: number) => {
@@ -95,7 +103,7 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
       `🛑 Stop Loss (Adaptive): $${formatPrice(sl)} (+${slPct.toFixed(1)}%)`,
       `🎯 TP1: $${formatPrice(tp1)} (-${tp1Pct.toFixed(1)}% — Đóng 50% & SL về Hòa vốn)`,
       `🎯 TP2: $${formatPrice(tp2)} (-${tp2Pct.toFixed(1)}% — Đóng 30%)`,
-      `🎯 TP3: $${formatPrice(tp3)} (-${tp3Pct.toFixed(1)}% — Trailing 20% gồng xả lũ)`,
+      tp3 != null && tp3Pct != null ? `🎯 TP3: $${formatPrice(tp3!)} (-${tp3Pct!.toFixed(1)}% — Trailing 20% gồng xả lũ)` : null,
       `⚖️ R:R: 1 : ${rrRatio.toFixed(1)} | Rec. Leverage: ${leverage}x`,
       probValue !== null ? `📊 AI Dump Probability: ${probValue.toFixed(1)}%` : '',
     ].filter(Boolean).join('\n');
@@ -191,6 +199,7 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
             </div>
 
             {/* Target 3 (Trailing) */}
+            {tp3 != null && tp3Pct != null && (
             <div className="bg-slate-950/80 border border-violet-500/40 rounded-xl p-2.5">
               <div className="flex items-center justify-between text-[10px] font-semibold text-violet-300 mb-0.5">
                 <span>TP3 (20% Vol)</span>
@@ -203,6 +212,7 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
                 Trailing gồng xả lũ
               </span>
             </div>
+            )}
           </div>
 
           {/* Position Sizing & Leverage Calculator */}

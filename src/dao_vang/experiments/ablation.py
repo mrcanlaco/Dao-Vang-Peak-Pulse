@@ -14,43 +14,43 @@ import duckdb
 
 FEATURE_GROUPS: dict[str, tuple[str, ...]] = {
     "price": (
-        "price_ret_5m",
-        "price_ret_1h",
-        "price_ret_4h",
-        "price_ret_24h",
-        "price_volatility_24h",
-        "distance_from_high_24h",
-        "momentum_deceleration_4h",
-        "fake_breakout_1h",
+        "price_ret_5m", "price_ret_1h", "price_ret_15m", "price_ret_4h", "price_ret_24h",
+        "price_volatility_24h", "distance_from_high_24h", "momentum_deceleration_4h",
+        "momentum_decel_15m", "lower_high_4h", "fake_breakout_1h",
     ),
-    "volume": ("volume_percentile_24h",),
-    "funding": ("funding_rate_raw", "funding_zscore_30d"),
-    "oi": ("oi_change_1h", "oi_change_4h", "oi_change_24h"),
+    "volume": (
+        "volume_percentile_24h", "volume_zscore_24h", "volume_ratio_1h", "volume_dry_up_1h",
+    ),
+    "btc_context": (
+        "btc_ret_4h", "btc_ret_24h", "btc_volatility_24h", "btc_dominance_slope_24h",
+    ),
+    "funding": (
+        "funding_rate_raw", "funding_percentile_7d", "funding_percentile_30d",
+        "funding_zscore_30d", "funding_change_8h", "funding_change_24h",
+        "funding_persistence_7d", "funding_accumulated_3d", "funding_accumulated_7d",
+        "funding_rate_streak",
+    ),
+    "oi": ("oi_change_1h", "oi_change_4h", "oi_change_24h", "oi_zscore_7d"),
     "taker": ("taker_buy_ratio", "taker_buy_ratio_change_1h"),
     "ratios": (
-        "global_long_short_ratio",
-        "top_long_short_account_ratio",
-        "top_long_short_position_ratio",
+        "global_ls_ratio", "top_ls_ratio", "retail_top_spread",
+        "spread_trend_1h", "spread_trend_4h", "top_pos_ratio",
     ),
+    "smart_money": (
+        "smart_money_divergence", "smart_money_trend_4h",
+    )
 }
 
 ABLATION_MATRIX: dict[str, tuple[str, ...]] = {
     "full": (),
-    "price_only": (
-        "volume",
-        "funding",
-        "oi",
-        "taker",
-        "ratios",
-    ),
-    "price_volume": ("funding", "oi", "taker", "ratios"),
-    "price_derivs": ("volume",),
+    "no_btc_context": ("btc_context",),
     "no_funding": ("funding",),
     "no_oi": ("oi",),
-    "no_taker": ("taker",),
     "no_ratios": ("ratios",),
+    "no_smart_money": ("smart_money",),
+    "no_volume": ("volume",),
+    "only_price_funding": ("volume", "btc_context", "taker", "ratios", "smart_money", "oi"),
 }
-
 
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 

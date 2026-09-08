@@ -124,7 +124,7 @@ export const ModelComparisonModal: React.FC<ModelComparisonModalProps> = ({
                 </div>
                 <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded">
                   <span className="text-slate-400">{t('metric_tp2_hit_rate') || 'Đạt Mục Tiêu TP2 (-8%)'}:</span>
-                  <span className="font-bold text-emerald-400">{v2.tp2_hit_rate}%</span>
+                  <span className="font-bold text-emerald-400">{v1.tp2_hit_rate}%</span>
                 </div>
                 <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded">
                   <span className="text-slate-400">{t('metric_sl_breach_rate') || 'Dính Stop Loss (+4%)'}:</span>

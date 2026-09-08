@@ -17,11 +17,11 @@ interface TradeSetupCardV2Props {
 
 export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
   symbol: _symbol,
-  currentPrice,
-  signalPrice,
-  targetPrice,
-  peakPrice,
-  invalidationPrice,
+  currentPrice: _currentPrice,
+  signalPrice: _signalPrice,
+  targetPrice: _targetPrice,
+  peakPrice: _peakPrice,
+  invalidationPrice: _invalidationPrice,
   tradeSetup,
   onOpenOrderModal,
 }) => {
@@ -30,30 +30,23 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
   const [leverage, setLeverage] = useState<number>(5);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const entry = tradeSetup?.entry_price || (signalPrice && signalPrice > 0 ? signalPrice : currentPrice);
-  if (!entry || entry <= 0) return null;
+  if (!tradeSetup || !tradeSetup.entry_price || !tradeSetup.stop_loss || !tradeSetup.tp1 || !tradeSetup.tp2) return null;
 
-  // Stop Loss calculation (from tradeSetup or Invalidation level or peak price + buffer)
-  const sl = tradeSetup?.stop_loss
-    || (invalidationPrice && invalidationPrice > entry
-      ? invalidationPrice
-      : peakPrice && peakPrice > entry
-      ? peakPrice * 1.008
-      : entry * 1.032);
+  const entry = tradeSetup.entry_price;
+  const sl = tradeSetup.stop_loss;
+  const tp1 = tradeSetup.tp1;
+  const tp2 = tradeSetup.tp2;
+  const tp3 = tradeSetup.tp3 || null;
 
-  const tp1 = tradeSetup?.tp1 || (entry * 0.96); // -4%
-  const tp2 = tradeSetup?.tp2 || (targetPrice && targetPrice > 0 && targetPrice < entry ? targetPrice : entry * 0.92); // -8%
-  const tp3 = tradeSetup?.tp3 || (entry * 0.86); // -14% (Trailing / Deep Dump)
-
-  const slPct = tradeSetup?.stop_loss_pct || Math.max(0.1, ((sl - entry) / entry) * 100);
-  const tp1Pct = tradeSetup?.tp1_pct || (((entry - tp1) / entry) * 100);
-  const tp2Pct = tradeSetup?.tp2_pct || (((entry - tp2) / entry) * 100);
-  const tp3Pct = tradeSetup?.tp3_pct || (((entry - tp3) / entry) * 100);
-  const rrRatio = tradeSetup?.rr_ratio || (slPct > 0 ? Number((tp2Pct / slPct).toFixed(1)) : 2.5);
+  const slPct = tradeSetup.stop_loss_pct || Math.max(0.1, ((sl - entry) / entry) * 100);
+  const tp1Pct = tradeSetup.tp1_pct || (((entry - tp1) / entry) * 100);
+  const tp2Pct = tradeSetup.tp2_pct || (((entry - tp2) / entry) * 100);
+  const tp3Pct = tradeSetup.tp3_pct || (tp3 ? (((entry - tp3) / entry) * 100) : null);
+  const rrRatio = tradeSetup.rr_ratio || (slPct > 0 ? Number((tp2Pct / slPct).toFixed(1)) : 2.5);
   const totalPos = marginUsd * leverage;
   const maxLoss = totalPos * (slPct / 100);
   const maxProfitTp2 = totalPos * (tp2Pct / 100);
-  const maxProfitTp3 = totalPos * (tp3Pct / 100);
+  const maxProfitTp3 = totalPos * ((tp3Pct ?? 0) / 100);
 
   const formatPrice = (p: number) => {
     if (p < 0.001) return p.toFixed(6);
@@ -151,6 +144,7 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
         </div>
 
         {/* Take Profit 3 (-14% - Trailing 20%) */}
+        {tp3 != null && tp3Pct != null && (
         <div className="bg-gradient-to-br from-violet-950/40 to-slate-900/90 border border-violet-500/40 rounded-lg p-2.5 flex flex-col justify-between shadow-inner">
           <div className="flex items-center justify-between text-[10px] text-violet-300 font-bold mb-1">
             <span className="flex items-center gap-1">
@@ -166,6 +160,7 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
             Trailing gồng xả lũ
           </div>
         </div>
+        )}
         </div>
 
         {/* Quick Interactive Sizing Summary & Button */}

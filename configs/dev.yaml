@@ -102,5 +102,12 @@ market_anomalies:
   taker_ratio_change_threshold: 0.05
   crowded_long_ratio_threshold: 1.5
 
+
+threshold:
+  version: "1.0"
+  high_confidence_min_prob: 0.20
+  watch_min_prob: 0.10
+  high_confidence_min_evidence_groups: 2
+
 scoring:
   alert_score_threshold: 40.0

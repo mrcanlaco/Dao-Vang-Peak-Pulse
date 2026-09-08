@@ -767,6 +767,65 @@ class ScanResultStore:
             ]
         return [dict(zip(cols, r)) for r in rows]
 
+    def get_prediction_outcomes(self, prediction_ids: list[str]) -> dict:
+        """Fetch tracking outcomes for a batch of prediction IDs."""
+        if not prediction_ids:
+            return {}
+        try:
+            placeholders = ",".join("?" * len(prediction_ids))
+            with self._conn() as conn:
+                rows = conn.execute(
+                    f"SELECT prediction_id, label_value, mfe, mae, outcome_status, exclusion_reason "
+                    f"FROM prediction_outcomes WHERE prediction_id IN ({placeholders})",
+                    prediction_ids
+                ).fetchall()
+                outcomes = {}
+                for r in rows:
+                    outcomes[r[0]] = {
+                        "label_value": r[1],
+                        "mfe": r[2],
+                        "mae": r[3],
+                        "outcome_status": r[4],
+                        "exclusion_reason": r[5]
+                    }
+                return outcomes
+        except Exception:
+            return {}
+
+    def recent_resolved_predictions(
+        self,
+        limit: int = 100,
+        max_age_hours: int = 72,
+    ) -> list[dict[str, Any]]:
+        from dao_vang.utils.time import system_now
+        from datetime import timedelta
+        cutoff = system_now() - timedelta(hours=max_age_hours)
+        with self._conn() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT p.prediction_id, p.symbol, p.signal_time, p.created_at,
+                       p.horizon_hours, p.target_drawdown, p.calibrated_probability,
+                       p.model_probability, p.data_quality_score, p.quality_status,
+                       p.tier, p.threshold, p.shadow_mode, p.telegram_sent,
+                       p.invalidation_time,
+                       o.label_value, o.mfe, o.mae, o.outcome_status, o.exclusion_reason
+                FROM predictions p
+                INNER JOIN prediction_outcomes o ON p.prediction_id = o.prediction_id
+                WHERE o.materialized_at >= ?
+                ORDER BY o.materialized_at DESC
+                LIMIT ?
+                """,
+                [cutoff, limit],
+            ).fetchall()
+            cols = [
+                "prediction_id", "symbol", "signal_time", "created_at",
+                "horizon_hours", "target_drawdown", "calibrated_probability",
+                "model_probability", "data_quality_score", "quality_status",
+                "tier", "threshold", "shadow_mode", "telegram_sent",
+                "invalidation_time", "label_value", "mfe", "mae", "outcome_status", "exclusion_reason"
+            ]
+        return [dict(zip(cols, r)) for r in rows]
+
     def latest_predictions_per_symbol(
         self,
         limit: int = 200,

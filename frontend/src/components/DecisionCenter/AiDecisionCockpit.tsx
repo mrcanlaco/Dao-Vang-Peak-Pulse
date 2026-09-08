@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import { getRiskLabel, getBtcRegimeLabel } from '../../i18n/translations';
+import { normalizeProbability, ALERT_THRESHOLD_PCT } from '../../types';
 import type { CoinDetail, DeepAnalysis, SignalItem } from '../../types';
 
 interface AiDecisionCockpitProps {
@@ -58,22 +59,24 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
 
   const isDeepMatching = Boolean(deepAnalysis && (!deepAnalysis.symbol || deepAnalysis.symbol.toUpperCase() === displayDetail.symbol.toUpperCase()));
   const rawDeepProb = isDeepMatching ? (deepAnalysis?.calibrated_probability ?? deepAnalysis?.model_probability) : null;
-  const deepProbabilityPct = rawDeepProb != null ? (rawDeepProb <= 1.0 ? rawDeepProb * 100 : rawDeepProb) : null;
+  const deepProbabilityPct = normalizeProbability(rawDeepProb);
   const deepThreshold = isDeepMatching ? deepAnalysis?.probability_threshold : null;
-  const deepProbabilityThresholdPct = deepThreshold != null ? (deepThreshold <= 1.0 ? deepThreshold * 100 : deepThreshold) : 60;
+  const deepProbabilityThresholdPct = normalizeProbability(deepThreshold) ?? ALERT_THRESHOLD_PCT;
 
   const matchedSignal = selectedSignal && selectedSignal.symbol.toUpperCase() === displayDetail.symbol.toUpperCase() ? selectedSignal : null;
-  const signalProbPct = matchedSignal?.probability != null ? (matchedSignal.probability <= 1 ? matchedSignal.probability * 100 : matchedSignal.probability) : null;
-  const detailProbPct = displayDetail.probability != null ? (displayDetail.probability <= 1 ? displayDetail.probability * 100 : displayDetail.probability) : null;
+  const signalProbPct = normalizeProbability(matchedSignal?.probability);
+  const detailProbPct = normalizeProbability(displayDetail.probability);
+
 
   const effectiveProbabilityPct = signalProbPct ?? deepProbabilityPct ?? detailProbPct;
 
   const signalState = matchedSignal?.two_tier_state;
-  const recommendation = (signalState === 'FIRED' || (effectiveProbabilityPct != null && effectiveProbabilityPct >= 65))
+  const passesQualityGate = effectiveProbabilityPct != null && effectiveProbabilityPct >= ALERT_THRESHOLD_PCT;
+  const recommendation = passesQualityGate
     ? 'SHORT_CANDIDATE'
-    : (signalState === 'ARMED' || (effectiveProbabilityPct != null && effectiveProbabilityPct >= 50))
+    : (signalState === 'FIRED' || signalState === 'ARMED' || (effectiveProbabilityPct != null && effectiveProbabilityPct >= 50))
     ? 'WATCH'
-    : (isDeepMatching ? deepAnalysis?.recommendation : null) || 'STANDBY';
+    : (isDeepMatching ? (deepAnalysis?.recommendation === 'SHORT_CANDIDATE' ? 'WATCH' : deepAnalysis?.recommendation) : null) || 'STANDBY';
   return (
     <div className="space-y-3 min-w-0">
       {/* AI Recommendation Banner */}
@@ -143,7 +146,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
           <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
-                (effectiveProbabilityPct ?? 0) >= (deepProbabilityThresholdPct ?? 60)
+                (effectiveProbabilityPct ?? 0) >= (deepProbabilityThresholdPct ?? ALERT_THRESHOLD_PCT)
                   ? 'bg-gradient-to-r from-orange-500 to-red-500 shadow-md shadow-red-500/50'
                   : (effectiveProbabilityPct ?? 0) >= 40
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500'
@@ -163,7 +166,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
             </div>
             <span className="text-[10px] font-mono text-slate-400">
               Score: <strong className="text-violet-300">
-                {matchedSignal ? (matchedSignal.two_tier_state === 'FIRED' ? '82.4' : '65.0') : deepAnalysis?.two_tier_analysis?.total_score}
+                {deepAnalysis?.two_tier_analysis?.total_score ?? '—'}
               </strong>
             </span>
           </div>
@@ -171,25 +174,25 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
           <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
             {/* Tier 1: HTF Climax Context */}
             <div className={`p-2 rounded-lg border ${
-              (matchedSignal && (matchedSignal.two_tier_state === 'FIRED' || matchedSignal.two_tier_state === 'ARMED')) || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED'
+              matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED' || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED'
                 ? 'bg-red-950/40 border-red-800/60 text-red-200'
                 : 'bg-slate-900/60 border-slate-800 text-slate-300'
             }`}>
               <div className="flex items-center justify-between font-bold">
                 <span className="text-slate-400">{t('two_tier_htf') || 'Tầng 1 (Khung lớn)'}</span>
                 <span className={`px-1.5 py-0.2 rounded text-[9px] ${
-                  (matchedSignal && (matchedSignal.two_tier_state === 'FIRED' || matchedSignal.two_tier_state === 'ARMED')) || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED'
+                  matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED' || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED'
                     ? 'bg-red-900 text-red-200 font-black animate-pulse'
                     : 'bg-slate-800 text-slate-400'
                 }`}>
-                  {(matchedSignal && (matchedSignal.two_tier_state === 'FIRED' || matchedSignal.two_tier_state === 'ARMED')) ? 'ARMED' : (deepAnalysis?.two_tier_analysis?.htf_state || 'ARMED')}
+                  {((matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED') ? 'ARMED' : deepAnalysis?.two_tier_analysis?.htf_state) || '—'}
                 </span>
               </div>
               <div className="mt-1 text-xs font-bold text-red-300">
-                {matchedSignal ? '78.5/100' : `${deepAnalysis?.two_tier_analysis?.htf_climax_score}/100`}
+                {deepAnalysis?.two_tier_analysis?.htf_climax_score != null ? `${deepAnalysis.two_tier_analysis.htf_climax_score}/100` : '—'}
               </div>
               <div className="text-[9px] text-slate-400 truncate mt-0.5">
-                {t('two_tier_htf_armed') || 'Đã bơm nóng cực hạn'}
+                {((matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED') ? 'ARMED' : deepAnalysis?.two_tier_analysis?.htf_state) === 'ARMED' ? (t('two_tier_htf_armed') || 'Đã bơm nóng cực hạn') : '—'}
               </div>
             </div>
 
@@ -206,14 +209,14 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
                     ? 'bg-amber-500 text-slate-950 font-black'
                     : 'bg-slate-800 text-slate-400'
                 }`}>
-                  {matchedSignal?.two_tier_state === 'FIRED' ? 'FIRED' : (deepAnalysis?.two_tier_analysis?.ltf_state || 'STANDBY')}
+                  {matchedSignal?.two_tier_state === 'FIRED' ? 'FIRED' : (deepAnalysis?.two_tier_analysis?.ltf_state || '—')}
                 </span>
               </div>
               <div className="mt-1 text-xs font-bold text-amber-300">
-                {matchedSignal?.two_tier_state === 'FIRED' ? '82.0/100' : `${deepAnalysis?.two_tier_analysis?.ltf_trigger_score || 21}/100`}
+                {deepAnalysis?.two_tier_analysis?.ltf_trigger_score != null ? `${deepAnalysis.two_tier_analysis.ltf_trigger_score}/100` : '—'}
               </div>
               <div className="text-[9px] text-slate-400 truncate mt-0.5">
-                {matchedSignal?.two_tier_state === 'FIRED' ? (t('two_tier_ltf_fired') || 'Lực xả 5m kích hoạt') : (t('two_tier_ltf_watch') || 'Đang chờ áp lực bán')}
+                {matchedSignal?.two_tier_state === 'FIRED' || deepAnalysis?.two_tier_analysis?.ltf_state === 'FIRED' ? (t('two_tier_ltf_fired') || 'Lực xả 5m kích hoạt') : (deepAnalysis?.two_tier_analysis?.ltf_state === 'WATCH' ? (t('two_tier_ltf_watch') || 'Đang chờ áp lực bán') : '—')}
               </div>
             </div>
           </div>
@@ -221,7 +224,9 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
           <p className="text-[10px] text-slate-300 leading-snug bg-slate-900/40 p-1.5 rounded border border-slate-800/50">
             {matchedSignal?.two_tier_state === 'FIRED'
               ? '✓ [HTF CLIMAX ARMED] + [LTF 5M TRIGGER FIRED]: Dòng tiền bán chủ động bùng nổ, xác nhận vào sóng xả mạnh.'
-              : (deepAnalysis?.two_tier_analysis?.explanation_summary || '[HTF CLIMAX ARMED] Bơm chạm đỉnh phân phối, đang canh dòng lệnh 5m.')}
+              : (matchedSignal?.two_tier_state === 'ARMED' || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED')
+              ? '⏳ [HTF CLIMAX ARMED] Bơm chạm đỉnh phân phối, đang canh dòng lệnh 5m.'
+              : (deepAnalysis?.two_tier_analysis?.explanation_summary || 'Đang theo dõi vùng rủi ro.')}
           </p>
         </div>
       )}

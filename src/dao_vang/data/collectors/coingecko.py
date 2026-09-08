@@ -45,59 +45,84 @@ class CrossReferenceReport:
     explanation: str
 
 
-def _symbol_to_coingecko_id(symbol: str) -> str:
-    """Convert trading symbol to CoinGecko coin id.
+_COINGECKO_ID_CACHE: dict[str, str] = {
+    "uai": "unifai-network",
+    "btc": "bitcoin",
+    "eth": "ethereum",
+    "sol": "solana",
+    "bnb": "binancecoin",
+    "xrp": "ripple",
+    "ada": "cardano",
+    "doge": "dogecoin",
+    "avax": "avalanche-2",
+    "dot": "polkadot",
+    "matic": "matic-network",
+    "link": "chainlink",
+    "ltc": "litecoin",
+    "atom": "cosmos",
+    "uni": "uniswap",
+    "arb": "arbitrum",
+    "op": "optimism",
+    "apt": "aptos",
+    "near": "near",
+    "fil": "filecoin",
+    "ftm": "fantom",
+    "sand": "the-sandbox",
+    "mana": "decentraland",
+    "axs": "axie-infinity",
+    "sushi": "sushi",
+    "aave": "aave",
+    "snx": "havven",
+    "comp": "compound-governance-token",
+    "dydx": "dydx-chain",
+    "pepe": "pepe",
+    "shib": "shiba-inu",
+    "floki": "floki",
+    "wif": "dogwifcoin",
+    "bome": "book-of-meme",
+    "bonk": "bonk",
+    "jup": "jupiter-exchange-solana",
+    "pyth": "pyth-network",
+    "jto": "jito-governance-token",
+    "tia": "celestia",
+    "sei": "sei-network",
+    "sui": "sui",
+    "ton": "the-open-network",
+}
 
-    For USDT pairs: BTCUSDT → btc, ETHUSDT → eth, etc.
-    Falls back to lowercase symbol if no mapping.
-    """
-    # Strip USDT suffix
-    base = symbol.upper().replace("USDT", "").replace("USD", "").lower()
-    # Common mappings (CoinGecko uses specific IDs)
-    mapping: dict[str, str] = {
-        "btc": "bitcoin",
-        "eth": "ethereum",
-        "sol": "solana",
-        "bnb": "binancecoin",
-        "xrp": "ripple",
-        "ada": "cardano",
-        "doge": "dogecoin",
-        "avax": "avalanche-2",
-        "dot": "polkadot",
-        "matic": "matic-network",
-        "link": "chainlink",
-        "ltc": "litecoin",
-        "atom": "cosmos",
-        "uni": "uniswap",
-        "arb": "arbitrum",
-        "op": "optimism",
-        "apt": "aptos",
-        "near": "near",
-        "fil": "filecoin",
-        "ftm": "fantom",
-        "sand": "the-sandbox",
-        "mana": "decentraland",
-        "axs": "axie-infinity",
-        "sushi": "sushi",
-        "aave": "aave",
-        "snx": "havven",
-        "comp": "compound-governance-token",
-        "dydx": "dydx-chain",
-        "pepe": "pepe",
-        "shib": "shiba-inu",
-        "floki": "floki",
-        "wif": "dogwifcoin",
-        "bome": "book-of-meme",
-        "bonk": "bonk",
-        "jup": "jupiter-exchange-solana",
-        "pyth": "pyth-network",
-        "jto": "jito-governance-token",
-        "tia": "celestia",
-        "sei": "sei-network",
-        "sui": "sui",
-        "ton": "the-open-network",
-    }
-    return mapping.get(base, base)
+
+def _resolve_coingecko_id(symbol: str, client: httpx.Client, base_url: str) -> str:
+    """Dynamically resolve and cache CoinGecko coin id, normalizing multipliers."""
+    base = symbol.upper().replace("USDT", "").replace("USD", "").replace("PERP", "")
+    for prefix in ["1000000", "10000", "1000"]:
+        if base.startswith(prefix):
+            base = base[len(prefix):]
+            break
+    base = base.lower()
+
+    if base in _COINGECKO_ID_CACHE:
+        return _COINGECKO_ID_CACHE[base]
+
+    try:
+        resp = client.get(f"{base_url}/search", params={"query": base})
+        resp.raise_for_status()
+        coins = resp.json().get("coins", [])
+        
+        # Disambiguate: Exact symbol match prioritized
+        for c in coins:
+            if c.get("symbol", "").lower() == base:
+                resolved_id = c.get("id")
+                _COINGECKO_ID_CACHE[base] = resolved_id
+                return resolved_id
+                
+        if coins:
+            resolved_id = coins[0].get("id")
+            _COINGECKO_ID_CACHE[base] = resolved_id
+            return resolved_id
+    except Exception as e:
+        logger.warning("coingecko_search_failed", symbol=base, error=str(e))
+
+    return base
 
 
 def fetch_market_data(
@@ -112,12 +137,9 @@ def fetch_market_data(
 
     Returns CoinGeckoMarketData or None on error.
     """
-    if not config.enabled:
-        return None
-
-    coin_id = _symbol_to_coingecko_id(symbol)
     try:
         with httpx.Client(timeout=config.timeout_seconds) as client:
+            coin_id = _resolve_coingecko_id(symbol, client, config.base_url)
             resp = client.get(
                 f"{config.base_url}/coins/{coin_id}",
                 params={

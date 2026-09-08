@@ -1,5 +1,5 @@
 export type RiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'SAFE';
-export type FilterTag = 'ALL' | 'FIRED' | 'ARMED' | 'HOT_RISK' | 'EXPIRING' | 'VOLUME_SPIKE' | 'ANOMALY' | 'ACTIVE' | 'EXPIRED';
+export type FilterTag = 'ALL' | 'FIRED' | 'ARMED' | 'HOT_RISK' | 'EXPIRING' | 'VOLUME_SPIKE' | 'ANOMALY' | 'ACTIVE' | 'EXPIRED' | 'RESOLVED';
 export type SignalSort = 'NEWEST' | 'HIGHEST_PROBABILITY' | 'HIGHEST_RISK' | 'EXPIRING_SOON' | 'LARGEST_DRAWDOWN';
 export type TelegramFilter = 'ALL' | 'SENT' | 'UNSENT';
 
@@ -119,7 +119,7 @@ export interface SignalItem extends MarketCapFields {
   evidence_precision?: number | null;
   evidence_n_judged?: number | null;
   hit?: boolean | null;
-  outcome_status?: 'ACTIVE' | 'TARGET_HIT' | 'STOPPED_OUT' | 'EXPIRED' | string;
+  outcome_status?: 'ACTIVE' | 'TARGET_HIT' | 'STOPPED_OUT' | 'EXPIRED' | 'FAILED' | 'EXCLUDED' | 'UNTRACKED' | string;
   mfe_pct?: number | null;
   mae_pct?: number | null;
   trigger_pattern?: string;
@@ -129,17 +129,21 @@ export interface SignalItem extends MarketCapFields {
   two_tier_state?: 'ARMED' | 'FIRED' | 'NORMAL' | 'WATCH' | 'STANDBY';
 }
 
+export const normalizeProbability = (prob?: number | null): number | null => {
+  if (prob == null) return null;
+  return prob <= 1.0 ? prob * 100 : prob;
+};
+
+export const ALERT_THRESHOLD_PCT = 70;
+
 export const getSignalTwoTierState = (sig: SignalItem): 'FIRED' | 'ARMED' | 'NORMAL' => {
   if (sig.two_tier_state === 'FIRED') return 'FIRED';
   if (sig.two_tier_state === 'ARMED') return 'ARMED';
   if (sig.two_tier_state === 'NORMAL') return 'NORMAL';
 
-  const isFired = sig.probability >= 0.55
-    || (sig.taker_sell_ratio !== undefined && sig.taker_sell_ratio >= 0.58)
-    || sig.risk_level === 'CRITICAL'
-    || sig.risk_level === 'HIGH';
-  if (isFired) return 'FIRED';
-  if (sig.probability >= 0.35 || sig.risk_level === 'MEDIUM') return 'ARMED';
+  const probPct = normalizeProbability(sig.probability) ?? 0;
+  if (probPct >= ALERT_THRESHOLD_PCT) return 'FIRED';
+  if (probPct >= 50) return 'ARMED';
   return 'NORMAL';
 };
 
@@ -352,7 +356,7 @@ export interface CoinDetail extends MarketCapFields {
   chart_data: CandlePoint[];
   metrics: {
     oi_change_24h: string;
-    taker_sell_ratio: number;
+    taker_sell_ratio: number | null;
     funding_rate: string;
     funding_rate_source?: 'binance_premium_index' | 'binance_funding_history' | 'signal_snapshot' | 'unavailable';
     funding_rate_time?: string | null;

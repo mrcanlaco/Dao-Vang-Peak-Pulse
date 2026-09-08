@@ -2,7 +2,7 @@ import React from 'react';
 import { Flame, CheckCircle2, XCircle, Clock, Send, Activity, ChevronDown, Zap, HelpCircle } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import type { CandidateCoin, SignalItem, SignalTradeSetup, RiskLevel } from '../../types';
-import { getSignalTwoTierState } from '../../types';
+import { getSignalTwoTierState, normalizeProbability, ALERT_THRESHOLD_PCT } from '../../types';
 
 interface DecisionHeaderProps {
   symbol: string;
@@ -48,7 +48,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
 
   // 2. Exact Probability (No hardcoded fallback)
   const rawProb = matchedSignal?.probability ?? probability ?? null;
-  const probPct = rawProb != null ? (rawProb <= 1 ? rawProb * 100 : rawProb) : null;
+  const probPct = normalizeProbability(rawProb);
 
   // 3. Exact Two-Tier State
   const state: 'FIRED' | 'ARMED' | 'NORMAL' | 'STANDBY' | 'NO_SIGNAL' = matchedSignal
@@ -56,7 +56,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
     : currentCandidate
     ? (currentCandidate.score >= 50 ? 'ARMED' : 'STANDBY')
     : probPct != null
-    ? (probPct >= 65 ? 'FIRED' : 'ARMED')
+    ? (probPct >= ALERT_THRESHOLD_PCT ? 'FIRED' : 'ARMED')
     : 'NO_SIGNAL';
 
   // 4. Exact Risk Level
@@ -64,11 +64,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
 
   // 5. Exact R:R Ratio & Trade Setup
   const exactTradeSetup = matchedSignal?.trade_setup ?? tradeSetup ?? null;
-  const rrRatio = exactTradeSetup?.rr_ratio ?? (
-    currentPrice > 0
-      ? Number((0.08 / Math.max(0.015, 0.022)).toFixed(2)) // 8% target / 2.2% SL ~ 3.64
-      : null
-  );
+  const rrRatio = exactTradeSetup?.rr_ratio ?? null;
 
   // 6. Qualification Status
   const isFired = state === 'FIRED';
@@ -111,7 +107,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
                   <CheckCircle2 className="w-3 h-3" /> {t('ws_hit_status')}
                 </span>
               )}
-              {selectedSignal?.hit === false && (
+              {selectedSignal?.outcome_status === 'STOPPED_OUT' && (
                 <span className="px-1.5 py-0.5 text-[10px] font-bold bg-red-950 text-red-400 border border-red-800 rounded-md flex items-center gap-1">
                   <XCircle className="w-3 h-3" /> {t('ws_missed_status')}
                 </span>

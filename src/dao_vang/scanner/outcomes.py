@@ -191,7 +191,7 @@ def materialize_prediction_outcomes(
                     prediction["symbol"], signal_time, signal_time
                 ],
             ).fetchone()
-            if row is None or row[0] is None:
+            if row is None:
                 # No matching row means the snapshot did not contain this
                 # signal; leave it pending instead of fabricating an outcome.
                 continue
