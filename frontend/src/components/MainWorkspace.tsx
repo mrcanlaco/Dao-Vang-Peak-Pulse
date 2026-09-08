@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   ShieldCheck, Activity, BarChart3,
-  ArrowUpRight, ArrowDownRight, CheckCircle2, Zap, Radio, Terminal, Send, Clock, Play, Loader2, LineChart as LineChartIcon, RefreshCw, Target, Award, ChevronDown, ChevronUp, HelpCircle
+  ArrowUpRight, ArrowDownRight, CheckCircle2, Radio, Terminal, Send, Clock, Play, Loader2, LineChart as LineChartIcon, RefreshCw, Target, Award, ChevronDown, ChevronUp, HelpCircle, Eye, EyeOff
 } from 'lucide-react';
 import { SignalFeed } from './SignalFeed';
 import { MultiCoinScan } from './MultiCoinScan';
@@ -187,6 +187,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const championLabel = versionShortLabel(championVersion);
   const challengerLabel = versionShortLabel(challengerVersion);
   const [isAbSectionExpanded, setIsAbSectionExpanded] = useState(false);
+  const [decisionSubTab, setDecisionSubTab] = useState<'TRADE' | 'METRICS' | 'AI'>('TRADE');
+  const [isChartHidden, setIsChartHidden] = useState(false);
   const [localCountdown, setLocalCountdown] = useState<number | null>(telemetryData?.next_scan_in_seconds ?? null);
 
   useEffect(() => {
@@ -768,52 +770,60 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 riskLevel={displayDetail.risk_level ?? selectedSignal?.risk_level}
                 tradeSetup={selectedSignal?.trade_setup}
                 onOpenTabHelp={onOpenTabHelp ? () => onOpenTabHelp('DECISION') : undefined}
+                displayDetail={displayDetail}
+                high24h={candleData.length > 0 ? Math.max(...candleData.map(c => c.high || c.price)) : undefined}
+                low24h={candleData.length > 0 ? Math.min(...candleData.map(c => c.low || c.price)) : undefined}
               />
+              {/* 2. Sub-Tabs Header */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDecisionSubTab('TRADE')}
+                  className={`px-4 py-1.5 rounded-t-lg text-xs font-bold transition-colors ${
+                    decisionSubTab === 'TRADE' ? 'bg-slate-800 text-amber-400 border-b-2 border-amber-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+                  }`}
+                >
+                  {language === 'en' ? 'Order Setup' : 'Đặt Lệnh (Setup)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDecisionSubTab('METRICS')}
+                  className={`px-4 py-1.5 rounded-t-lg text-xs font-bold transition-colors ${
+                    decisionSubTab === 'METRICS' ? 'bg-slate-800 text-amber-400 border-b-2 border-amber-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+                  }`}
+                >
+                  {language === 'en' ? 'Market Metrics' : 'Chỉ Số Thị Trường'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDecisionSubTab('AI')}
+                  className={`px-4 py-1.5 rounded-t-lg text-xs font-bold transition-colors ${
+                    decisionSubTab === 'AI' ? 'bg-slate-800 text-amber-400 border-b-2 border-amber-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+                  }`}
+                >
+                  {language === 'en' ? 'AI Deep Analysis' : 'Phân Tích AI'}
+                </button>
+              </div>
+                <button
+                  type="button"
+                  onClick={() => setIsChartHidden(!isChartHidden)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border flex items-center gap-1.5 ${
+                    isChartHidden ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm shadow-amber-500/20' : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border-slate-700'
+                  }`}
+                >
+                  {isChartHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                  {isChartHidden ? (language === 'en' ? 'Show Chart' : 'Hiện Biểu Đồ') : (language === 'en' ? 'Hide Chart' : 'Ẩn Biểu Đồ')}
+                </button>
+              </div>
 
-              {/* 2. Main 2-Column Split-View Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start min-w-0">
-                {/* LEFT COLUMN (65% width on LG): Charts + Trade Setup + Metrics */}
-                <div className="lg:col-span-8 space-y-3 min-w-0">
-                  {/* Candlestick Chart Card */}
-                  <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 sm:p-3.5 min-w-0 shadow-lg">
-                    <div className="flex items-start sm:items-center justify-between mb-2 gap-2 flex-wrap min-w-0">
-                      <div className="min-w-0">
-                        <h3 className="text-[11px] sm:text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5 min-w-0">
-                          <Zap className="w-3.5 h-3.5 text-amber-400" />
-                          {`${t('ws_chart_candlestick_title')} ${candleInterval} (${displayDetail.symbol})`}
-                        </h3>
-                        <p className="text-[11px] text-slate-400">
-                          {language === 'zh' ? '🟢 阳线 | 🔴 阴线 | 🟡 入场点 | 🔴 止损 SL | 🟢 止盈 TP1/TP2' : language === 'ko' ? '🟢 양봉 | 🔴 음봉 | 🟡 진입가 | 🔴 손절 SL | 🟢 익절 TP1/TP2' : t('chart_legend_indicators')}
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap items-center justify-end gap-2">
-                        <div className="flex items-center gap-0.5 max-w-full overflow-x-auto rounded-md border border-slate-700/80 bg-slate-900/90 p-0.5 [&::-webkit-scrollbar]:hidden" aria-label={t('ws_chart_timeframe_select')}>
-                          {['1m', '5m', '15m', '1h', '4h', '1d'].map(interval => (
-                            <button
-                              key={interval}
-                              type="button"
-                              aria-pressed={candleInterval === interval}
-                              onClick={() => setCandleInterval(interval)}
-                              className={`shrink-0 rounded px-2 py-1 font-mono text-[10px] transition ${
-                                candleInterval === interval
-                                  ? 'bg-amber-500/20 text-amber-300 shadow-sm shadow-amber-500/10'
-                                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-                              }`}
-                            >
-                              {interval}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] font-mono">
-                          <span className="flex items-center gap-1 text-emerald-400">
-                            <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> {t('ws_chart_up')}
-                          </span>
-                          <span className="flex items-center gap-1 text-red-400">
-                            <span className="w-2.5 h-2.5 rounded-sm bg-red-500" /> {t('ws_chart_down')}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+              {/* 3. Main Split-View Grid (Chart + Active Tab Content) */}
+              <div className={`grid grid-cols-1 ${isChartHidden ? '' : 'lg:grid-cols-12'} gap-3 items-start min-w-0`}>
+                {/* LEFT COLUMN (65% width on LG): Candlestick Chart ALWAYS visible */}
+                {!isChartHidden && (
+                  <div className="lg:col-span-8 space-y-3 min-w-0">
+                    {/* Candlestick Chart Card */}
+                    <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 sm:p-3.5 min-w-0 shadow-lg lg:sticky lg:top-0 z-10">
 
                     {/* Candlestick chart (TradingView lightweight-charts) */}
                     <CandlestickChart
@@ -828,246 +838,221 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       targetPrice={displayDetail.target_price}
                       signalMarkers={chartSignalMarkers}
                       tradeSetup={tradeSetup}
+                      interval={candleInterval}
+                      onIntervalChange={setCandleInterval}
                       height={380}
                     />
-
-                    {/* OI + Funding Sub Chart */}
-                    {(() => {
-                      const hasOi = candleData.some(c => (c.oi || 0) !== 0);
-                      const hasFunding = candleData.some(c => (c.funding || 0) !== 0);
-                      return hasOi || hasFunding ? (
-                        <div className="mt-3">
-                          <div className="text-[10px] text-slate-400 mb-1 uppercase">{t('ws_oi_funding_title')}</div>
-                          <div className="h-24 w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <ComposedChart data={candleData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                                <XAxis dataKey="time" stroke="#64748b" fontSize={9} interval={Math.max(0, Math.floor(candleData.length / 8))} />
-                                <YAxis yAxisId="oi" stroke="#06b6d4" fontSize={9} domain={['auto', 'auto']} />
-                                <YAxis yAxisId="funding" orientation="right" stroke="#f59e0b" fontSize={9} domain={['auto', 'auto']} />
-                                <Tooltip
-                                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }}
-                                />
-                                <ReferenceLine yAxisId="funding" y={0} stroke="#334155" strokeDasharray="2 2" />
-                                <Line yAxisId="oi" type="monotone" dataKey="oi" stroke="#06b6d4" strokeWidth={1.5} dot={false} name={t('metric_oi_24h')} />
-                                <Line yAxisId="funding" type="monotone" dataKey="funding" stroke="#f59e0b" strokeWidth={1} dot={false} name={t('metric_funding')} />
-                              </ComposedChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
-                      ) : null;
-                    })()}
-
-                    {/* Chart stats footer */}
-                    {candleData.length > 0 && (
-                      <div className="mt-2 grid grid-cols-4 gap-2 text-[10px] font-mono">
-                        <div className="bg-slate-900 p-1.5 rounded text-center">
-                          <div className="text-slate-500">{t('ws_stat_high')}</div>
-                          <div className="text-emerald-400">${Math.max(...candleData.map(c => c.high || c.price)).toFixed(6)}</div>
-                        </div>
-                        <div className="bg-slate-900 p-1.5 rounded text-center">
-                          <div className="text-slate-500">{t('ws_stat_low')}</div>
-                          <div className="text-red-400">${Math.min(...candleData.map(c => c.low || c.price)).toFixed(6)}</div>
-                        </div>
-                        <div className="bg-slate-900 p-1.5 rounded text-center">
-                          <div className="text-slate-500">{t('ws_stat_change')}</div>
-                          <div className={candleData[candleData.length - 1].close >= candleData[0].close ? 'text-emerald-400' : 'text-red-400'}>
-                            {((candleData[candleData.length - 1].close / candleData[0].close - 1) * 100).toFixed(2)}%
-                          </div>
-                        </div>
-                        <div className="bg-slate-900 p-1.5 rounded text-center">
-                          <div className="text-slate-500">{t('ws_stat_candles')}</div>
-                          <div className="text-slate-300">{candleData.length}</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Trade Setup Card (V2 Interactive / V1 Classic) */}
-                  {guiVersion === 'v2' ? (
-                    <TradeSetupCardV2
-                      symbol={displayDetail.symbol}
-                      currentPrice={displayDetail.current_price}
-                      signalPrice={selectedSignal?.signal_price}
-                      targetPrice={displayDetail.target_price}
-                      peakPrice={deepAnalysis?.pump_analysis?.peak_price}
-                      invalidationPrice={tradeSetup?.stopLossPrice}
-                      tradeSetup={selectedSignal?.trade_setup}
-                      onOpenOrderModal={onOpenOrderModal}
-                    />
-                  ) : (
-                    <TradeSetupCard
-                      currentPrice={displayDetail.current_price}
-                      signalPrice={selectedSignal?.signal_price}
-                      targetPrice={displayDetail.target_price}
-                      peakPrice={deepAnalysis?.pump_analysis?.peak_price}
-                      invalidationPrice={tradeSetup?.stopLossPrice}
-                      tradeSetup={selectedSignal?.trade_setup}
-                    />
-                  )}
-
-                  {/* Market-cap context: show both size and data provenance. */}
-                  {displayMarketCap && (
-                    (() => {
-                      const marketCapBadge = getMarketCapBadgeConfig(
-                        displayMarketCap.market_cap_tier,
-                        displayMarketCap.market_cap_str,
-                        language,
-                        displayMarketCap.market_cap_is_estimate,
-                      );
-                      const marketCapSourceLabel = getMarketCapSourceLabel(displayMarketCap.market_cap_source, language);
-                      return (
-                        <div
-                          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-800/50 bg-gradient-to-r from-blue-950/40 via-slate-950/80 to-slate-950 p-3"
-                          title={`${t('metric_market_cap', 'Market Cap')}: ${displayMarketCap.market_cap_str} · ${marketCapSourceLabel}`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-700/50 bg-blue-900/40 text-lg">
-                              📊
-                            </span>
-                            <div className="min-w-0">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                {t('metric_market_cap', 'Market Cap')}
-                              </div>
-                              <div className="font-mono text-lg font-black text-blue-300">
-                                {displayMarketCap.market_cap_is_estimate ? '≈' : ''}{displayMarketCap.market_cap_str}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2.5 text-right">
-                            <div>
-                              <div className="text-[9px] uppercase tracking-wider text-slate-500">
-                                {t('market_cap_size', 'Size')}
-                              </div>
-                              <div className="flex items-center justify-end gap-1 text-xs font-black text-slate-200">
-                                <span>{marketCapBadge.icon}</span>
-                                <span>{displayMarketCap.market_cap_tier}</span>
-                              </div>
-                            </div>
-                            <div className="border-l border-slate-800 pl-2.5">
-                              <div className="text-[9px] uppercase tracking-wider text-slate-500">
-                                {displayMarketCap.market_cap_is_estimate
-                                  ? t('market_cap_estimated', 'Estimated')
-                                  : t('market_cap_source', 'Source')}
-                              </div>
-                              <div className="text-[10px] font-mono text-slate-400">
-                                {marketCapSourceLabel}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()
-                  )}
-
-                  {/* Metrics grid — 6 cols */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 [&>div]:min-w-0">
-                    <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="text-[9px] text-slate-400 uppercase">{t('metric_oi_24h')}</div>
-                      <div className="font-mono font-bold text-xs sm:text-sm text-red-400 truncate" title={displayDetail.metrics?.oi_change_24h ?? 'N/A'}>{displayDetail.metrics?.oi_change_24h ?? 'N/A'}</div>
-                    </div>
-                    <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="text-[9px] text-slate-400 uppercase">{t('metric_funding')}</div>
-                      <div className="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate" title={displayDetail.metrics?.funding_rate ?? 'N/A'}>{displayDetail.metrics?.funding_rate ?? 'N/A'}</div>
-                      {displayDetail.metrics?.funding_interval_hours != null && (
-                        <div
-                          className="text-[9px] text-slate-300 truncate"
-                          title={displayDetail.metrics.funding_interval_source ?? undefined}
-                        >
-                          {t('funding_cadence')}: {displayDetail.metrics.funding_interval_hours.toFixed(displayDetail.metrics.funding_interval_hours % 1 === 0 ? 0 : 2)}h
-                          {displayDetail.metrics.funding_apr
-                            ? ` • ${t('funding_apr_label')}: ${displayDetail.metrics.funding_apr}`
-                            : ''}
-                        </div>
-                      )}
-                      {displayDetail.metrics?.funding_cost_per_1000_usdt != null
-                        && (displayDetail.metrics.funding_payer === 'long' || displayDetail.metrics.funding_payer === 'short') && (
-                        <div className="text-[9px] text-amber-500 truncate">
-                          {displayDetail.metrics.funding_payer === 'long' ? t('funding_long_pays') : t('funding_short_pays')}{' '}
-                          ${displayDetail.metrics.funding_cost_per_1000_usdt.toFixed(2)} USDT {t('funding_per_1000')}
-                        </div>
-                      )}
-                      {displayDetail.metrics?.funding_rate_source && (
-                        <div className="text-[9px] text-slate-500 truncate" title={displayDetail.metrics.funding_rate_time ?? undefined}>
-                          {displayDetail.metrics.funding_rate_source === 'binance_premium_index'
-                            ? 'Binance live'
-                            : displayDetail.metrics.funding_rate_source === 'binance_funding_history'
-                              ? 'Binance history'
-                              : displayDetail.metrics.funding_rate_source === 'signal_snapshot'
-                                ? 'Signal snapshot'
-                                : 'Unavailable'}
-                          {displayDetail.metrics.funding_rate_time
-                            ? ` • ${formatSystemTime(displayDetail.metrics.funding_rate_time)}`
-                            : ''}
-                          {displayDetail.metrics.funding_next_time
-                            ? ` • next ${formatSystemTime(displayDetail.metrics.funding_next_time)}`
-                            : ''}
-                        </div>
-                      )}
-                    </div>
-                    <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="text-[9px] text-slate-400 uppercase">{t('metric_taker_sell')}</div>
-                      <div className="font-mono font-bold text-xs sm:text-sm text-slate-200 truncate">{displayDetail.metrics?.taker_sell_ratio != null ? `${(displayDetail.metrics.taker_sell_ratio * 100).toFixed(1)}%` : 'N/A'}</div>
-                    </div>
-                    <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="text-[9px] text-slate-400 uppercase">{t('metric_rsi_15m')}</div>
-                      <div className={`font-mono font-bold text-xs sm:text-sm truncate ${
-                        displayDetail.metrics?.rsi_15m == null ? 'text-slate-500' :
-                        displayDetail.metrics.rsi_15m > 70 ? 'text-red-400' :
-                        displayDetail.metrics.rsi_15m < 30 ? 'text-emerald-400' : 'text-amber-300'
-                      }`}>
-                        {displayDetail.metrics?.rsi_15m != null ? displayDetail.metrics.rsi_15m.toFixed(1) : (t('metric_insufficient_data'))}
-                      </div>
-                    </div>
-                    <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="text-[9px] text-slate-400 uppercase">{t('chart_vol_delta_24h')}</div>
-                      <div className="font-mono font-bold text-xs sm:text-sm text-sky-400 truncate" title={displayDetail.metrics?.volume_delta_24h ?? 'N/A'}>{displayDetail.metrics?.volume_delta_24h ?? 'N/A'}</div>
-                    </div>
-                    <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                      <div className="text-[9px] text-slate-400 uppercase">{t('feed_target_drawdown')}</div>
-                      <div className="font-mono font-bold text-xs sm:text-sm text-red-400 truncate">${displayDetail.target_price.toFixed(6)}</div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {/* RIGHT COLUMN (35% width on LG): AI Cockpit + SHAP Drivers */}
-                <div className="lg:col-span-4 space-y-3 min-w-0">
-                  {/* AI Decision Cockpit */}
-                  <AiDecisionCockpit
-                    selectedSignal={selectedSignal}
-                    displayDetail={displayDetail}
-                    deepAnalysis={deepAnalysis}
-                    isDeepAnalyzing={isDeepAnalyzing}
-                    isSymbolTracked={isSymbolTracked}
-                    isSymbolInWatchlist={isSymbolInWatchlist}
-                    isWatchlistUpdating={isWatchlistUpdating}
-                    onRunDeepAnalysis={onRunDeepAnalysis}
-                    onPushTelegram={onPushTelegram}
-                    onDismissSignal={onDismissSignal}
-                    onAddWatchlist={onAddWatchlist ? ((s: string) => onAddWatchlist(s)) : undefined}
-                    onAddTracking={onAddTracking ? ((s: string) => onAddTracking(s)) : undefined}
-                    onRemoveTracking={onRemoveTrackingSymbol ? ((s: string) => onRemoveTrackingSymbol(s)) : undefined}
-                    onOpenOrderModal={onOpenOrderModal}
-                  />
+                {/* RIGHT COLUMN (35% width on LG): Dynamic Content based on Active Sub-Tab */}
+                <div className={`${isChartHidden ? '' : 'lg:col-span-4'} space-y-3 min-w-0`}>
+                  {decisionSubTab === 'TRADE' && (
+                    <>
 
-                  {/* SHAP Drivers & 8-Component Decomposition Accordion */}
-                  <AiShapAccordion
-                    shapDrivers={displayDetail.shap_drivers}
-                    deepAnalysis={deepAnalysis}
-                  />
+                      {/* Trade Setup Card (V2 Interactive / V1 Classic) */}
+                      {guiVersion === 'v2' ? (
+                        <TradeSetupCardV2
+                          symbol={displayDetail.symbol}
+                          currentPrice={displayDetail.current_price}
+                          signalPrice={selectedSignal?.signal_price}
+                          targetPrice={displayDetail.target_price}
+                          peakPrice={deepAnalysis?.pump_analysis?.peak_price}
+                          invalidationPrice={tradeSetup?.stopLossPrice}
+                          tradeSetup={selectedSignal?.trade_setup}
+                          selectedSignal={selectedSignal}
+                          onOpenOrderModal={onOpenOrderModal}
+                        />
+                      ) : (
+                        <TradeSetupCard
+                          currentPrice={displayDetail.current_price}
+                          signalPrice={selectedSignal?.signal_price}
+                          targetPrice={displayDetail.target_price}
+                          peakPrice={deepAnalysis?.pump_analysis?.peak_price}
+                          invalidationPrice={tradeSetup?.stopLossPrice}
+                          tradeSetup={selectedSignal?.trade_setup}
+                        />
+                      )}
+                      {/* AI Decision Cockpit */}
+                      <AiDecisionCockpit
+                        selectedSignal={selectedSignal}
+                        displayDetail={displayDetail}
+                        deepAnalysis={deepAnalysis}
+                        isDeepAnalyzing={isDeepAnalyzing}
+                        isSymbolTracked={isSymbolTracked}
+                        isSymbolInWatchlist={isSymbolInWatchlist}
+                        isWatchlistUpdating={isWatchlistUpdating}
+                        onRunDeepAnalysis={onRunDeepAnalysis}
+                        onPushTelegram={onPushTelegram}
+                        onDismissSignal={onDismissSignal}
+                        onAddWatchlist={onAddWatchlist ? ((s: string) => onAddWatchlist(s)) : undefined}
+                        onAddTracking={onAddTracking ? ((s: string) => onAddTracking(s)) : undefined}
+                        onRemoveTracking={onRemoveTrackingSymbol ? ((s: string) => onRemoveTrackingSymbol(s)) : undefined}
+                      />
+                    </>
+                  )}
+
+                  {decisionSubTab === 'METRICS' && (
+                    <>
+                      {/* Market-cap context: show both size and data provenance. */}
+                      {displayMarketCap && (
+                        (() => {
+                          const marketCapBadge = getMarketCapBadgeConfig(
+                            displayMarketCap.market_cap_tier,
+                            displayMarketCap.market_cap_str,
+                            language,
+                            displayMarketCap.market_cap_is_estimate,
+                          );
+                          const marketCapSourceLabel = getMarketCapSourceLabel(displayMarketCap.market_cap_source, language);
+                          return (
+                            <a
+                              href={`https://www.coingecko.com/en/coins/${displayDetail.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-800/50 bg-gradient-to-r from-blue-950/40 via-slate-950/80 to-slate-950 p-3 hover:border-blue-500/80 hover:shadow-lg hover:shadow-blue-900/20 cursor-pointer transition-all group"
+                              title={`${t('metric_market_cap', 'Market Cap')}: ${displayMarketCap.market_cap_str} · ${marketCapSourceLabel} (View on CoinGecko)`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-700/50 bg-blue-900/40 text-lg">
+                                  📊
+                                </span>
+                                <div className="min-w-0">
+                                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                    {t('metric_market_cap', 'Market Cap')}
+                                  </div>
+                                  <div className="font-mono text-lg font-black text-blue-300">
+                                    {displayMarketCap.market_cap_is_estimate ? '≈' : ''}{displayMarketCap.market_cap_str}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2.5 text-right">
+                                <div>
+                                  <div className="text-[9px] uppercase tracking-wider text-slate-500">
+                                    {t('market_cap_size', 'Size')}
+                                  </div>
+                                  <div className="flex items-center justify-end gap-1 text-xs font-black text-slate-200">
+                                    <span>{marketCapBadge.icon}</span>
+                                    <span>{displayMarketCap.market_cap_tier}</span>
+                                  </div>
+                                </div>
+                                <div className="border-l border-slate-800 pl-2.5">
+                                  <div className="text-[9px] uppercase tracking-wider text-slate-500">
+                                    {displayMarketCap.market_cap_is_estimate
+                                      ? t('market_cap_estimated', 'Estimated')
+                                      : t('market_cap_source', 'Source')}
+                                  </div>
+                                  <div className="text-[10px] font-mono text-slate-400">
+                                    {marketCapSourceLabel}
+                                  </div>
+                                </div>
+                              </div>
+                            </a>
+                          );
+                        })()
+                      )}
+
+                      {/* Metrics grid — 4 cols for right panel fit */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 [&>div]:min-w-0">
+                        <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
+                          <div className="text-[9px] text-slate-400 uppercase">{t('metric_oi_24h')}</div>
+                          <div className="font-mono font-bold text-xs sm:text-sm text-red-400 truncate" title={displayDetail.metrics?.oi_change_24h ?? 'N/A'}>{displayDetail.metrics?.oi_change_24h ?? 'N/A'}</div>
+                        </div>
+                        <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
+                          <div className="text-[9px] text-slate-400 uppercase">{t('metric_funding')}</div>
+                          <div className="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate" title={displayDetail.metrics?.funding_rate ?? 'N/A'}>{displayDetail.metrics?.funding_rate ?? 'N/A'}</div>
+                        </div>
+                        <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
+                          <div className="text-[9px] text-slate-400 uppercase">{t('metric_taker_sell')}</div>
+                          <div className="font-mono font-bold text-xs sm:text-sm text-slate-200 truncate">{displayDetail.metrics?.taker_sell_ratio != null ? `${(displayDetail.metrics.taker_sell_ratio * 100).toFixed(1)}%` : 'N/A'}</div>
+                        </div>
+                        <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
+                          <div className="text-[9px] text-slate-400 uppercase">{t('metric_rsi_15m')}</div>
+                          <div className={`font-mono font-bold text-xs sm:text-sm truncate ${
+                            displayDetail.metrics?.rsi_15m == null ? 'text-slate-500' :
+                            displayDetail.metrics.rsi_15m > 70 ? 'text-red-400' :
+                            displayDetail.metrics.rsi_15m < 30 ? 'text-emerald-400' : 'text-amber-300'
+                          }`}>
+                            {displayDetail.metrics?.rsi_15m != null ? displayDetail.metrics.rsi_15m.toFixed(1) : (t('metric_insufficient_data'))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Chart stats footer */}
+                      {candleData.length > 0 && (
+                        <div className="mt-2 grid grid-cols-4 gap-2 text-[10px] font-mono">
+                          <div className="bg-slate-900 p-1.5 rounded text-center">
+                            <div className="text-slate-500">{t('ws_stat_high')}</div>
+                            <div className="text-emerald-400">${Math.max(...candleData.map(c => c.high || c.price)).toFixed(6)}</div>
+                          </div>
+                          <div className="bg-slate-900 p-1.5 rounded text-center">
+                            <div className="text-slate-500">{t('ws_stat_low')}</div>
+                            <div className="text-red-400">${Math.min(...candleData.map(c => c.low || c.price)).toFixed(6)}</div>
+                          </div>
+                          <div className="bg-slate-900 p-1.5 rounded text-center">
+                            <div className="text-slate-500">{t('ws_stat_change')}</div>
+                            <div className={candleData[candleData.length - 1].close >= candleData[0].close ? 'text-emerald-400' : 'text-red-400'}>
+                              {((candleData[candleData.length - 1].close / candleData[0].close - 1) * 100).toFixed(2)}%
+                            </div>
+                          </div>
+                          <div className="bg-slate-900 p-1.5 rounded text-center">
+                            <div className="text-slate-500">{t('ws_stat_candles')}</div>
+                            <div className="text-slate-300">{candleData.length}</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* OI + Funding Sub Chart */}
+                      {(() => {
+                        const hasOi = candleData.some(c => (c.oi || 0) !== 0);
+                        const hasFunding = candleData.some(c => (c.funding || 0) !== 0);
+                        return hasOi || hasFunding ? (
+                          <div className="mt-3 bg-slate-950/90 border border-slate-800 rounded-xl p-3 shadow-lg">
+                            <div className="text-[10px] font-bold text-slate-300 mb-2 uppercase">{t('ws_oi_funding_title')}</div>
+                            <div className="h-32 w-full">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart data={candleData}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                  <XAxis dataKey="time" stroke="#64748b" fontSize={9} interval={Math.max(0, Math.floor(candleData.length / 8))} />
+                                  <YAxis yAxisId="oi" stroke="#06b6d4" fontSize={9} domain={['auto', 'auto']} />
+                                  <YAxis yAxisId="funding" orientation="right" stroke="#f59e0b" fontSize={9} domain={['auto', 'auto']} />
+                                  <Tooltip
+                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }}
+                                  />
+                                  <ReferenceLine yAxisId="funding" y={0} stroke="#334155" strokeDasharray="2 2" />
+                                  <Line yAxisId="oi" type="monotone" dataKey="oi" stroke="#06b6d4" strokeWidth={1.5} dot={false} name={t('metric_oi_24h')} />
+                                  <Line yAxisId="funding" type="monotone" dataKey="funding" stroke="#f59e0b" strokeWidth={1} dot={false} name={t('metric_funding')} />
+                                </ComposedChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+                    </>
+                  )}
+
+                  {decisionSubTab === 'AI' && (
+                    <>
+                      {/* SHAP Drivers & 8-Component Decomposition Accordion */}
+                      <AiShapAccordion
+                        shapDrivers={displayDetail.shap_drivers}
+                        deepAnalysis={deepAnalysis}
+                      />
+
+                      {/* Executive AI Briefing Bar */}
+                      <ErrorBoundary fallbackTitle="Lỗi hiển thị Bản tin AI">
+                        <AiExecutiveBriefing
+                          displayDetail={displayDetail}
+                          selectedSignal={selectedSignal}
+                          deepAnalysis={deepAnalysis}
+                          tradeSetup={tradeSetup}
+                          onOpenAiChat={onOpenAiAssistant}
+                        />
+                      </ErrorBoundary>
+                    </>
+                  )}
                 </div>
               </div>
-
-              {/* 3. Full-Width Executive AI Briefing Bar */}
-              <ErrorBoundary fallbackTitle="Lỗi hiển thị Bản tin AI">
-                <AiExecutiveBriefing
-                  displayDetail={displayDetail}
-                  selectedSignal={selectedSignal}
-                  deepAnalysis={deepAnalysis}
-                  tradeSetup={tradeSetup}
-                  onOpenAiChat={onOpenAiAssistant}
-                />
-              </ErrorBoundary>
             </div>
           ) : (
             <div className="p-12 text-center text-slate-500 bg-slate-950/60 border border-slate-800 rounded-xl">
