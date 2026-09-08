@@ -836,7 +836,8 @@ class ScanResultStore:
                 "horizon_hours", "target_drawdown", "calibrated_probability",
                 "model_probability", "data_quality_score", "quality_status",
                 "tier", "threshold", "shadow_mode", "telegram_sent",
-                "invalidation_time", "label_value", "mfe", "mae", "outcome_status", "exclusion_reason"
+                "invalidation_time", "alert_episode_id", "episode_role", "episode_transition",
+                "label_value", "mfe", "mae", "outcome_status", "exclusion_reason"
             ]
         return [dict(zip(cols, r)) for r in rows]
 
