@@ -25,7 +25,7 @@ commands = [
     ("Đồng bộ mã nguồn mới nhất từ GitHub origin/main", "cd /home/ubuntu/dao_vang && git fetch origin main --prune && git reset --hard origin/main"),
     ("Bảo đảm quyền truy cập Cloudflare Tunnel", "chmod 644 /home/ubuntu/dao_vang/cloudflared/* 2>/dev/null || true"),
     ("Dọn dẹp lock files cũ", "cd /home/ubuntu/dao_vang && rm -f data/web.lock data_live/web.lock data/scanner.lock data_live/scanner.lock"),
-    ("Dừng container cũ và build container mới", "cd /home/ubuntu/dao_vang && docker compose down && docker compose up -d --build --force-recreate"),
+    ("Dừng container cũ và build container mới", "cd /home/ubuntu/dao_vang && docker compose build && docker compose up -d --force-recreate"),
     ("Kiểm tra danh sách container", "cd /home/ubuntu/dao_vang && sleep 5 && docker compose ps"),
     ("Kiểm tra sức khỏe Web API (Health Check)", "cd /home/ubuntu/dao_vang && sleep 5 && for i in $(seq 1 10); do if curl -s -f http://localhost:8000/api/status >/dev/null; then echo 'API Health: ONLINE & HEALTHY (HTTP 200)'; exit 0; fi; echo 'Dang cho API Server khoi dong... (thu lai '$i'/10)'; sleep 2; done; echo 'Canh bao: API chua san sang ngay luc nay.'"),
 ]

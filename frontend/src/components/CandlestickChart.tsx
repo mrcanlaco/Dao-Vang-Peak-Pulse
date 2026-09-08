@@ -441,7 +441,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
         
         const isFirst = signal.episodeRole === 'FIRST';
-        const isUpdate = signal.episodeRole === 'UPDATE';
         const shape = isFirst ? 'arrowDown' : 'circle';
         const color = isFirst ? (signal.isActive ? '#f59e0b' : '#f97316') : '#94a3b8'; // gray for updates
         const size = isFirst ? (signal.isActive ? 1.2 : 1) : 0.5;
