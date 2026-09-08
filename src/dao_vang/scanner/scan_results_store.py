@@ -841,6 +841,41 @@ class ScanResultStore:
             ]
         return [dict(zip(cols, r)) for r in rows]
 
+    def recent_predictions_history(
+        self,
+        limit: int = 500,
+        max_age_hours: int = 72,
+    ) -> list[dict[str, Any]]:
+        """Return all recent predictions to reconstruct episode history."""
+        from datetime import timedelta
+        from dao_vang.utils.time import system_now
+        cutoff = system_now() - timedelta(hours=max_age_hours)
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT prediction_id, symbol, signal_time, created_at,
+                       horizon_hours, target_drawdown, calibrated_probability,
+                       model_probability, data_quality_score, quality_status,
+                       tier, threshold, shadow_mode, telegram_sent,
+                       invalidation_time, alert_episode_id, episode_role, episode_transition,
+                       NULL as label_value, NULL as mfe, NULL as mae, NULL as outcome_status, NULL as exclusion_reason
+                FROM predictions
+                WHERE created_at >= ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                [cutoff, limit],
+            ).fetchall()
+            cols = [
+                "prediction_id", "symbol", "signal_time", "created_at",
+                "horizon_hours", "target_drawdown", "calibrated_probability",
+                "model_probability", "data_quality_score", "quality_status",
+                "tier", "threshold", "shadow_mode", "telegram_sent",
+                "invalidation_time", "alert_episode_id", "episode_role", "episode_transition",
+                "label_value", "mfe", "mae", "outcome_status", "exclusion_reason"
+            ]
+        return [dict(zip(cols, r)) for r in rows]
+
     def latest_predictions_per_symbol(
         self,
         limit: int = 200,
