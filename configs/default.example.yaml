@@ -129,3 +129,6 @@ candidate_comparison:
   min_challenger_event_recall: 0.80
   precision_at_10_relative_gain: 0.10
   max_recall_regression: 0.05
+
+updater:
+  enabled: true

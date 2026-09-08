@@ -113,3 +113,6 @@ threshold:
 
 scoring:
   alert_score_threshold: 40.0
+
+updater:
+  enabled: true
