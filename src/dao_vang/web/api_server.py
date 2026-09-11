@@ -68,6 +68,7 @@ from dao_vang.scoring import (
     score_snapshot,
 )
 from dao_vang.scoring.engine_comparison import evaluate_scoring_engines_comparison
+from dao_vang.web.dismissals import SignalDismissals
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("dao_vang_api")
@@ -105,6 +106,7 @@ _scan_store = ScanResultStore(
     prefer_snapshot=True,
 )
 _tracking_store = TrackingWatchlistStore(TRACKING_WATCHLIST_PATH)
+_dismissals = SignalDismissals(data_dir_path / "signal_dismissals.json")
 _notifier = TelegramNotifier(
     _settings.telegram,
     web_base_url=_settings.web.public_url,
@@ -955,7 +957,7 @@ class APIHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        if hmac.compare_digest(password, self._auth_secret()):
+        if hmac.compare_digest(password.encode('utf-8'), self._auth_secret().encode('utf-8')):
             self._clear_auth_failures()
             resp = {
                 "ok": True,
@@ -1133,6 +1135,21 @@ class APIHandler(BaseHTTPRequestHandler):
             rel_path = req_path.lstrip('/')
             file_path = DIST_DIR / rel_path
 
+        # Resolve before checking existence or serving the SPA fallback. This
+        # also rejects encoded traversal, Windows paths and escaping symlinks.
+        try:
+            if "\\" in req_path or "\x00" in req_path:
+                raise ValueError("Invalid static path")
+            file_path = file_path.resolve()
+            contained = file_path.is_relative_to(DIST_DIR.resolve())
+        except (OSError, ValueError):
+            contained = False
+        if not contained:
+            err = b"Asset not found"
+            self._set_headers(404, content_type='text/plain', content_length=len(err))
+            self.wfile.write(err)
+            return
+
         if not file_path.exists() or file_path.is_dir():
             # If requesting a missing static asset or chunk, return 404 instead of index.html
             static_exts = ('.js', '.css', '.map', '.png', '.jpg', '.jpeg', '.svg', '.json', '.woff', '.woff2', '.ico', '.webp')
@@ -1172,14 +1189,41 @@ class APIHandler(BaseHTTPRequestHandler):
             self._set_headers(404, content_type='text/plain', content_length=len(err))
             self.wfile.write(err)
 
+    def _read_json_body(self) -> dict[str, Any] | None:
+        """Bound request memory and reject invalid JSON before changing state."""
+        try:
+            if self.headers.get('Transfer-Encoding'):
+                raise ValueError("Transfer-Encoding is not supported")
+            content_length = int(self.headers.get('Content-Length', 0))
+            if content_length < 0:
+                raise ValueError("Invalid Content-Length")
+            if content_length > 1024 * 1024:
+                body = b'{"error": "Request body too large"}'
+                self._set_headers(413, content_length=len(body))
+                self.wfile.write(body)
+                return None
+            body = self.rfile.read(content_length) if content_length else b'{}'
+            if content_length and len(body) != content_length:
+                raise ValueError("Incomplete request body")
+            data = json.loads(body.decode('utf-8'))
+            if not isinstance(data, dict):
+                raise ValueError("JSON object required")
+            return data
+        except (ValueError, UnicodeDecodeError):
+            body = b'{"error": "A valid JSON object and Content-Length are required"}'
+            self._set_headers(400, content_length=len(body))
+            self.wfile.write(body)
+            return None
+
     def do_POST(self):
         parsed = urlparse(self.path)
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length) if content_length > 0 else b'{}'
-        try:
-            data = json.loads(body.decode('utf-8')) if body else {}
-        except json.JSONDecodeError:
-            data = {}
+        public_paths = ('/api/auth/verify', '/api/auth/login', '/api/auth/logout')
+        if parsed.path.startswith('/api/') and parsed.path not in public_paths and not self._check_auth():
+            self._send_unauthorized()
+            return
+        data = self._read_json_body()
+        if data is None:
+            return
 
         if parsed.path in ('/api/auth/verify', '/api/auth/login'):
             self.verify_auth_password(data)
@@ -1306,7 +1350,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 sig_time = datetime.fromisoformat(signal_time_str)
                 if sig_time.tzinfo is None:
                     sig_time = sig_time.replace(tzinfo=timezone.utc)
-                _alert_store.dismiss(sig_time, symbol)
+                _dismissals.dismiss(symbol, sig_time.isoformat())
                 self._set_headers(200)
                 self.wfile.write(json.dumps({"status": "success", "symbol": symbol, "signal_time": signal_time_str}).encode('utf-8'))
             except Exception as exc:
@@ -1454,12 +1498,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 self._send_unauthorized()
                 return
 
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length) if content_length > 0 else b'{}'
-        try:
-            data = json.loads(body.decode('utf-8')) if body else {}
-        except json.JSONDecodeError:
-            data = {}
+        data = self._read_json_body()
+        if data is None:
+            return
 
         prefix = '/api/tracking-watchlist/'
         if not parsed.path.startswith(prefix):
@@ -1996,7 +2037,7 @@ class APIHandler(BaseHTTPRequestHandler):
         with _STATUS_CACHE_LOCK:
             if _SIGNALS_RESP_CACHE and (now_monotonic - _SIGNALS_RESP_TIME) < 3.0:
                 self._set_headers(200)
-                self.wfile.write(json.dumps(_SIGNALS_RESP_CACHE, default=str).encode('utf-8'))
+                self.wfile.write(json.dumps(_dismissals.filter(_SIGNALS_RESP_CACHE), default=str).encode('utf-8'))
                 return
 
         now = datetime.now(timezone.utc)
@@ -2376,9 +2417,6 @@ class APIHandler(BaseHTTPRequestHandler):
                 "alert_episode_id": pr.get("alert_episode_id"),
                 "episode_role": pr.get("episode_role"),
                 "episode_transition": pr.get("episode_transition"),
-                "alert_episode_id": pr.get("alert_episode_id"),
-                "episode_role": pr.get("episode_role"),
-                "episode_transition": pr.get("episode_transition"),
                 "drivers": [],
                 **_resolve_market_cap_info(sym, scan.get("volume_24h_usd")),
                 **anomaly_fields,
@@ -2401,7 +2439,7 @@ class APIHandler(BaseHTTPRequestHandler):
             _SIGNALS_RESP_CACHE = signals
             _SIGNALS_RESP_TIME = now_monotonic
         self._set_headers(200)
-        self.wfile.write(json.dumps(signals, default=str).encode('utf-8'))
+        self.wfile.write(json.dumps(_dismissals.filter(signals), default=str).encode('utf-8'))
 
     def get_candidates(self):
         rows: list[dict[str, Any]] = []
@@ -3343,7 +3381,11 @@ class APIHandler(BaseHTTPRequestHandler):
         self._set_headers(200)
         self.wfile.write(json.dumps(result, default=str).encode('utf-8'))
 
-    def get_coin_chart(self, symbol: str):
+    def get_coin_klines(self, symbol, interval='5m', limit=100):
+        """Compatibility route sharing the validated chart implementation."""
+        self.get_coin_chart(symbol, requested_interval=interval, requested_limit=limit)
+
+    def get_coin_chart(self, symbol: str, requested_interval=None, requested_limit=None):
         """Fetch recent klines for mini chart display.
 
         Accepts ``interval`` query param (e.g. 1m, 5m, 15m, 1h, 4h, 1d).
@@ -3353,7 +3395,7 @@ class APIHandler(BaseHTTPRequestHandler):
         from dao_vang.data.collectors.binance_client import BinanceClient
 
         query = parse_qs(urlparse(self.path).query)
-        raw_interval = query.get('interval', ['1h'])[0]
+        raw_interval = requested_interval or query.get('interval', ['1h'])[0]
         valid_intervals = {'1m','3m','5m','15m','30m','1h','2h','4h','6h','8h','12h','1d','3d','1w','1M'}
         interval = raw_interval if raw_interval in valid_intervals else '1h'
         # Target roughly 1-7 days of history depending on interval
@@ -3364,7 +3406,7 @@ class APIHandler(BaseHTTPRequestHandler):
             '30m': 336, '1h': 168, '2h': 126, '4h': 126,
             '6h': 120, '8h': 90, '12h': 90, '1d': 90,
         }
-        limit = limits.get(interval, 168)
+        limit = max(1, min(1500, requested_limit)) if requested_limit is not None else limits.get(interval, 168)
 
         try:
             client = BinanceClient()
@@ -3395,79 +3437,69 @@ class APIHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"symbol": symbol, "interval": interval, "klines": [], "error": str(exc)}).encode('utf-8'))
 
     def get_audit(self):
-        """Serve comprehensive model audit, empirical accuracy, walk-forward validation, and feature importances."""
-        # 1. Live alert stats
+        """Expose measured live outcomes and explicitly scoped historical reports."""
         try:
             stats = _alert_store.stats(days=30)
             by_risk = _alert_store.precision_by_risk_level(days=30)
             lead = _alert_store.lead_time_stats(days=30)
         except Exception as exc:
-            logger.warning(f"audit_data_fetch_failed error={exc}")
-            stats = {"n_judged": 0, "hit_rate": None, "total": 0, "n_hit": 0, "by_risk": {}, "days": 30}
-            by_risk = {}
-            lead = {"mean_hours": None, "median_hours": None, "min_hours": None, "max_hours": None}
+            logger.warning("audit_data_fetch_failed error=%s", exc)
+            stats, by_risk, lead = {}, {}, {}
 
-        # 2. Load latest comprehensive backtest report if present
-        backtest_report = _read_json(Path("artifacts/backtest_report_latest.json"))
-        wf_stats = backtest_report.get("walk_forward_10_fold", {})
-        regime_perf = backtest_report.get("regime_performance", {})
-        feature_rankings = backtest_report.get("feature_importance_ranking", [])
-        stress_tests = backtest_report.get("stress_test_events", [])
-        quality_gates = backtest_report.get("quality_gates", {})
-
-        # Resolve model metadata
-        current_frozen_id = _settings.scanner.frozen_model_id or "frozen_20260811_082824_96df7ec9"
-        model_name = f"Two-Tier Climax Engine v2.0 + LightGBM ({current_frozen_id})"
-
+        report = _read_json(_settings.scanner.artifact_dir / "backtest_report_latest.json")
+        report = report if isinstance(report, dict) else {}
+        wf = report.get("walk_forward_10_fold", {})
+        validation = report.get("validation_checks", {})
+        current_model = _settings.scanner.frozen_model_id
+        baseline = wf.get("mean_logreg_precision")
+        precision = wf.get("mean_lightgbm_precision")
+        gain = ((precision / baseline - 1) * 100
+                if isinstance(precision, (float, int)) and isinstance(baseline, (float, int)) and baseline > 0
+                else None)
         res = {
-            "model_name": model_name,
-            "horizon": "24h",
-            "target_drawdown": ">= 8%",
-            "mae_allowed": "<= 4%",
+            "model_name": current_model or "Chưa cấu hình mô hình",
+            "horizon": "Theo từng mô hình",
+            "target_drawdown": "Theo từng mô hình",
+            "mae_allowed": "Theo từng mô hình",
             "sample_size": stats.get("n_judged", 0),
             "total_alerts": stats.get("total", 0),
-            "has_enough_data": True,
+            "has_enough_data": stats.get("n_judged", 0) > 0,
+            "live_scope": "all_models_last_30_days",
+            "report_available": bool(report),
+            "report_generated_at": report.get("generated_at"),
+            "report_model_id": report.get("model_id"),
+            "report_matches_current_model": bool(current_model and report.get("model_id") == current_model),
             "metrics": {
-                "precision": stats.get("hit_rate") if stats.get("hit_rate") is not None else 0.766,
-                "walk_forward_precision": wf_stats.get("mean_lightgbm_precision", 0.2123),
-                "ci_95_lower": wf_stats.get("ci_95_lower", 0.2006),
-                "ci_95_upper": wf_stats.get("ci_95_upper", 0.2217),
-                "brier_score": 0.113,
-                "ece": wf_stats.get("mean_lightgbm_ece", 0.031),
-                "logreg_baseline_precision": wf_stats.get("mean_logreg_precision", 0.1487),
-                "relative_gain_pct": 42.8,
+                "precision": stats.get("hit_rate"),
+                "walk_forward_precision": precision,
+                "ci_95_lower": wf.get("ci_95_lower"),
+                "ci_95_upper": wf.get("ci_95_upper"),
+                "brier_score": wf.get("mean_lightgbm_brier"),
+                "ece": wf.get("mean_lightgbm_ece"),
+                "logreg_baseline_precision": baseline,
+                "relative_gain_pct": gain,
             },
-            "precision_by_risk_level": by_risk if by_risk else {
-                "CRITICAL": {"total": 42, "hits": 34, "precision": 0.8095},
-                "HIGH": {"total": 85, "hits": 65, "precision": 0.7647},
-                "MEDIUM": {"total": 28, "hits": 18, "precision": 0.6429},
-                "SAFE": {"total": 12, "hits": 6, "precision": 0.5000},
+            "precision_by_risk_level": by_risk,
+            "lead_time": {key: lead.get(key) for key in ("mean_hours", "median_hours", "min_hours", "max_hours")},
+            "regime_performance": {
+                key: value for key, value in report.get("regime_performance", {}).items()
+                if value.get("samples", value.get("n_eval", 0)) > 0
             },
-            "lead_time": {
-                "mean_hours": lead.get("mean_hours") or 1.2,
-                "median_hours": lead.get("median_hours") or 0.42,
-                "min_hours": lead.get("min_hours") or 0.08,
-                "max_hours": lead.get("max_hours") or 14.5,
-            },
-            "regime_performance": regime_perf,
-            "feature_importance_ranking": feature_rankings,
-            "stress_test_events": stress_tests,
-            "walk_forward_folds": wf_stats.get("folds", []),
-            "quality_gates": quality_gates if quality_gates else {
-                "zero_lookahead_bias": True,
-                "purged_embargo_48h": True,
-                "calibration_ece_under_0_05": True,
-                "statistically_significant_edge": True,
-            },
+            "feature_importance_ranking": report.get("feature_importance_ranking", []),
+            "stress_test_events": [event for event in report.get("stress_test_events", []) if event.get("samples", 0) > 0],
+            "walk_forward_folds": wf.get("folds", []),
+            "quality_gates": report.get("quality_gates", {}),
             "validation_checks": {
-                "walk_forward_status": "Passed 10-Fold Walk-Forward Cross Validation (2024 - 2026)",
-                "leakage_test": "100% Passed (Zero Data Leakage / Future Lookahead Immunity)",
-                "embargo_period": "48 Hours Embargo Window between train and test splits",
-                "point_in_time_verified": True,
+                "walk_forward_status": validation.get("walk_forward_status", "Chưa có kết luận xác thực"),
+                "leakage_test": validation.get("leakage_test", "Chưa có kết quả"),
+                "embargo_period": validation.get("embargo_period", "Chưa có kết quả"),
+                "point_in_time_verified": validation.get("point_in_time_verified") is True,
             },
         }
-        self._set_headers(200)
-        self.wfile.write(json.dumps(res, default=str).encode('utf-8'))
+        body = json.dumps(res, default=str).encode("utf-8")
+        self._set_headers(200, content_length=len(body))
+        self.wfile.write(body)
+
     def get_market(self):
         from dao_vang.data.binance_listing import DEFAULT_HISTORY_PATH as _LISTING_HIST
         from dao_vang.data.binance_listing import load_history as _load_listing_history

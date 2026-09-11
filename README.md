@@ -159,7 +159,7 @@ Hệ thống được thiết kế tách biệt hoàn toàn giữa **Môi trư�
 │ Tiêu chí                │ Môi trường DEV           │ Môi trường LIVE         │
 ├─────────────────────────┼──────────────────────────┼─────────────────────────┤
 │ Mục đích                │ Code tính năng, thử UI   │ Chạy 24/7 quét thị trường│
-│ Cổng mặc định (Port)    │ Backend 8000 / Vite 5173 │ Web API 8001            │
+│ Cổng mặc định (Port)    │ Backend 8000 / Vite 8088 │ Web API 8001            │
 │ Thư mục dữ liệu (Data)  │ data/ (data/dev.duckdb)  │ data_live/ (live.duckdb)│
 │ Hot-Reload              │ Bật (Frontend & Backend) │ Tắt (Tối ưu hiệu năng)  │
 └─────────────────────────┴──────────────────────────┴─────────────────────────┘
@@ -196,7 +196,7 @@ cd frontend && npm install && cd ..
   cd frontend
   npm run dev
   ```
-  👉 Mở trình duyệt tại: `http://localhost:5173` *(Vite sẽ tự động proxy các request API sang port 8000)*.
+  👉 Mở trình duyệt tại: `http://localhost:8088` *(Vite sẽ tự động proxy các request API sang port 8000)*.
 
 #### 3. Khởi chạy nhanh 1-Click trên Windows (Dev)
 - Nhấp đúp file `run_dev.bat` để chạy Web Server Dev.

@@ -48,3 +48,11 @@ artifacts/
 # Frontend build & dependencies
 frontend/dist/
 frontend/node_modules/
+
+# Local operational state and audit output
+data_live/
+reports/
+logs/
+.pytest-*/
+.pytest_tmp*/
+.claude/

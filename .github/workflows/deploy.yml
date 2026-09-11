@@ -1,54 +1,49 @@
 name: Deploy to Google Cloud (Live)
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dao-vang-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Auto Deploy Live Server
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Deploy to Google Cloud via SSH
+      - name: Deploy the exact revision that passed CI
         uses: appleboy/ssh-action@v1.0.3
-        if: env.GCP_SSH_KEY != ''
         env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
           GCP_SSH_KEY: ${{ secrets.GCP_SSH_KEY }}
+        if: env.GCP_SSH_KEY != ''
         with:
           host: ${{ secrets.GCP_HOST || '136.110.29.208' }}
           username: ${{ secrets.GCP_USER || 'ubuntu' }}
           key: ${{ secrets.GCP_SSH_KEY }}
-          port: 22
+          envs: DEPLOY_SHA
           timeout: 120s
           command_timeout: 15m
           script: |
-            echo "========================================================"
-            echo "🚀 [CI/CD] AUTO-DEPLOYING DAO VANG ON GOOGLE CLOUD..."
-            echo "========================================================"
+            set -eu
             cd /home/ubuntu/dao_vang
-            git merge --abort 2>/dev/null || true
-            git rebase --abort 2>/dev/null || true
-            git reset --hard HEAD
-            git clean -fd
+            test -z "$(git status --porcelain --untracked-files=no)" || {
+              echo "Deployment stopped: preserve and review local changes first."
+              exit 1
+            }
             git fetch origin main --prune
-            git reset --hard origin/main
-            chmod 644 /home/ubuntu/dao_vang/cloudflared/* 2>/dev/null || true
-            rm -f data/web.lock data_live/web.lock data/scanner.lock data_live/scanner.lock
+            git merge --ff-only "$DEPLOY_SHA"
+            test "$(git rev-parse HEAD)" = "$DEPLOY_SHA"
             docker compose build
-            docker compose up -d --force-recreate
-            sleep 8
-            docker compose ps
-            echo "Checking Web API health..."
-            for i in $(seq 1 10); do
-              if curl -s -f http://localhost:8000/api/health >/dev/null; then
-                echo "✅ API Server is ONLINE and HEALTHY (HTTP 200)!"
-                exit 0
-              fi
-              echo "Waiting for API to initialize... (retry $i/10)"
-              sleep 2
-            done
-            echo "❌ API chưa sẵn sàng. Hủy deploy." && exit 1
+            docker compose up -d --no-build --wait --wait-timeout 180
+            curl --fail --silent --show-error http://localhost:8000/api/health

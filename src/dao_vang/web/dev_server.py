@@ -25,8 +25,8 @@ def get_python_mtimes(watch_dirs: list[Path]) -> dict[Path, float]:
     return mtimes
 
 
-def main() -> None:
-    port = sys.argv[1] if len(sys.argv) > 1 else "8000"
+def main(port: int | None = None, host: str = "127.0.0.1") -> None:
+    port = port or (int(sys.argv[1]) if len(sys.argv) > 1 else 8000)
     watch_dirs = [Path("src"), Path("configs")]
 
     print("=" * 65)
@@ -45,7 +45,7 @@ def main() -> None:
 
     # Start child web server process
     process = subprocess.Popen(
-        [sys.executable, "-m", "dao_vang.web.run", port],
+        [sys.executable, "-m", "dao_vang.web.run", "--port", str(port), "--host", host],
         env=env,
     )
 
@@ -57,7 +57,7 @@ def main() -> None:
                 print(f"\n⚠️ Backend process exited with code {process.returncode}. Restarting in 2s...")
                 time.sleep(2)
                 process = subprocess.Popen(
-                    [sys.executable, "-m", "dao_vang.web.run", port],
+                    [sys.executable, "-m", "dao_vang.web.run", "--port", str(port), "--host", host],
                     env=env,
                 )
                 last_mtimes = get_python_mtimes(watch_dirs)
@@ -86,7 +86,7 @@ def main() -> None:
                 time.sleep(0.5)
 
                 process = subprocess.Popen(
-                    [sys.executable, "-m", "dao_vang.web.run", port],
+                    [sys.executable, "-m", "dao_vang.web.run", "--port", str(port), "--host", host],
                     env=env,
                 )
                 last_mtimes = current_mtimes

@@ -356,7 +356,6 @@ def score_frozen(
     Returns:
         DataFrame with columns matching the scoring contract.
     """
-    from dao_vang.config.settings import AppSettings
     from dao_vang.experiments.batch_evaluator import score_snapshot_batch
     
     info = load_frozen_model(model_id, artifact_dir)
@@ -376,6 +375,15 @@ def score_frozen(
     try:
         result_df = score_snapshot_batch(work, info, safe_policy)
         result_df["probability"] = result_df["calibrated_probability"]
+        result_df["symbol"] = work["symbol"]
+        result_df["signal_time"] = work["feature_time"]
+        horizon = info.label_spec.get("horizon_minutes", 1440)
+        result_df["invalidation_time"] = pd.to_datetime(work["feature_time"], utc=True) + pd.Timedelta(minutes=horizon)
+        result_df["risk_level"] = np.where(
+            result_df["is_usable"],
+            np.where(result_df["probability"] >= result_df["threshold"], "CAO", "THẤP"),
+            "INVALID",
+        )
         return result_df
     except Exception as exc:
         import logging
@@ -395,7 +403,6 @@ def evaluate_frozen(
     """
     from sklearn.metrics import brier_score_loss, precision_score, recall_score
 
-    from dao_vang.config.settings import AppSettings
     from dao_vang.experiments.batch_evaluator import score_snapshot_batch
     
     info = load_frozen_model(model_id, artifact_dir)
@@ -431,7 +438,7 @@ def evaluate_frozen(
             "model_id": model_id,
         }
         
-    usable_mask = result_df["is_usable"] == True
+    usable_mask = result_df["is_usable"]
     excluded_mask = ~usable_mask
     excluded_reasons = result_df.loc[excluded_mask, "reason"].value_counts().to_dict()
     
@@ -460,6 +467,15 @@ def evaluate_frozen(
 
     n_positive = int(y_true.sum())
     n_predicted_positive = int(y_pred.sum())
+    risk_breakdown = {}
+    for risk, mask in (("CAO", y_pred == 1), ("THẤP", y_pred == 0)):
+        count = int(mask.sum())
+        hits = int(y_true[mask].sum())
+        risk_breakdown[risk] = {
+            "n_signals": count,
+            "n_actual_distribution": hits,
+            "precision": hits / count if count else None,
+        }
 
     train_stats = info.training_stats
     train_precision = train_stats.get("precision", None)
@@ -482,6 +498,7 @@ def evaluate_frozen(
         "n_evaluated_usable_rows": n_evaluated,
         "n_excluded_rows": n_excluded,
         "exclusion_reasons": excluded_reasons,
+        "risk_breakdown": risk_breakdown,
         "n_positive_labels": n_positive,
         "n_predicted_positive": n_predicted_positive,
         "metrics": {

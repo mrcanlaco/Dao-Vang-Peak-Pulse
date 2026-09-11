@@ -511,6 +511,8 @@ def score_snapshot(
     model_probability: float | None = None
     calibrated_probability: float | None = None
     calibrator_id: str | None = None
+    calibrator_obj: Any = None
+    is_precalibrated = False
     reasons = list(quality_result.reason_codes)
 
     if quality_result.is_usable:

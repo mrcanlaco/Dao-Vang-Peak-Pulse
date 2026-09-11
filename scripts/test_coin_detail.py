@@ -1,3 +1,4 @@
+import os
 import time
 import sys
 import paramiko
@@ -6,7 +7,7 @@ if sys.platform == "win32":
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect("100.120.176.52", port=22, username="mrcanlaco", password="Hailong200%")
+client.connect("100.120.176.52", port=22, username="mrcanlaco", password=os.environ["DAO_VANG_LEGACY_SSH_PASSWORD"])
 
 t0 = time.time()
 cmd = "curl -m 15 -s -w '\nCODE:%{http_code} TIME:%{time_total}s\n' http://localhost:8000/api/coin/TACUSDT | head -c 300"

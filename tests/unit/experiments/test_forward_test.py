@@ -106,13 +106,17 @@ def test_score_frozen_only_after_cutoff(tmp_path: Path):
     df = _make_synthetic_df(n=300)
     feature_cols = ["feature_a", "feature_b"]
     model = LogisticRegression(max_iter=100)
-    model.fit(df[feature_cols], df["is_distribution"])
+    model.fit(df.iloc[:150][feature_cols], df.iloc[:150]["is_distribution"])
+    calibration = df.iloc[150:201]
+    calibrator = IsotonicRegression(out_of_bounds="clip").fit(
+        model.predict_proba(calibration[feature_cols])[:, 1], calibration["is_distribution"],
+    )
 
     # Freeze with cutoff at row 200
     cutoff = df["feature_time"].iloc[200]
     info = freeze_model(
         model=model, threshold=0.3, feature_cols=feature_cols,
-        config={}, train_cutoff=cutoff, artifact_dir=tmp_path,
+        config={}, train_cutoff=cutoff, artifact_dir=tmp_path, calibrator=calibrator,
     )
 
     # Score — only_after_cutoff=True (default)
@@ -136,7 +140,11 @@ def test_evaluate_frozen(tmp_path: Path):
     # Train on first 300, freeze
     train = df.iloc[:300]
     model = LogisticRegression(max_iter=100)
-    model.fit(train[feature_cols], train["is_distribution"])
+    model.fit(train.iloc[:200][feature_cols], train.iloc[:200]["is_distribution"])
+    calibration = train.iloc[200:]
+    calibrator = IsotonicRegression(out_of_bounds="clip").fit(
+        model.predict_proba(calibration[feature_cols])[:, 1], calibration["is_distribution"],
+    )
     cutoff = train["feature_time"].max()
 
     info = freeze_model(
@@ -145,6 +153,7 @@ def test_evaluate_frozen(tmp_path: Path):
         train_cutoff=cutoff,
         training_stats={"precision": 0.6, "recall": 0.5},
         artifact_dir=tmp_path,
+        calibrator=calibrator,
     )
 
     # Evaluate on full df (forward = rows after cutoff)

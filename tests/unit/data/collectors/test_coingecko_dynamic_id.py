@@ -1,7 +1,10 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from dao_vang.config.settings import CoinGeckoConfig
-from dao_vang.data.collectors.coingecko import fetch_market_data, _COINGECKO_ID_CACHE
+from dao_vang.data.collectors.coingecko import _COINGECKO_ID_CACHE, fetch_market_data
+
 
 @pytest.fixture(autouse=True)
 def clear_cache():

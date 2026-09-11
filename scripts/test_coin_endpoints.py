@@ -1,3 +1,4 @@
+import os
 import time
 import urllib.request
 import json
@@ -31,7 +32,7 @@ for ep in endpoints:
 print(f"\n=== Testing inside MSI server ===")
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect("100.120.176.52", port=22, username="mrcanlaco", password="Hailong200%")
+client.connect("100.120.176.52", port=22, username="mrcanlaco", password=os.environ["DAO_VANG_LEGACY_SSH_PASSWORD"])
 
 for ep in endpoints:
     cmd = f"curl -w '\\nTIME: %{{time_total}}s, STATUS: %{{http_code}}\\n' -s 'http://localhost:8000{ep}'"

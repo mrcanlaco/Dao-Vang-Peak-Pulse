@@ -88,7 +88,7 @@ export function App() {
     try {
       const stored = localStorage.getItem('peakpulse_dev_mode');
       return stored ? JSON.parse(stored) : false;
-    } catch (e) {
+    } catch {
       return false;
     }
   });
@@ -96,7 +96,7 @@ export function App() {
   useEffect(() => {
     try {
       localStorage.setItem('peakpulse_dev_mode', JSON.stringify(isDevMode));
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [isDevMode]);
@@ -299,15 +299,15 @@ export function App() {
       }
 
       const hashSymbol = typeof window !== 'undefined'
-        ? (window.location.hash.match(/^#coin=([A-Za-z0-9]+)$/)?.[1]?.toUpperCase() || null)
+        ? (new URLSearchParams(window.location.hash.slice(1)).get('coin')?.toUpperCase() || null)
         : null;
 
-      if (sigRes && sigRes.length > 0 && !selectedSignalId && !hashSymbol) {
+      if (sigRes && sigRes.length > 0 && !activeCoin.current && !hashSymbol) {
         setSelectedSignalId(sigRes[0].id);
         setSelectedSignal(sigRes[0]);
         fetchCoinDetail(sigRes[0].symbol);
         handleRunDeepAnalysis(sigRes[0].symbol);
-      } else if (candRes && candRes.length > 0 && !selectedSignalId && !hashSymbol) {
+      } else if (candRes && candRes.length > 0 && !activeCoin.current && !hashSymbol) {
         fetchCoinDetail(candRes[0].symbol);
         handleRunDeepAnalysis(candRes[0].symbol);
       }
@@ -322,17 +322,24 @@ export function App() {
   const coinDetailCache = useRef<Map<string, CoinDetail>>(new Map());
   const deepAnalysisCache = useRef<Map<string, DeepAnalysis>>(new Map());
 
+  const activeCoin = useRef<string | null>(null);
+  const detailRequest = useRef(0);
+  const analysisRequest = useRef(0);
+
   const fetchCoinDetail = async (symbol: string) => {
+    activeCoin.current = symbol;
+    const requestId = ++detailRequest.current;
+    setCoinDetail(coinDetailCache.current.get(symbol) ?? null);
     if (coinDetailCache.current.has(symbol)) {
       setCoinDetail(coinDetailCache.current.get(symbol)!);
     }
     try {
-      const res = await fetch(`/api/coin/${symbol}`);
+      const res = await fetch(`/api/coin/${encodeURIComponent(symbol)}`);
       if (!res.ok) return;
       const data = await res.json();
       if (data && !data.error && data.metrics) {
         coinDetailCache.current.set(symbol, data);
-        setCoinDetail(data);
+        if (activeCoin.current === symbol && requestId === detailRequest.current) setCoinDetail(data);
       }
     } catch (err) {
       console.error(`Error loading detail for ${symbol}:`, err);
@@ -361,22 +368,25 @@ export function App() {
     return () => window.clearInterval(timer);
   }, [isAuthenticated]);
 
-  // Load coin from URL hash on mount
+  // Defer protected requests until login; URLSearchParams decodes Unicode symbols.
   useEffect(() => {
-    const hash = window.location.hash;
-    const match = hash.match(/^#coin=([A-Za-z0-9]+)$/);
-    if (match) {
-      const symbol = match[1].toUpperCase();
-      if (symbol) {
-        setSelectedSignalId(null);
-        setSelectedSignal(null);
-        setDeepAnalysis(null);
-        setActiveTab('DECISION');
-        fetchCoinDetail(symbol);
-        handleRunDeepAnalysis(symbol);
-      }
-    }
-  }, []);
+    if (!isAuthenticated) return;
+    const loadHashCoin = () => {
+      const symbol = new URLSearchParams(window.location.hash.slice(1)).get('coin')?.trim().toUpperCase();
+      if (!symbol || !/^[\p{L}\p{N}_-]+$/u.test(symbol)) return;
+      setSelectedSignalId(null);
+      setSelectedSignal(null);
+      setDeepAnalysis(null);
+      setActiveTab('DECISION');
+      void fetchCoinDetail(symbol);
+      void handleRunDeepAnalysis(symbol);
+    };
+    loadHashCoin();
+    window.addEventListener('hashchange', loadHashCoin);
+    return () => window.removeEventListener('hashchange', loadHashCoin);
+    // The handlers only write state and use refs for request ordering.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   const handleSelectSignal = (sig: SignalItem) => {
     setSelectedSignalId(sig.id);
@@ -411,26 +421,30 @@ export function App() {
 
   const handlePushTelegram = async (sig: SignalItem) => {
     try {
-      await fetch('/api/telegram/send', {
+      const response = await fetch('/api/telegram/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: sig.symbol, probability: sig.probability })
       });
+      const result = await response.json();
+      if (!response.ok || result.status !== 'success') throw new Error(result.message || t('network_err'));
       const successMsg = t('toast_telegram_sent').replace('{symbol}', sig.symbol);
       setTelegramSentSuccess(successMsg);
       setTimeout(() => setTelegramSentSuccess(null), 4000);
     } catch (err) {
+      setWatchlistFeedback({ type: "error", message: err instanceof Error ? err.message : t("network_err") });
       console.error("Telegram push error:", err);
     }
   };
 
   const handleDismissSignal = async (sig: SignalItem) => {
     try {
-      await fetch('/api/alerts/dismiss', {
+      const response = await fetch('/api/alerts/dismiss', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alert_id: sig.id })
+        body: JSON.stringify({ symbol: sig.symbol, signal_time: sig.signal_time })
       });
+      if (!response.ok) throw new Error((await response.json()).error || t("network_err"));
       setSignals(prev => prev.filter(s => s.id !== sig.id));
       if (selectedSignalId === sig.id) {
         setSelectedSignalId(null);
@@ -439,6 +453,7 @@ export function App() {
         setDeepAnalysis(null);
       }
     } catch (err) {
+      setWatchlistFeedback({ type: "error", message: err instanceof Error ? err.message : t("network_err") });
       console.error("Error dismissing signal:", err);
     }
   };
@@ -453,11 +468,13 @@ export function App() {
         body: JSON.stringify({ force: true })
       });
       const data = await res.json();
-      const successMsg = t('toast_scan_triggered').replace('{count}', String(data.symbols_scanned ?? 48));
+      if (!res.ok) throw new Error(data.error || t('network_err'));
+      const successMsg = t('toast_scan_triggered');
       setScanTriggeredSuccess(successMsg);
       await fetchData();
       setTimeout(() => setScanTriggeredSuccess(null), 6000);
     } catch (err) {
+      setWatchlistFeedback({ type: "error", message: err instanceof Error ? err.message : t("network_err") });
       console.error("Error triggering manual scan:", err);
     } finally {
       setIsTriggeringScan(false);
@@ -471,7 +488,7 @@ export function App() {
     setWatchlistPendingAction(`add:${nextSymbol}`);
     setWatchlistFeedback(null);
     try {
-      const res = await fetch('/api/watchlist/manual', {
+      const res = await fetch('/api/watchlist/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: nextSymbol })
@@ -497,8 +514,10 @@ export function App() {
     setWatchlistPendingAction(`remove:${symbol}`);
     setWatchlistFeedback(null);
     try {
-      const res = await fetch(`/api/watchlist/manual/${symbol}`, {
-        method: 'DELETE'
+      const res = await fetch('/api/watchlist/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || t('error_failed_to_remove'));
@@ -685,19 +704,22 @@ export function App() {
   };
 
   const handleRunDeepAnalysis = async (symbol: string) => {
+    const requestId = ++analysisRequest.current;
+    setDeepAnalysis(deepAnalysisCache.current.get(symbol) ?? null);
     if (deepAnalysisCache.current.has(symbol)) {
       setDeepAnalysis(deepAnalysisCache.current.get(symbol)!);
     }
     setIsDeepAnalyzing(true);
     try {
-      const res = await fetch(`/api/coin/${symbol}/deep-analysis`);
+      const res = await fetch(`/api/coin/${encodeURIComponent(symbol)}/deep-analysis`);
       const data = await res.json();
+      if (!res.ok || data.error || data.symbol !== symbol) return;
       deepAnalysisCache.current.set(symbol, data);
-      setDeepAnalysis(data);
+      if (activeCoin.current === symbol && requestId === analysisRequest.current) setDeepAnalysis(data);
     } catch (err) {
       console.error(`Deep analysis error for ${symbol}:`, err);
     } finally {
-      setIsDeepAnalyzing(false);
+      if (requestId === analysisRequest.current) setIsDeepAnalyzing(false);
     }
   };
 

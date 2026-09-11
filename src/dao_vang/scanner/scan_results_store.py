@@ -848,6 +848,7 @@ class ScanResultStore:
     ) -> list[dict[str, Any]]:
         """Return all recent predictions to reconstruct episode history."""
         from datetime import timedelta
+
         from dao_vang.domain.time import system_now
         cutoff = system_now() - timedelta(hours=max_age_hours)
         with self._conn() as conn:

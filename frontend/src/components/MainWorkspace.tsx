@@ -1,10 +1,11 @@
+import { ModelAuditPanel } from './ModelAuditPanel';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, ScannerTelemetry, DeepAnalysis, CandlePoint, TrackingWatchlistItem, TradeSetup, FilterTag, SignalSort, TelegramFilter } from '../types';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, AreaChart, Area, ComposedChart
 } from 'recharts';
 import {
-  ShieldCheck, Activity, BarChart3,
+  Activity, BarChart3,
   ArrowUpRight, ArrowDownRight, CheckCircle2, Radio, Terminal, Send, Clock, Play, Loader2, LineChart as LineChartIcon, RefreshCw, Target, Award, ChevronDown, ChevronUp, HelpCircle, Eye, EyeOff
 } from 'lucide-react';
 import { SignalFeed } from './SignalFeed';
@@ -230,8 +231,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     all: getScanModeLabel('all', language),
     manual: getScanModeLabel('manual', language),
   };
-  const [scanProgress, setScanProgress] = useState<number>(0);
-  const [scanStepText, setScanStepText] = useState<string>('');
   const [chartCoin, setChartCoin] = useState<string | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
@@ -323,7 +322,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   };
   useEffect(() => {
     if (!isDevMode) {
-      const devTabs = ['MULTISCAN', 'BACKTEST', 'FORWARD', 'AUDIT', 'TELEMETRY', 'MODELS', 'UPDATES'];
+      const devTabs = ['MULTISCAN', 'BACKTEST', 'FORWARD', 'TELEMETRY', 'MODELS', 'UPDATES'];
       if (devTabs.includes(activeTab)) {
         setActiveTab('RADAR');
       }
@@ -644,34 +643,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     }
   };
 
-  useEffect(() => {
-    if (isTriggeringScan) {
-      setActiveTab('TELEMETRY');
-      setScanProgress(15);
-      setScanStepText(t('scan_progress_step1'));
-
-      const t1 = setTimeout(() => {
-        setScanProgress(50);
-        setScanStepText(t('scan_progress_step2'));
-      }, 500);
-
-      const t2 = setTimeout(() => {
-        setScanProgress(85);
-        setScanStepText(t('scan_progress_step3'));
-      }, 1000);
-
-      const t3 = setTimeout(() => {
-        setScanProgress(100);
-        setScanStepText(t('scan_progress_step4'));
-      }, 1400);
-
-      return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
-      };
-    }
-  }, [isTriggeringScan, setActiveTab, language]);
 
   return (
     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 sm:p-3.5 flex flex-col h-auto lg:h-full overflow-visible lg:overflow-hidden relative">
@@ -685,15 +656,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           <h3 className="text-base font-bold text-slate-100 uppercase tracking-wider mb-1">
             {t('scan_triggering_banner_prefix')} {scanModeLabels[telemetryData?.active_scan_mode || ''] ?? telemetryData?.active_scan_mode?.toUpperCase()})
           </h3>
-          <p className="text-xs text-amber-400 font-mono mb-4">{scanStepText}</p>
-
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-full h-3 overflow-hidden p-0.5">
-            <div
-              className="bg-gradient-to-r from-amber-500 to-amber-300 h-full rounded-full transition-all duration-300 shadow-md shadow-amber-500/30"
-              style={{ width: `${scanProgress}%` }}
-            />
-          </div>
-          <span className="text-[11px] font-mono font-bold text-slate-400 mt-2">{scanProgress}% {t('scan_progress_complete_suffix')}</span>
+          <p className="text-xs text-amber-400">{language === 'vi' ? 'Đang gửi yêu cầu đến bộ quét…' : 'Sending request to the scanner…'}</p>
         </div>
       )}
 
@@ -1979,221 +1942,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       )}
 
       {/* TAB 4: MODEL AUDIT & VALIDATION MATRIX */}
-      {activeTab === 'AUDIT' && auditData && (
-        <div className="flex-1 overflow-y-auto space-y-3.5 pr-1">
-          {/* Header Banner */}
-          <div className="bg-slate-950 border border-slate-800 rounded-xl p-3.5 shadow-md">
-            <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                  <ShieldCheck className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <span>{t('audit_matrix_title') || 'Kiểm Định Mô Hình & Ma Trận Xác Thực'}</span>
-                    <span className="px-2 py-0.2 rounded bg-amber-950 border border-amber-700/80 font-mono text-[9px] text-amber-300 font-bold">
-                      LightGBM + V2
-                    </span>
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    {language === 'zh'
-                      ? '基于 2.6 年历史数据、10 折 Walk-Forward 推进式前向验证与实盘样本的完整审计战报'
-                      : language === 'ko'
-                      ? '2.6년 과거 데이터 및 10-Fold Walk-Forward 실증 검증 종합 보고서'
-                      : 'Báo cáo kiểm định độc lập dựa trên 2.6 năm dữ liệu, 10-Fold Walk-Forward Cross Validation và mẫu thực tế.'}
-                  </p>
-                </div>
-              </div>
-
-              {onOpenTabHelp && (
-                <button
-                  type="button"
-                  onClick={() => onOpenTabHelp('AUDIT')}
-                  className="px-2 py-1 bg-slate-900 border border-slate-700 hover:border-violet-500 text-slate-300 hover:text-violet-200 font-medium rounded-md text-[10px] flex items-center gap-1 transition shadow-sm"
-                  title="Xem hướng dẫn chi tiết về Kiểm định Mô hình"
-                >
-                  <HelpCircle className="w-3 h-3 text-violet-400" />
-                  <span>{language === 'en' ? 'Guide' : language === 'zh' ? '功能说明' : language === 'ko' ? '도움말' : 'Hướng dẫn'}</span>
-                </button>
-              )}
-            </div>
-
-            {/* Metrics KPI Cards Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-3">
-              {/* 1. Live Alert Precision */}
-              <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400 font-medium">{t('audit_empirical_precision') || 'Độ chính xác thực nghiệm Live'}</div>
-                <div className="text-xl font-black text-emerald-400 font-mono mt-0.5">
-                  {auditData.metrics.precision !== null ? `${(auditData.metrics.precision * 100).toFixed(1)}%` : '36.6%'}
-                </div>
-                <div className="text-[10px] text-emerald-400 font-bold mt-0.5">
-                  +18.5% so với V1 baseline
-                </div>
-              </div>
-
-              {/* 2. Walk-Forward OOS Precision */}
-              <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400 font-medium">10-Fold OOS Precision</div>
-                <div className="text-xl font-black text-amber-400 font-mono mt-0.5">
-                  {auditData.metrics.walk_forward_precision ? `${(auditData.metrics.walk_forward_precision * 100).toFixed(1)}%` : '36.6%'}
-                </div>
-                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                  95% CI: [{auditData.metrics.ci_95_lower ? (auditData.metrics.ci_95_lower * 100).toFixed(1) : '35.1'}% - {auditData.metrics.ci_95_upper ? (auditData.metrics.ci_95_upper * 100).toFixed(1) : '38.2'}%]
-                </div>
-              </div>
-
-              {/* 3. Calibration ECE */}
-              <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400 font-medium">Sai số hiệu chuẩn (ECE)</div>
-                <div className="text-xl font-black text-sky-400 font-mono mt-0.5">
-                  {auditData.metrics.ece != null ? auditData.metrics.ece.toFixed(4) : '0.0310'}
-                </div>
-                <div className="text-[10px] text-sky-400 font-bold mt-0.5">
-                  Brier: {auditData.metrics.brier_score != null ? auditData.metrics.brier_score.toFixed(3) : '0.113'} (Đạt chuẩn)
-                </div>
-              </div>
-
-              {/* 4. Lead Time */}
-              <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
-                <div className="text-[10px] text-slate-400 font-medium">{t('audit_mean_lead_time') || 'Thời gian báo trước (Lead Time)'}</div>
-                <div className="text-xl font-black text-amber-300 font-mono mt-0.5">
-                  ~{auditData.lead_time.mean_hours !== null ? auditData.lead_time.mean_hours : '1.2'} giờ (72m)
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">
-                  Đón đầu trước khi sập 8%
-                </div>
-              </div>
-            </div>
-
-            {/* Split Grid: Precision by Risk Level & Regime Performance */}
-            <div className="grid gap-3 md:grid-cols-2 mb-3">
-              {/* Box 1: Precision by Risk Level */}
-              <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-xs space-y-2">
-                <h4 className="font-bold text-slate-200 flex items-center justify-between border-b border-slate-800 pb-1.5">
-                  <span>{t('audit_precision_by_tier') || 'Độ chính xác theo Phân cấp Rủi ro'}</span>
-                  <span className="text-[10px] font-mono text-slate-400">Risk Tier Breakdown</span>
-                </h4>
-                <div className="space-y-2">
-                  {Object.entries(auditData.precision_by_risk_level).map(([level, s]) => {
-                    const pct = s.precision !== null ? (s.precision * 100) : 0;
-                    return (
-                      <div key={level} className="space-y-1">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-bold text-slate-300">{riskLabels[level] ?? level}</span>
-                          <span className="font-mono text-slate-200">
-                            <strong>{pct.toFixed(1)}%</strong>
-                            <span className="text-slate-500 text-[10px]"> ({s.n_hit ?? 0}/{s.n_judged ?? 0} ca)</span>
-                          </span>
-                        </div>
-                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${
-                              level === 'CRITICAL' ? 'bg-rose-500' : level === 'HIGH' ? 'bg-amber-500' : 'bg-sky-500'
-                            }`}
-                            style={{ width: `${Math.min(100, Math.max(5, pct))}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Box 2: Regime-Conditioned Performance */}
-              <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-xs space-y-2">
-                <h4 className="font-bold text-slate-200 flex items-center justify-between border-b border-slate-800 pb-1.5">
-                  <span>Hiệu Năng Theo Chế Độ Thị Trường (Regime)</span>
-                  <span className="text-[10px] font-mono text-slate-400">Regime Breakdown</span>
-                </h4>
-                <div className="space-y-2 text-[11px]">
-                  <div className="flex items-center justify-between p-1.5 rounded bg-slate-950 border border-emerald-900/40">
-                    <div>
-                      <span className="font-bold text-emerald-400">SIDEWAY_DISTRIBUTION</span>
-                      <div className="text-[10px] text-slate-400">Đi ngang phân phối (Tối ưu nhất)</div>
-                    </div>
-                    <span className="font-mono text-sm font-black text-emerald-300">23.8%</span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-1.5 rounded bg-slate-950 border border-amber-900/40">
-                    <div>
-                      <span className="font-bold text-amber-400">TRENDING_BEAR</span>
-                      <div className="text-[10px] text-slate-400">Xu hướng giảm thuận lợi</div>
-                    </div>
-                    <span className="font-mono text-sm font-black text-amber-300">16.3%</span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-1.5 rounded bg-slate-950 border border-slate-800">
-                    <div>
-                      <span className="font-bold text-slate-400">HIGH_VOL_CHOP</span>
-                      <div className="text-[10px] text-slate-500">Nhiễu động lớn, spread cao</div>
-                    </div>
-                    <span className="font-mono text-sm font-bold text-slate-400">10.2%</span>
-                  </div>
-
-                  <div className="flex items-center justify-between p-1.5 rounded bg-slate-950 border border-rose-900/30 opacity-70">
-                    <div>
-                      <span className="font-bold text-rose-400">TRENDING_BULL</span>
-                      <div className="text-[10px] text-rose-400/80">Tăng mạnh Fomo (Tầng 4 chặn lệnh)</div>
-                    </div>
-                    <span className="font-mono text-sm font-bold text-rose-400">8.1% (Vetoed)</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Feature Importance Rankings (14 features) */}
-            <div className="bg-slate-900/80 p-3 rounded-lg border border-slate-800 text-xs space-y-2 mb-3">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
-                <div className="font-bold text-slate-200 flex items-center gap-1.5">
-                  <BarChart3 className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Xếp Hạng 14 Đặc Trưng Vi Cấu Trúc Quan Trọng Nhất (Feature Importance)</span>
-                </div>
-                <span className="text-[10px] font-mono text-cyan-300">LightGBM Information Gain</span>
-              </div>
-              <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 text-[10px] font-mono">
-                <div className="p-2 rounded bg-slate-950 border border-slate-800/80 space-y-1">
-                  <div className="flex justify-between"><span className="text-slate-300 font-bold">1. volatility_24h</span><span className="text-amber-400 font-bold">100%</span></div>
-                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-amber-400" style={{ width: '100%' }} /></div>
-                </div>
-                <div className="p-2 rounded bg-slate-950 border border-slate-800/80 space-y-1">
-                  <div className="flex justify-between"><span className="text-slate-300 font-bold">2. funding_rate_raw</span><span className="text-cyan-400 font-bold">55.2%</span></div>
-                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-cyan-400" style={{ width: '55.2%' }} /></div>
-                </div>
-                <div className="p-2 rounded bg-slate-950 border border-slate-800/80 space-y-1">
-                  <div className="flex justify-between"><span className="text-slate-300 font-bold">3. top_acct_ratio</span><span className="text-cyan-400 font-bold">43.8%</span></div>
-                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-cyan-400" style={{ width: '43.8%' }} /></div>
-                </div>
-                <div className="p-2 rounded bg-slate-950 border border-slate-800/80 space-y-1">
-                  <div className="flex justify-between"><span className="text-slate-300 font-bold">4. global_ls_ratio</span><span className="text-cyan-400 font-bold">40.6%</span></div>
-                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-cyan-400" style={{ width: '40.6%' }} /></div>
-                </div>
-                <div className="p-2 rounded bg-slate-950 border border-slate-800/80 space-y-1">
-                  <div className="flex justify-between"><span className="text-slate-300 font-bold">5. return_24h</span><span className="text-cyan-400 font-bold">25.0%</span></div>
-                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-cyan-400" style={{ width: '25%' }} /></div>
-                </div>
-                <div className="p-2 rounded bg-slate-950 border border-slate-800/80 space-y-1">
-                  <div className="flex justify-between"><span className="text-slate-300 font-bold">6. oi_change_24h</span><span className="text-cyan-400 font-bold">22.4%</span></div>
-                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden"><div className="h-full bg-cyan-400" style={{ width: '22.4%' }} /></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Validation checks */}
-            <div className="border-t border-slate-800 pt-3 text-[11px] text-slate-400 space-y-1.5">
-              <h4 className="text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Tiêu chuẩn Kiểm định Dữ liệu (Validation & Quality Gates):</span>
-              </h4>
-              <div className="grid gap-1.5 sm:grid-cols-2 font-mono">
-                <div>• <strong className="text-slate-300">Walk-Forward Status:</strong> <span className="text-emerald-400">{auditData.validation_checks.walk_forward_status}</span></div>
-                <div>• <strong className="text-slate-300">Rò rỉ dữ liệu (Leakage):</strong> <span className="text-emerald-400">{auditData.validation_checks.leakage_test}</span></div>
-                <div>• <strong className="text-slate-300">Cửa sổ cách ly (Embargo):</strong> {auditData.validation_checks.embargo_period}</div>
-                <div>• <strong className="text-slate-300">Xác thực Point-in-Time:</strong> {auditData.validation_checks.point_in_time_verified ? '✓ Đạt chuẩn 100%' : 'Chưa đạt'}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {activeTab === 'AUDIT' && auditData && <ModelAuditPanel audit={auditData} />}
 
       {/* TAB 5: MARKET OVERVIEW */}
       {/* TAB 5: MARKET OVERVIEW & ALPHA LAB */}

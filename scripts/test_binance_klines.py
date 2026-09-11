@@ -1,3 +1,4 @@
+import os
 import sys
 import paramiko
 if sys.platform == "win32":
@@ -5,7 +6,7 @@ if sys.platform == "win32":
 
 client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-client.connect("100.120.176.52", port=22, username="mrcanlaco", password="Hailong200%")
+client.connect("100.120.176.52", port=22, username="mrcanlaco", password=os.environ["DAO_VANG_LEGACY_SSH_PASSWORD"])
 
 cmds = [
     "curl -s 'https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1h&limit=5' | head -c 200",

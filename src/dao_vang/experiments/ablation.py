@@ -43,6 +43,8 @@ FEATURE_GROUPS: dict[str, tuple[str, ...]] = {
 
 ABLATION_MATRIX: dict[str, tuple[str, ...]] = {
     "full": (),
+    "price_only": tuple(group for group in FEATURE_GROUPS if group != "price"),
+    "price_volume": tuple(group for group in FEATURE_GROUPS if group not in {"price", "volume"}),
     "no_btc_context": ("btc_context",),
     "no_funding": ("funding",),
     "no_oi": ("oi",),

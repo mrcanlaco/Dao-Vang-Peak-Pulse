@@ -1,8 +1,7 @@
-import pytest
-import duckdb
 from datetime import datetime, timedelta, timezone
-from dao_vang.alerts.store import AlertStore, AlertEpisodeResult
-import uuid
+
+from dao_vang.alerts.store import AlertStore
+
 
 def test_episode_state_machine_and_idempotency(tmp_path):
     store = AlertStore(str(tmp_path / "test.duckdb"))

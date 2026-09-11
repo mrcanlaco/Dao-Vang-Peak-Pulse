@@ -521,6 +521,9 @@ export interface RiskLevelPrecision {
 }
 
 export interface ModelAudit {
+  report_available?: boolean;
+  report_generated_at?: string | null;
+  report_matches_current_model?: boolean;
   model_name: string;
   horizon: string;
   target_drawdown: string;

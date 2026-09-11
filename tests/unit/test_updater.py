@@ -256,7 +256,7 @@ def test_apply_update_stops_and_restores_upstream_file_on_stash_conflict(
     def side_effect(cmd, **kwargs):
         nonlocal stash_ref_reads
         commands.append(cmd)
-        if cmd == ["git", "status", "--porcelain"]:
+        if cmd == ["git", "status", "--porcelain", "-uno"]:
             return (0, " M frontend/dist/index.html", "")
         if cmd[:3] == ["git", "stash", "push"]:
             return (0, "Saved working directory and index state", "")

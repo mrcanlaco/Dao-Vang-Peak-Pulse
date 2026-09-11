@@ -1,13 +1,13 @@
-import pytest
 import json
-from unittest.mock import MagicMock, patch
 from pathlib import Path
-from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
+
 import duckdb
 
-from dao_vang.web.api_server import APIHandler
-from dao_vang.scanner.scan_results_store import ScanResultStore
 from dao_vang.alerts.store import AlertStore
+from dao_vang.scanner.scan_results_store import ScanResultStore
+from dao_vang.web.api_server import APIHandler
+
 
 def test_api_server_get_signals(tmp_path: Path):
     db_path = str(tmp_path / "test.duckdb")

@@ -192,7 +192,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
       category: 'SYSTEM',
     },
     ];
-    return isDevMode ? tabs : tabs.filter(t => t.id === 'HISTORY' || t.id === 'SETTINGS');
+    return isDevMode ? tabs : tabs.filter(t => t.id === 'AUDIT' || t.id === 'HISTORY' || t.id === 'SETTINGS');
   }, [isTelemetryActive, isDevMode]);
 
   // Determine current active category
@@ -309,6 +309,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
             <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-slate-800" />
 
             {/* Dropdown 1: Lab & Scan */}
+            {labTabs.length > 0 && (
             <div className="relative">
               <button
                 type="button"
@@ -379,6 +380,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
                 </div>
               )}
             </div>
+            )}
 
             {/* Dropdown 2: System & Logs */}
             <div className="relative">
@@ -532,6 +534,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
               <span>{t('ws_group_trading')}</span>
             </button>
 
+            {labTabs.length > 0 && (
             <button
               type="button"
               onClick={() => handleCategorySwitch('LAB')}
@@ -544,6 +547,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
               <FlaskConical className="w-3 h-3" />
               <span>{t('ws_group_lab')}</span>
             </button>
+            )}
 
             <button
               type="button"

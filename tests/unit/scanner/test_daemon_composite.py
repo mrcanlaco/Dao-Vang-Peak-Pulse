@@ -92,6 +92,9 @@ def test_score_and_alert_composite_executes_without_name_errors():
     )
     daemon._scan_result_store = MagicMock()
     daemon._alert_store = MagicMock()
+    daemon._alert_store.process_snapshot.return_value = SimpleNamespace(
+        episode_id="test-episode", role="FIRST", transition="OPENED",
+    )
     daemon._alert_store.is_in_cooldown_key.return_value = False
     daemon._alert_store.is_in_cooldown.return_value = False
     daemon._scan_result_store.is_prediction_telegram_in_cooldown.return_value = False

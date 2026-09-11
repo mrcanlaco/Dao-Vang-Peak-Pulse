@@ -1,38 +1,36 @@
-# Môi Trường Triển Khai & Vận Hành Hệ Thống Đảo Vàng
+# Môi trường triển khai Đảo Vàng
 
-## 1. Phân Định Kiến Trúc Môi Trường (System Architecture & Roles)
+## Local
+- Python 3.12 trong .venv; React/Vite ở frontend.
+- API: http://127.0.0.1:8000; Vite: http://localhost:8088.
+- Khởi động: `.venv/Scripts/python.exe -m dao_vang.web.run --host 127.0.0.1 --port 8000 --reload`.
+- Chạy frontend: `cd frontend`, sau đó `npm run dev`.
+- `dao-vang-ui` cũng hỗ trợ --host, --port và --reload. Cổng positional cũ vẫn được hỗ trợ.
+- Dữ liệu và mật khẩu lấy từ môi trường/.env. Không mặc định bật scanner khi khởi động web.
 
-| Môi Trường | Thiết Bị / Máy Chủ | Vai Trò & Chức Năng | Hệ Điều Hành / Công Nghệ | Phương Thức Vận Hành |
-|---|---|---|---|---|
-| **💻 DEV (Phát triển)** | Máy bàn (Local Desktop) | Phát triển tính năng mới, debug, viết code, kiểm thử unit test, build frontend React/Vite | Windows | Python (.venv), Vite dev, Git commit & push |
-| **🚀 LIVE / PROD (Vận hành 24/7)** | **Google Cloud Server** (`136.110.29.208`) | Chạy quét Radar 24/7 (Scanner daemon), phục vụ API server, Web React UI, Cloudflare Tunnel | Ubuntu Linux | Docker Compose (`dao_vang_scanner`, `dao_vang_web`, `dao_vang_cloudflared`) |
-| **💾 DATA & BACKTEST (Dữ liệu & Nghiên cứu)** | **Google Drive** | Lưu trữ dài hạn toàn bộ dữ liệu phái sinh (Parquet, DuckDB snapshots, feature sets, labels) | Cloud Storage | Đồng bộ định kỳ từ Live để phục vụ Backtest & Train mô hình ML mới |
+## GCP
+- Host: 136.110.29.208; tài khoản SSH: ubuntu.
+- Khóa: ~/.ssh/gcp_dao_vang.
+- Thư mục: /home/ubuntu/dao_vang.
+- Domain: https://daovang.comaygiauco.com.
+- Docker Compose: scanner, web, cloudflared.
+- Bind mount dữ liệu trên host ./data vào /app/data_live; artifacts và configs giữ riêng ngoài image.
+- Không xóa file lock của dịch vụ đang chạy.
+- Scanner healthcheck yêu cầu heartbeat mới trong 15 phút, trạng thái running và chu kỳ gần nhất không failed.
+- /api/health kiểm tra web còn đáp ứng; nó không thay thế kiểm tra scanner, dữ liệu và model.
 
----
+## Triển khai
+1. Kiểm tra mã: Ruff, bộ kiểm thử Python, Pyright theo danh sách CI; frontend build.
+2. Commit và lưu mã vào GitHub. CI phải thành công trước khi workflow deploy chạy.
+3. Workflow deploy triển khai đúng SHA đã qua CI, không tự reset/clean hoặc ghi đè thay đổi chưa commit.
+4. Có thể xem trước triển khai thủ công: `python scripts/deploy_google_server.py --revision <SHA-40-ký-tự>`.
+5. Thêm --apply để thực hiện. Server phải có thư mục Git sạch và revision phải có sẵn trên remote.
+6. Chờ cả các dịch vụ Docker healthy, rồi kiểm tra API qua domain và dữ liệu scanner.
+7. Updater trong container được tắt vì .git chỉ đọc; cập nhật qua host/CI.
 
-## 2. Thông Tin Kết Nối & Triển Khai Máy Chủ LIVE (Google Cloud Server)
-
-* **Địa chỉ IP Server**: `136.110.29.208`
-* **Người dùng (User)**: `ubuntu`
-* **Khóa SSH**: `~/.ssh/gcp_dao_vang` (Ed25519)
-* **Thư mục làm việc trên server**: `/home/ubuntu/dao_vang`
-* **Script triển khai tự động 1-click từ Desktop**:
-  ```powershell
-  python scripts/deploy_google_server.py
-  ```
-* **Quy trình deploy tự động bao gồm**:
-  1. Đồng bộ mã nguồn mới nhất từ GitHub (`git fetch origin main && git reset --hard origin/main && git clean -fd`).
-  2. Tự động dọn dẹp các file lock cũ (`data/web.lock`, `data_live/web.lock`, `data/scanner.lock`, `data_live/scanner.lock`).
-  3. Dừng và rebuild các Docker container với frontend và code backend mới (`docker compose up -d --build --force-recreate`).
-  4. Kiểm tra sức khỏe API (`http://localhost:8000/api/status`).
-
----
-
-## 3. Quy Trình Lưu Trữ Dữ Liệu & Backtest (Google Drive)
-
-1. **Thu thập dữ liệu Live**:
-   * Scanner daemon trên Google Cloud Server liên tục thu thập nến 5m, Orderbook, Taker ratio, Open Interest, Funding rate và ghi vào định dạng Parquet / DuckDB.
-2. **Lưu trữ & Sao lưu (Google Drive)**:
-   * Toàn bộ dữ liệu thu thập được định kỳ đồng bộ sang Google Drive để bảo đảm an toàn dữ liệu và tối ưu dung lượng đĩa của VPS Google Cloud.
-3. **Huấn luyện & Backtest**:
-   * Khi cần chạy Walk-Forward Validation, phát triển Feature mới, hoặc Backtest chiến lược, dữ liệu từ Google Drive sẽ được nạp về môi trường Desktop DEV để chạy tính toán hiệu năng cao.
+## Rà soát và phục hồi
+- Chạy `python scripts/audit_runtime.py` trong container web để kiểm tra API có xác thực; công cụ không in mật khẩu/cookie, không gửi Telegram.
+- Chạy `python scripts/check_public_url.py` từ bên ngoài để kiểm tra domain và yêu cầu đăng nhập.
+- Trước rollout, giữ image đang chạy và Git SHA cũ. Chỉ thay image khi image mới đã build và qua kiểm thử.
+- Không xóa dữ liệu, artifacts, Docker image hoặc bản sao lưu khi chưa xác định chính sách lưu trữ.
+- Xem [báo cáo rà soát 11/09/2026](AUDIT_2026-09-11.md) để biết lỗi đã sửa và các giới hạn kiểm chứng.
