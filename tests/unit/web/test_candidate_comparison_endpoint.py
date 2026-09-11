@@ -21,6 +21,10 @@ def test_candidate_filter_comparison_endpoint_serves_fallback(monkeypatch, tmp_p
     data = json.loads(raw_response)
 
     assert data["available"] is False
+    assert data["stale"] is True
+    assert "comparison" not in data
+    assert "selected" not in data
+    assert "universe_count" not in data
     assert "enabled" in data
     assert data["champion_version"] == "pump_filter_v1"
     assert data["challenger_version"] == "candidate_filter_v2"
@@ -54,3 +58,17 @@ def test_candidate_filter_comparison_endpoint_serves_existing_snapshot(monkeypat
     assert data["universe_count"] == 120
     assert data["champion_selected"] == 8
     assert data["challenger_selected"] == 12
+
+
+def test_empty_universe_is_still_a_real_snapshot(monkeypatch, tmp_path) -> None:
+    comp_file = tmp_path / "comparison.json"
+    comp_file.write_text(json.dumps({"universe_count": 0, "enabled": True}), encoding="utf-8")
+    monkeypatch.setattr(api_server, "CANDIDATE_FILTER_COMPARISON_PATH", comp_file)
+    handler = object.__new__(api_server.APIHandler)
+    handler.wfile = io.BytesIO()
+    handler._set_headers = MagicMock()
+    handler.get_candidate_filter_comparison()
+    data = json.loads(handler.wfile.getvalue())
+    assert data["available"] is True
+    assert data["universe_count"] == 0
+    assert "comparison" not in data

@@ -119,8 +119,8 @@ def test_audit_does_not_invent_metrics(monkeypatch):
 
 def test_audit_preserves_measured_zero_and_failed_gates(monkeypatch):
     store = MagicMock()
-    store.stats.return_value = {"n_judged": 10, "total": 10, "hit_rate": 0.0}
-    store.precision_by_risk_level.return_value = {}
+    store.stats.return_value = {"n_judged": 0, "total": 10, "hit_rate": None}
+    store.precision_by_risk_level.return_value = {"CAO": {"n_judged": 10, "n_hit": 0, "precision": 0.0}}
     store.lead_time_stats.return_value = {"mean_hours": 0.0}
     monkeypatch.setattr(api, "_alert_store", store)
     monkeypatch.setattr(api, "_read_json", lambda path: {
@@ -134,6 +134,8 @@ def test_audit_preserves_measured_zero_and_failed_gates(monkeypatch):
     handler.get_audit()
     payload = json.loads(handler.wfile.getvalue())
     assert payload["metrics"]["precision"] == 0.0
+    assert payload["sample_size"] == 10
+    assert payload["has_enough_data"]
     assert payload["lead_time"]["mean_hours"] == 0.0
     assert payload["quality_gates"]["precision_gte_0_35"] is False
     assert payload["regime_performance"] == {}

@@ -2536,209 +2536,16 @@ class APIHandler(BaseHTTPRequestHandler):
         """Serve the scanner-published paired v1/v2 audit snapshot."""
 
         payload = _read_json(CANDIDATE_FILTER_COMPARISON_PATH)
-        if not payload or not payload.get("universe_count"):
-            # Synthesize dynamic comparison from candidate snapshot and historical metrics
-            cand_snapshot = _read_json(CANDIDATE_SNAPSHOT_PATH) or {}
-            rows = cand_snapshot.get("rows", [])
+        if not isinstance(payload, dict) or not payload:
             comparison_cfg = _settings.candidate_comparison
-            champion_version = comparison_cfg.champion_version
-            challenger_version = comparison_cfg.challenger_version
-            is_champion_v2 = "v2" in champion_version.lower()
-            
-            # V2 candidates: multi-stage quantitative filter (pump_pct >= 30% or score >= 35)
-            v2_rows = [
-                r for r in rows
-                if float(r.get("pump_pct", 0) or 0) >= 0.30 or float(r.get("score", 0) or 0) >= 35
-            ]
-            if not v2_rows and rows:
-                v2_rows = rows[:25]
-
-            # V1 candidates: pump_pct >= 50% or score >= 45
-            v1_rows = [
-                r for r in rows
-                if float(r.get("pump_pct", 0) or 0) >= 0.50 or float(r.get("score", 0) or 0) >= 45
-            ]
-            if not v1_rows and rows:
-                v1_rows = rows[:18]
-            
-            v2_symbols = [r["symbol"] for r in v2_rows]
-            v1_symbols = [r["symbol"] for r in v1_rows]
-            
-            v2_set = set(v2_symbols)
-            v1_set = set(v1_symbols)
-            overlap_set = v2_set & v1_set
-            v2_only_set = v2_set - v1_set
-            v1_only_set = v1_set - v2_set
-
-            champion_symbols = v2_symbols if is_champion_v2 else v1_symbols
-            challenger_symbols = v1_symbols if is_champion_v2 else v2_symbols
-            champion_only_set = v2_only_set if is_champion_v2 else v1_only_set
-            challenger_only_set = v1_only_set if is_champion_v2 else v2_only_set
-
-            row_by_symbol = {str(r.get("symbol")): r for r in rows}
-
-            def _summaries(symbols: list[str], version: str) -> list[dict[str, Any]]:
-                version_is_v2 = "v2" in version.lower()
-                default_score = 75 if version_is_v2 else 70
-                return [
-                    {
-                        "symbol": symbol,
-                        "rank": index + 1,
-                        "rank_score": round(
-                            float(row_by_symbol.get(symbol, {}).get("score", default_score))
-                            / 100.0,
-                            2,
-                        ),
-                        "stage": (
-                            "DISTRIBUTING"
-                            if version_is_v2 and symbol in overlap_set
-                            else "EXHAUSTING"
-                            if version_is_v2
-                            else "PUMP_CANDIDATE"
-                        ),
-                        "reason_codes": [
-                            "candidate_filter_v2_selected"
-                            if version_is_v2
-                            else "pump_filter_v1_selected"
-                        ],
-                    }
-                    for index, symbol in enumerate(symbols)
-                ]
-            
-            universe_count = max(150, len(rows))
-            neither_count = max(0, universe_count - len(v2_set | v1_set))
-            
-            resolved_count = 142
-            pos_events_count = 38
-            try:
-                conn = _ro_duckdb_connect(str(_settings.scanner.db_path))
-                try:
-                    tables = {r[0] for r in conn.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='main'").fetchall()}
-                    if "prediction_outcomes" in tables:
-                        db_resolved = int(conn.execute("SELECT count(*) FROM prediction_outcomes WHERE outcome_status = 'materialized'").fetchone()[0] or 0)
-                        db_pos = int(conn.execute("SELECT count(*) FROM prediction_outcomes WHERE outcome_status = 'materialized' AND label_value = 1").fetchone()[0] or 0)
-                        if db_resolved > 0:
-                            resolved_count = db_resolved
-                        if db_pos > 0:
-                            pos_events_count = db_pos
-                finally:
-                    conn.close()
-            except Exception:
-                pass
-
             payload = {
-                # This is a defensive synthesis, not a scanner-published
-                # comparison artifact.  Keep the distinction explicit.
                 "available": False,
                 "enabled": bool(comparison_cfg.enabled),
-                "status": "fallback_configured_lane",
-                "champion_version": champion_version,
-                "challenger_version": challenger_version,
-                "future_versions": [
-                    {
-                        "version": "candidate_filter_v3",
-                        "name": "V3 Deep Order Flow & AI Horizon",
-                        "status": "r_and_d",
-                        "description": "Kết hợp học sâu đa khung thời gian và phân tích độ sâu sổ lệnh microstructure",
-                    }
-                ],
-                "universe_count": universe_count,
-                "paired_count": universe_count,
-                "champion_selected": len(champion_symbols),
-                "challenger_selected": len(challenger_symbols),
-                "overlap": len(overlap_set),
-                "champion_only": len(champion_only_set),
-                "challenger_only": len(challenger_only_set),
-                "neither": neither_count,
-                "generated_at": cand_snapshot.get("generated_at") or system_now().isoformat(),
-                "stale": False,
-                "selected": {
-                    "champion": _summaries(champion_symbols, champion_version),
-                    "challenger": _summaries(challenger_symbols, challenger_version),
-                    "overlap": [
-                        {
-                            "symbol": s,
-                            "rank": i + 1,
-                            "rank_score": 0.88,
-                            "stage": "DISTRIBUTING",
-                            "reason_codes": ["both_v1_v2_selected"],
-                        }
-                        for i, s in enumerate(sorted(overlap_set))
-                    ],
-                    "champion_only": _summaries(sorted(champion_only_set), champion_version),
-                    "challenger_only": _summaries(sorted(challenger_only_set), challenger_version),
-                },
-                "comparison": {
-                    "window_days": 30,
-                    "champion_version": champion_version,
-                    "challenger_version": challenger_version,
-                    "metrics": {
-                        "candidate_filter_v2": {
-                            "anchors": universe_count * 2,
-                            "resolved": resolved_count,
-                            "excluded": 12,
-                            "selected_resolved": max(1, int(resolved_count * 0.30)),
-                            "positive_anchors": pos_events_count * 2,
-                            "positive_events": pos_events_count,
-                            "anchor_precision": 0.64,
-                            "anchor_recall": 0.62,
-                            "event_recall": 0.648,
-                            "precision_at_10": 0.712,
-                            "episodes_resolved": 45,
-                            "episode_precision": 0.67,
-                            "median_lead_time_minutes": 630,
-                            "false_candidates_per_day": 2.2,
-                        },
-                        "pump_filter_v1": {
-                            "anchors": universe_count * 2,
-                            "resolved": resolved_count,
-                            "excluded": 12,
-                            "selected_resolved": max(1, int(resolved_count * 0.25)),
-                            "positive_anchors": pos_events_count * 2,
-                            "positive_events": pos_events_count,
-                            "anchor_precision": 0.52,
-                            "anchor_recall": 0.56,
-                            "event_recall": 0.584,
-                            "precision_at_10": 0.601,
-                            "episodes_resolved": 42,
-                            "episode_precision": 0.58,
-                            "median_lead_time_minutes": 588,
-                            "false_candidates_per_day": 3.1,
-                        },
-                    },
-                    "paired_deltas": {
-                        # The persisted comparison stores challenger - champion.
-                        # Keep that orientation even for the defensive fallback.
-                        "precision_at_10": {
-                            "point": -0.111 if is_champion_v2 else 0.111,
-                            "ci_lower": -0.190 if is_champion_v2 else 0.032,
-                            "ci_upper": -0.032 if is_champion_v2 else 0.190,
-                            "n": resolved_count,
-                            "n_blocks": 30,
-                        },
-                        "event_recall": {
-                            "point": -0.064 if is_champion_v2 else 0.064,
-                            "ci_lower": -0.116 if is_champion_v2 else 0.012,
-                            "ci_upper": -0.012 if is_champion_v2 else 0.116,
-                            "n": resolved_count,
-                            "n_blocks": 30,
-                        },
-                        "confidence_level": 0.95,
-                        "bootstrap_samples": 1000,
-                    },
-                    "promotion": {
-                        "ready": False,
-                        "passed": False,
-                        "requires_human_approval": True,
-                        "positive_anchors": pos_events_count * 2,
-                        "positive_events": pos_events_count,
-                        "min_resolved": 200,
-                        "min_positive_events": 50,
-                        "min_evaluation_days": 14,
-                        "min_challenger_event_recall": 0.80,
-                        "reasons": ["fallback_snapshot_only", "awaiting_paired_outcomes"],
-                    },
-                },
+                "status": "awaiting_scanner_snapshot",
+                "champion_version": comparison_cfg.champion_version,
+                "challenger_version": comparison_cfg.challenger_version,
+                "generated_at": None,
+                "stale": True,
             }
         else:
             payload["available"] = True
@@ -3446,6 +3253,10 @@ class APIHandler(BaseHTTPRequestHandler):
             logger.warning("audit_data_fetch_failed error=%s", exc)
             stats, by_risk, lead = {}, {}, {}
 
+        # stats() limits hit rate to Telegram-sent alerts; the audit covers all
+        # alerts, matching the risk breakdown and lead-time queries.
+        n_judged = sum(row.get("n_judged", 0) for row in by_risk.values())
+        n_hit = sum(row.get("n_hit", 0) for row in by_risk.values())
         report = _read_json(_settings.scanner.artifact_dir / "backtest_report_latest.json")
         report = report if isinstance(report, dict) else {}
         wf = report.get("walk_forward_10_fold", {})
@@ -3461,16 +3272,16 @@ class APIHandler(BaseHTTPRequestHandler):
             "horizon": "Theo từng mô hình",
             "target_drawdown": "Theo từng mô hình",
             "mae_allowed": "Theo từng mô hình",
-            "sample_size": stats.get("n_judged", 0),
+            "sample_size": n_judged,
             "total_alerts": stats.get("total", 0),
-            "has_enough_data": stats.get("n_judged", 0) > 0,
+            "has_enough_data": n_judged > 0,
             "live_scope": "all_models_last_30_days",
             "report_available": bool(report),
             "report_generated_at": report.get("generated_at"),
             "report_model_id": report.get("model_id"),
             "report_matches_current_model": bool(current_model and report.get("model_id") == current_model),
             "metrics": {
-                "precision": stats.get("hit_rate"),
+                "precision": n_hit / n_judged if n_judged else None,
                 "walk_forward_precision": precision,
                 "ci_95_lower": wf.get("ci_95_lower"),
                 "ci_95_upper": wf.get("ci_95_upper"),
