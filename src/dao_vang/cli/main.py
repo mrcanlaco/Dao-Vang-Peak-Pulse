@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -20,7 +21,6 @@ from dao_vang.data.daily_collection import collect_derivatives
 from dao_vang.data.storage.duckdb import DuckDBQueryLayer
 from dao_vang.experiments.artifacts import ArtifactRegistry
 from dao_vang.experiments.forward_test import (
-    evaluate_frozen,
     freeze_model,
     list_frozen_models,
 )
@@ -511,34 +511,65 @@ def experiment_forward_test(
     db_path: str,
     model_id: str,
     artifact_dir: str = "./artifacts",
+    protocol_path: Path = typer.Option(
+        Path("configs/forward_test_live_v1.json"),
+        "--protocol-path",
+        help="Immutable forward-test protocol JSON.",
+    ),
+    as_of: Optional[str] = typer.Option(
+        None,
+        "--as-of",
+        help="Evidence cutoff timestamp; defaults to the current system time.",
+    ),
+    output: Optional[Path] = typer.Option(
+        None,
+        "--output",
+        help="Optional path for the complete JSON evidence report.",
+    ),
 ) -> None:
-    """Evaluate a frozen model on forward-test data (data after train_cutoff).
+    """Evaluate a frozen model under a pre-declared evidence protocol.
 
-    Scores all labeled data after the frozen model's train_cutoff and computes
-    precision, recall, brier, and drift vs training metrics.
+    The command verifies the exact model/calibrator, freeze-time cutoff,
+    label contract, universe policy, event grouping, and sample gates. It
+    withholds all performance metrics until every gate passes.
     """
-    from dao_vang.experiments.forward_test import load_frozen_model
-    
     try:
-        info = load_frozen_model(model_id, Path(artifact_dir))
-    except Exception as exc:
-        typer.echo(f"Cannot load frozen model {model_id}: {exc}", err=True)
+        from dao_vang.experiments.forward_evidence import (
+            evaluate_forward_evidence,
+            load_forward_test_protocol,
+        )
+
+        protocol = load_forward_test_protocol(protocol_path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        typer.echo(
+            f"Cannot load forward-test protocol {protocol_path}: {exc}",
+            err=True,
+        )
+        raise typer.Exit(code=1) from exc
+
+    if model_id != protocol.model_id:
+        typer.echo(
+            "Protocol required: requested model does not match "
+            f"the locked protocol model {protocol.model_id}.",
+            err=True,
+        )
         raise typer.Exit(code=1)
-        
-    horizon_hours = info.label_spec.get("horizon_hours", 24)
-    label_version = info.label_spec.get("version", "distribution_short_v1")
-    
+
     conn = duckdb.connect(db_path, read_only=True)
     try:
         df = conn.execute(
             """
-            SELECT f.*, l.label_value AS is_distribution
+            SELECT
+                f.*,
+                l.label_value AS is_distribution,
+                l.horizon_hours,
+                l.label_version
             FROM feature_results f
             INNER JOIN labels l
                 ON f.feature_time = l.signal_time AND f.symbol = l.symbol
             WHERE l.horizon_hours = ? AND l.label_version = ?
             """,
-            [horizon_hours, label_version]
+            [protocol.label_horizon_hours, protocol.label_version],
         ).df()
     finally:
         conn.close()
@@ -547,31 +578,57 @@ def experiment_forward_test(
         typer.echo("No data found in DB.", err=True)
         raise typer.Exit(code=1)
 
-    result = evaluate_frozen(model_id, df, artifact_dir=Path(artifact_dir))
+    result = evaluate_forward_evidence(
+        model_id,
+        df,
+        protocol,
+        artifact_dir=Path(artifact_dir),
+        as_of=as_of,
+    )
+    serialized = json.dumps(result, ensure_ascii=False, indent=2, default=str)
+    if output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(f"{serialized}\n", encoding="utf-8")
+        typer.echo(f"Evidence report: {output}")
 
-    if result["status"] != "ok":
-        typer.echo(f"Cannot evaluate: {result.get('message', result['status'])}", err=True)
+    status = str(result["status"])
+    typer.echo(f"Forward evidence: {model_id}")
+    typer.echo(f"  Status: {status}")
+    counts = result.get("counts") or {}
+    typer.echo(
+        "  Rows: "
+        f"{counts.get('evaluated_rows', 0)} evaluated / "
+        f"{counts.get('forward_rows', 0)} mature forward"
+    )
+    typer.echo(
+        "  Events: "
+        f"{counts.get('positive_events', 0)} positive / "
+        f"{counts.get('predicted_events', 0)} predicted"
+    )
+
+    for gate_name, gate in (result.get("gates") or {}).items():
+        marker = "PASS" if gate.get("passed") else "WAIT"
+        actual = gate.get("actual")
+        required = gate.get("required")
+        detail = (
+            f" ({actual}/{required})"
+            if actual is not None and required is not None
+            else ""
+        )
+        typer.echo(f"  [{marker}] {gate_name}{detail}")
+
+    metrics = result.get("metrics")
+    if status == "ok" and isinstance(metrics, dict):
+        typer.echo(f"  Event precision: {metrics['event_precision']:.4f}")
+        typer.echo(f"  Event recall: {metrics['event_recall']:.4f}")
+        typer.echo(f"  Row precision: {metrics['row_precision']:.4f}")
+        typer.echo(f"  Row recall: {metrics['row_recall']:.4f}")
+        typer.echo(f"  Brier: {metrics['brier']:.4f}")
+        return
+
+    typer.echo(str(result.get("message") or status), err=status != "insufficient_evidence")
+    if status != "insufficient_evidence":
         raise typer.Exit(code=1)
-
-    typer.echo(f"Forward test: {model_id}")
-    typer.echo(f"  Forward rows: {result['n_forward_rows']}")
-    typer.echo(f"  Actual distributions: {result['n_positive_labels']}")
-    typer.echo(f"  Predicted positive: {result['n_predicted_positive']}")
-    m = result["metrics"]
-    tm = result.get("training_metrics", {})
-    dc = result.get("drift_check", {})
-    
-    train_prec = tm.get('precision')
-    prec_str = f"{train_prec:.4f}" if train_prec is not None else "N/A"
-    drift_str = f"{dc.get('precision_delta', 0.0):+.4f}" if train_prec is not None else "N/A"
-    typer.echo(f"  Precision: {m['precision']:.4f} (train: {prec_str}, drift: {drift_str})")
-    
-    train_rec = tm.get('recall')
-    rec_str = f"{train_rec:.4f}" if train_rec is not None else "N/A"
-    typer.echo(f"  Recall: {m['recall']:.4f} (train: {rec_str})")
-    
-    typer.echo(f"  Brier: {m['brier']:.4f}")
-    typer.echo(f"  {result['summary']}")
 
 
 @experiment_app.command("frozen-list")

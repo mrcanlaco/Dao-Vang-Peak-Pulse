@@ -1,10 +1,11 @@
-"""Forward test loop — freeze a model, score new data, track predictions vs
-materialized labels over time.
+"""Frozen-model artifact primitives and legacy experiment evaluation.
 
-This implements ROADMAP Phase 5 (Forward Collection) and Phase 6 (Watchlist)
-gating: a model must be frozen (code + config + threshold locked) BEFORE the
-forward test period starts. Data arriving after the freeze date is scored
-with the frozen model and never used for retraining.
+`freeze_model`, bundle loading, and batch scoring remain canonical artifact
+utilities. `evaluate_frozen` and the default cutoff behavior in `score_frozen`
+only filter after `train_cutoff`; they are retained for historical experiments
+and must not be used to publish release metrics. Release-facing evaluation
+uses `dao_vang.experiments.forward_evidence`, which also enforces freeze time,
+checksums, label maturity, universe/event contracts, and sample gates.
 
 Constitution §9: "chạy end-to-end bằng một command" + "có thể tái tạo cùng
 kết quả từ cùng raw snapshot và config". A frozen model guarantees
@@ -14,9 +15,9 @@ Flow:
     1. freeze_model(model, threshold, feature_cols, config, train_cutoff)
        -> saves model.joblib + metadata.json to artifacts/frozen_models/
     2. score_frozen(model_id, df_new)
-       -> returns predictions for data AFTER train_cutoff
+       -> legacy experiment scoring after train_cutoff
     3. evaluate_frozen(model_id, df_with_materialized_labels)
-       -> compares predictions vs labels that have now materialized
+       -> legacy row-level experiment comparison
     4. list_frozen_models() / load_frozen_model(model_id)
        -> registry operations
 """
@@ -396,10 +397,11 @@ def evaluate_frozen(
     df: pd.DataFrame,
     artifact_dir: Path = Path("artifacts"),
 ) -> Dict[str, Any]:
-    """Evaluate a frozen model against materialized labels using batch API.
+    """Run the legacy row-level evaluator for historical experiments only.
 
     Scores data after train_cutoff, then joins with labels (is_distribution).
-    Computes precision, recall, brier, and tracks excluded rows.
+    It does not enforce freeze time or release evidence gates. Use
+    `evaluate_forward_evidence` for API, UI, CLI, and production reporting.
     """
     from sklearn.metrics import brier_score_loss, precision_score, recall_score
 

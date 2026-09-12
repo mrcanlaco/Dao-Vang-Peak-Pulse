@@ -77,6 +77,7 @@ logger = logging.getLogger("dao_vang_api")
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DIST_DIR = (REPO_ROOT / "frontend" / "dist").resolve()
+FORWARD_TEST_PROTOCOL_PATH = REPO_ROOT / "configs" / "forward_test_live_v1.json"
 
 _settings = load_runtime_settings()
 _AUTH_FAILURES: dict[str, list[float]] = {}
@@ -4160,41 +4161,115 @@ class APIHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(res, default=str).encode('utf-8'))
 
     def evaluate_frozen_model(self, model_id: str):
-        """Evaluate a frozen model on forward-test data (data after train_cutoff)."""
+        """Evaluate only the model covered by the immutable live protocol."""
         from dao_vang.data.storage.duckdb import DuckDBQueryLayer
-        from dao_vang.experiments.forward_test import evaluate_frozen
+        from dao_vang.experiments.forward_evidence import (
+            evaluate_forward_evidence,
+            load_forward_test_protocol,
+        )
+
+        try:
+            protocol = load_forward_test_protocol(FORWARD_TEST_PROTOCOL_PATH)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            logger.error(
+                "forward_protocol_unavailable path=%s error=%s",
+                FORWARD_TEST_PROTOCOL_PATH,
+                exc,
+            )
+            self._set_headers(503)
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "status": "protocol_unavailable",
+                        "message": "Forward-test protocol is unavailable.",
+                        "model_id": model_id,
+                        "metrics": None,
+                    }
+                ).encode("utf-8")
+            )
+            return
+
+        if model_id != protocol.model_id:
+            self._set_headers(200)
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "status": "protocol_required",
+                        "message": (
+                            "This model has no approved independent "
+                            "forward-test protocol."
+                        ),
+                        "model_id": model_id,
+                        "protocol_model_id": protocol.model_id,
+                        "protocol_fingerprint": protocol.fingerprint,
+                        "metrics": None,
+                    }
+                ).encode("utf-8")
+            )
+            return
 
         try:
             settings = _settings
-            db = DuckDBQueryLayer(str(settings.scanner.db_path))
+            artifact_dir = Path(settings.scanner.artifact_dir)
+            if not artifact_dir.is_absolute():
+                artifact_dir = REPO_ROOT / artifact_dir
+            db = DuckDBQueryLayer(
+                str(settings.scanner.db_path),
+                read_only=True,
+            )
             try:
                 df = db.conn.execute(
                     """
-                    SELECT f.*, l.label_value AS is_distribution
+                    SELECT
+                        f.*,
+                        l.label_value AS is_distribution,
+                        l.horizon_hours,
+                        l.label_version
                     FROM feature_results f
                     INNER JOIN labels l
                         ON f.feature_time = l.signal_time AND f.symbol = l.symbol
-                    """
+                    WHERE l.horizon_hours = ? AND l.label_version = ?
+                    """,
+                    [
+                        protocol.label_horizon_hours,
+                        protocol.label_version,
+                    ],
                 ).df()
             finally:
-                db.conn.close()
+                db.close()
 
             if df.empty:
                 self._set_headers(200)
                 self.wfile.write(json.dumps({
-                    "status": "no_data",
-                    "message": "Không có dữ liệu feature_results + labels trong DB. Chạy Backtest trước.",
+                    "status": "no_forward_data",
+                    "message": "No labeled rows match the locked forward-test contract.",
                     "model_id": model_id,
+                    "protocol_fingerprint": protocol.fingerprint,
+                    "metrics": None,
                 }).encode('utf-8'))
                 return
 
-            result = evaluate_frozen(model_id, df, artifact_dir=Path("./artifacts"))
+            result = evaluate_forward_evidence(
+                model_id,
+                df,
+                protocol,
+                artifact_dir=artifact_dir,
+            )
             self._set_headers(200)
             self.wfile.write(json.dumps(result, default=str).encode('utf-8'))
         except Exception as exc:
             logger.warning(f"frozen_evaluate_failed model={model_id} error={exc}")
             self._set_headers(500)
-            self.wfile.write(json.dumps({"status": "error", "message": str(exc)}, default=str).encode('utf-8'))
+            self.wfile.write(
+                json.dumps(
+                    {
+                        "status": "error",
+                        "message": "Forward-test evaluation failed.",
+                        "model_id": model_id,
+                        "metrics": None,
+                    }
+                ).encode("utf-8")
+            )
 
     def get_system_history(self):
         """System history & data stats for the new SYSTEM HISTORY tab.

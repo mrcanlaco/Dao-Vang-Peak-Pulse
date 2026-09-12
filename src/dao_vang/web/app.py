@@ -3265,8 +3265,9 @@ with _detect_container:
         "Kiểm tra độ ổn định thực tế trước khi dùng thật. Model không vượt mốc so sánh trong forward test → không triển khai."
     )
 
-    from dao_vang.experiments.forward_test import (
-        evaluate_frozen,
+    from dao_vang.experiments.forward_evidence import (
+        evaluate_forward_evidence,
+        load_forward_test_protocol,
     )
     from dao_vang.experiments.forward_test import (
         freeze_model as _freeze_model,
@@ -3274,6 +3275,17 @@ with _detect_container:
     from dao_vang.experiments.forward_test import (
         list_frozen_models as _list_frozen,
     )
+
+    _ft_protocol_path = (
+        Path(__file__).resolve().parents[3]
+        / "configs"
+        / "forward_test_live_v1.json"
+    )
+    try:
+        _ft_protocol = load_forward_test_protocol(_ft_protocol_path)
+    except (OSError, ValueError):
+        _ft_protocol = None
+        st.error("Protocol forward-test production không khả dụng.")
 
     _ft_c1, _ft_c2 = st.columns(2)
     with _ft_c1:
@@ -3359,59 +3371,136 @@ with _detect_container:
             _fm_options = {f"{m.model_id}  (mốc cắt: {m.train_cutoff[:10]}, ngưỡng: {m.threshold:.3f})": m.model_id for m in _frozen_models}
             _sel_fm = st.selectbox("Chọn model để đánh giá forward test", options=list(_fm_options.keys()))
             _sel_id = _fm_options[_sel_fm]
+            _ft_is_approved = (
+                _ft_protocol is not None
+                and _sel_id == _ft_protocol.model_id
+            )
+            if not _ft_is_approved:
+                st.caption(
+                    "Model này chưa có protocol forward-test độc lập được "
+                    "phê duyệt nên hệ thống sẽ không công bố metric."
+                )
 
-            if st.button("📊 Chấm điểm forward test (kiểm tra tiến lên)", type="primary"):
+            if st.button(
+                "📊 Chấm điểm forward test (kiểm tra tiến lên)",
+                type="primary",
+                disabled=not _ft_is_approved,
+            ):
                 try:
+                    assert _ft_protocol is not None
                     _ft_db2 = DuckDBQueryLayer(db_path)
                     _ft_df2 = _ft_db2.conn.execute(
                         """
-                        SELECT f.*, l.label_value AS is_distribution
+                        SELECT
+                            f.*,
+                            l.label_value AS is_distribution,
+                            l.horizon_hours,
+                            l.label_version
                         FROM feature_results f
                         INNER JOIN labels l
                             ON f.feature_time = l.signal_time AND f.symbol = l.symbol
-                        """
+                        WHERE l.horizon_hours = ? AND l.label_version = ?
+                        """,
+                        [
+                            _ft_protocol.label_horizon_hours,
+                            _ft_protocol.label_version,
+                        ],
                     ).df()
                     _ft_db2.conn.close()
 
-                    _ft_result = evaluate_frozen(_sel_id, _ft_df2, artifact_dir=Path(artifact_dir))
+                    _ft_result = evaluate_forward_evidence(
+                        _sel_id,
+                        _ft_df2,
+                        _ft_protocol,
+                        artifact_dir=Path(artifact_dir),
+                    )
 
-                    if _ft_result["status"] != "ok":
-                        st.warning(f"Không thể đánh giá: {_ft_result.get('message', _ft_result['status'])}")
-                    else:
+                    _ft_status = _ft_result["status"]
+                    _ft_gates = _ft_result.get("gates", {})
+                    if _ft_status == "insufficient_evidence":
+                        st.warning(
+                            "Chưa đủ bằng chứng theo protocol; toàn bộ metric "
+                            "hiệu năng đang được giữ kín."
+                        )
+                    elif _ft_status != "ok":
+                        st.warning(
+                            "Không thể đánh giá: "
+                            f"{_ft_result.get('message', _ft_status)}"
+                        )
+
+                    if _ft_gates:
+                        _ft_gate_rows = []
+                        for _gate_name, _gate in _ft_gates.items():
+                            _ft_actual = _gate.get("actual")
+                            _ft_required = _gate.get("required")
+                            _ft_gate_rows.append(
+                                {
+                                    "Gate": _gate_name,
+                                    "Trạng thái": (
+                                        "Đạt" if _gate.get("passed") else "Chờ"
+                                    ),
+                                    "Thực tế": _ft_actual,
+                                    "Yêu cầu": _ft_required,
+                                }
+                            )
+                        st.dataframe(
+                            pd.DataFrame(_ft_gate_rows),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+
+                    if _ft_status == "ok" and _ft_result.get("metrics"):
                         _ft_m = _ft_result["metrics"]
-                        _ft_tm = _ft_result["training_metrics"]
-                        _ft_drift = _ft_result["drift_check"]
+                        st.markdown("#### Kết quả đủ điều kiện công bố")
+                        _ftc1, _ftc2, _ftc3, _ftc4, _ftc5 = st.columns(5)
+                        _ftc1.metric(
+                            "Precision sự kiện",
+                            f"{_ft_m['event_precision']:.4f}",
+                        )
+                        _ftc2.metric(
+                            "Recall sự kiện",
+                            f"{_ft_m['event_recall']:.4f}",
+                        )
+                        _ftc3.metric(
+                            "Precision theo dòng",
+                            f"{_ft_m['row_precision']:.4f}",
+                        )
+                        _ftc4.metric(
+                            "Recall theo dòng",
+                            f"{_ft_m['row_recall']:.4f}",
+                        )
+                        _ftc5.metric(
+                            "Brier",
+                            f"{_ft_m['brier']:.4f}",
+                            help=_glossary_tooltip("Brier Score"),
+                        )
 
-                        st.markdown("#### Kết quả kiểm tra tiến lên")
-                        _ftc1, _ftc2, _ftc3 = st.columns(3)
-                        _ftc1.metric("Độ chính xác", f"{_ft_m['precision']:.4f}", f"{_ft_m['precision'] - _ft_tm['precision']:+.4f} vs lúc train", help=_glossary_tooltip("Precision"))
-                        _ftc2.metric("Tỷ lệ bắt được", f"{_ft_m['recall']:.4f}", f"{_ft_m['recall'] - _ft_tm['recall']:+.4f} vs lúc train", help=_glossary_tooltip("Recall"))
-                        _ftc3.metric("Độ chuẩn xác", f"{_ft_m['brier']:.4f}", help=_glossary_tooltip("Brier Score"))
-
-                        st.info(f"📊 {_ft_result['summary']}")
-
-                        # Drift alert
-                        if _ft_drift["precision_drift"]:
-                            st.error("🔴 **Phát hiện trôi dịch** — độ chính xác thay đổi >0.1 so với lúc train. Model có thể không còn ổn định.")
-                        else:
-                            st.success("✅ Không có trôi dịch đáng kể — model ổn định trong forward test.")
-
-                        # Risk breakdown
-                        _rb = _ft_result["risk_breakdown"]
-                        if _rb:
-                            st.markdown("##### Phân tích theo mức nguy cơ")
-                            _rb_rows = []
-                            for _lvl in ["CAO", "TRUNG BÌNH", "THẤP", "RẤT THẤP"]:
-                                _d = _rb.get(_lvl, {})
-                                _rb_rows.append({
-                                    "Mức nguy cơ": _lvl,
-                                    "Số tín hiệu": _d.get("n_signals", 0),
-                                    "Thực xả": _d.get("n_actual_distribution", 0),
-                                    "Độ chính xác": f"{_d.get('precision', 0):.4f}",
-                                })
-                            st.dataframe(pd.DataFrame(_rb_rows), use_container_width=True, hide_index=True)
-
-                        st.caption(f"Dòng forward: {_ft_result['n_forward_rows']} | Xả thật: {_ft_result['n_positive_labels']} | AI báo xả: {_ft_result['n_predicted_positive']}")
+                    _ft_counts = _ft_result.get("counts", {})
+                    st.caption(
+                        "Dòng trưởng thành: "
+                        f"{_ft_counts.get('forward_rows', 0)} | "
+                        "Dòng dùng được: "
+                        f"{_ft_counts.get('evaluated_rows', 0)} | "
+                        "Sự kiện thật: "
+                        f"{_ft_counts.get('positive_events', 0)} | "
+                        "Sự kiện dự báo: "
+                        f"{_ft_counts.get('predicted_events', 0)}"
+                    )
+                    _ft_operational = _ft_result.get("operational")
+                    if _ft_operational:
+                        _ft_compute = _ft_operational.get("compute_cost_usd")
+                        st.caption(
+                            "Inference: "
+                            f"{_ft_operational['inference_ms_per_1000_rows']:.1f} "
+                            "ms/1k dòng | API: "
+                            f"${_ft_operational['external_api_cost_usd']:.4f} | "
+                            "Compute: "
+                            + (
+                                f"${_ft_compute:.4f}"
+                                if _ft_compute is not None
+                                else "chưa đo"
+                            )
+                        )
                 except Exception as _e:
                     st.error(f"❌ Lỗi kiểm tra tiến lên: {_e}")
 

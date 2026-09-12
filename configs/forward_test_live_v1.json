@@ -1,0 +1,26 @@
+{
+  "schema_version": "forward_evidence_v1",
+  "model_id": "frozen_20260906_105716_bc3c369b",
+  "evaluation_start": "2026-09-06T10:57:16.293277+07:00",
+  "evaluation_end": null,
+  "cutoff_policy": "max_train_cutoff_and_freeze_time",
+  "universe_policy": {
+    "mode": "all_scored_rows",
+    "exchange": "binance_usdm",
+    "source": "feature_results",
+    "selection": "all mature labeled rows produced by the locked scanner policy",
+    "post_hoc_symbol_filtering": false
+  },
+  "label_version": "distribution_short_v1",
+  "label_horizon_hours": 24,
+  "event_gap_minutes": 240,
+  "min_evaluated_rows": 1000,
+  "min_positive_events": 50,
+  "min_predicted_events": 30,
+  "min_evaluation_days": 7,
+  "expected_model_sha256": "27961bc6c9a24e52136d00f208258343e8d5b75980fe156dbfba699264f51a12",
+  "expected_calibrator_sha256": "0e425413f24a3a96ece91d1e201f0be4dd3709526733d19a19d649871b3c72db",
+  "expected_metadata_sha256": "ef0299576ba6eb8410c3ac2b62b8da9d201183f845f22129417c9de6d1e7849a",
+  "external_api_cost_per_1000_rows_usd": 0,
+  "compute_cost_per_hour_usd": null
+}

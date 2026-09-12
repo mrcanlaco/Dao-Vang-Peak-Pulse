@@ -811,33 +811,59 @@ export interface FrozenModelsData {
 
 export interface ForwardTestResult {
   status: string;
-  model_id?: string;
+  model_id: string;
   message?: string;
-  train_cutoff?: string;
-  threshold?: number;
-  n_forward_rows?: number;
-  n_positive_labels?: number;
-  n_predicted_positive?: number;
+  protocol_model_id?: string;
+  protocol_fingerprint?: string;
   metrics?: {
-    precision: number;
-    recall: number;
+    event_precision: number;
+    event_recall: number;
+    row_precision: number;
+    row_recall: number;
     brier: number;
+    threshold: number;
+  } | null;
+  counts?: {
+    source_rows?: number;
+    forward_rows?: number;
+    evaluated_rows?: number;
+    excluded_rows?: number;
+    out_of_universe_rows?: number;
+    positive_rows?: number;
+    predicted_positive_rows?: number;
+    positive_events?: number;
+    predicted_events?: number;
+    predicted_event_hits?: number;
+    detected_positive_events?: number;
   };
-  training_metrics?: {
-    precision: number;
-    recall: number;
-  };
-  risk_breakdown?: Record<string, {
-    n_signals: number;
-    n_actual_distribution: number;
-    precision: number;
+  gates?: Record<string, {
+    passed: boolean;
+    actual?: number;
+    required?: number;
   }>;
-  drift_check?: {
-    precision_delta: number;
-    recall_delta: number;
-    precision_drift: boolean;
+  window?: {
+    train_cutoff?: string;
+    freeze_time?: string;
+    evaluation_start?: string;
+    evaluation_end?: string;
+    label_maturity_cutoff?: string;
+    observed_start?: string;
+    observed_end?: string;
+    observed_days?: number;
   };
-  summary?: string;
+  operational?: {
+    inference_elapsed_seconds: number;
+    inference_ms_per_1000_rows: number;
+    external_api_calls: number;
+    external_api_cost_usd: number;
+    compute_cost_usd: number | null;
+    compute_cost_status: 'metered' | 'not_metered';
+  };
+  bundle?: {
+    verified?: boolean;
+    model_sha256?: string | null;
+    calibrator_sha256?: string | null;
+  };
 }
 
 // ===== System History tab =====

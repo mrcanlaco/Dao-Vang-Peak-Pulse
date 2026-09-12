@@ -3,8 +3,13 @@
 import json
 from pathlib import Path
 
+import pandas as pd
 import yaml
 
+from dao_vang.experiments.forward_evidence import (
+    canonical_metadata_sha256,
+    load_forward_test_protocol,
+)
 from dao_vang.experiments.forward_test import (
     load_frozen_model,
     load_frozen_model_estimator,
@@ -13,6 +18,7 @@ from dao_vang.scoring.frozen_inference import _verify_bundle_checksums
 
 ROOT = Path(__file__).resolve().parents[2]
 LIVE_CONFIG_PATH = ROOT / "configs" / "live.yaml"
+FORWARD_PROTOCOL_PATH = ROOT / "configs" / "forward_test_live_v1.json"
 COMPOSE_PATH = ROOT / "docker-compose.yml"
 SENSITIVE_CONFIG_KEYS = {
     "access_password",
@@ -80,3 +86,32 @@ def test_live_config_selects_a_complete_checksum_verified_bundle():
 
     estimator = load_frozen_model_estimator(model_id, artifact_dir)
     assert callable(getattr(estimator, "predict_proba", None))
+
+
+def test_forward_protocol_is_locked_to_the_exact_live_bundle():
+    config = _load_live_config()
+    scanner = config["scanner"]
+    info = load_frozen_model(
+        scanner["frozen_model_id"],
+        ROOT / scanner["artifact_dir"],
+    )
+    protocol = load_forward_test_protocol(FORWARD_PROTOCOL_PATH)
+
+    evaluation_start = pd.Timestamp(protocol.evaluation_start)
+    train_cutoff = pd.Timestamp(info.train_cutoff)
+    freeze_time = pd.Timestamp(info.freeze_time)
+
+    assert protocol.model_id == scanner["frozen_model_id"] == info.model_id
+    assert protocol.expected_model_sha256 == info.checksums["model_sha256"]
+    assert (
+        protocol.expected_calibrator_sha256
+        == info.checksums["calibrator_sha256"]
+    )
+    assert (
+        protocol.expected_metadata_sha256
+        == canonical_metadata_sha256(info.metadata_path)
+    )
+    assert evaluation_start >= max(train_cutoff, freeze_time)
+    assert protocol.label_version == info.label_spec["version"]
+    assert protocol.label_horizon_hours == info.label_spec["horizon_hours"]
+    assert protocol.universe_policy["post_hoc_symbol_filtering"] is False

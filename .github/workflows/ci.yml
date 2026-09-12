@@ -41,6 +41,7 @@ jobs:
           uv run --frozen pyright
           src/dao_vang/config/settings.py
           src/dao_vang/updater/manager.py
+          src/dao_vang/experiments/forward_evidence.py
           src/dao_vang/scoring/frozen_inference.py
           src/dao_vang/scoring/engine_comparison.py
           src/dao_vang/scanner/healthcheck.py

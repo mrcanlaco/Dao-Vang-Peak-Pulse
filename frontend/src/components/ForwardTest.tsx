@@ -1,9 +1,129 @@
 import React, { useState, useEffect } from 'react';
 import type { FrozenModelsData, ForwardTestResult } from '../types';
-import { Lock, Play, AlertTriangle, CheckCircle2, XCircle, Loader2, TrendingDown, Snowflake } from 'lucide-react';
+import { Lock, Play, AlertTriangle, CheckCircle2, XCircle, Loader2, Snowflake } from 'lucide-react';
 import { formatSystemDateTime } from '../utils/time';
 import { useTranslation } from '../i18n/LanguageContext';
-import { getRiskLabel, getModelLabel, getModelDescription } from '../i18n/translations';
+import { getModelLabel, getModelDescription } from '../i18n/translations';
+
+const VI_GATE_LABELS: Record<string, string> = {
+  bundle_verified: 'Đúng model và calibrator đã khóa',
+  cutoff_locked_after_freeze: 'Dữ liệu bắt đầu sau lúc đóng băng',
+  label_contract_verified: 'Đúng phiên bản và horizon của nhãn',
+  universe_policy_locked: 'Universe policy đã khóa',
+  minimum_evaluated_rows: 'Đủ số dòng đánh giá',
+  minimum_positive_events: 'Đủ số sự kiện dương tính',
+  minimum_predicted_events: 'Đủ số sự kiện dự báo',
+  minimum_evaluation_days: 'Đủ độ dài cửa sổ đánh giá',
+};
+
+const formatGateLabel = (name: string, language: string) => {
+  if (language === 'vi' && VI_GATE_LABELS[name]) return VI_GATE_LABELS[name];
+  return name.replaceAll('_', ' ');
+};
+
+const ForwardEvidencePanel: React.FC<{
+  result: ForwardTestResult;
+  language: string;
+}> = ({ result, language }) => {
+  const isEvidenceReport =
+    result.status === 'ok' || result.status === 'insufficient_evidence';
+  const vi = language === 'vi';
+
+  if (!isEvidenceReport) {
+    return (
+      <div className="flex items-center gap-2 text-[11px] text-amber-400 bg-amber-950/40 border border-amber-800/50 p-2 rounded">
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        {result.message || `Status: ${result.status}`}
+      </div>
+    );
+  }
+
+  const metrics = result.status === 'ok' ? result.metrics : null;
+  const counts = result.counts ?? {};
+  const gates = Object.entries(result.gates ?? {});
+
+  return (
+    <div className="space-y-2">
+      <div className={`flex items-center gap-2 text-[11px] p-2 rounded border ${
+        metrics
+          ? 'text-emerald-300 bg-emerald-950/40 border-emerald-800/50'
+          : 'text-amber-300 bg-amber-950/40 border-amber-800/50'
+      }`}>
+        {metrics
+          ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+          : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+        {metrics
+          ? (vi ? 'Đã vượt toàn bộ gate; metric trong phạm vi protocol được hiển thị.' : 'All evidence gates passed; protocol-scoped metrics are available.')
+          : (vi ? 'Chưa đủ bằng chứng; hệ thống đang giữ kín toàn bộ metric hiệu năng.' : 'Evidence is insufficient; all performance metrics remain withheld.')}
+      </div>
+
+      {metrics && (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          {[
+            [vi ? 'Precision sự kiện' : 'Event precision', metrics.event_precision],
+            [vi ? 'Recall sự kiện' : 'Event recall', metrics.event_recall],
+            [vi ? 'Precision theo dòng' : 'Row precision', metrics.row_precision],
+            [vi ? 'Recall theo dòng' : 'Row recall', metrics.row_recall],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="bg-slate-900 p-2 rounded">
+              <div className="text-[9px] text-slate-400 uppercase">{label}</div>
+              <div className="text-sm font-bold text-amber-400 font-mono">
+                {(Number(value) * 100).toFixed(1)}%
+              </div>
+            </div>
+          ))}
+          <div className="bg-slate-900 p-2 rounded">
+            <div className="text-[9px] text-slate-400 uppercase">Brier</div>
+            <div className="text-sm font-bold text-slate-200 font-mono">
+              {metrics.brier.toFixed(3)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {gates.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+          {gates.map(([name, gate]) => (
+            <div
+              key={name}
+              className={`flex items-center justify-between gap-2 rounded border px-2 py-1.5 text-[10px] ${
+                gate.passed
+                  ? 'border-emerald-900/70 bg-emerald-950/20 text-emerald-300'
+                  : 'border-amber-900/70 bg-amber-950/20 text-amber-300'
+              }`}
+            >
+              <span>{gate.passed ? '✓' : '…'} {formatGateLabel(name, language)}</span>
+              {gate.actual !== undefined && gate.required !== undefined && (
+                <span className="font-mono shrink-0">{gate.actual.toFixed(1)} / {gate.required}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="text-[10px] text-slate-400 bg-slate-900/60 p-2 rounded">
+        {vi ? 'Dòng trưởng thành' : 'Mature rows'}: {counts.forward_rows ?? 0}
+        {' · '}{vi ? 'Dòng dùng được' : 'Usable rows'}: {counts.evaluated_rows ?? 0}
+        {' · '}{vi ? 'Sự kiện thật' : 'Positive events'}: {counts.positive_events ?? 0}
+        {' · '}{vi ? 'Sự kiện dự báo' : 'Predicted events'}: {counts.predicted_events ?? 0}
+      </div>
+
+      {result.operational && (
+        <div className="text-[10px] text-slate-500 font-mono">
+          {vi ? 'Độ trễ suy luận' : 'Inference latency'}: {result.operational.inference_ms_per_1000_rows.toFixed(1)} ms/1k
+          {' · API: $'}{result.operational.external_api_cost_usd.toFixed(4)}
+          {' · '}{vi ? 'Chi phí compute' : 'Compute cost'}: {result.operational.compute_cost_usd === null ? (vi ? 'chưa đo' : 'not metered') : `$${result.operational.compute_cost_usd.toFixed(4)}`}
+        </div>
+      )}
+
+      {result.protocol_fingerprint && (
+        <div className="text-[9px] text-slate-600 font-mono break-all">
+          Protocol: {result.protocol_fingerprint}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const ForwardTest: React.FC = () => {
   const { language, t } = useTranslation();
@@ -42,7 +162,12 @@ export const ForwardTest: React.FC = () => {
       const json = await res.json();
       setResult(json);
     } catch (err) {
-      setResult({ status: 'error', message: err instanceof Error ? err.message : t('network_err') });
+      setResult({
+        status: 'error',
+        model_id: modelId,
+        message: err instanceof Error ? err.message : t('network_err'),
+        metrics: null,
+      });
     } finally {
       setEvaluating(false);
     }
@@ -236,91 +361,7 @@ export const ForwardTest: React.FC = () => {
                 {/* Evaluation result for this model */}
                 {selectedModel === m.model_id && result && !evaluating && (
                   <div className="mt-3 pt-3 border-t border-slate-800">
-                    {result.status === 'ok' ? (
-                      <>
-                        <div className="grid grid-cols-3 gap-2 mb-2">
-                          <div className="bg-slate-900 p-2 rounded">
-                            <div className="text-[9px] text-slate-400 uppercase">{t('forward_precision')}</div>
-                            <div className="text-sm font-bold text-amber-400 font-mono">
-                              {(result.metrics!.precision * 100).toFixed(1)}%
-                            </div>
-                            <div className="text-[9px] text-slate-500">
-                              {t('forward_vs_training')} {result.training_metrics!.precision > 0 ? `${((result.metrics!.precision - result.training_metrics!.precision) * 100).toFixed(+1)} pp` : '—'}
-                            </div>
-                          </div>
-                          <div className="bg-slate-900 p-2 rounded">
-                            <div className="text-[9px] text-slate-400 uppercase">{t('forward_recall')}</div>
-                            <div className="text-sm font-bold text-sky-400 font-mono">
-                              {(result.metrics!.recall * 100).toFixed(1)}%
-                            </div>
-                            <div className="text-[9px] text-slate-500">
-                              {t('forward_vs_training')} {result.training_metrics!.recall > 0 ? `${((result.metrics!.recall - result.training_metrics!.recall) * 100).toFixed(+1)} pp` : '—'}
-                            </div>
-                          </div>
-                          <div className="bg-slate-900 p-2 rounded">
-                            <div className="text-[9px] text-slate-400 uppercase">{t('forward_brier')}</div>
-                            <div className="text-sm font-bold text-slate-200 font-mono">
-                              {result.metrics!.brier.toFixed(3)}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-[11px] text-slate-300 bg-slate-900/60 p-2 rounded mb-2">
-                          📊 {result.summary}
-                        </div>
-
-                        {/* Drift alert */}
-                        {result.drift_check?.precision_drift ? (
-                          <div className="flex items-center gap-2 text-[11px] text-red-400 bg-red-950/40 border border-red-800/50 p-2 rounded mb-2">
-                            <TrendingDown className="w-3.5 h-3.5" />
-                            {t('forward_drift_alert')}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-950/40 border border-emerald-800/50 p-2 rounded mb-2">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            {t('forward_stable_alert')}
-                          </div>
-                        )}
-
-                        {/* Risk breakdown */}
-                        {result.risk_breakdown && Object.keys(result.risk_breakdown).length > 0 && (
-                          <div>
-                            <h5 className="text-[11px] font-bold text-slate-300 mb-1.5">{t('forward_risk_tier_perf')}</h5>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-left text-[10px] text-slate-300 font-mono">
-                                <thead className="text-slate-400 uppercase border-b border-slate-800">
-                                  <tr>
-                                    <th className="p-1.5">{t('forward_tier_col')}</th>
-                                    <th className="p-1.5">{t('forward_signals_col')}</th>
-                                    <th className="p-1.5">{t('forward_actual_col')}</th>
-                                    <th className="p-1.5">{t('forward_prec_col')}</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-800/60">
-                                  {Object.entries(result.risk_breakdown).map(([level, d]) => (
-                                    <tr key={level} className="hover:bg-slate-900/60">
-                                      <td className="p-1.5 text-white">{getRiskLabel(level, language)}</td>
-                                      <td className="p-1.5 text-slate-400">{d.n_signals}</td>
-                                      <td className="p-1.5 text-emerald-400">{d.n_actual_distribution}</td>
-                                      <td className="p-1.5 text-amber-400">{(d.precision * 100).toFixed(1)}%</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="mt-2 text-[10px] text-slate-500">
-                          {t('forward_rows_count')}: {result.n_forward_rows} · {t('forward_pos_labels')}: {result.n_positive_labels} · {t('forward_pred_pos')}: {result.n_predicted_positive}
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center gap-2 text-[11px] text-amber-400 bg-amber-950/40 border border-amber-800/50 p-2 rounded">
-                        <AlertTriangle className="w-3.5 h-3.5" />
-                        {result.message || `${t('col_status')}: ${result.status}`}
-                      </div>
-                    )}
+                    <ForwardEvidencePanel result={result} language={language} />
                   </div>
                 )}
               </div>
