@@ -13,6 +13,7 @@ from dao_vang.scoring.frozen_inference import _verify_bundle_checksums
 
 ROOT = Path(__file__).resolve().parents[2]
 LIVE_CONFIG_PATH = ROOT / "configs" / "live.yaml"
+COMPOSE_PATH = ROOT / "docker-compose.yml"
 SENSITIVE_CONFIG_KEYS = {
     "access_password",
     "api_key",
@@ -49,6 +50,15 @@ def test_live_config_is_safe_to_version_and_disables_self_update():
 
     assert _sensitive_paths(config) == []
     assert config["updater"]["enabled"] is False
+
+
+def test_scanner_healthcheck_does_not_import_the_full_scanner_package():
+    compose = yaml.safe_load(COMPOSE_PATH.read_text(encoding="utf-8"))
+    command = compose["services"]["scanner"]["healthcheck"]["test"]
+
+    assert command[:2] == ["CMD", "python"]
+    assert command[2] == "/app/src/dao_vang/scanner/healthcheck.py"
+    assert "-m" not in command
 
 
 def test_live_config_selects_a_complete_checksum_verified_bundle():
