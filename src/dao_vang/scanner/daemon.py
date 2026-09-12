@@ -1116,9 +1116,10 @@ class ScannerDaemon:
             stats: list[dict[str, Any]] = []
             for table in tables:
                 try:
-                    n_rows = int(conn.execute(
+                    count_row = conn.execute(
                         f"SELECT count(*) FROM {table}"
-                    ).fetchone()[0])
+                    ).fetchone()
+                    n_rows = int(count_row[0]) if count_row is not None else 0
                 except Exception:
                     n_rows = 0
                 columns = [
@@ -1132,16 +1133,22 @@ class ScannerDaemon:
                 if ts_col and n_rows > 0:
                     try:
                         if table == "scan_results" and ts_col == "scan_time":
-                            min_time = conn.execute(
+                            min_row = conn.execute(
                                 f"SELECT min({ts_col}) FROM {table}"
-                            ).fetchone()[0]
-                            max_time = conn.execute(
+                            ).fetchone()
+                            max_row = conn.execute(
                                 f"SELECT {ts_col} FROM {table} ORDER BY rowid DESC LIMIT 1"
-                            ).fetchone()[0]
+                            ).fetchone()
+                            min_time = min_row[0] if min_row is not None else None
+                            max_time = max_row[0] if max_row is not None else None
                         else:
-                            min_time, max_time = conn.execute(
+                            time_range = conn.execute(
                                 f"SELECT min({ts_col}), max({ts_col}) FROM {table}"
                             ).fetchone()
+                            if time_range is None:
+                                min_time = max_time = None
+                            else:
+                                min_time, max_time = time_range
                         row["ts_column"] = ts_col
                         row["min_time"] = self._system_stats_timestamp(min_time)
                         row["max_time"] = self._system_stats_timestamp(max_time)
@@ -1375,7 +1382,7 @@ class ScannerDaemon:
         prediction_id: str,
         volume_24h_usd: float = 0.0,
         collect_for_digest: bool = False,
-    ) -> bool | dict[str, Any]:
+    ) -> bool | dict[str, Any] | None:
         """Evaluate and send (or collect) one Radar observation."""
         cooldown_key = f"{symbol}:{horizon_hours}h"
         telegram_cooldown = getattr(
@@ -1683,7 +1690,11 @@ class ScannerDaemon:
         if pd.isna(sig_raw):
             logger.warning("scanner_invalid_signal_timestamp", symbol=symbol)
             return 0
-        sig_time = sig_raw.to_pydatetime()
+        sig_value = sig_raw.to_pydatetime()
+        if not isinstance(sig_value, datetime):
+            logger.warning("scanner_invalid_signal_timestamp", symbol=symbol)
+            return 0
+        sig_time = sig_value
         if sig_time.tzinfo is None:
             sig_time = sig_time.replace(tzinfo=timezone.utc)
         else:
@@ -1878,7 +1889,7 @@ class ScannerDaemon:
                 )
                 if collect_for_digest:
                     return res if isinstance(res, dict) else None
-                return int(res)
+                return 1 if res is True else 0
             logger.info(
                 "scanner_alert_suppressed",
                 symbol=symbol,
@@ -1886,6 +1897,11 @@ class ScannerDaemon:
                 quality_status=result.quality.status,
                 quality_reasons=list(result.quality.reason_codes),
             )
+            return 0 if not collect_for_digest else None
+
+        calibrated_probability = result.calibrated_probability
+        if calibrated_probability is None:
+            logger.warning("scanner_missing_calibrated_probability", symbol=symbol)
             return 0 if not collect_for_digest else None
 
         # Cross-reference with CoinGecko if enabled — flagged explicitly
@@ -1944,7 +1960,7 @@ class ScannerDaemon:
         record = AlertRecord(
             signal_time=sig_time,
             symbol=symbol,
-            probability=float(result.calibrated_probability),
+            probability=float(calibrated_probability),
             risk_level=risk_level,
             threshold=result.threshold,
             close_price=close_price,
@@ -1991,9 +2007,9 @@ class ScannerDaemon:
             )
             if collect_for_digest:
                 return res if isinstance(res, dict) else None
-            if res:
+            if res is True:
                 self._alert_store.mark_telegram_sent(sig_time, symbol)
-            return int(res)
+            return 1 if res is True else 0
 
         cooldown_key = f"{symbol}:{horizon_hours}h"
         telegram_cooldown = getattr(

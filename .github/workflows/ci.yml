@@ -44,6 +44,7 @@ jobs:
           src/dao_vang/experiments/forward_evidence.py
           src/dao_vang/scoring/frozen_inference.py
           src/dao_vang/scoring/engine_comparison.py
+          src/dao_vang/scanner/daemon.py
           src/dao_vang/scanner/healthcheck.py
           src/dao_vang/web/api_server.py
           src/dao_vang/web/ai_analyst.py
