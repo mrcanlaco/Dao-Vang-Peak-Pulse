@@ -1,8 +1,9 @@
 # Mô hình production và mức độ bằng chứng
 
-Tài liệu này là điểm tham chiếu duy nhất cho bundle đang được scanner live sử
-dụng. configs/live.yaml chọn model; metadata.json trong bundle là nguồn sự
-thật cho cutoff, threshold, feature schema và checksum.
+`configs/live.yaml` là cấu hình production không chứa bí mật và được quản lý
+phiên bản trong Git. Đây là nguồn duy nhất chọn bundle mà scanner live sử dụng;
+bí mật vận hành chỉ nằm trong `.env.docker`. `metadata.json` trong bundle là
+nguồn sự thật cho cutoff, threshold, feature schema và checksum.
 
 ## Phiên bản đang phục vụ
 

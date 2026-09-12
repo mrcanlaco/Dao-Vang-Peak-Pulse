@@ -13,7 +13,7 @@ __pycache__/
 *.egg-info/
 *.egg
 
-# Environments & Sensitive Configs
+# Environments & Sensitive Runtime Configs
 .env
 .env.*
 !.env.example
@@ -24,7 +24,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-configs/live.yaml
 configs/*.local.yaml
 /cloudflared/*
 !/cloudflared/config.example.yml
@@ -98,5 +97,4 @@ dao_vang_docs*
 .DS_Store
 Thumbs.db
 desktop.ini
-configs/live.yaml
 frontend/dist/

@@ -29,9 +29,12 @@ nano .env.docker
 ```
 
 Configure the following essential variables:
-- `DAO_VANG_SCANNER__FROZEN_MODEL_ID` — **REQUIRED** (see Section 3)
 - `DAO_VANG_TELEGRAM__BOT_TOKEN` + `DAO_VANG_TELEGRAM__CHAT_ID` — to receive Telegram alerts
 - `DAO_VANG_TELEGRAM__LANGUAGE=en` — to receive alerts in English (`en` or `vi`)
+- `DAO_VANG_WEB__ACCESS_PASSWORD` — dashboard access password
+
+The production model and non-secret scanner settings are versioned in
+`configs/live.yaml`.
 
 ### Step 2: Build the Docker Image
 
@@ -71,10 +74,9 @@ ls artifacts/frozen_models/
 # e.g., frozen_20260803_160757_cf749fbe
 ```
 
-Set the ID in `.env.docker`:
-```env
-DAO_VANG_SCANNER__FROZEN_MODEL_ID=frozen_20260803_160757_cf749fbe
-```
+`scanner.frozen_model_id` in `configs/live.yaml` selects the serving model.
+Changing the production model requires a reviewed commit; CI verifies the
+model, calibrator, and checksums before deployment.
 
 ### Option B: Train a New Model inside Docker
 

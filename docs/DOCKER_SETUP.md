@@ -24,9 +24,12 @@ cp .env.docker.example .env.docker
 nano .env.docker
 ```
 
-Sửa các giá trị:
-- `DAO_VANG_SCANNER__FROZEN_MODEL_ID` — **BẮT BUỘC** (xem mục 3)
+Sửa các giá trị bí mật:
 - `DAO_VANG_TELEGRAM__BOT_TOKEN` + `DAO_VANG_TELEGRAM__CHAT_ID` — nếu muốn nhận alert Telegram
+- `DAO_VANG_WEB__ACCESS_PASSWORD` — mật khẩu truy cập dashboard
+
+Model production và các tham số scanner không nhạy cảm được quản lý tại
+`configs/live.yaml`.
 
 ### Bước 2: Build image
 
@@ -64,10 +67,9 @@ ls artifacts/frozen_models/
 # → frozen_20260803_160757_cf749fbe
 ```
 
-Copy ID vào `.env.docker`:
-```
-DAO_VANG_SCANNER__FROZEN_MODEL_ID=frozen_20260803_160757_cf749fbe
-```
+Model đang phục vụ được chọn tại `scanner.frozen_model_id` trong
+`configs/live.yaml`. Việc đổi model production phải là một commit được review;
+CI sẽ kiểm tra model, calibrator và checksum trước khi cho phép triển khai.
 
 ### Cách B: Train model mới trong Docker
 
@@ -138,18 +140,9 @@ docker compose down -v
 
 ### Đổi scan mode / số coin
 
-Sửa trong `docker-compose.yml` phần `environment`:
-```yaml
-- DAO_VANG_SCANNER__SCAN_MODE=all        # gainers|losers|volume|volatile|all
-- DAO_VANG_SCANNER__MAX_COINS=100
-- DAO_VANG_SCANNER__POLL_INTERVAL_MINUTES=10
-```
-
-Hoặc sửa trong `.env.docker` (override cả compose):
-```
-DAO_VANG_SCANNER__SCAN_MODE=all
-DAO_VANG_SCANNER__MAX_COINS=100
-```
+Sửa các trường tương ứng trong `configs/live.yaml`. Không khai báo trùng các
+tham số scanner trong `.env.docker`; file môi trường chỉ dùng cho bí mật và
+thiết lập runtime.
 
 Sau đó:
 ```powershell
@@ -195,7 +188,8 @@ docker run --rm -v dao_vang_data:/data -v ${PWD}:/backup alpine tar xzf /backup/
 ## 8. Troubleshooting
 
 ### Scanner không chạy — "frozen_model_id not set"
-→ Kiểm tra `.env.docker` có `DAO_VANG_SCANNER__FROZEN_MODEL_ID=frozen_...` và file model tồn tại trong volume.
+→ Kiểm tra `scanner.frozen_model_id` trong `configs/live.yaml` và xác nhận
+bundle tương ứng tồn tại trong `artifacts/frozen_models/`.
 
 ### Web UI không mở được
 ```powershell
