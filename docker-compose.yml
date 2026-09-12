@@ -1,7 +1,6 @@
 # ============================================================
 # Đảo Vàng — Docker Compose
 # ============================================================
-# Đảo Vàng — Docker Compose
 # 2 services:
 #   scanner: bộ quét 24/7 (poll Binance → score → Telegram alert)
 #   web:     API server + React frontend (api_server.py port 8000)
@@ -12,6 +11,7 @@ services:
   scanner:
     build: .
     container_name: dao_vang_scanner
+    user: "${DAO_VANG_RUNTIME_UID:-1001}:${DAO_VANG_RUNTIME_GID:-1004}"
     restart: unless-stopped
     env_file:
       - .env.docker
@@ -38,6 +38,7 @@ services:
   web:
     build: .
     container_name: dao_vang_web
+    user: "${DAO_VANG_RUNTIME_UID:-1001}:${DAO_VANG_RUNTIME_GID:-1004}"
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -67,7 +68,7 @@ services:
     depends_on:
       - scanner
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/ready"]
       interval: 30s
       timeout: 10s
       retries: 3

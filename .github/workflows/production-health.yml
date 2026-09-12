@@ -1,0 +1,41 @@
+name: Production Health
+
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dao-vang-production-health
+  cancel-in-progress: true
+
+jobs:
+  readiness:
+    name: Public liveness and readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check web liveness
+        run: >-
+          curl
+          --fail
+          --silent
+          --show-error
+          --retry 3
+          --retry-all-errors
+          --max-time 20
+          https://daovang.comaygiauco.com/api/health
+
+      - name: Check scanner readiness
+        run: >-
+          curl
+          --fail
+          --silent
+          --show-error
+          --retry 3
+          --retry-all-errors
+          --max-time 20
+          https://daovang.comaygiauco.com/api/ready

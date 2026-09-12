@@ -670,7 +670,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         trackingCount={trackingItems.filter(item => item.status !== 'CLOSED').length}
         candidateCount={candidates.length}
         signalCount={signals.length}
-        isTelemetryActive={telemetryData ? telemetryData.scanner_engine_status !== 'ERROR' : true}
+        isTelemetryActive={telemetryData ? telemetryData.scanner_engine_status !== 'ERROR' : false}
         onOpenTabHelp={onOpenTabHelp}
       />
       {/* TAB: RADAR SIGNAL FEED */}
@@ -1049,10 +1049,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   </h3>
                   <p className="text-[11px] text-slate-400">
                     {language === 'zh'
-                      ? '实时监测全市场 678+ 币种，筛选高位滞涨、动能衰竭且最具暴跌潜力的做空候选标的'
+                      ? '按实时配置监测 Binance Futures 范围，筛选高位滞涨与动能衰竭候选标的'
                       : language === 'ko'
-                      ? '678개 이상 코인 중 고점 분산 및 급락 가능성이 가장 높은 숏 후보 순위'
-                      : 'Sàng lọc từ 678+ coin Binance Futures, phát hiện các đồng coin bơm căng tạo đỉnh và có xác suất xả cao nhất.'}
+                      ? '실시간 설정의 Binance Futures 범위에서 고점 분산과 모멘텀 소진 후보를 선별'
+                      : 'Sàng lọc phạm vi Binance Futures theo cấu hình live để tìm ứng viên tăng nóng và cạn động lượng.'}
                   </p>
                 </div>
               </div>
@@ -1959,7 +1959,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
                     <span>{language === 'en' ? 'Market Climate & Binance Intelligence' : language === 'zh' ? '宏观市场气候与币安智能分析' : language === 'ko' ? '시장 환경 및 바이낸스 인텔리전스' : 'Khí Hậu Thị Trường & Tổng Quan Binance'}</span>
                     <span className="px-2 py-0.2 rounded bg-sky-950 border border-sky-700/80 font-mono text-[9px] text-sky-300 font-bold">
-                      Live 810 Coins
+                      Live {marketData.binance_listing?.all_coins ?? marketData.binance_listing_total ?? 'N/A'} Coins
                     </span>
                   </h3>
                   <p className="text-[11px] text-slate-400">
@@ -2004,13 +2004,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 space-y-1">
                 <div className="text-[10px] text-slate-400 font-medium flex items-center justify-between">
                   <span>Chế độ thị trường (Regime)</span>
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className={marketData.macro_climate?.available ? "h-2 w-2 rounded-full bg-emerald-400 animate-pulse" : "h-2 w-2 rounded-full bg-slate-600"} />
                 </div>
                 <div className="text-sm sm:text-base font-black text-emerald-400 font-mono mt-0.5 truncate">
-                  {marketData.macro_climate?.regime || 'TRENDING_BEAR'}
+                  {marketData.macro_climate?.regime || 'UNKNOWN'}
                 </div>
                 <div className="text-[10px] text-emerald-300/90 font-medium truncate">
-                  {marketData.macro_climate?.regime_label_vi || 'Xu hướng Giảm (Thuận lợi cho Short)'}
+                  {marketData.macro_climate?.regime_label_vi || 'Chưa có dữ liệu thời gian thực'}
                 </div>
               </div>
 
@@ -2021,10 +2021,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <span className="text-[9px] font-mono text-cyan-400 font-bold">&gt; 25 Xu hướng mạnh</span>
                 </div>
                 <div className="text-sm sm:text-base font-black text-cyan-300 font-mono mt-0.5">
-                  {marketData.macro_climate?.adx ?? 27.2}
+                  {marketData.macro_climate?.adx ?? 'N/A'}
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono">
-                  BB Width: {marketData.macro_climate?.bb_width ?? 0.0083} (Nén biến động)
+                  BB Width: {marketData.macro_climate?.bb_width ?? 'N/A'}
                 </div>
               </div>
 
@@ -2035,10 +2035,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <span className="text-[9px] font-mono text-violet-400 font-bold">Lớp 2 ML</span>
                 </div>
                 <div className="text-sm sm:text-base font-black text-violet-300 font-mono mt-0.5">
-                  ACTIVE
+                  {marketData.macro_climate?.meta_labeling || 'UNKNOWN'}
                 </div>
                 <div className="text-[10px] text-violet-300/90 font-medium">
-                  {marketData.macro_climate?.meta_labeling || 'Lọc bỏ 55% - 60% nhiễu'}
+                  {marketData.macro_climate?.meta_labeling ? 'Theo cấu hình scanner' : 'Chưa có dữ liệu từ API'}
                 </div>
               </div>
 
@@ -2049,10 +2049,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   <span className="text-[9px] font-mono text-emerald-400 font-bold">Rolling 7d</span>
                 </div>
                 <div className="text-sm sm:text-base font-black text-emerald-400 font-mono mt-0.5">
-                  HEALTHY
+                  {marketData.macro_climate?.drift_guardian || 'UNKNOWN'}
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono">
-                  Alpha ổn định, không suy hao
+                  {marketData.macro_climate?.drift_guardian ? 'Trạng thái do API cung cấp' : 'Chưa có dữ liệu từ API'}
                 </div>
               </div>
             </div>

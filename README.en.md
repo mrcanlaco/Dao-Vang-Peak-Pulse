@@ -22,31 +22,40 @@ Unlike traditional technical analysis tools relying solely on OHLCV price action
 
 ---
 
-## 🏆 2. PROVEN HIGHLIGHTS & QUANTITATIVE CAPABILITIES
+## 🔎 2. PRODUCTION RELEASE STATUS
 
-DAO VANG is engineered and validated against institutional-grade quantitative finance and MLOps standards:
+The production release is identified by a model ID and checksums, not by a
+marketing label or metrics from a historical research report.
 
-### 📊 Empirical Validation Benchmarks (Walk-Forward Out-of-Sample)
+| Field | Configured value |
+| :--- | :--- |
+| **Model ID** | **frozen_20260906_105716_bc3c369b** |
+| **Train cutoff** | **2026-07-28T19:05:39.999000+07:00** |
+| **Frozen threshold** | **0.4100000000000001** |
+| **Calibration** | **isotonic_v1** |
+| **Model SHA-256** | **27961bc6c9a24e52136d00f208258343e8d5b75980fe156dbfba699264f51a12** |
+| **Calibrator SHA-256** | **0e425413f24a3a96ece91d1e201f0be4dd3709526733d19a19d649871b3c72db** |
 
-| Quantitative Metric | Empirical Result | Practical Value |
-| :--- | :---: | :--- |
-| **Validation Dataset Size** | **600,000+ 5m candles** | Evaluated across >92 consecutive days of live derivatives trading. |
-| **Median Early Warning Lead Time** | **~9.8 Hours** *(590 min)* | Alerts issued ~9.8h before price drawdown reaches ≥8%, allowing ample evaluation time. |
-| **Event Recall (Distribution Capture)** | **~60.1%** | Successfully captures the majority of major top distribution phases. |
-| **Probability Calibration (Brier Score)** | **0.113** *(Very low error)* | Highly calibrated probabilities reflecting empirical market frequency. |
-| **Lookahead Bias Prevention** | **100% Zero Leakage** | Strict Walk-Forward Splitter with Embargo Windows and Point-in-Time As-of Joins. |
+The bundle records training precision **0.3896**, Brier **0.1859**, and ECE
+**0.0261**. These are bundle-creation statistics, not an independent
+post-cutoff forward test and not evidence of ROI or win rate.
 
-### 🔍 Core Engineering Tenets
-- 📈 **Strict Ground-Truth Labeling:**
-  - Targets top distribution setups with **≥ 8% drawdown** across 6h, 12h, or 24h horizons while constraining adverse upside drift (Maximum Adverse Excursion - MAE) to **≤ 4%**.
-- 🛡️ **Cross-Regime Robustness (Bull, Bear & Sideway):**
-  - Separately evaluated and verified across all 3 macro market regimes (Bullish expansion, Bearish markdown, and Sideway consolidation).
-- 🎯 **Calibrated Probability Engine:**
-  - Employs **Isotonic & Out-of-Fold Calibration** ensuring predicted model probabilities faithfully represent empirical distribution frequency (Expected Calibration Error ECE ≤ 0.05).
-- ⚡ **High-Throughput Derivatives Ingestion:**
-  - Powered by **DuckDB Columnar Query Engine**, processing real-time multi-dimensional futures data (OI Delta, Funding Rate, Taker Volume, Long/Short Ratios) across 150+ trading pairs with sub-second execution.
-- 🔄 **Continuous Feedback & Performance Tracking:**
-  - Automated signal outcome resolution and PnL tracking mechanism that continuously measures empirical precision and presents historical performance evidence in live Telegram reports.
+Point-in-time joins, embargoes, calibration, checksum validation, and
+fail-closed serving have regression tests. Live performance may only be
+published from a report tied to this model ID/checksum, a defined data window,
+sample/event counts, and regime results. See
+[production model evidence](docs/PRODUCTION_MODEL.md).
+
+### 🔍 Core engineering controls
+
+- **Versioned ground truth:** the frozen metadata binds the 8% target drawdown,
+  4% maximum adverse excursion, and evaluation horizon.
+- **Guarded probabilities:** live serving requires a valid calibrator, complete
+  and fresh features, and matching checksums; otherwise it fails closed.
+- **Human in the loop:** the scanner emits alerts and records outcomes. It does
+  not place trades, and a challenger cannot automatically replace the champion.
+- **Point-in-time data:** as-of joins and leakage regression tests reduce
+  lookahead risk; a passing test suite is not an absolute guarantee.
 
 ---
 
@@ -55,8 +64,8 @@ DAO VANG is engineered and validated against institutional-grade quantitative fi
 - 🔍 **Live Scanner Daemon (24/7):** Automatically scans hundreds of Binance Futures trading pairs in real-time across 5-minute candle cycles.
 - 📊 **Candidate Filter v2 & Pump Filter Mechanisms:** Filters high-volatility coins, detecting capital flow anomalies and rapid reversal risks.
 - 🤖 **Machine Learning & Self-Learning Daemon:**
-  - Automated model calibration and continuous learning from live periodic data.
-  - Rigorous model evaluation using **Walk-Forward Validation** (Zero Data Leakage / No look-ahead bias).
+  - Supports calibrated challengers evaluated in shadow mode; they never auto-promote.
+  - Uses **Walk-Forward Validation** and regression controls to reduce lookahead risk.
 - 📲 **Telegram 24/7 Alerts:** Sends real-time signal notifications directly to personal/group Telegram channels, complete with comprehensive analytics and direct links to open the asset on the Dashboard.
 - 💻 **Web Dashboard UI (React + Vite + TypeScript):**
   - Interactive Candlestick Charts (TradingView-style).
@@ -94,12 +103,12 @@ flowchart LR
     C --> D[Feature Builder & Normalizer]
     D --> E[Scoring & Frozen ML Model]
     E --> F{Quality Gate Check}
-    F -->|Pass 70%+ Threshold| G[Telegram Alerts Bot]
+    F -->|Pass serving contract and frozen threshold| G[Telegram Alerts Bot]
     F -->|Realtime Display| H[React Web Dashboard]
 ```
 
 1. **Data Collection (Collect):** Scans 5m OHLCV candles, Open Interest, Funding Rate, Taker Volume, and Long/Short Ratio from Binance USD-M Futures.
-2. **Normalization & As-of Join:** Precisely aligns data by timestamp (Point-in-Time), guaranteeing **Zero Lookahead Bias**.
+2. **Normalization & As-of Join:** Aligns point-in-time data and runs leakage regression checks.
 3. **Feature Engineering:** Calculates money flow volatility indicators, OI vs Price ratio dynamics, and active Taker buy/sell momentum.
 4. **Inference & Alert:** Passes features through the Frozen ML model to calculate distribution probability, checks Cooldown status, and pushes alerts to Telegram & Dashboard.
 
@@ -216,7 +225,7 @@ python -m dao_vang.web.run 8001
 Ensure all quality gates pass before opening pull requests:
 
 ```bash
-# Run 350+ backend unit, integration, and leakage audit tests
+# Run 484+ backend unit, integration, and leakage audit tests
 pytest tests/
 
 # Validate frontend type checking and production build

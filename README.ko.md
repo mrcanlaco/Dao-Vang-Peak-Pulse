@@ -20,6 +20,8 @@
 
 > 💡 **운영 철학:** 본 시스템은 **수동 경보 레이더 (Human-in-the-loop)**로 작동합니다. DAO VANG은 **자동 매매를 수행하지 않으며 (No Auto-Trading)**, 모든 투자 결정은 100% 사용자의 판단에 맡깁니다.
 
+> 📎 현재 production 모델, SHA-256 체크섬 및 근거 범위는 [production 모델 문서](docs/PRODUCTION_MODEL.md)를 기준으로 합니다.
+
 ---
 
 ## ✨ 2. 주요 기능
@@ -27,8 +29,8 @@
 - 🔍 **24/7 실시간 스캐너 (Live Scanner Daemon):** 5분 봉 주기마다 수백 개의 Binance Futures 거래 쌍을 실시간으로 자동 스캔합니다.
 - 📊 **Candidate Filter v2 & Pump Filter 메커니즘:** 변동성이 큰 코인을 빠르게 필터링하여 자금 흐름 이상 및 급격한 반전 위험을 감지합니다.
 - 🤖 **머신러닝 및 자가 학습 데몬 (Self-Learning Daemon):**
-  - 라이브 데이터를 기반으로 모델 자동 교정(Calibration) 및 지속적 자가 학습 수행.
-  - **Walk-Forward Validation** 방식을 적용하여 미래 데이터 누수 차단(Zero Data Leakage / Look-ahead Bias 없음).
+  - 보정된 challenger를 shadow 모드에서 평가하며 자동 승격하지 않습니다.
+  - **Walk-Forward Validation**과 회귀 검사를 사용해 lookahead 위험을 줄입니다.
 - 📲 **Telegram 24/7 실시간 알림:** 상세 분석 지표 및 대시보드 직행 링크가 포함된 신호 알림을 개인/그룹 텔레그램으로 즉시 전송합니다.
 - 💻 **웹 대시보드 UI (React + Vite + TypeScript):**
   - 트레이딩뷰 스타일의 인터랙티브 캔들차트.
@@ -66,12 +68,12 @@ flowchart LR
     C --> D[특성 생성 및 정규화 Feature Builder]
     D --> E[점수 산출 및 Frozen ML 모델]
     E --> F{Quality Gate 검증}
-    F -->|70%+ 임계값 통과| G[Telegram 알림 봇]
+    F -->|serving contract 및 frozen threshold 통과| G[Telegram 알림 봇]
     F -->|실시간 표시| H[React Web Dashboard]
 ```
 
 1. **데이터 수집 (Collect):** Binance USD-M Futures의 5m OHLCV, 미결제약정(OI), 펀딩비(Funding Rate), 테이커 볼륨 및 롱/숏 비율 수집.
-2. **정규화 및 As-of Join:** 타임스탬프 기준 데이터 정밀 정렬(Point-in-Time), **미래 데이터 참조 오류 완전 차단 (Zero Lookahead Bias)**.
+2. **정규화 및 As-of Join:** Point-in-Time 기준으로 정렬하고 lookahead 방지 회귀 검사를 실행합니다.
 3. **특성 공학 (Feature Engineering):** 자금 흐름 변동성, OI 대 가격 변화율 비율, 테이커 매수/매도 모멘텀 계산.
 4. **추론 및 알림 (Inference & Alert):** Frozen ML 모델을 통해 분매 확률 계산, 쿨다운(Cooldown) 상태 확인 후 Telegram 및 대시보드로 알림 전송.
 

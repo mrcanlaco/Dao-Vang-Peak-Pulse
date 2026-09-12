@@ -1,5 +1,9 @@
 # 📊 Báo Cáo Kiểm Định Model — dao_vang
 
+> **Phạm vi bằng chứng:** Đây là ảnh chụp kiểm định lịch sử của ngày chạy và
+> cấu hình ghi bên dưới. Các số liệu không đại diện cho model hoặc hiệu năng
+> production hiện tại nếu không khớp model ID, checksum, dữ liệu và cutoff.
+>
 > **Ngày chạy:** 2026-08-29 23:56 UTC (2026-08-30 06:56 ICT)
 > **Người thực hiện:** Antigravity Agent (đã thẩm định & sửa lỗi agent trước)
 > **Phiên bản code:** `dao_vang` @ `d:\Coding\dao_vang`

@@ -338,7 +338,7 @@ def _get_recent_parquet_patterns(normalized_dir: Path, subdir: str, days: int = 
 def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
     """
     Mounts parquet files into DuckDB views and stitches them into the raw_timeline.
-    Restricted to recent 3-day rolling window for sub-second I/O performance.
+    Restricted to a recent 3-day rolling window to bound query I/O.
     """
     normalized_dir = settings.paths.data_dir / "normalized"
 

@@ -24,16 +24,29 @@ def main() -> int:
     command = f"""
 set -eu
 cd /home/ubuntu/dao_vang
+test "$(git branch --show-current)" = "main" || {{
+  echo "Deployment stopped: server checkout is not on main."
+  exit 1
+}}
 test -z "$(git status --porcelain --untracked-files=no)" || {{
-  echo "Deployment stopped: server has local changes."
+  echo "Deployment stopped: preserve and review tracked local changes first."
   exit 1
 }}
 git fetch origin main --prune
 git merge --ff-only {shlex.quote(revision)}
 test "$(git rev-parse HEAD)" = {shlex.quote(revision)}
+test -z "$(git status --porcelain)" || {{
+  echo "Deployment stopped: unexpected untracked files remain after update."
+  exit 1
+}}
+export DAO_VANG_RUNTIME_UID="$(id -u)"
+export DAO_VANG_RUNTIME_GID="$(id -g)"
+bash scripts/prepare_runtime_permissions.sh --apply
 docker compose build
 docker compose up -d --no-build --wait --wait-timeout 180
 curl --fail --silent --show-error http://localhost:8000/api/health
+curl --fail --silent --show-error http://localhost:8000/api/ready
+bash scripts/install_production_cron.sh --apply
 """
     return subprocess.run(["ssh", "-i", str(key), "-o", "BatchMode=yes", "-o",
         "ConnectTimeout=15", "ubuntu@136.110.29.208", command], check=False).returncode

@@ -78,8 +78,8 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 When writing code for DAO VANG, strictly observe these core tenets:
 
-1. **Zero Lookahead Bias (Point-in-Time Correctness):**
-   - In feature engineering and ML training, strictly avoid data leakage. Features for candle $t$ must only use information available strictly at or before $t$.
+1. **Point-in-Time Safeguards:**
+   - In feature engineering and ML training, prevent data leakage by design. Features for candle $t$ must only use information available at or before $t$, with regression tests added for each new source.
 2. **Deterministic Data Engine:**
    - Use DuckDB with explicit schema definitions. All time-series joins must use `as-of` matching.
 3. **No Auto-Trading / Human-in-the-Loop:**

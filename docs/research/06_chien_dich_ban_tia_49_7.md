@@ -4,6 +4,8 @@
 **Thực hiện bởi:** Dao Vang Quant Team & AI Agent  
 **Trạng thái:** Đã triển khai trên Live Environment  
 
+> **Phạm vi bằng chứng:** Đây là ảnh chụp nghiên cứu lịch sử ngày 06/09/2026, không phải báo cáo hiệu năng của mô hình production hiện tại và không phải kết quả forward-test độc lập sau thời điểm đóng băng. Các chỉ số Precision, Winrate và ROI bên dưới chỉ mô tả cấu hình mô phỏng của nghiên cứu này, không phải cam kết lợi nhuận. Xem [hồ sơ mô hình production](../PRODUCTION_MODEL.md) để biết Model ID, checksum và giới hạn bằng chứng hiện hành.
+
 ---
 
 ## 1. Tóm tắt Hành trình (Executive Summary)

@@ -155,10 +155,10 @@ export const SystemHistoryTab: React.FC = () => {
         ko: '바이낸스 5분봉 캔들 (OHLCV 원시 시장 데이터).',
       },
       aligned_5m: {
-        vi: 'Nến đã chuẩn hóa theo thời điểm có sẵn — dùng để tính đặc trưng và nhãn, không nhìn trước dữ liệu tương lai.',
-        en: 'Synchronized 5m candles at available timestamps for zero lookahead.',
-        zh: '已对齐时间戳的 5 分钟 K 线，杜绝未来函数。',
-        ko: '미래참조 방지를 위해 시계열 정렬된 5분봉 캔들.',
+        vi: 'Nến 5m được căn theo thời điểm dữ liệu có sẵn để hỗ trợ tính toán point-in-time và kiểm tra rò rỉ.',
+        en: '5m candles aligned to data-availability timestamps for point-in-time calculations and leakage checks.',
+        zh: '按数据可用时间对齐 5 分钟 K 线，用于时点计算与泄漏检查。',
+        ko: '데이터 가용 시점에 맞춘 5분봉으로 point-in-time 계산과 누수 검사를 지원합니다.',
       },
       feature_results: {
         vi: 'Vector đặc trưng đã tính cho mỗi mã tại từng thời điểm — đầu vào cho mô hình AI.',

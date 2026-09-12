@@ -85,6 +85,80 @@ def test_unicode_password_and_protected_endpoint(web, monkeypatch):
     assert call(web, "/api/watchlist/add", method="POST", body="{}")[0] == 401
 
 
+def test_readiness_requires_fresh_successful_scanner_heartbeat(
+    web,
+    monkeypatch,
+    tmp_path,
+):
+    heartbeat_path = tmp_path / "scanner_heartbeat.json"
+    monkeypatch.setattr(api, "HEARTBEAT_PATH", heartbeat_path)
+    monkeypatch.setattr(
+        api,
+        "_disk_readiness",
+        lambda path: {
+            "healthy": True,
+            "status": "ok",
+            "reason": "ok",
+            "used_percent": 50.0,
+            "free_bytes": 10 * 1024**3,
+        },
+    )
+
+    status, body, _ = call(web, "/api/ready")
+    assert status == 503
+    assert json.loads(body)["checks"]["scanner"]["reason"] == "heartbeat_missing"
+    assert call(web, "/api/ready", method="HEAD")[0] == 503
+
+    heartbeat = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "status": "running",
+        "last_cycle_status": "ok",
+    }
+    heartbeat_path.write_text(json.dumps(heartbeat), encoding="utf-8")
+    status, body, _ = call(web, "/api/ready")
+    assert status == 200
+    assert json.loads(body)["status"] == "ok"
+    assert call(web, "/api/ready", method="HEAD")[0] == 200
+
+    heartbeat["last_cycle_status"] = "failed"
+    heartbeat_path.write_text(json.dumps(heartbeat), encoding="utf-8")
+    status, body, _ = call(web, "/api/ready")
+    assert status == 503
+    assert json.loads(body)["checks"]["scanner"]["reason"] == "last_cycle_failed"
+    assert call(web, "/api/ready", method="HEAD")[0] == 503
+
+
+def test_readiness_fails_when_disk_space_is_critical(web, monkeypatch, tmp_path):
+    heartbeat_path = tmp_path / "scanner_heartbeat.json"
+    heartbeat_path.write_text(
+        json.dumps(
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "status": "running",
+                "last_cycle_status": "ok",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(api, "HEARTBEAT_PATH", heartbeat_path)
+    monkeypatch.setattr(
+        api,
+        "_disk_readiness",
+        lambda path: {
+            "healthy": False,
+            "status": "error",
+            "reason": "disk_space_critical",
+            "used_percent": 95.0,
+            "free_bytes": 1024,
+        },
+    )
+
+    status, body, _ = call(web, "/api/ready")
+    assert status == 503
+    disk = json.loads(body)["checks"]["disk"]
+    assert disk["reason"] == "disk_space_critical"
+
+
 def test_klines_route_has_handler_and_bounded_limit(web, monkeypatch):
     from dao_vang.data.collectors import binance_client
     client = MagicMock()
@@ -140,6 +214,26 @@ def test_audit_preserves_measured_zero_and_failed_gates(monkeypatch):
     assert payload["quality_gates"]["precision_gte_0_35"] is False
     assert payload["regime_performance"] == {}
     assert payload["stress_test_events"] == []
+
+
+def test_ai_config_fails_closed_when_settings_cannot_load(monkeypatch):
+    def fail_to_load_settings():
+        raise RuntimeError("invalid settings")
+
+    monkeypatch.setattr("dao_vang.config.settings.AppSettings", fail_to_load_settings)
+    handler = object.__new__(api.APIHandler)
+    handler._set_headers = MagicMock()
+    handler.wfile = io.BytesIO()
+
+    handler.get_ai_config()
+
+    payload = json.loads(handler.wfile.getvalue())
+    assert payload["provider"] == "unavailable"
+    assert payload["enabled"] is False
+    assert payload["hasApiKey"] is False
+    assert payload["modelId"] == ""
+    assert payload["baseUrl"] == ""
+    assert payload["error"] == "settings_unavailable"
 
 
 def test_dismissal_survives_restart_and_normalizes_timezone(tmp_path):

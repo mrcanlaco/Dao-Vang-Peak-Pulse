@@ -1,7 +1,0 @@
---- src/dao_vang/web/api_server.py
-+++ src/dao_vang/web/api_server.py
-@@ -3418,3 +3418,3 @@
-                 "walk_forward_precision": wf_stats.get("mean_precision"),
--                "ece": wf_stats.get("mean_lightgbm_ece", 0.0249),
-+                "ece": wf_stats.get("mean_lightgbm_ece", 0.031),
-                 "brier_score": wf_stats.get("mean_lightgbm_brier"),

@@ -6,13 +6,13 @@ Welcome to the **DAO VANG (PeakPulse AI)** architectural documentation. This doc
 
 ## 🧭 1. Core Architectural Tenets
 
-1. **Zero Lookahead Bias (Strict Point-in-Time Correctness):**
-   - For any candle timestamp $t$, feature calculations and inference strictly consume only information available at or before $t$.
-   - Time-series joins are strictly performed via DuckDB `as-of` matching.
+1. **Point-in-Time Safeguards:**
+   - Feature calculations and inference are designed to consume only information available at or before each candle timestamp $t$.
+   - Time-series joins use DuckDB `as-of` matching, while leakage audits and regression tests protect this contract. These controls reduce risk; they are not an absolute guarantee for every future data source or model revision.
 2. **Deterministic Data & Query Engine:**
-   - Powered by **DuckDB** and **Apache Parquet**, allowing sub-second columnar scans over hundreds of thousands of candles across 150+ trading pairs.
+   - Powered by **DuckDB** and **Apache Parquet** for reproducible columnar storage and queries. Throughput depends on dataset size, hardware, and query shape and must be measured for each release environment.
 3. **Frozen Model Bundles & Out-of-fold Calibration:**
-   - Inference models are versioned, serialized, and calibrated with Out-of-fold/Isotonic regression to ensure predicted probability accurately reflects empirical distribution frequency (ECE $\le 0.05$).
+   - Inference models are versioned and serialized with checksums. Calibration artifacts and metrics are attached to a specific bundle; no calibration threshold is claimed unless a version-linked evaluation report supports it.
 4. **Human-in-the-Loop (Analytical Radar, No Auto-Trading):**
    - The platform serves as an early-warning signal radar. It does not execute automatic market orders.
 
@@ -36,9 +36,9 @@ flowchart TD
     end
 
     subgraph MLValidation["3. ML Training & Validation"]
-        FeatureMatrix --> WFValidation["Walk-Forward Splitter (Zero Leakage)"]
+        FeatureMatrix --> WFValidation["Walk-Forward Splitter & Leakage Audits"]
         LabelEngine --> WFValidation
-        WFValidation --> ModelTraining["Model Training & Calibration (ECE <= 0.05)"]
+        WFValidation --> ModelTraining["Model Training & Versioned Calibration"]
         ModelTraining --> FrozenBundle[("Frozen Model Bundle")]
     end
 
@@ -57,7 +57,7 @@ flowchart TD
     end
 
     subgraph Delivery["5. Signal Delivery & UI"]
-        Scorer -->|Quality Gate Passed (>= 70%)| TelegramBot["Telegram Alert Bot (VI/EN)"]
+        Scorer -->|Configured serving gate passed| TelegramBot["Telegram Alert Bot (VI/EN)"]
         Scorer --> HttpServer["ThreadingHTTPServer REST API"]
         AnomalyRadar --> HttpServer
         HttpServer --> ReactUI["React 19 + TypeScript + Vite Web Dashboard"]
@@ -72,22 +72,22 @@ The backend follows a **Modular Monolith** pattern organized cleanly by domain a
 
 | Module Directory | Responsibility | Key Classes / Entrypoints |
 | :--- | :--- | :--- |
-| [`domain/`](file:///d:/Coding/dao_vang/src/dao_vang/domain) | Core domain types, enumerations, error definitions, and timezone-aware datetime helpers. | `DistributionEvent`, `MarketRegime`, `AppError` |
-| [`config/`](file:///d:/Coding/dao_vang/src/dao_vang/config) | Pydantic v2 settings loading from `.env` and `configs/live.yaml`. | `AppSettings`, `get_settings()` |
-| [`logging/`](file:///d:/Coding/dao_vang/src/dao_vang/logging) | Structured JSON/Console logging with automated sensitive secret redaction. | `get_logger()`, `redact_secrets()` |
-| [`data/`](file:///d:/Coding/dao_vang/src/dao_vang/data) | Ingestion clients (Binance USD-M, Binance Agent OS token data, optional CoinGecko price cross-reference), schemas, data quality validation, and DuckDB storage. | `BinanceClient`, `KlinesCollector`, `DuckDBStorage` |
-| [`features/`](file:///d:/Coding/dao_vang/src/dao_vang/features) | Point-in-time feature builders for Price, Open Interest, Funding Rate, Taker Volume, and Top Trader Ratios. | `FeatureRegistry`, `PriceFeatureBuilder`, `OIFeatureBuilder` |
-| [`labels/`](file:///d:/Coding/dao_vang/src/dao_vang/labels) | Ground-truth labeling engine (identifying distribution tops: $\ge 8\%$ drop within 6-24h, MAE $\le 4\%$). | `LabelEngineV1`, `DistributionShortSpec` |
-| [`baselines/`](file:///d:/Coding/dao_vang/src/dao_vang/baselines) | Rule-based heuristics and logistic regression baseline models for performance comparison. | `RuleBasedBaseline`, `LogisticBaseline` |
-| [`validation/`](file:///d:/Coding/dao_vang/src/dao_vang/validation) | Strict Walk-Forward validation, embargo splitting, data leakage audits, and Brier / ECE calibration metrics. | `WalkForwardSplitter`, `LeakageAuditor`, `CalibrationMetrics` |
-| [`experiments/`](file:///d:/Coding/dao_vang/src/dao_vang/experiments) | ML training runner, forward testing, ablation studies, and automated self-learning feedback loops. | `ExperimentRunner`, `SelfLearningDaemon` |
-| [`scoring/`](file:///d:/Coding/dao_vang/src/dao_vang/scoring) | Live scoring engine combining Frozen ML model probabilities, BTC Macro context, and evidence explanations (SHAP). | `DistributionScorer`, `BTCContextScorer`, `EvidenceGenerator` |
-| [`scanner/`](file:///d:/Coding/dao_vang/src/dao_vang/scanner) | 24/7 background scanner daemon, pump pattern detector, independent Market Anomaly Radar, Candidate Filter v2, watchlist manager, and signal outcome tracking. | `ScannerDaemon`, `PumpFilter`, `MarketAnomaly`, `TrackingWatchlist`, `CandidateFilterV2` |
-| [`alerts/`](file:///d:/Coding/dao_vang/src/dao_vang/alerts) | Telegram alert delivery manager, bilingual message formatting (Vietnamese/English), and alert dedup store. | `TelegramAlertManager`, `AlertStore` |
-| [`alpha_lab/`](file:///d:/Coding/dao_vang/src/dao_vang/alpha_lab) | Advanced alpha research module: Triple Barrier method, Meta-Labeling, Market Regime classification, Drift Guardian. | `AlphaBacktester`, `DriftGuardian`, `RegimeClassifier` |
-| [`reports/`](file:///d:/Coding/dao_vang/src/dao_vang/reports) | HTML / Markdown summary report generator for backtest benchmarks and live operational audits. | `ReportGenerator` |
-| [`web/`](file:///d:/Coding/dao_vang/src/dao_vang/web) | Custom threaded HTTP server providing REST endpoints and static frontend files. | `api_server.py`, `run.py` |
-| [`cli/`](file:///d:/Coding/dao_vang/src/dao_vang/cli) | Typer CLI commands for manual data collection, backtesting, scanning, and model training. | `main.py` (`dao-vang`) |
+| [`domain/`](../src/dao_vang/domain/) | Core domain types, enumerations, error definitions, and timezone-aware datetime helpers. | `DistributionEvent`, `MarketRegime`, `AppError` |
+| [`config/`](../src/dao_vang/config/) | Pydantic v2 settings loading from `.env` and `configs/live.yaml`. | `AppSettings`, `get_settings()` |
+| [`logging/`](../src/dao_vang/logging/) | Structured JSON/Console logging with automated sensitive secret redaction. | `get_logger()`, `redact_secrets()` |
+| [`data/`](../src/dao_vang/data/) | Ingestion clients (Binance USD-M, Binance Agent OS token data, optional CoinGecko price cross-reference), schemas, data quality validation, and DuckDB storage. | `BinanceClient`, `KlinesCollector`, `DuckDBStorage` |
+| [`features/`](../src/dao_vang/features/) | Point-in-time feature builders for Price, Open Interest, Funding Rate, Taker Volume, and Top Trader Ratios. | `FeatureRegistry`, `PriceFeatureBuilder`, `OIFeatureBuilder` |
+| [`labels/`](../src/dao_vang/labels/) | Ground-truth labeling engine (identifying distribution tops: $\ge 8\%$ drop within 6-24h, MAE $\le 4\%$). | `LabelEngineV1`, `DistributionShortSpec` |
+| [`baselines/`](../src/dao_vang/baselines/) | Rule-based heuristics and logistic regression baseline models for performance comparison. | `RuleBasedBaseline`, `LogisticBaseline` |
+| [`validation/`](../src/dao_vang/validation/) | Walk-forward validation, embargo splitting, data leakage audits, and Brier / ECE calibration metrics. | `WalkForwardSplitter`, `LeakageAuditor`, `CalibrationMetrics` |
+| [`experiments/`](../src/dao_vang/experiments/) | ML training runner, forward testing, ablation studies, and automated self-learning feedback loops. | `ExperimentRunner`, `SelfLearningDaemon` |
+| [`scoring/`](../src/dao_vang/scoring/) | Live scoring engine combining frozen-model probabilities, BTC context, and evidence explanations. | `DistributionScorer`, `BTCContextScorer`, `EvidenceGenerator` |
+| [`scanner/`](../src/dao_vang/scanner/) | 24/7 background scanner daemon, pump pattern detector, independent Market Anomaly Radar, Candidate Filter v2, watchlist manager, and signal outcome tracking. | `ScannerDaemon`, `PumpFilter`, `MarketAnomaly`, `TrackingWatchlist`, `CandidateFilterV2` |
+| [`alerts/`](../src/dao_vang/alerts/) | Telegram alert delivery manager, bilingual message formatting (Vietnamese/English), and alert dedup store. | `TelegramAlertManager`, `AlertStore` |
+| [`alpha_lab/`](../src/dao_vang/alpha_lab/) | Research modules for Triple Barrier evaluation, optional Meta-Labeling, Market Regime classification, and Drift Guardian. A module's presence does not mean it is enabled in live serving. | `AlphaBacktester`, `DriftGuardian`, `RegimeClassifier` |
+| [`reports/`](../src/dao_vang/reports/) | HTML / Markdown summary report generator for backtest benchmarks and live operational audits. | `ReportGenerator` |
+| [`web/`](../src/dao_vang/web/) | Custom threaded HTTP server providing REST endpoints and static frontend files. | `api_server.py`, `run.py` |
+| [`cli/`](../src/dao_vang/cli/) | Typer CLI commands for manual data collection, backtesting, scanning, and model training. | `main.py` (`dao-vang`) |
 
 ---
 
@@ -115,5 +115,6 @@ DAO VANG utilizes a dual storage strategy:
 
 ## 🛡️ 6. Security & Operational Isolation
 
-- **Separate Data Environments:** Development testing runs against `data/` and port `8000/5173`; Live production runs against `data_live/` and port `8001` or system services.
+- **Separate Data Environments:** Development and production paths are configured independently. The current container stack mounts production data at `/app/data_live` and exposes the web service on port `8000`.
 - **Credential Protection:** All tokens (Telegram API keys, webhooks) are loaded via environment variables and sanitized in all log outputs by `redact_secrets`.
+- **Runtime Isolation:** The production containers run as a non-root UID/GID, expose liveness/readiness checks, and disable in-app self-updates. Releases are applied through the CI/CD pipeline.

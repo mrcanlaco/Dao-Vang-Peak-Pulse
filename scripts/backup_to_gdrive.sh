@@ -1,81 +1,144 @@
 #!/usr/bin/env bash
-# ==============================================================================
-# ?? DAO VANG — AUTOMATED GOOGLE DRIVE BACKUP & QUANT_DATA SYNC SCRIPT
-# ==============================================================================
-# Script này du?c thi?t k? d? ch?y d?nh k? (qua Cron job) trên Google Server.
-# T? d?ng d?ng b? Database DuckDB, Parquet raw/normalized lên Google Drive:
-#   1. DaoVang_Data_Backup: Luu tr? snapshot hàng ngày và live backup c?a GCP
-#   2. Quant_Data: T? d?ng b? sung/c?p nh?t d? li?u m?i vào Data Lake Quant
-# ==============================================================================
+# Create a consistent production snapshot and verify its remote copy.
 
-set -euo pipefail
+set -Eeuo pipefail
+umask 077
 
-PROJECT_DIR="/home/ubuntu/dao_vang"
-DATA_DIR="${PROJECT_DIR}/data"
-BACKUP_DIR="${PROJECT_DIR}/backups"
-GDRIVE_BACKUP="gdrive:DaoVang_Data_Backup"
-GDRIVE_QUANT="gdrive:Quant_Data"
-LOG_FILE="${PROJECT_DIR}/data/backup.log"
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+PROJECT_DIR="${DAO_VANG_PROJECT_DIR:-/home/ubuntu/dao_vang}"
+REMOTE_ROOT="${DAO_VANG_BACKUP_REMOTE:-gdrive:DaoVang_Data_Backup}"
+REMOTE_RETENTION_DAYS="${DAO_VANG_BACKUP_RETENTION_DAYS:-30}"
+RUNTIME_UID="${DAO_VANG_RUNTIME_UID:-$(id -u)}"
+RUNTIME_GID="${DAO_VANG_RUNTIME_GID:-$(id -g)}"
 
-echo "========================================================" >> "${LOG_FILE}"
-echo "==> [$(date '+%Y-%m-%d %H:%M:%S')] B?t d?u quy trình Backup & Ð?ng b? Quant Data" >> "${LOG_FILE}"
+[[ "$REMOTE_RETENTION_DAYS" =~ ^[0-9]+$ ]] && (( REMOTE_RETENTION_DAYS >= 1 )) || {
+    echo "Backup retention days must be a positive integer" >&2
+    exit 2
+}
 
-mkdir -p "${BACKUP_DIR}"
+PROJECT_DIR="$(realpath -e "$PROJECT_DIR")"
+DATA_DIR="$PROJECT_DIR/data"
+ARTIFACT_DIR="$PROJECT_DIR/artifacts"
+BACKUP_DIR="$PROJECT_DIR/backups"
+COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
+LOG_FILE="$DATA_DIR/backup.log"
+SUCCESS_MARKER="$DATA_DIR/last_successful_backup.json"
+LOCK_FILE="/tmp/dao_vang_backup.lock"
 
-# C?p quy?n d?c toàn b? d? li?u (c? file và thu m?c con)
-sudo -n chmod -R a+rX "${DATA_DIR}" 2>/dev/null || true
+log() {
+    printf '%s %s\n' "$(date -Iseconds)" "$*"
+}
 
-if ! rclone listremotes | grep -q "^gdrive:"; then
-    echo "[L?I] Chua c?u hình remote 'gdrive' trong rclone!" >> "${LOG_FILE}"
-    echo "Vui lòng ch?y 'rclone config' d? k?t n?i tài kho?n Google Drive." >> "${LOG_FILE}"
+for command_name in docker rclone flock sha256sum git realpath; do
+    command -v "$command_name" >/dev/null || {
+        log "ERROR: missing required command: $command_name"
+        exit 1
+    }
+done
+
+test -f "$COMPOSE_FILE" || {
+    log "ERROR: compose file not found: $COMPOSE_FILE"
     exit 1
+}
+test -d "$DATA_DIR" || {
+    log "ERROR: data directory not found: $DATA_DIR"
+    exit 1
+}
+
+mkdir -p "$BACKUP_DIR/snapshots"
+touch "$LOG_FILE"
+exec > >(tee -a "$LOG_FILE") 2>&1
+exec 9>"$LOCK_FILE"
+flock -n 9 || {
+    log "ERROR: another backup is already running"
+    exit 1
+}
+
+compose() {
+    DAO_VANG_RUNTIME_UID="$RUNTIME_UID" DAO_VANG_RUNTIME_GID="$RUNTIME_GID" docker compose --project-directory "$PROJECT_DIR" -f "$COMPOSE_FILE" "$@"
+}
+
+timestamp="$(date +'%Y%m%d_%H%M%S')"
+snapshot_dir="$BACKUP_DIR/snapshots/$timestamp"
+remote_snapshot="$REMOTE_ROOT/snapshots/$timestamp"
+services_stopped=0
+
+cleanup() {
+    exit_code=$?
+    if (( services_stopped == 1 )); then
+        log "Backup interrupted; restarting web and scanner"
+        compose up -d scanner web || true
+    fi
+    if (( exit_code != 0 )); then
+        log "ERROR: backup failed with exit code $exit_code"
+    fi
+    trap - EXIT INT TERM
+    exit "$exit_code"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+case "$snapshot_dir" in
+    "$BACKUP_DIR"/snapshots/*) ;;
+    *)
+        log "ERROR: unsafe snapshot path: $snapshot_dir"
+        exit 1
+        ;;
+esac
+
+mkdir -p "$snapshot_dir/release" "$snapshot_dir/state"
+log "Starting consistent snapshot $timestamp"
+
+services_stopped=1
+compose stop --timeout 60 web scanner
+
+if [[ -f "$DATA_DIR/live.duckdb" ]]; then
+    compose run --rm --no-deps -T scanner python -c 'import duckdb; connection = duckdb.connect("/app/data_live/live.duckdb"); connection.execute("CHECKPOINT"); connection.close()'
+    cp --reflink=auto --sparse=always "$DATA_DIR/live.duckdb" "$snapshot_dir/live.duckdb"
 fi
 
-# 1. T?o Daily Snapshot DuckDB
-if [ -f "${DATA_DIR}/live.duckdb" ]; then
-    SNAPSHOT_FILE="${BACKUP_DIR}/live_${TIMESTAMP}.duckdb"
-    echo "--> T?o snapshot DuckDB: ${SNAPSHOT_FILE}" >> "${LOG_FILE}"
-    cp "${DATA_DIR}/live.duckdb" "${SNAPSHOT_FILE}"
-    
-    rclone copy "${SNAPSHOT_FILE}" "${GDRIVE_BACKUP}/daily_snapshots/" >> "${LOG_FILE}" 2>&1
-    rm -f "${SNAPSHOT_FILE}"
+cp "$DATA_DIR"/*.json "$snapshot_dir/state/" 2>/dev/null || true
+if [[ -d "$ARTIFACT_DIR/frozen_models" ]]; then
+    cp -a "$ARTIFACT_DIR/frozen_models" "$snapshot_dir/frozen_models"
 fi
+cp "$PROJECT_DIR/configs/live.yaml" "$snapshot_dir/release/live.yaml"
+cp "$COMPOSE_FILE" "$snapshot_dir/release/docker-compose.yml"
+cp "$PROJECT_DIR/uv.lock" "$snapshot_dir/release/uv.lock"
+git -C "$PROJECT_DIR" rev-parse HEAD > "$snapshot_dir/release/git-revision.txt"
 
-# 2. Ð?ng b? b?n sao luu Live m?i nh?t sang DaoVang_Data_Backup
-echo "--> Ðang d?ng b? thu m?c data lên DaoVang_Data_Backup..." >> "${LOG_FILE}"
-rclone sync "${DATA_DIR}" "${GDRIVE_BACKUP}/latest_data/" \
-    --include "live.duckdb" \
-    --include "raw/**" \
-    --include "normalized/**" \
-    --include "system_data_stats.json" \
-    --include "candidate_snapshot.json" \
-    --include "tracking_watchlist.json" \
-    --transfers 4 \
-    --checkers 8 \
-    --stats 30s \
-    >> "${LOG_FILE}" 2>&1
+compose up -d --wait --wait-timeout 180 scanner web
+services_stopped=0
 
-# 3. T? d?ng B? SUNG d? li?u Parquet m?i nh?t sang Quant_Data (Data Lake Backtest)
-echo "--> Ðang t? d?ng b? sung Parquet m?i nh?t sang Quant_Data..." >> "${LOG_FILE}"
-rclone copy "${DATA_DIR}/normalized" "${GDRIVE_QUANT}/normalized/" \
-    --update \
-    --transfers 8 \
-    --checkers 16 \
-    --stats 30s \
-    >> "${LOG_FILE}" 2>&1
+(
+    cd "$snapshot_dir"
+    find . -type f ! -name SHA256SUMS -print0 |
+        sort -z |
+        xargs -0 sha256sum
+) > "$snapshot_dir/SHA256SUMS"
 
-# 4. C?p nh?t live.duckdb m?i nh?t sang Quant_Data/databases/
-if [ -f "${DATA_DIR}/live.duckdb" ]; then
-    echo "--> C?p nh?t live.duckdb sang Quant_Data/databases/..." >> "${LOG_FILE}"
-    rclone copy "${DATA_DIR}/live.duckdb" "${GDRIVE_QUANT}/databases/" \
-        --update \
-        >> "${LOG_FILE}" 2>&1
+rclone mkdir "$REMOTE_ROOT"
+rclone copy "$snapshot_dir/" "$remote_snapshot/" --checksum
+rclone check "$snapshot_dir/" "$remote_snapshot/" --one-way --checksum
+
+for partition in raw normalized; do
+    if [[ -d "$DATA_DIR/$partition" ]]; then
+        rclone copy "$DATA_DIR/$partition/" "$REMOTE_ROOT/data-lake/$partition/" --update --checksum
+    fi
+done
+
+if [[ -f "$snapshot_dir/live.duckdb" ]]; then
+    rclone copyto "$snapshot_dir/live.duckdb" "$REMOTE_ROOT/latest/live.duckdb" --checksum
 fi
+rclone copyto "$snapshot_dir/SHA256SUMS" "$REMOTE_ROOT/latest/SHA256SUMS" --checksum
 
-# 5. D?n d?p snapshot cu hon 30 ngày trên Google Drive
-echo "--> D?n d?p snapshot cu hon 30 ngày trên Google Drive..." >> "${LOG_FILE}"
-rclone delete "${GDRIVE_BACKUP}/daily_snapshots/" --min-age 30d >> "${LOG_FILE}" 2>&1 || true
+rclone delete "$REMOTE_ROOT/snapshots" --min-age "${REMOTE_RETENTION_DAYS}d"
+rclone rmdirs "$REMOTE_ROOT/snapshots" --leave-root
 
-echo "==> [$(date '+%Y-%m-%d %H:%M:%S')] Hoàn thành Backup & Ð?ng b? Quant Data thành công!" >> "${LOG_FILE}"
-echo "========================================================" >> "${LOG_FILE}"
+revision="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+marker_tmp="$SUCCESS_MARKER.tmp"
+printf '{"completed_at":"%s","snapshot":"%s","revision":"%s","remote":"%s"}\n' "$(date -Iseconds)" "$timestamp" "$revision" "$remote_snapshot" > "$marker_tmp"
+mv "$marker_tmp" "$SUCCESS_MARKER"
+
+rm -rf -- "$snapshot_dir"
+log "Backup $timestamp uploaded and checksum-verified successfully"
+trap - EXIT INT TERM

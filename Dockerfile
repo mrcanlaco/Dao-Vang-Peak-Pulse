@@ -18,6 +18,11 @@ RUN npm run build
 # --- Stage 2: Python builder ---
 FROM python:3.12-slim AS builder
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libatomic1 \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
@@ -39,9 +44,10 @@ FROM python:3.12-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
+    libatomic1 \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/* \
-    && git config --global --add safe.directory '*'
+    && git config --system --add safe.directory '*'
 
 WORKDIR /app
 

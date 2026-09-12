@@ -20,6 +20,8 @@
 
 > 💡 **核心运行理念：** 本系统作为 **被动预警雷达（Human-in-the-loop）** 运行。DAO VANG **不进行自动下单（No Auto-Trading）**，所有交易决策完全由用户自主掌控。
 
+> 📎 当前生产模型、SHA-256 校验和及证据边界以 [生产模型说明](docs/PRODUCTION_MODEL.md) 为准。
+
 ---
 
 ## ✨ 2. 核心特性
@@ -27,8 +29,8 @@
 - 🔍 **全天候实时扫描器 (Live Scanner Daemon 24/7)：** 以 5 分钟 K 线为周期，实时自动扫描数百个 Binance Futures 交易对。
 - 📊 **Candidate Filter v2 & Pump Filter 筛选机制：** 快速过滤高波动币种，精准捕捉资金流异常与快速反转风险。
 - 🤖 **机器学习与自学习守护进程 (Machine Learning & Self-Learning Daemon)：**
-  - 模型根据实时数据定期自动校准（Calibration）与持续学习。
-  - 采用严格的 **Walk-Forward Validation（前向走查验证）** 方法（无未来函数 / Zero Data Leakage）。
+  - 支持在 shadow 模式中评估已校准的 challenger；challenger 不会自动晋升。
+  - 采用 **Walk-Forward Validation（前向走查验证）** 与回归检查来降低未来数据泄漏风险。
 - 📲 **Telegram 24/7 实时推送：** 将预警信号直接发送至个人/群组 Telegram，附带完整的分析指标与 Dashboard 直达链接。
 - 💻 **Web Dashboard 可视化界面 (React + Vite + TypeScript)：**
   - 专业级交互式 K 线图（TradingView 风格）。
@@ -66,12 +68,12 @@ flowchart LR
     C --> D[特征构建与归一化 Feature Builder]
     D --> E[评分与 Frozen ML 模型]
     E --> F{Quality Gate 质量关卡}
-    F -->|达到 70%+ 阈值| G[Telegram 预警 Bot]
+    F -->|通过 serving contract 与 frozen threshold| G[Telegram 预警 Bot]
     F -->|实时展示| H[React Web Dashboard]
 ```
 
 1. **数据采集 (Collect)：** 采集 Binance USD-M Futures 的 5m OHLCV、持仓量 (OI)、资金费率 (Funding Rate)、Taker 成交量与多空比。
-2. **归一化与 As-of Join：** 按时间戳精确对齐数据（Point-in-Time），确保 **零未来函数 (Zero Lookahead Bias)**。
+2. **归一化与 As-of Join：** 按 Point-in-Time 对齐数据，并运行防止 lookahead 的回归检查。
 3. **特征工程 (Feature Engineering)：** 计算资金流波动指标、OI 与价格变化率对比、Taker 主动买卖动能。
 4. **推理与预警 (Inference & Alert)：** 传入 Frozen ML 模型计算派发概率，检查冷却状态 (Cooldown)，并将预警推送至 Telegram 与 Dashboard。
 

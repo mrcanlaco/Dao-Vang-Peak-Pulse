@@ -75,7 +75,7 @@ All data collectors inherit from the base contract or follow the standard collec
 
 ## 📈 4. How to Add a New Feature Builder
 
-Features in DAO VANG are calculated strictly point-in-time to ensure zero lookahead bias.
+Features in DAO VANG must be calculated point-in-time. Add a leakage regression test for every new source or join because the existing safeguards are not a blanket guarantee.
 
 1. **Create Feature Builder:** `src/dao_vang/features/builders/my_feature.py`
 2. **Implement Feature Computation:**

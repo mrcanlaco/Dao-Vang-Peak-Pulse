@@ -396,10 +396,10 @@ export const VersionHistoryTab: React.FC = () => {
                 ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 shadow-emerald-500/20 animate-pulse'
                 : 'bg-slate-800 text-slate-400 shadow-slate-950/20 disabled:cursor-not-allowed disabled:opacity-60'
             }`}
-            title={t('updates_one_click_tooltip')}
+            title={updateStatus?.enabled === false ? t('updates_release_pipeline_only') : t('updates_one_click_tooltip')}
           >
             <Rocket className="w-3.5 h-3.5" />
-            <span>{t('updates_btn_one_click_update')}</span>
+            <span>{updateStatus?.enabled === false ? t('updates_release_pipeline_only') : t('updates_btn_one_click_update')}</span>
             {updateStatus?.enabled && updateStatus.update_available && (
               <span className="ml-1 rounded-full bg-emerald-950 px-1.5 py-0.2 text-[10px] font-mono font-bold text-emerald-300">
                 +{updateStatus.commits_behind}
@@ -438,6 +438,13 @@ export const VersionHistoryTab: React.FC = () => {
             <Rocket className="w-4 h-4" />
             <span>{t('updates_btn_start_update')}</span>
           </button>
+        </div>
+      )}
+
+      {updateStatus?.enabled === false && (
+        <div className="flex items-center gap-2 rounded-xl border border-sky-800/60 bg-sky-950/30 px-3 py-2 text-xs text-sky-200">
+          <Info className="h-4 w-4 shrink-0 text-sky-400" />
+          <span>{t('updates_release_pipeline_only')}. Commit đang chạy vẫn có thể được đối chiếu với origin/main tại đây.</span>
         </div>
       )}
 

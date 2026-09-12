@@ -132,7 +132,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           icon: BarChart3,
           category: 'TRADING',
           badge: 'Tier 1 Filter (Live Configured Role)',
-          purpose: 'Tier 1 candidate screening ranking top climax candidates from 678+ Binance Futures coins, with the official lane and challenger role read from live configuration.',
+          purpose: 'Tier 1 candidate screening across the live Binance Futures universe, with official and challenger roles read from configuration.',
           mechanism: [
             'Configured official lane vs challenger: the live comparison payload determines whether V1 or V2 drives rankings and Telegram; the other version remains evaluation-only.',
             '72-Hour State Memory: Tracks pump lifecycle from Pump Active -> Climax Exhaustion -> Distribution -> Markdown.',
@@ -198,11 +198,11 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           nameEn: 'Validation Lab',
           icon: FlaskConical,
           category: 'LAB',
-          badge: '85 Artifacts',
-          purpose: 'Rigorous empirical validation lab evaluating strategy performance across 2.6+ years of historical market data.',
+          badge: 'Saved Runs',
+          purpose: 'Empirical validation lab for evaluating strategy performance on stored historical periods.',
           mechanism: [
-            'Purged & Embargoed Walk-Forward Cross Validation: Strictly trains on past data, tests on future data with zero lookahead bias.',
-            'Leakage Audit Suite: 100% automated check ensuring no future data contamination.',
+            'Purged & Embargoed Walk-Forward Cross Validation: Trains on earlier periods and evaluates on later periods with point-in-time safeguards.',
+            'Leakage Audit Suite: Automated checks designed to detect future-data contamination; passing them reduces risk but is not absolute proof.',
             'Metric Distributions: Precision mean, baseline comparisons, Brier calibration, and drawdown distributions.'
           ],
           metrics: [
@@ -252,7 +252,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
             { label: 'Target Drawdown Benchmark', desc: 'Standard target: >= 8% drawdown with <= 4% MAE.' }
           ],
           playbook: [
-            'Verify model calibration curve to ensure a 75% forecasted probability translates to 75% real-world hit rate.'
+            'Use reliability curves and uncertainty bands to check whether forecast bins align with observed outcomes; never assume exact calibration.'
           ]
         },
         MARKET: {
@@ -264,9 +264,9 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           badge: 'Alpha Lab',
           purpose: 'Comprehensive Binance listing intelligence, market regime diagnostics (ADX/BB), Meta-labeling filter, and Drift Guardian.',
           mechanism: [
-            'Binance Listing Breakdown: Daily scan of 810+ coins (Spot vs Futures, Spot-only, Futures-only).',
+            'Binance Listing Breakdown: Uses the latest API payload to summarize Spot and Futures coverage.',
             'Market Regime Classifier: Identifies Trending Bear / Bull / Choppy regimes to adjust risk multipliers.',
-            'Meta-Labeling Engine: Secondary HistGradientBoosting model filtering out 55-60% of false signals.',
+            'Meta-Labeling Engine: When configured, a secondary model can veto weak signals; effectiveness must come from a versioned evaluation report.',
             'Drift Guardian: Continuous Population Stability Index (PSI) monitoring to detect alpha decay.'
           ],
           metrics: [
@@ -275,7 +275,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
             { label: 'Drift Status', desc: 'HEALTHY / WARNING / CRITICAL based on feature distribution drift.' }
           ],
           playbook: [
-            'Check Market Regime before trading: In TRENDING_BEAR regimes, Short setups have significantly higher winrates.'
+            'Use Market Regime as risk context, not as a guarantee that a Short setup will succeed.'
           ]
         },
         TELEMETRY: {
@@ -330,12 +330,12 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           mechanism: [
             '3-Engine Architecture: V1 Heuristic (9-component distribution score), V2 Two-Tier Climax (HTF Armed / LTF Fired), and Frozen ML Pipeline (LightGBM/LogReg).',
             'Regime Gate: ADX/BB/EMA filter that allows signals in SIDEWAY_DISTRIBUTION and TRENDING_BEAR while suppressing TRENDING_BULL & HIGH_VOLATILITY noise.',
-            'Calibration: Isotonic Regression calibrator guaranteeing empirical probabilities with ECE < 0.031.'
+            'Calibration: Isotonic Regression maps raw scores to probabilities; quality is reported for each frozen Model ID.'
           ],
           metrics: [
-            { label: 'Champion Model', desc: 'V3.1 Sniper Target (LightGBM) with 35 features, achieving 36.6% precision, ECE 0.031, limited to 15 alerts/day.' },
-            { label: 'Challenger Model', desc: 'LightGBM with 14 features tuned for mid-cap altcoins (21.2% precision).' },
-            { label: 'Regime Precision', desc: 'Empirical precision across market regimes (31% in Sideway Distribution).' }
+            { label: 'Production Model ID', desc: 'Immutable identifier loaded by the current live configuration.' },
+            { label: 'Release Evidence', desc: 'Checksums, cutoff, threshold, and metrics recorded for that exact model bundle.' },
+            { label: 'Forward Evidence', desc: 'Post-cutoff outcomes reported only after enough matching samples are available.' }
           ],
           playbook: [
             'Consult the feature importance rankings and regime matrix before trading new signal setups.'
@@ -344,13 +344,13 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         UPDATES: {
           id: 'UPDATES',
           name: 'Updates',
-          nameEn: 'Git & Auto-updater',
+          nameEn: 'Git & Releases',
           icon: GitPullRequest,
           category: 'SYSTEM',
           badge: 'v2.0 Pro',
-          purpose: 'Git commit history, 8 architectural milestones, development velocity metrics, and 1-click system auto-updater.',
+          purpose: 'Git commit history, architectural milestones, development metrics, and deployed release identity.',
           mechanism: [
-            '3-Tier Auto-Updater: 5-minute server auto-sync cron, 1-click UI update button, and PWA v3.2 cache purge.',
+            'Release Pipeline: Production deploys an exact commit only after CI succeeds; direct server auto-update is disabled.',
             'Git Analytics: Commit classification (feat, fix, perf, docs) and active development days.'
           ],
           metrics: [
@@ -358,7 +358,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
             { label: 'Update Status', desc: 'Displays whether newer commits exist on GitHub origin/main.' }
           ],
           playbook: [
-            'Click "Check & Apply Update" whenever new features are pushed to synchronize server in seconds.'
+            'Use this page to inspect version status; production changes are applied through the release pipeline.'
           ]
         },
         SETTINGS: {
@@ -446,7 +446,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         icon: BarChart3,
         category: 'TRADING',
         badge: 'Bộ Lọc Tầng 1 (Theo cấu hình live)',
-        purpose: 'Tầng 1 chọn lọc ứng viên tiềm năng nhất từ ~678 coin Binance Futures; vai trò bản chính và bản đối chiếu được lấy từ cấu hình live.',
+        purpose: 'Tầng 1 chọn lọc ứng viên từ phạm vi Binance Futures theo cấu hình live; vai trò bản chính và bản đối chiếu cũng lấy từ cấu hình.',
         mechanism: [
           'Bản chính vs bản đối chiếu: dữ liệu live quyết định V1 hay V2 điều phối xếp hạng và Telegram; phiên bản còn lại chỉ dùng để đối soát.',
           'Bộ Nhớ Trạng Thái 72 Giờ: Theo dõi chu kỳ bơm xả qua từng giai đoạn (Đang bơm -> Kiệt sức -> Phân phối -> Bắt đầu xả).',
@@ -512,11 +512,11 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         nameEn: 'Backtest Lab',
         icon: FlaskConical,
         category: 'LAB',
-        badge: '85 Thí Nghiệm',
-        purpose: 'Phòng thí nghiệm kiểm định nghiêm ngặt hiệu quả của thuật toán trên 2.6+ năm dữ liệu lịch sử thị trường.',
+        badge: 'Các Lần Chạy Đã Lưu',
+        purpose: 'Phòng thí nghiệm kiểm định hiệu quả thuật toán trên các giai đoạn dữ liệu lịch sử đã lưu.',
         mechanism: [
-          'Kiểm Định Cuốn Chiếu (Walk-Forward Validation + Embargo): Chỉ huấn luyện trên quá khứ, kiểm tra trên tương lai — loại bỏ 100% nhìn trước (Zero Data Leakage).',
-          'Kiểm Toán Rò Rỉ Dữ Liệu: Tự động chạy bộ test chứng minh thuật toán không sử dụng dữ liệu tương lai.',
+          'Kiểm Định Cuốn Chiếu (Walk-Forward Validation + Embargo): Huấn luyện trên giai đoạn trước, đánh giá trên giai đoạn sau và áp dụng bảo vệ point-in-time.',
+          'Kiểm Toán Rò Rỉ Dữ Liệu: Bộ test tự động được thiết kế để phát hiện việc dùng dữ liệu tương lai; kết quả đạt giúp giảm rủi ro chứ không phải bằng chứng tuyệt đối.',
           'Phân Phối Kết Quả: Thống kê Precision trung bình, Baseline đối chứng, Brier calibration và phân bố qua các fold.'
         ],
         metrics: [
@@ -566,7 +566,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           { label: 'Tiêu Chuẩn Target', desc: 'Quy chuẩn: Giá giảm >= 8% trong 24h và độ giật ngược MAE <= 4%.' }
         ],
         playbook: [
-          'Quan sát đường cong hiệu chuẩn: Một mô hình tốt phải đảm bảo khi báo xác suất 75% thì thực tế có đúng 75% trường hợp giá xả thật.'
+          'Dùng đường cong hiệu chuẩn và khoảng bất định để kiểm tra các nhóm xác suất; không giả định xác suất dự báo khớp tuyệt đối với thực tế.'
         ]
       },
       MARKET: {
@@ -576,11 +576,11 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         icon: Activity,
         category: 'SYSTEM',
         badge: 'Alpha Lab Guardian',
-        purpose: 'Báo cáo cấu trúc 810 coin Binance, nhận diện trạng thái thị trường (Market Regime), bộ lọc Meta-labeling và giám sát suy hao Alpha (Drift Guardian).',
+        purpose: 'Báo cáo phạm vi Binance từ payload mới nhất, trạng thái thị trường (Market Regime), cấu hình Meta-labeling và kết quả Drift Guardian khi có dữ liệu.',
         mechanism: [
-          'Thống Kê Niêm Yết Binance: Quét phân loại 810 coin (Spot vs Futures, Chỉ có Spot, Chỉ có Futures).',
+          'Thống Kê Niêm Yết Binance: Dùng payload API mới nhất để phân loại Spot và Futures.',
           'Bộ Phân Loại Trạng Thái Thị Trường (Market Regime): Dùng ADX và Bollinger Width để xác định thị trường Xu hướng Giảm (Trending Bear) hay Đi ngang (Choppy).',
-          'Mô Hình Meta-Labeling (Lớp 2): Dùng thuật toán HistGradientBoosting để loại bỏ 55-60% tín hiệu giả trước khi bắn cảnh báo.',
+          'Mô Hình Meta-Labeling (Lớp 2): Khi được cấu hình, mô hình phụ có thể veto tín hiệu yếu; hiệu quả phải đọc từ báo cáo đánh giá có phiên bản.',
           'Drift Guardian: Giám sát chỉ số ổn định dữ liệu (PSI) để phát hiện sớm hiện tượng suy giảm hiệu quả mô hình.'
         ],
         metrics: [
@@ -589,7 +589,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           { label: 'Trạng Thái Drift Guardian', desc: 'HEALTHY / WARNING / CRITICAL thể hiện mức độ ổn định của các đặc trưng dữ liệu.' }
         ],
         playbook: [
-          'Luôn xem trạng thái Market Regime: Khi thị trường là TRENDING_BEAR, các lệnh Short có tỷ lệ thắng và biên độ lợi nhuận cao nhất.'
+          'Dùng Market Regime làm bối cảnh quản trị rủi ro, không xem đó là bảo đảm một lệnh Short sẽ thành công.'
         ]
       },
       TELEMETRY: {
@@ -644,12 +644,12 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         mechanism: [
           'Kiến Trúc 3 Động Cơ: V1 Heuristic (9 thành phần phân phối đỉnh), V2 Two-Tier Climax (HTF Armed / LTF Fired), và Frozen ML Pipeline (LightGBM/LogReg).',
           'Bộ Lọc Regime Gate: Dựa trên ADX/BB/EMA chỉ cho phép tín hiệu trong SIDEWAY_DISTRIBUTION và TRENDING_BEAR, chặn nhiễu trong TRENDING_BULL & HIGH_VOLATILITY.',
-          'Hiệu Chuẩn Xác Suất: Isotonic Regression đảm bảo xác suất thực tế với ECE < 0.031.'
+          'Hiệu Chuẩn Xác Suất: Isotonic Regression ánh xạ điểm thô sang xác suất; chất lượng được báo cáo riêng cho từng Model ID đóng băng.'
         ],
         metrics: [
-          { label: 'Mô Hình Champion', desc: 'V3.1 Sniper Target (LightGBM) với 35 đặc trưng, đạt precision 36.6%, ECE 0.031 và giới hạn 15 alerts/ngày.' },
-          { label: 'Mô Hình Challenger', desc: 'LightGBM với 14 đặc trưng tối ưu cho phân khúc Altcoins vừa và nhỏ (đạt precision 21.2%).' },
-          { label: 'Precision Theo Regime', desc: 'Độ chính xác theo chế độ thị trường (đạt 31% trong giai đoạn Phân phối Đi ngang).' }
+          { label: 'Model ID Production', desc: 'Định danh bất biến được cấu hình live nạp ở phiên bản đang chạy.' },
+          { label: 'Bằng Chứng Phát Hành', desc: 'Checksum, cutoff, threshold và chỉ số gắn với đúng gói mô hình đó.' },
+          { label: 'Bằng Chứng Forward', desc: 'Kết quả sau cutoff chỉ được báo cáo khi có đủ mẫu phù hợp.' }
         ],
         playbook: [
           'Tham khảo bảng xếp hạng độ quan trọng đặc trưng (Feature Importance) và ma trận Regime trước khi giao dịch theo tín hiệu.'
@@ -658,13 +658,13 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
       UPDATES: {
         id: 'UPDATES',
         name: 'Cập nhật',
-        nameEn: 'Version & Auto-updater',
+        nameEn: 'Version & Releases',
         icon: GitPullRequest,
         category: 'SYSTEM',
         badge: 'v2.0 Pro',
-        purpose: 'Theo dõi 185 commit Git, 8 cột mốc kiến trúc, phân loại thay đổi mã nguồn và kích hoạt cơ chế Auto-Update 1 chạm.',
+        purpose: 'Theo dõi lịch sử Git, các cột mốc kiến trúc, phân loại thay đổi mã nguồn và định danh bản phát hành đang chạy.',
         mechanism: [
-          'Quy Trình Auto-Update 3 Tầng: Cron tự đồng bộ 5 phút trên máy chủ Google, Nút cập nhật 1 chạm trên Web, và PWA v3.2 dọn sạch cache trình duyệt.',
+          'Quy Trình Phát Hành: Production chỉ triển khai đúng một commit sau khi CI đạt; tự cập nhật trực tiếp trên máy chủ đã bị tắt.',
           'Phân Tích Git: Thống kê số lượng tính năng mới (feat), sửa lỗi (fix), tối ưu hiệu năng (perf) và ngày phát triển.'
         ],
         metrics: [
@@ -672,7 +672,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           { label: 'Trạng Thái Cập Nhật', desc: 'Báo hiệu khi có bản cập nhật mới hơn trên nhánh main của GitHub.' }
         ],
         playbook: [
-          'Bấm "Kiểm tra & Cập nhật ngay" bất cứ lúc nào bạn muốn đồng bộ mã nguồn mới nhất từ GitHub.'
+          'Dùng trang này để xem trạng thái phiên bản; mọi thay đổi production được áp dụng qua release pipeline.'
         ]
       },
       SETTINGS: {
@@ -846,7 +846,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       <span>Lọc Ứng Viên Bơm Xả</span>
                     </div>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Sàng lọc nhanh ~678 coin Binance Futures xuống còn <strong>Top 30 coin</strong> có biên độ bơm lớn nhất và bắt đầu kiệt sức động lượng.
+                      Sàng lọc phạm vi Binance Futures theo cấu hình live để lấy nhóm ứng viên có biên độ tăng mạnh và bắt đầu kiệt sức động lượng.
                     </p>
                     <div className="text-[10px] font-mono text-slate-500 border-t border-slate-800/80 pt-1.5">
                       ⚙️ Mô hình: Candidate Filter V2
@@ -876,7 +876,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       <span>Tính Xác Suất Machine Learning</span>
                     </div>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Tính toán xác suất thực nghiệm chuẩn hóa (ví dụ: <strong>74.5%</strong>) dựa trên 25 chỉ số vi cấu trúc đối soát qua 600,000+ nến lịch sử.
+                      Tính xác suất đã hiệu chuẩn từ vector đặc trưng của mô hình đang chọn; độ tin cậy phải được đối chiếu với báo cáo gắn đúng Model ID.
                     </p>
                     <div className="text-[10px] font-mono text-slate-500 border-t border-slate-800/80 pt-1.5">
                       ⚙️ Mô hình: LightGBM + Calibrator
@@ -891,7 +891,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       <span>Lọc Bẫy & Bối Cảnh Thị Trường</span>
                     </div>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Phân loại Market Regime và áp dụng Meta-labeling để <strong>loại bỏ 55% - 60% tín hiệu giả</strong> khi Bitcoin đang biến động quá mạnh.
+                      Phân loại Market Regime và, khi được cấu hình, dùng Meta-labeling để veto tín hiệu yếu trước khi phát cảnh báo.
                     </p>
                     <div className="text-[10px] font-mono text-slate-500 border-t border-slate-800/80 pt-1.5">
                       ⚙️ Mô hình: Meta-Labeling & Drift
@@ -979,10 +979,10 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                     </div>
 
                     <div className="text-[11px] text-slate-400 flex flex-wrap items-center gap-4 pt-1">
-                      <span className="text-emerald-400 font-bold">✓ Tỷ lệ chạm TP1: 36.6%</span>
-                      <span className="text-emerald-400 font-bold">✓ Tỷ lệ dính SL: 14.9%</span>
-                      <span className="text-cyan-400 font-bold">✓ Tỷ lệ R:R: 4.08 (Gấp 2.1 lần V1)</span>
-                      <span className="text-amber-400 font-bold">✓ Đón đầu trước: 25.0 phút</span>
+                      <span className="text-emerald-400 font-bold">✓ Kết quả: đọc từ báo cáo gắn Model ID</span>
+                      <span className="text-emerald-400 font-bold">✓ Phạm vi: đúng cấu hình và kỳ đánh giá</span>
+                      <span className="text-cyan-400 font-bold">✓ R:R: tính riêng cho từng setup</span>
+                      <span className="text-amber-400 font-bold">✓ Lead time: chỉ báo khi đủ mẫu</span>
                     </div>
                   </div>
 
@@ -993,11 +993,11 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                         <div className="p-1.5 rounded-lg bg-amber-600/30 text-amber-300 font-bold font-mono text-xs">02</div>
                         <span className="font-black text-amber-300 text-sm">Frozen Machine Learning Models (LightGBM)</span>
                       </div>
-                      <span className="rounded-full bg-amber-950 border border-amber-600 px-2.5 py-0.5 text-[9px] font-bold text-amber-200">5 PRODUCTION CHECKPOINTS</span>
+                      <span className="rounded-full bg-amber-950 border border-amber-600 px-2.5 py-0.5 text-[9px] font-bold text-amber-200">VERSIONED CHECKPOINT</span>
                     </div>
 
                     <p className="text-slate-300 leading-relaxed text-xs">
-                      Gồm 5 phiên bản mô hình cây quyết định Gradient Boosting (LightGBM) được huấn luyện trên hơn <strong>600,000 nến 5 phút lịch sử (2.6 năm)</strong> bằng phương pháp Walk-Forward Validation nghiêm ngặt kết hợp Embargo Window để loại bỏ 100% rủi ro nhìn trước (Zero Data Leakage).
+                      Production nạp một gói mô hình LightGBM đóng băng theo <strong>Model ID và checksum</strong>. Walk-Forward Validation kết hợp Embargo Window giúp giảm rủi ro nhìn trước; bằng chứng hiện hành phải đi cùng đúng gói mô hình.
                     </p>
 
                     <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800/80 space-y-2">
@@ -1037,10 +1037,10 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                     </div>
 
                     <p className="text-slate-300 leading-relaxed text-xs">
-                      Điểm số thô của mô hình cây quyết định thường có độ lệch biên. Bộ hiệu chuẩn <strong>Isotonic Regression</strong> thiết lập hàm ánh xạ đơn điệu phi tham số, đảm bảo xác suất dự báo đạt chuẩn Brier Score &approx; 0.113 và sai số hiệu chuẩn kỳ vọng ECE &le; 0.0248 (dưới 2.5%).
+                      Điểm số thô của mô hình cây quyết định thường có độ lệch biên. Bộ hiệu chuẩn <strong>Isotonic Regression</strong> thiết lập hàm ánh xạ đơn điệu phi tham số; Brier Score và ECE phải được đọc từ báo cáo của đúng Model ID và kỳ đánh giá.
                     </p>
                     <div className="text-[11px] text-cyan-300 font-mono bg-slate-950/60 p-2 rounded border border-cyan-900/40">
-                      💡 <strong>Ý nghĩa thực chiến:</strong> Khi AI hiển thị xác suất 75%, bạn hoàn toàn có thể tin tưởng rằng trong 100 kèo tương tự ở quá khứ, có đúng 75 kèo giá đã sập sâu &ge; 8%.
+                      💡 <strong>Cách đọc:</strong> Xác suất là ước lượng của mô hình, không phải cam kết. Hãy kiểm tra đường cong hiệu chuẩn, cỡ mẫu và khoảng bất định của phiên bản đang chạy.
                     </div>
 
                     <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 space-y-1.5">
@@ -1069,7 +1069,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       Dựa trên công trình nghiên cứu kinh điển của GS. Marcos López de Prado (<em>Advances in Financial Machine Learning</em>). Mô hình Meta-labeling hoạt động như một quan tòa phúc thẩm độc lập: Khi Tầng 2 & 3 phát tín hiệu Short, mô hình này sẽ phân tích các sai số tiềm ẩn để quyết định xem có cho phép bấm nút hay không (1: Cho phép, 0: Bác bỏ).
                     </p>
                     <div className="text-[11px] text-emerald-300 font-mono bg-slate-950/60 p-2 rounded border border-emerald-900/40">
-                      🛡️ <strong>Hiệu quả bảo vệ:</strong> Loại bỏ từ <strong>55% đến 60% các tín hiệu nhiễu/bẫy tăng tiếp</strong>, đặc biệt trong những ngày thị trường biến động giật 2 đầu.
+                      🛡️ <strong>Vai trò bảo vệ:</strong> Có thể veto tín hiệu yếu hoặc bẫy tăng tiếp; mức hiệu quả được đánh giá riêng theo từng phiên bản và giai đoạn thị trường.
                     </div>
 
                     <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/80 space-y-1.5">
@@ -1078,7 +1078,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                         <span>Vị Trí Ứng Dụng Trong Giao Diện & Backend:</span>
                       </div>
                       <div className="grid gap-1.5 sm:grid-cols-2 text-[11px] text-slate-300">
-                        <div>• <strong>Tab Thị trường (Alpha Lab):</strong> Hiển thị trạng thái Meta-Labeling & tỷ lệ lọc nhiễu 55-60%.</div>
+                        <div>• <strong>Tab Thị trường (Alpha Lab):</strong> Hiển thị trạng thái Meta-Labeling do API cung cấp.</div>
                         <div>• <strong>Scanner Daemon:</strong> Tự động chặn (VETO) tín hiệu giả trước khi bắn Telegram.</div>
                       </div>
                     </div>

@@ -6,6 +6,12 @@
 
 ---
 
+> **Trạng thái bằng chứng:** Đây là ghi chú nghiên cứu lịch sử, không phải báo
+> cáo release/forward-test của model production. Các con số win rate, ROI và
+> drawdown bên dưới chưa gắn đầy đủ checksum, cửa sổ out-of-sample, sample/event
+> count và khoảng tin cậy nên không được dùng để mô tả hiệu năng live. Xem
+> [mô hình production và mức độ bằng chứng](../PRODUCTION_MODEL.md).
+
 ## 1. Cú lừa từ "Phân kỳ Cá Mập" (The Illusion of Smart Money Divergence)
 
 Trong Báo cáo 06, giả thuyết cốt lõi đằng sau sự đột phá của thuật toán được quy cho chỉ báo `smart_money_divergence` (Sự khác biệt vị thế giữa Đám đông và Cá mập). Tuy nhiên, việc trích xuất và đo lường trực tiếp Thông tin thu được (Information Gain) từ lõi thuật toán LightGBM đã phơi bày một sự thật trái ngược:

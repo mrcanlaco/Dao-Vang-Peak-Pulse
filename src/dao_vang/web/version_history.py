@@ -76,7 +76,7 @@ MILESTONES = [
         "title": "M5: Target Validation & Model Backtesting",
         "date": "2026-07-15",
         "status": "COMPLETED",
-        "description": "Walk-forward validation, Brier score calibration, 95% Bootstrap CI, and 100% data leakage prevention tests.",
+        "description": "Walk-forward validation, Brier score calibration, 95% Bootstrap CI, and automated tests designed to detect data leakage.",
         "highlights": [
             "Purged & Embargoed walk-forward cross validation",
             "Calibration curve & empirical precision testing",
@@ -90,7 +90,7 @@ MILESTONES = [
         "status": "COMPLETED",
         "description": "Pure DuckDB SQL-based feature computation: Price, Open Interest, Funding Rate, and Taker Buy/Sell volume dynamics.",
         "highlights": [
-            "100% SQL window functions for zero lookahead bias",
+            "SQL window functions with point-in-time safeguards",
             "Dynamic ATR volatility adjustments",
         ],
     },
@@ -102,7 +102,7 @@ MILESTONES = [
         "status": "COMPLETED",
         "description": "Fixed-horizon, fixed-stop, and dynamic ATR labeling engine for detecting market distribution tops.",
         "highlights": [
-            "Deterministic event definition without future peek",
+            "Deterministic event definition with documented forecast horizons",
             "Multi-horizon labeling configurations",
         ],
     },
@@ -114,7 +114,7 @@ MILESTONES = [
         "status": "COMPLETED",
         "description": "DuckDB-based timeline alignment and ASOF joins with zero dependency on Pandas/Polars.",
         "highlights": [
-            "Sub-second timeline alignment over 10M+ rows",
+            "ASOF timeline alignment for large time-series datasets",
             "Memory-efficient columnar storage",
         ],
     },

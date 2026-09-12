@@ -434,26 +434,28 @@ export interface EnginePerformanceMetrics {
   avg_mae: number;
   avg_mfe: number;
   avg_risk_reward: number;
-  mean_lead_time_min: number;
+  mean_lead_time_min: number | null;
   precision_score: number;
 }
 
 export interface EngineComparisonResponse {
   status: string;
+  reason?: string;
+  source?: string;
   sample_count: number;
   evaluated_at: string;
   champion_engine?: EnginePerformanceMetrics;
-  comparison: {
-    v1: EnginePerformanceMetrics;
-    v2: EnginePerformanceMetrics;
+  comparison?: {
+    v1?: EnginePerformanceMetrics;
+    v2?: EnginePerformanceMetrics;
   };
-  verdict: {
+  verdict?: {
     winner: string;
     precision_diff_pct: number;
     mae_reduction_pct: number;
     risk_reward_advantage: number;
     explanation: string;
-  };
+  } | null;
 }
 
 export interface DeepAnalysis {
@@ -631,6 +633,9 @@ export interface MarketOverviewData {
   market_regime: string;
   distribution_index: number;
   macro_climate?: {
+    available?: boolean;
+    source?: string;
+    timestamp?: string;
     regime: string;
     regime_label_vi?: string;
     regime_label_en?: string;

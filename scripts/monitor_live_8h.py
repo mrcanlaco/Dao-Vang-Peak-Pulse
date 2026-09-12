@@ -182,18 +182,25 @@ def collect_sample(args: argparse.Namespace, started_at: float) -> dict[str, Any
     record["checks"]["heartbeat"] = heartbeat_check
 
     api_status, api_error = fetch_status(args.api_url)
-    api_check: dict[str, Any] = {"url": args.api_url, "ok": api_status is not None}
+    api_check: dict[str, Any] = {"url": args.api_url, "ok": False}
     if api_status is not None:
+        checks = api_status.get("checks")
+        scanner = checks.get("scanner", {}) if isinstance(checks, dict) else {}
         api_check.update(
             {
-                "scanner_status": api_status.get("scanner_status"),
-                "heartbeat": api_status.get("heartbeat"),
-                "scanned_coins_count": api_status.get("scanned_coins_count"),
-                "telegram_connected": api_status.get("telegram_connected"),
-                "db_read_status": api_status.get("db_read_status"),
+                "status": api_status.get("status"),
+                "scanner_status": scanner.get(
+                    "status",
+                    api_status.get("scanner_status"),
+                ),
+                "scanner_reason": scanner.get("reason"),
+                "heartbeat_age_seconds": scanner.get("heartbeat_age_seconds"),
             }
         )
-        api_check["ok"] = api_status.get("scanner_status") == "ONLINE"
+        api_check["ok"] = (
+            api_status.get("status") == "ok"
+            or api_status.get("scanner_status") == "ONLINE"
+        )
     if api_error:
         api_check["error"] = api_error
     record["checks"]["api"] = api_check
@@ -244,7 +251,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hours", type=float, default=8.0)
     parser.add_argument("--interval-seconds", type=int, default=300)
-    parser.add_argument("--api-url", default="http://127.0.0.1:8001/api/status")
+    parser.add_argument("--api-url", default="http://127.0.0.1:8000/api/ready")
     parser.add_argument(
         "--heartbeat-path",
         type=Path,

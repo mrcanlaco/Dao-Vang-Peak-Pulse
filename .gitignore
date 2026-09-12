@@ -26,9 +26,8 @@ env.bak/
 venv.bak/
 configs/live.yaml
 configs/*.local.yaml
-cloudflared/*.json
-cloudflared/config.yml
-!cloudflared/config.example.yml
+/cloudflared/*
+!/cloudflared/config.example.yml
 
 # IDEs & Editor configs
 .vscode/
@@ -54,6 +53,8 @@ qaops-tests*/
 htmlcov/
 coverage.xml
 reports/
+test-results/
+/backups/
 
 # Data, Live Databases & Artifacts
 /data/

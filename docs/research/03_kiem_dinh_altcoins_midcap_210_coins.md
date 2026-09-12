@@ -7,6 +7,8 @@
 > **Khoảng thời gian:** 1 năm (08/2025 → 08/2026, 19,371,492 nến thô)  
 > **Phương pháp:** 8-Fold Walk-Forward Cross-Validation, Isotonic Calibration
 
+> **Phạm vi bằng chứng:** Đây là báo cáo nghiên cứu lịch sử, không đại diện cho mô hình production hiện tại và không phải kết quả forward-test độc lập sau cutoff. Mọi chỉ số chỉ áp dụng cho dữ liệu, cấu hình và thời điểm ghi trong báo cáo. Xem [hồ sơ mô hình production](../PRODUCTION_MODEL.md).
+
 ---
 
 ## 1. Mục Tiêu & Động Lực Nghiên Cứu

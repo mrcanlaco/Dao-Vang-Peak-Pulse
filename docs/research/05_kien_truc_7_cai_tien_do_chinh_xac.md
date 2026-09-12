@@ -5,6 +5,8 @@
 > **Tác giả:** Đội ngũ Nghiên cứu & Định lượng Đảo Vàng (`dao_vang Quant Lab`)  
 > **Chủ đề:** Tối ưu hóa toàn diện Pipeline dữ liệu, Hiệu chuẩn xác suất và Bộ lọc tín hiệu
 
+> **Phạm vi bằng chứng:** Đây là báo cáo kiến trúc và nghiên cứu lịch sử, không đại diện cho mô hình production hiện tại. Các chỉ số được nhắc đến chỉ áp dụng cho dữ liệu, cấu hình và thời điểm của nghiên cứu. Xem [hồ sơ mô hình production](../PRODUCTION_MODEL.md).
+
 ---
 
 ## 1. Tổng Quan Kiến Trúc

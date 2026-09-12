@@ -18,17 +18,25 @@ export const ModelComparisonModal: React.FC<ModelComparisonModalProps> = ({
   const { t } = useTranslation();
   const [data, setData] = useState<EngineComparisonResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const fetchComparison = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch('/api/models/comparison-matrix');
       if (res.ok) {
-        const json = await res.json();
+        const json: EngineComparisonResponse = await res.json();
         setData(json);
+        if (json.status !== 'success') {
+          setLoadError('Chưa có đủ dữ liệu lịch sử để tính ma trận so sánh.');
+        }
+      } else {
+        setLoadError('Không thể tải dữ liệu so sánh từ máy chủ.');
       }
     } catch (e) {
       console.error('Failed to fetch model comparison', e);
+      setLoadError('Không thể tải dữ liệu so sánh từ máy chủ.');
     } finally {
       setIsLoading(false);
     }
@@ -140,7 +148,7 @@ export const ModelComparisonModal: React.FC<ModelComparisonModalProps> = ({
                 </div>
                 <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded">
                   <span className="text-slate-400">{t('metric_lead_time') || 'Báo Trước Đỉnh Trung Bình'}:</span>
-                  <span className="text-slate-300">{v1.mean_lead_time_min} min</span>
+                  <span className="text-slate-300">{v1.mean_lead_time_min == null ? 'N/A' : `${v1.mean_lead_time_min} min`}</span>
                 </div>
               </div>
             </div>
@@ -195,14 +203,14 @@ export const ModelComparisonModal: React.FC<ModelComparisonModalProps> = ({
                 </div>
                 <div className="flex justify-between items-center bg-violet-950/30 border border-violet-800/30 p-2 rounded">
                   <span className="text-slate-300">{t('metric_lead_time') || 'Báo Trước Đỉnh Trung Bình'}:</span>
-                  <span className="text-slate-300">{v2.mean_lead_time_min} min</span>
+                  <span className="text-slate-300">{v2.mean_lead_time_min == null ? 'N/A' : `${v2.mean_lead_time_min} min`}</span>
                 </div>
               </div>
             </div>
           </div>
         ) : (
           <div className="p-8 text-center text-slate-500 font-mono text-xs">
-            {isLoading ? 'Đang tính toán ma trận so sánh từ dữ liệu DuckDB...' : 'Không có dữ liệu so sánh.'}
+            {isLoading ? 'Đang tính toán ma trận so sánh từ dữ liệu DuckDB...' : loadError || 'Không có dữ liệu so sánh.'}
           </div>
         )}
 

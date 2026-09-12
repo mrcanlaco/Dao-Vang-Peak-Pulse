@@ -154,12 +154,25 @@ def test_ask_ai_analyst_server_default_mock():
     mock_resp.__enter__.return_value = mock_resp
     mock_resp.__exit__.return_value = None
 
-    with patch("urllib.request.urlopen", return_value=mock_resp):
+    server_settings = MagicMock()
+    server_settings.ai.provider = "openai"
+    server_settings.ai.api_key = "server-test-key"
+    server_settings.ai.model_id = "antigravity/gemini-3.7-flash-tiered"
+    server_settings.ai.base_url = "https://proxy-ai.example.test/v1"
+    server_settings.ai.enabled = True
+
+    with (
+        patch(
+            "dao_vang.config.settings.AppSettings",
+            return_value=server_settings,
+        ),
+        patch("urllib.request.urlopen", return_value=mock_resp),
+    ):
         res = ask_ai_analyst(
             "Phân tích SOLUSDT",
             "SOLUSDT",
             {"current_price": 140.0, "probability": 80.0},
             llm_config={},  # Empty config from client
         )
-        assert "Gemini 3.7 Flash Tiered (Proxy)" in res["provider"] or "OpenAI" in res["provider"]
+        assert res["provider"] == "Gemini 3.7 Flash Tiered (Proxy)"
         assert res["answer"] == "Server AI proxy response for SOLUSDT"

@@ -22,31 +22,40 @@ Khác với các công cụ phân tích kỹ thuật truyền thống chỉ dự
 
 ---
 
-## 🏆 2. THÀNH TỰU & NĂNG LỰC ĐỊNH LƯỢNG THỰC TIỄN (QUANTITATIVE TRACK RECORD)
+## 🔎 2. TRẠNG THÁI PHIÊN BẢN PRODUCTION
 
-Hệ thống được xây dựng và kiểm định dựa trên các tiêu chuẩn định lượng khắt khe trong kỹ nghệ tài chính (Quantitative Finance & MLOps):
+Bản production được định danh bằng model ID và checksum, không bằng tên gọi
+marketing hoặc số liệu từ một báo cáo lịch sử.
 
-### 📊 Bảng Chỉ Số Thực Nghiệm (Walk-Forward Validation Benchmarks)
+| Trường | Giá trị đang cấu hình |
+| :--- | :--- |
+| **Model ID** | **frozen_20260906_105716_bc3c369b** |
+| **Train cutoff** | **2026-07-28T19:05:39.999000+07:00** |
+| **Frozen threshold** | **0.4100000000000001** |
+| **Calibration** | **isotonic_v1** |
+| **Model SHA-256** | **27961bc6c9a24e52136d00f208258343e8d5b75980fe156dbfba699264f51a12** |
+| **Calibrator SHA-256** | **0e425413f24a3a96ece91d1e201f0be4dd3709526733d19a19d649871b3c72db** |
 
-| Chỉ số Định lượng (Metric) | Kết quả Đạt được | Ý nghĩa Thực tiễn |
-| :--- | :---: | :--- |
-| **Dữ liệu Kiểm định (Validation Samples)** | **600,000+ nến 5m** | Kiểm định xuyên suốt >92 ngày giao dịch phái sinh thực tế. |
-| **Thời gian Cảnh báo Sớm (Median Lead Time)** | **~9.8 Giờ** *(590 phút)* | Báo trước trung bình ~9.8h trước khi coin sụt giảm ≥8%, đủ thời gian phân tích kỹ. |
-| **Độ Bắt Sóng Phân Phối (Event Recall)** | **~60.1%** | Nhận diện thành công phần lớn các pha phân phối đỉnh lớn. |
-| **Chỉ số Hiệu chuẩn Sai số (Brier Score)** | **0.113** *(Rất thấp)* | Xác suất dự báo trung thực, tiệm cận tần suất xuất hiện thực tế của thị trường. |
-| **Khả năng Chống Nhìn Trước (Data Leakage)** | **100% Zero Leakage** | Walk-Forward Splitter kết hợp Embargo Window và Point-in-Time As-of Joins. |
+Bundle hiện lưu training precision **0.3896**, Brier **0.1859** và ECE
+**0.0261**. Đây là số liệu đi kèm quá trình tạo bundle, chưa phải một
+forward-test độc lập sau cutoff và không chứng minh ROI hay win rate.
 
-### 🔍 Điểm Nổi Bật Về Mặt Kỹ Nghệ
-- 📈 **Mục Tiêu Định Lượng Chuẩn Xác (Strict Ground-Truth Labeling):**
-  - Nhận diện chính xác các pha phân phối đỉnh dẫn tới mức sụt giảm **≥ 8%** trong khung 6h, 12h hoặc 24h, đồng thời khống chế mức tăng ngược (Maximum Adverse Excursion - MAE) **không vượt quá 4%**.
-- 🛡️ **Kiểm Định Đa Chế Độ Thị Trường (Regime Breakdown):**
-  - Mô hình được kiểm tra độc lập và chứng minh hiệu quả qua cả 3 trạng thái: **Bull Market (Thị trường Tăng)**, **Bear Market (Thị trường Giảm)** và **Sideway (Thị trường Đi ngang)**.
-- 🎯 **Hiệu Chuẩn Xác Suất Đáng Tin Cậy (Calibrated ML Probability):**
-  - Tích hợp **Isotonic & Out-of-fold Calibration** giúp xác suất mô hình phản ánh đúng tần suất thực tế của thị trường (ECE ≤ 0.031), không nói quá hoặc thổi phồng tín hiệu.
-- ⚡ **Xử Lý Dữ Liệu Phái Sinh Đa Chiều Tốc Độ Cao:**
-  - Tích hợp động cơ **DuckDB Columnar Analytics**, quét và phân tích đồng thời 150+ cặp coin Binance Futures với độ trễ tính toán dưới 1 giây.
-- 🔄 **Hệ Thống Tự Học & Đánh Giá Hậu Kiểm (Feedback Loop & PnL Tracking):**
-  - Tự động ghi nhận và hậu kiểm kết quả (*Outcome Resolution*) của từng tín hiệu sau khi phát ra, cung cấp độ chính xác lịch sử thực nghiệm (*Empirical Precision*) ngay trong từng bản tin Telegram.
+Các cơ chế chống lookahead, embargo, as-of join, calibration, checksum và
+fail-closed serving đều có kiểm thử hồi quy. Chỉ số hiệu năng live chỉ được
+công bố khi báo cáo gắn đúng model ID/checksum, cửa sổ dữ liệu, sample/event
+count và kết quả theo regime. Xem
+[mô hình production và mức độ bằng chứng](docs/PRODUCTION_MODEL.md).
+
+### 🔍 Điểm nổi bật về mặt kỹ nghệ
+
+- **Ground-truth có phiên bản:** label phân phối dùng drawdown mục tiêu 8%,
+  MAE tối đa 4% và horizon được đóng băng trong metadata.
+- **Xác suất được kiểm soát:** live serving yêu cầu calibrator hợp lệ, feature
+  đầy đủ, dữ liệu đủ mới và checksum khớp; nếu không hệ thống fail closed.
+- **Human-in-the-loop:** scanner phát cảnh báo và ghi nhận outcome; không tự
+  động đặt lệnh và challenger không tự thay champion.
+- **Dữ liệu point-in-time:** as-of join và test leakage giảm rủi ro dùng thông
+  tin tương lai; kết quả kiểm thử không được diễn giải thành bảo đảm tuyệt đối.
 
 ---
 
@@ -57,7 +66,7 @@ Hệ thống được xây dựng và kiểm định dựa trên các tiêu chu�
 - 🚨 **Market Anomaly Radar:** Gắn nhãn độc lập cho đột biến khối lượng, funding cực trị/đổi dấu, đảo chiều, OI unwind, đòn bẩy tích tụ, taker sell imbalance, long/short crowding và phá vỡ giả; điểm anomaly 0-100 chỉ là quan sát, không phải xác suất model.
 - 🤖 **Machine Learning & Self-Learning Daemon:**
   - Pipeline huấn luyện hỗ trợ calibration; live alert chỉ bật khi bundle có calibration artifact hợp lệ.
-  - Đánh giá mô hình nghiêm ngặt bằng phương pháp **Walk-Forward Validation** (Không nhìn trước tương lai / Zero Data Leakage).
+  - Đánh giá mô hình bằng **Walk-Forward Validation**, embargo và các kiểm tra hồi quy point-in-time nhằm giảm rủi ro rò rỉ dữ liệu.
 - 📲 **Cảnh báo Telegram 24/7:** Gửi thông báo tín hiệu trực tiếp về Telegram cá nhân/group với đầy đủ chỉ số phân tích và đường dẫn mở thẳng coin trên Dashboard.
 - 💻 **Giao diện Web Dashboard (React + Vite + TypeScript):**
   - Biểu đồ nến tương tác (Candlestick Chart) chuẩn Trading.
@@ -95,12 +104,12 @@ flowchart LR
     C --> D[Feature Builder & Normalizer]
     D --> E[Scoring & Frozen ML Model]
     E --> F{Kiểm tra Quality Gate}
-    F -->|Đạt ngưỡng 70%+| G[Telegram Alerts Bot]
+    F -->|Đạt serving contract và frozen threshold| G[Telegram Alerts Bot]
     F -->|Hiển thị Realtime| H[React Web Dashboard]
 ```
 
 1. **Thu thập dữ liệu (Collect):** Quét nến OHLCV 5m, Open Interest, Funding Rate, Taker Volume và Long/Short Ratio từ Binance USD-M Futures.
-2. **Chuẩn hóa (Normalize & As-of Join):** Khớp nối dữ liệu chính xác theo mốc thời gian (Point-in-Time), cam kết **Zero Lookahead Bias**.
+2. **Chuẩn hóa (Normalize & As-of Join):** Khớp dữ liệu theo mốc Point-in-Time và chạy các kiểm tra hồi quy chống lookahead.
 3. **Trích xuất Đặc trưng (Feature Engineering):** Tính toán các chỉ số biến động dòng tiền, tỷ lệ biến động OI vs Price, lực mua/bán Taker chủ động.
 4. **Suy luận & Cảnh báo (Inference & Alert):** Đưa qua mô hình Frozen ML để tính toán xác suất phân phối; đồng thời chạy lớp Market Anomaly Radar độc lập, lưu snapshot và hiển thị các quan sát trên Dashboard. Telegram vẫn chỉ gửi các tín hiệu vượt qua serving contract và quality gate.
 
@@ -135,9 +144,9 @@ dao_vang/
 │   ├── logging/        # Structured logging với cơ chế tự động ẩn secret
 │   ├── scanner/        # 24/7 Live Scanner Daemon, Pump Filter, Watchlist tracker
 │   ├── scoring/        # Frozen ML inference, BTC context & evidence scoring
-│   ├── validation/     # Walk-forward validation, zero leakage audit & metrics
+│   ├── validation/     # Walk-forward validation, point-in-time leakage audits & metrics
 │   └── web/            # Threaded REST API & static frontend server
-└── tests/              # 375+ bài kiểm thử tự động (Unit, Integration, Leakage, QA)
+└── tests/              # 484+ bài kiểm thử tự động (Unit, Integration, Leakage, QA)
 ```
 
 ---
@@ -262,7 +271,7 @@ python scripts/dev_check.py --fast
 # Hoặc chạy từng công cụ độc lập:
 uv run ruff check .          # Linter & Formatter
 uv run pyright               # Type Checking
-.\.venv\Scripts\pytest.exe   # 375+ bài kiểm thử backend
+.\.venv\Scripts\pytest.exe   # 484+ bài kiểm thử backend
 cd frontend && npm run build # Frontend TypeScript build
 ```
 

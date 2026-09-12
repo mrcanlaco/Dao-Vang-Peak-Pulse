@@ -51,8 +51,11 @@ frontend/node_modules/
 
 # Local operational state and audit output
 data_live/
+backups/
+cloudflared/
 reports/
 logs/
+test-results/
 .pytest-*/
 .pytest_tmp*/
 .claude/

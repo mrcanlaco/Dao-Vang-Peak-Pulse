@@ -781,8 +781,8 @@ class ScannerDaemon:
         self._publish_candidate_snapshot(db)
 
         # The challenger is observational only. Running it after the champion
-        # serving artifacts are published guarantees that a v2 error or slow
-        # Binance response cannot suppress a v1 Telegram report.
+        # serving artifacts are published. This ordering isolates the champion
+        # report path from challenger errors and slow Binance responses.
         if self._settings.candidate_comparison.enabled and comparison_universe:
             try:
                 precomputed = (

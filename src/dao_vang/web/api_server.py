@@ -18,6 +18,7 @@ import logging
 import math
 import mimetypes
 import secrets
+import shutil
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -42,6 +43,7 @@ from dao_vang.domain.time import (
     system_now,
 )
 from dao_vang.scanner.anomalies import detect_market_anomalies
+from dao_vang.scanner.healthcheck import inspect_heartbeat
 from dao_vang.scanner.instance_lock import ScannerAlreadyRunning, ScannerInstanceLock
 from dao_vang.scanner.pump_filter import analyze_pump, fetch_daily_klines
 from dao_vang.scanner.scan_results_store import ScanResultStore
@@ -120,6 +122,8 @@ _SIGNALS_RESP_TIME: float = 0.0
 _MARKET_CAP_CACHE_LOCK = threading.Lock()
 _MARKET_CAP_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _MARKET_CAP_FAILURE_TTL_SECONDS = 60.0
+_DISK_CRITICAL_USED_PERCENT = 90.0
+_DISK_MIN_FREE_BYTES = 5 * 1024**3
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -129,6 +133,111 @@ def _read_json(path: Path) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+def _disk_readiness(path: Path) -> dict[str, Any]:
+    probe = path
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    try:
+        usage = shutil.disk_usage(probe)
+    except OSError:
+        return {
+            "healthy": False,
+            "status": "error",
+            "reason": "disk_unavailable",
+            "used_percent": None,
+            "free_bytes": None,
+        }
+    used_percent = (
+        ((usage.total - usage.free) / usage.total) * 100
+        if usage.total
+        else 100.0
+    )
+    healthy = (
+        used_percent < _DISK_CRITICAL_USED_PERCENT
+        and usage.free >= _DISK_MIN_FREE_BYTES
+    )
+    return {
+        "healthy": healthy,
+        "status": "ok" if healthy else "error",
+        "reason": "ok" if healthy else "disk_space_critical",
+        "used_percent": round(used_percent, 1),
+        "free_bytes": usage.free,
+    }
+
+
+def _fetch_live_regime(limit: int = 100) -> dict[str, Any]:
+    """Return a real BTC regime snapshot or raise when upstream data is unusable."""
+    import pandas as pd
+
+    from dao_vang.alpha_lab.regime_classifier import get_current_regime
+    from dao_vang.data.collectors.binance_client import BinanceClient
+
+    klines = BinanceClient().get(
+        "/fapi/v1/klines",
+        {"symbol": "BTCUSDT", "interval": "1h", "limit": limit},
+    )
+    if not isinstance(klines, list) or len(klines) < 20:
+        raise RuntimeError("insufficient_binance_klines")
+
+    frame = pd.DataFrame(
+        klines,
+        columns=[
+            "open_time",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "close_time",
+            "quote_volume",
+            "trades",
+            "taker_buy_base",
+            "taker_buy_quote",
+            "ignore",
+        ],
+    )
+    frame["open_time"] = pd.to_datetime(frame["open_time"], unit="ms")
+    frame = frame.set_index("open_time")
+    for column in ("open", "high", "low", "close"):
+        frame[column] = frame[column].astype(float)
+
+    state = get_current_regime(frame)
+    timestamp = (
+        state.timestamp.isoformat()
+        if hasattr(state.timestamp, "isoformat")
+        else str(state.timestamp)
+    )
+    regime = state.regime.value
+    label_vi = {
+        "SIDEWAY_DISTRIBUTION": "Đi ngang / phân phối",
+        "TRENDING_BEAR": "Xu hướng giảm",
+        "TRENDING_BULL": "Xu hướng tăng",
+        "HIGH_VOLATILITY": "Biến động cao",
+    }.get(regime, regime)
+    label_en = {
+        "SIDEWAY_DISTRIBUTION": "Sideways / Distribution",
+        "TRENDING_BEAR": "Trending Bear",
+        "TRENDING_BULL": "Trending Bull",
+        "HIGH_VOLATILITY": "High Volatility",
+    }.get(regime, regime)
+    return {
+        "available": True,
+        "source": "binance_futures_btcusdt_1h",
+        "symbol": "BTCUSDT",
+        "timestamp": timestamp,
+        "regime": regime,
+        "regime_label_vi": label_vi,
+        "regime_label_en": label_en,
+        "adx": round(state.adx, 2),
+        "bb_width": round(state.bb_width, 4),
+        "trend_slope": round(state.trend_slope, 4),
+        "atr_pct": round(state.atr_pct, 4),
+        "allow_short": state.allow_short,
+        "allow_long": state.allow_long,
+        "risk_multiplier": round(state.risk_multiplier, 2),
+    }
 
 
 def _system_history_timestamp(value: Any) -> str | None:
@@ -990,12 +1099,61 @@ class APIHandler(BaseHTTPRequestHandler):
         self._set_headers(200, content_length=len(body), extra_headers={"Set-Cookie": cookie_val})
         self.wfile.write(body)
 
+    def get_readiness(self):
+        max_age_seconds = max(
+            900.0,
+            float((_settings.scanner.poll_interval_minutes * 2 + 5) * 60),
+        )
+        scanner = inspect_heartbeat(
+            HEARTBEAT_PATH,
+            max_age_seconds=max_age_seconds,
+        )
+        disk = _disk_readiness(data_dir_path)
+        ready = bool(scanner["healthy"] and disk["healthy"])
+        payload = {
+            "status": "ok" if ready else "not_ready",
+            "time": system_now().isoformat(),
+            "checks": {
+                "web": {"status": "ok"},
+                "scanner": {
+                    "status": "ok" if scanner["healthy"] else "error",
+                    "reason": scanner["reason"],
+                    "heartbeat_age_seconds": scanner["age_seconds"],
+                    "last_cycle_status": scanner["last_cycle_status"],
+                },
+                "disk": {
+                    "status": disk["status"],
+                    "reason": disk["reason"],
+                    "used_percent": disk["used_percent"],
+                    "free_bytes": disk["free_bytes"],
+                },
+            },
+        }
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self._set_headers(200 if ready else 503, content_length=len(body))
+        self.wfile.write(body)
+
     def do_OPTIONS(self):
         self._set_headers(200)
 
     def do_HEAD(self):
         parsed = urlparse(self.path)
-        if parsed.path.startswith('/api/') and parsed.path not in ('/api/auth/status', '/api/auth/check', '/api/health'):
+        path = unquote(parsed.path)
+        if path == '/api/ready':
+            max_age_seconds = max(
+                900.0,
+                float((_settings.scanner.poll_interval_minutes * 2 + 5) * 60),
+            )
+            scanner = inspect_heartbeat(
+                HEARTBEAT_PATH,
+                max_age_seconds=max_age_seconds,
+            )
+            disk = _disk_readiness(data_dir_path)
+            self._set_headers(
+                200 if scanner["healthy"] and disk["healthy"] else 503
+            )
+            return
+        if path.startswith('/api/') and path not in ('/api/auth/status', '/api/auth/check', '/api/health'):
             if not self._check_auth():
                 self._set_headers(401)
                 return
@@ -1036,6 +1194,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 body = json.dumps({"status": "ok", "time": system_now().isoformat()}).encode('utf-8')
                 self._set_headers(200, content_length=len(body))
                 self.wfile.write(body)
+                return
+            elif path == '/api/ready':
+                self.get_readiness()
                 return
             elif not self._check_auth():
                 self._send_unauthorized()
@@ -1731,15 +1892,16 @@ class APIHandler(BaseHTTPRequestHandler):
             }
             self._set_headers(200)
             self.wfile.write(json.dumps(ai_cfg, ensure_ascii=False).encode('utf-8'))
-        except Exception as e:
+        except Exception as exc:
+            logger.warning("ai_config_unavailable error=%s", exc)
             self._set_headers(200)
             self.wfile.write(json.dumps({
-                "provider": "openai",
+                "provider": "unavailable",
                 "hasApiKey": False,
-                "modelId": "antigravity/gemini-3.7-flash-tiered",
-                "baseUrl": "https://proxy-ai.comaygiauco.com/v1",
-                "enabled": True,
-                "error": str(e),
+                "modelId": "",
+                "baseUrl": "",
+                "enabled": False,
+                "error": "settings_unavailable",
             }).encode('utf-8'))
 
     def get_status(self):
@@ -3354,6 +3516,21 @@ class APIHandler(BaseHTTPRequestHandler):
                 "volume_24h": float(t.get("quoteVolume", 0)),
             }
 
+        try:
+            macro_climate = _fetch_live_regime()
+        except Exception as exc:
+            logger.warning("market_regime_unavailable error=%s", exc)
+            macro_climate = {
+                "available": False,
+                "source": "binance_futures_btcusdt_1h",
+                "regime": "UNKNOWN",
+                "regime_label_vi": "Chưa có dữ liệu thời gian thực",
+                "regime_label_en": "Live regime unavailable",
+            }
+        meta_mode = _settings.scanner.enable_meta_labeling
+        macro_climate["meta_labeling"] = meta_mode.upper()
+        macro_climate["drift_guardian"] = "NOT_EVALUATED"
+
         res = {
             "binance_listing_total": listing.get("all_coins"),
             "binance_listing": {
@@ -3388,17 +3565,7 @@ class APIHandler(BaseHTTPRequestHandler):
             "scanned_volatile_top": cycle_stats.get("n_symbols", 0),
             "market_regime": market_regime,
             "distribution_index": round(avg_score, 1) if avg_score is not None else None,
-            "macro_climate": {
-                "regime": "TRENDING_BEAR",
-                "regime_label_vi": "Xu hướng Giảm (Thuận lợi cho Short)",
-                "regime_label_en": "Trending Bear (Short Favorable)",
-                "adx": 27.2,
-                "bb_width": 0.0083,
-                "atr_pct": 0.0028,
-                "allow_short": True,
-                "meta_labeling": "Active (55-60% Drop Rate)",
-                "drift_guardian": "HEALTHY (Low Alpha Decay)",
-            },
+            "macro_climate": macro_climate,
             "top_gainers": [_ticker_entry(t) for t in gainers],
             "top_losers": [_ticker_entry(t) for t in losers],
         }
@@ -3407,54 +3574,20 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def get_alpha_lab_regime(self):
         """Get real-time market regime analysis from Binance Futures."""
-        import pandas as pd
-
-        from dao_vang.alpha_lab.regime_classifier import get_current_regime
-        from dao_vang.data.collectors.binance_client import BinanceClient
-
-        client = BinanceClient()
         try:
-            klines = client.get(
-                "/fapi/v1/klines",
-                {"symbol": "BTCUSDT", "interval": "1h", "limit": 100},
-            )
-            df = pd.DataFrame(
-                klines,
-                columns=[
-                    "open_time", "open", "high", "low", "close", "volume",
-                    "close_time", "quote_volume", "trades", "taker_buy_base",
-                    "taker_buy_quote", "ignore",
-                ],
-            )
-            df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
-            df = df.set_index("open_time")
-            for col in ["open", "high", "low", "close"]:
-                df[col] = df[col].astype(float)
-
-            state = get_current_regime(df)
-            ts_str = (
-                state.timestamp.isoformat()
-                if hasattr(state.timestamp, "isoformat")
-                else str(state.timestamp)
-            )
-            res = {
-                "symbol": "BTCUSDT",
-                "timestamp": ts_str,
-                "regime": state.regime.value,
-                "adx": round(state.adx, 2),
-                "bb_width": round(state.bb_width, 4),
-                "trend_slope": round(state.trend_slope, 4),
-                "atr_pct": round(state.atr_pct, 4),
-                "allow_short": state.allow_short,
-                "allow_long": state.allow_long,
-                "risk_multiplier": round(state.risk_multiplier, 2),
-            }
+            res = _fetch_live_regime()
             self._set_headers(200)
             self.wfile.write(json.dumps(res, default=str).encode('utf-8'))
         except Exception as exc:
             logger.warning(f"alpha_lab_regime_failed error={exc}")
-            self._set_headers(500)
-            self.wfile.write(json.dumps({"error": str(exc)}).encode('utf-8'))
+            res = {
+                "available": False,
+                "source": "binance_futures_btcusdt_1h",
+                "regime": "UNKNOWN",
+                "reason": "live_regime_unavailable",
+            }
+            self._set_headers(503)
+            self.wfile.write(json.dumps(res).encode('utf-8'))
 
     def get_alpha_lab_drift(self):
         """Get Drift Guardian stability and calibration metrics."""
@@ -3478,6 +3611,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     guardian.set_baseline(df.iloc[: len(df) // 2])
                     report = guardian.evaluate_health(df.iloc[len(df) // 2 :])
                     res = report.to_dict()
+                    res["available"] = True
                     self._set_headers(200)
                     self.wfile.write(json.dumps(res, default=str).encode('utf-8'))
                     return
@@ -3490,17 +3624,15 @@ class APIHandler(BaseHTTPRequestHandler):
                 except Exception:
                     pass
 
-        # Fallback healthy response
+        # Never fabricate a healthy status when there is no evaluable sample.
         res = {
-            "status": "HEALTHY",
-            "max_psi": 0.045,
-            "feature_psi": {
-                "volume_ratio": 0.032,
-                "funding_rate": 0.045,
-                "oi_delta": 0.021,
-            },
-            "brier_score": 0.085,
-            "ece": 0.042,
+            "available": False,
+            "status": "UNKNOWN",
+            "reason": "insufficient_feature_history",
+            "max_psi": None,
+            "feature_psi": {},
+            "brier_score": None,
+            "ece": None,
             "alert_messages": [],
         }
         self._set_headers(200)
@@ -3508,58 +3640,32 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def get_alpha_lab_summary(self):
         """Get consolidated Alpha Lab dashboard overview."""
-        import pandas as pd
-
-        from dao_vang.alpha_lab.regime_classifier import get_current_regime
-        from dao_vang.data.collectors.binance_client import BinanceClient
-
-        client = BinanceClient()
-        regime_dict = {
-            "regime": "SIDEWAY_DISTRIBUTION",
-            "allow_short": True,
-            "risk_multiplier": 1.0,
-        }
         try:
-            klines = client.get(
-                "/fapi/v1/klines",
-                {"symbol": "BTCUSDT", "interval": "1h", "limit": 50},
-            )
-            df = pd.DataFrame(
-                klines,
-                columns=[
-                    "open_time", "open", "high", "low", "close", "volume",
-                    "ct", "qv", "tr", "tb", "tq", "ig",
-                ],
-            )
-            df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
-            df = df.set_index("open_time")
-            for col in ["open", "high", "low", "close"]:
-                df[col] = df[col].astype(float)
-            st = get_current_regime(df)
-            regime_dict = {
-                "regime": st.regime.value,
-                "adx": round(st.adx, 2),
-                "bb_width": round(st.bb_width, 4),
-                "atr_pct": round(st.atr_pct, 4),
-                "allow_short": st.allow_short,
-                "allow_long": st.allow_long,
-                "risk_multiplier": round(st.risk_multiplier, 2),
-            }
+            regime_dict = _fetch_live_regime(limit=50)
         except Exception as exc:
             logger.warning(f"alpha_lab_summary_regime_failed error={exc}")
+            regime_dict = {
+                "available": False,
+                "regime": "UNKNOWN",
+                "reason": "live_regime_unavailable",
+            }
 
+        meta_mode = _settings.scanner.enable_meta_labeling
         res = {
             "regime": regime_dict,
             "meta_labeling": {
-                "enabled": True,
-                "threshold": 0.65,
-                "model_status": "Active (HistGradientBoosting / LGBM)",
-                "estimated_drop_rate": "55.0% - 60.0% false signal reduction",
+                "enabled": meta_mode != "disabled",
+                "mode": meta_mode,
+                "threshold": _settings.scanner.meta_model_min_confidence,
+                "model_configured": bool(_settings.scanner.meta_model_path),
+                "model_status": meta_mode.upper(),
+                "estimated_drop_rate": None,
             },
             "drift_guardian": {
-                "status": "HEALTHY",
-                "alpha_decay_risk": "Low",
-                "monitoring_window": "Rolling 7 Days",
+                "available": False,
+                "status": "NOT_EVALUATED",
+                "alpha_decay_risk": None,
+                "monitoring_window": None,
             },
         }
         self._set_headers(200)
@@ -3956,9 +4062,9 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             logger.warning(f"models_comparison_matrix_failed error={exc}")
             from dao_vang.scoring.engine_comparison import (
-                _fallback_benchmark_comparison,
+                _unavailable_engine_comparison,
             )
-            res = _fallback_benchmark_comparison()
+            res = _unavailable_engine_comparison("database_unavailable")
 
         self._set_headers(200)
         self.wfile.write(json.dumps(res, default=str).encode('utf-8'))
@@ -4330,16 +4436,16 @@ class APIHandler(BaseHTTPRequestHandler):
                 "06_chien_dich_ban_tia_49_7": {
                     "id": "06_chien_dich_ban_tia_49_7",
                     "code": "RES-2026-0906-01",
-                    "title": "Kỷ nguyên Bắn tỉa V3.2: Khai phá Phân kỳ Cá Mập & Cú sốc ROI 302%",
-                    "title_en": "Sniper Era V3.2: Whale Divergence & 302% ROI Breakthrough",
+                    "title": "Nghiên cứu V3.2: Phân kỳ Cá Mập và mô phỏng ROI",
+                    "title_en": "V3.2 Research: Whale Divergence and ROI Simulation",
                     "date": "2026-09-06",
                     "category": "QUANT_REPORT",
                     "tags": ["SMART_MONEY", "BACKTEST", "PROFIT_FACTOR"],
-                    "key_metric": "Precision 49.7% | Winrate 49.09% | ROI 302%",
+                    "key_metric": "Lịch sử: Precision 49.7% | Winrate 49.09% | ROI 302%",
                     "sample_size": "Out-of-sample (Fold 5)",
-                    "badge": "Siêu phẩm",
-                    "badge_color": "rose",
-                    "abstract": "Hành trình mổ xẻ lỗi rò rỉ dữ liệu, giải quyết nút thắt Cartesian Explosion và tích hợp Phân kỳ Dòng tiền Cá mập. Bản Backtest thực chiến đòn bẩy x5 chốt hạ mức lợi nhuận điên rồ +302%.",
+                    "badge": "Lưu trữ",
+                    "badge_color": "slate",
+                    "abstract": "Ảnh chụp nghiên cứu lịch sử về lỗi dữ liệu, Cartesian Explosion và Phân kỳ Dòng tiền Cá mập. Kết quả mô phỏng chỉ áp dụng cho cấu hình của báo cáo, không đại diện production hiện tại.",
                 },
                 "01_so_sanh_heuristic_vs_machine_learning": {
                     "id": "01_so_sanh_heuristic_vs_machine_learning",
@@ -4349,11 +4455,11 @@ class APIHandler(BaseHTTPRequestHandler):
                     "date": "2026-08-30",
                     "category": "BENCHMARK",
                     "tags": ["HEURISTIC", "LIGHTGBM", "ROC_AUC", "FEATURE_IMPORTANCE"],
-                    "key_metric": "LightGBM 36.6% vs Heuristic 13.28% (Gấp 2.75x)",
+                    "key_metric": "Lịch sử: LightGBM 36.6% vs Heuristic 13.28%",
                     "sample_size": "160 altcoins, 1.16M rows (1 năm)",
-                    "badge": "Mới nhất",
-                    "badge_color": "emerald",
-                    "abstract": "Kiểm định độc lập trên 160 altcoins chứng minh Heuristic gốc chỉ đạt 13.28% precision. V3.1 Sniper Target (Regime + LightGBM) đột phá đạt 36.6% precision (ECE 0.031, giới hạn 15 alerts/ngày).",
+                    "badge": "Lưu trữ",
+                    "badge_color": "slate",
+                    "abstract": "Ảnh chụp một thử nghiệm lịch sử trên 160 altcoins; các chỉ số chỉ áp dụng cho cấu hình, dữ liệu và thời điểm của báo cáo này.",
                 },
                 "02_thi_nghiem_8_chien_luoc_giao_dich": {
                     "id": "02_thi_nghiem_8_chien_luoc_giao_dich",
@@ -4363,11 +4469,11 @@ class APIHandler(BaseHTTPRequestHandler):
                     "date": "2026-08-30",
                     "category": "STRATEGY",
                     "tags": ["STRATEGY_TUNING", "REGIME_GATE", "ENSEMBLE", "WALK_FORWARD"],
-                    "key_metric": "Regime Gate triệt tiêu 23% nhiễu, Ensemble thất bại (16.9%)",
+                    "key_metric": "Lịch sử: Regime Gate giảm 23% tín hiệu thử nghiệm; Ensemble 16.9%",
                     "sample_size": "209 altcoins, 1.35M rows (1 năm)",
-                    "badge": "Chiến lược",
-                    "badge_color": "amber",
-                    "abstract": "Thử nghiệm ngưỡng p98/p99/p99.5, Ensemble đa mô hình và Regime Gate. Kết luận: Regime + LGB p98 là chiến lược tối ưu nhất; từ chối Ensemble do LogReg kéo tụt hiệu năng.",
+                    "badge": "Lưu trữ",
+                    "badge_color": "slate",
+                    "abstract": "Ảnh chụp thử nghiệm lịch sử về các ngưỡng p98/p99/p99.5, Ensemble và Regime Gate. Kết luận chỉ áp dụng cho dữ liệu và cấu hình của báo cáo.",
                 },
                 "03_kiem_dinh_altcoins_midcap_210_coins": {
                     "id": "03_kiem_dinh_altcoins_midcap_210_coins",
@@ -4377,11 +4483,11 @@ class APIHandler(BaseHTTPRequestHandler):
                     "date": "2026-08-30",
                     "category": "SCALING",
                     "tags": ["MID_CAP", "DERIVATIVES", "LIGHTGBM", "SCALABILITY"],
-                    "key_metric": "LightGBM 21.23% vs LogReg 14.87% (Thắng 8/8 Folds)",
+                    "key_metric": "Lịch sử: LightGBM 21.23% vs LogReg 14.87% trên 8 folds",
                     "sample_size": "210 altcoins, 19.37M rows thô",
-                    "badge": "Mở rộng",
-                    "badge_color": "cyan",
-                    "abstract": "Mở rộng kiểm định gấp 7 lần số coin từ 30 lên 210. Khẳng định LightGBM áp đảo trên nhóm vốn hóa vừa/nhỏ. Dữ liệu phái sinh Binance Vision chiếm 3/4 top feature quan trọng.",
+                    "badge": "Lưu trữ",
+                    "badge_color": "slate",
+                    "abstract": "Ảnh chụp kiểm định lịch sử mở rộng từ 30 lên 210 coin. Kết quả và feature importance chỉ áp dụng cho dữ liệu, folds và cấu hình trong báo cáo.",
                 },
                 "04_tham_dinh_va_kiem_dinh_toan_dien_2_6_nam": {
                     "id": "04_tham_dinh_va_kiem_dinh_toan_dien_2_6_nam",
@@ -4391,11 +4497,11 @@ class APIHandler(BaseHTTPRequestHandler):
                     "date": "2026-08-29",
                     "category": "AUDIT",
                     "tags": ["AUDIT", "BENCHMARK", "REGIME_ANALYSIS", "STRESS_TEST"],
-                    "key_metric": "LogReg 27.84% trên Mega-Cap, Sideway đạt 30.99%",
+                    "key_metric": "Lịch sử: LogReg 27.84% trên Mega-Cap; Sideway 30.99%",
                     "sample_size": "30 coins, 2.6 năm (413K rows)",
-                    "badge": "Thẩm định",
-                    "badge_color": "purple",
-                    "abstract": "Phát hiện và xóa bỏ 2 lỗi số liệu giả (fake regime random & fake stress test). Xác lập benchmark thực: Logistic Regression là Champion cho Mega-cap; vùng Sideway Distribution đạt 31% precision.",
+                    "badge": "Lưu trữ",
+                    "badge_color": "slate",
+                    "abstract": "Ảnh chụp một đợt thẩm định lịch sử đã loại bỏ hai nguồn dữ liệu mô phỏng. Các benchmark còn lại không đại diện hiệu năng production hiện tại.",
                 },
                 "05_kien_truc_7_cai_tien_do_chinh_xac": {
                     "id": "05_kien_truc_7_cai_tien_do_chinh_xac",
@@ -4405,11 +4511,11 @@ class APIHandler(BaseHTTPRequestHandler):
                     "date": "2026-08-29",
                     "category": "ARCHITECTURE",
                     "tags": ["CALIBRATION", "META_LABELING", "ARCHITECTURE", "DATA_PIPELINE"],
-                    "key_metric": "Isotonic Calibration ECE giảm 0.03 -> 0.0004",
+                    "key_metric": "Lịch sử: ECE trong thử nghiệm calibration giảm 0.03 → 0.0004",
                     "sample_size": "Toàn bộ hệ thống core",
-                    "badge": "Kiến trúc",
-                    "badge_color": "blue",
-                    "abstract": "Chi tiết 7 đột phá kỹ thuật nâng cấp Đảo Vàng 2.0: Lookback 30d, bảo toàn NULL, Meta-labeling active, Isotonic calibration, Multi-TF exhaustion, LightGBM bundle và Multi-horizon outcomes.",
+                    "badge": "Lưu trữ",
+                    "badge_color": "slate",
+                    "abstract": "Tài liệu lịch sử về bảy thay đổi kiến trúc. Một số mô-đun, gồm Meta-labeling, có thể hiện đang tắt; trạng thái live phải lấy từ cấu hình runtime.",
                 },
             }
 
@@ -4434,12 +4540,14 @@ class APIHandler(BaseHTTPRequestHandler):
                     meta_copy = dict(meta)
                     meta_copy["content"] = content
                     meta_copy["file_size_bytes"] = len(content.encode("utf-8"))
+                    meta_copy["evidence_scope"] = "historical_research"
                     reports.append(meta_copy)
 
             body = json.dumps({
                 "reports": reports,
                 "total_count": len(reports),
                 "last_updated": datetime.now(timezone.utc).isoformat(),
+                "evidence_scope": "historical_research_not_current_production_performance",
             }, ensure_ascii=False).encode("utf-8")
             self._set_headers(200, content_type="application/json; charset=utf-8", content_length=len(body), cache_control="no-cache, no-store, must-revalidate")
             self.wfile.write(body)
@@ -4472,6 +4580,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "content": content,
                 "file_name": target_file.name,
                 "file_size_bytes": len(content.encode("utf-8")),
+                "evidence_scope": "historical_research_not_current_production_performance",
             }, ensure_ascii=False).encode("utf-8")
             self._set_headers(200, content_type="application/json; charset=utf-8", content_length=len(body), cache_control="no-cache, no-store, must-revalidate")
             self.wfile.write(body)

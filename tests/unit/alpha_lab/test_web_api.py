@@ -78,6 +78,26 @@ def test_get_alpha_lab_drift_endpoint() -> None:
     assert "feature_psi" in payload
 
 
+@patch(
+    "dao_vang.web.api_server.open_read_only_connection",
+    side_effect=OSError("database unavailable"),
+)
+def test_get_alpha_lab_drift_never_fabricates_healthy_status(
+    _mock_open: MagicMock,
+) -> None:
+    handler = MagicMock(spec=APIHandler)
+    handler.wfile = MagicMock()
+    handler._set_headers = MagicMock()
+
+    APIHandler.get_alpha_lab_drift(handler)
+
+    payload = json.loads(handler.wfile.write.call_args[0][0].decode("utf-8"))
+    assert payload["available"] is False
+    assert payload["status"] == "UNKNOWN"
+    assert payload["max_psi"] is None
+    assert payload["feature_psi"] == {}
+
+
 @patch("dao_vang.data.collectors.binance_client.BinanceClient.get")
 def test_get_alpha_lab_summary_endpoint(mock_binance_get: MagicMock) -> None:
     mock_binance_get.return_value = [
@@ -111,3 +131,5 @@ def test_get_alpha_lab_summary_endpoint(mock_binance_get: MagicMock) -> None:
     assert "regime" in payload
     assert "meta_labeling" in payload
     assert "drift_guardian" in payload
+    assert payload["meta_labeling"]["estimated_drop_rate"] is None
+    assert payload["drift_guardian"]["status"] == "NOT_EVALUATED"

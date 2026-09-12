@@ -23,25 +23,53 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version-file: "pyproject.toml"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libatomic1 libgomp1
           
       - name: Install dependencies
-        run: uv sync --all-extras --dev
+        run: uv sync --frozen --all-extras --dev
         
       - name: Check formatting and linting
-        run: uv run ruff check .
+        run: uv run --frozen ruff check .
         
       - name: Type checking
         # Keep the release gate focused while the legacy pandas-heavy scripts
         # are migrated to typed boundaries in a separate cleanup.
         run: >-
-          uv run pyright
+          uv run --frozen pyright
           src/dao_vang/config/settings.py
           src/dao_vang/updater/manager.py
           src/dao_vang/scoring/frozen_inference.py
+          src/dao_vang/scoring/engine_comparison.py
+          src/dao_vang/scanner/healthcheck.py
           src/dao_vang/web/version_history.py
+
+      - name: Validate operational scripts
+        run: >-
+          bash -n
+          scripts/backup_to_gdrive.sh
+          scripts/install_production_cron.sh
+          scripts/prepare_runtime_permissions.sh
+          scripts/prune_old_data.sh
+          scripts/restore_from_gdrive.sh
         
       - name: Run unit & integration tests
-        run: uv run pytest
+        run: >-
+          uv run --frozen pytest
+          -ra
+          --tb=short
+          --junitxml=test-results/backend-tests.xml
+
+      - name: Upload backend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: test-results/backend-tests.xml
+          if-no-files-found: warn
 
   frontend-tests:
     name: Frontend Build & Typecheck
