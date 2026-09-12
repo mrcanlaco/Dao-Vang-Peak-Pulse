@@ -79,7 +79,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           icon: Target,
           category: 'TRADING',
           badge: 'V2 2-Tier Engine',
-          purpose: 'Real-time quantitative trade cockpit providing concrete trade setups (Entry, SL, TP1-3, R:R), 15m/5m live derivatives candlestick charts, and AI SHAP feature attribution.',
+          purpose: 'Real-time quantitative dashboard showing reference trade setups (Entry, SL, TP1-3, R:R), 15m/5m derivatives charts, and weighted score components.',
           mechanism: [
             'Two-Tier Climax Scoring: Combines macro pump amplitude (Tier 1 HTF) with micro order-flow exhaustion (Tier 2 LTF).',
             'Dynamic Trade Setup: Automatically calculates Stop Loss based on recent 5m/15m swing highs and Multi-tier Take Profit targets (-4% TP1, -8% TP2, -12% TP3).',
@@ -398,7 +398,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           'Chấm điểm Phân phối 2 Tầng (2-Tier Climax Scoring): Kết hợp biên độ bơm vĩ mô khung 1h/4h/24h (Tầng 1) với dấu hiệu xả vi mô dòng lệnh 5m/15m (Tầng 2).',
           'Kế hoạch Trade Setup Động: Tự động tính điểm Stop Loss ngay trên đỉnh nến gần nhất (tránh quét râu) và 3 mức Take Profit (-4% TP1, -8% TP2, -12% TP3).',
           'Tích hợp Trực tiếp Binance Live: Cập nhật giá, funding rate APR, biến động OI và tỷ lệ Taker Sell theo từng giây.',
-          'Trợ lý AI Đàm Thoại: Chat trực tiếp với AI để phân tích lý do rủi ro, phân tích SHAP và chiến lược đi vốn.'
+          'Trợ lý AI Đàm Thoại: Chat với AI để tóm tắt bằng chứng rủi ro, thành phần điểm có trọng số và dữ liệu cần cho quản trị vốn.'
         ],
         metrics: [
           { label: 'Điểm Phân Phối (Distribution Score)', desc: 'Điểm số định lượng (0-100) đánh giá mức độ kiệt sức và tạo đỉnh phân phối.' },
@@ -1018,7 +1018,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                         <span>Vị Trí Ứng Dụng Trong Giao Diện:</span>
                       </div>
                       <div className="grid gap-1.5 sm:grid-cols-2 text-[11px] text-slate-300">
-                        <div>• <strong>Tab Vào lệnh:</strong> Tính xác suất sụt giảm (Probability %) & phân tích nhân tố SHAP.</div>
+                        <div>• <strong>Tab Vào lệnh:</strong> Hiển thị xác suất/điểm rủi ro và các thành phần đóng góp có trọng số.</div>
                         <div>• <strong>Tab Tín hiệu:</strong> Sắp xếp danh sách tín hiệu theo xác suất cao nhất (Probability Sort).</div>
                         <div>• <strong>Tab Forward Test:</strong> Đánh giá hiệu năng ngoài mẫu (OOS) của 5 checkpoint mô hình.</div>
                         <div>• <strong>Tab Kiểm định:</strong> Cung cấp ma trận nhầm lẫn (Confusion Matrix TP, FP, TN, FN).</div>

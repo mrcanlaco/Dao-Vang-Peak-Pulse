@@ -43,7 +43,7 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
     rsi_15m: null,
     volume_delta_24h: 'N/A',
   };
-  const shapDrivers = displayDetail?.shap_drivers || [];
+  const featureDrivers = displayDetail?.feature_drivers || [];
 
   const entry = tradeSetup?.entryPrice ?? null;
   const sl = tradeSetup?.stopLossPrice ?? null;
@@ -106,7 +106,7 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
     // Factor 1: AI Probability >= 75%
     if (prob >= 75) {
       score += 30;
-      reasons.push(isZh ? 'AI 预测高胜率 (≥75%)' : isKo ? 'AI 높은 확률 (≥75%)' : isEn ? 'High AI Dump Prob (≥75%)' : 'Xác suất xả AI cao (≥75%)');
+      reasons.push(isZh ? '风险值达到 ≥75%' : isKo ? '위험 값 ≥75%' : isEn ? 'Reported risk value ≥75%' : 'Giá trị rủi ro đạt ≥75%');
     } else if (prob >= 60) {
       score += 15;
     }
@@ -120,16 +120,16 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
 
     // Factor 3: OI Surge or Divergence
     const oi = metrics.oi_change_24h || '';
-    if (oi.startsWith('+') || shapDrivers.some(d => d.feature.toLowerCase().includes('oi') || d.feature.toLowerCase().includes('divergence'))) {
+    if (oi.startsWith('+') || featureDrivers.some(d => d.feature.toLowerCase().includes('oi') || d.feature.toLowerCase().includes('divergence'))) {
       score += 25;
       reasons.push(isZh ? 'OI 持仓激增与顶部分离' : isKo ? 'OI 급증 및 고점 다이버전스' : isEn ? 'OI Expansion & Divergence' : 'Dòng tiền OI tăng nóng & Phân kỳ');
     }
 
-    // Factor 4: Taker Sell Dominance or Favorable BTC Context
+    // Factor 4: observable taker-sell, BTC or pump condition
     const takerSell = metrics.taker_sell_ratio ?? null;
     if (btcRegime === 'WEAK' || isPump || (takerSell != null && takerSell >= 0.52)) {
       score += 20;
-      reasons.push(isZh ? '主动卖盘占优 / 巨鲸抛压' : isKo ? '테이커 매도 우세 / 고래 매도' : isEn ? 'Taker Sell Dominance / Trap' : 'Áp lực bán Taker / Bẫy giá cá mập');
+      reasons.push(isZh ? '主动卖出 / BTC 条件已触发' : isKo ? '테이커 매도 / BTC 조건 감지' : isEn ? 'Taker-sell / BTC condition observed' : 'Điều kiện Taker-sell / BTC được ghi nhận');
     }
 
     let grade: ConvictionGrade = 'C';
@@ -143,23 +143,23 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
       confluenceCount: reasons.length,
       reasons,
     };
-  }, [prob, metrics, shapDrivers, btcRegime, isPump, isEn, isZh, isKo]);
+  }, [prob, metrics, featureDrivers, btcRegime, isPump, isEn, isZh, isKo]);
 
   // 3. Xây dựng 3 luận điểm diễn giải tự nhiên (Conversational Narratives)
-  const topDriversText = shapDrivers.slice(0, 3).map(d => d.feature).join(', ') || 'N/A';
+  const topDriversText = featureDrivers.slice(0, 3).map(d => d.feature).join(', ') || 'N/A';
 
-  const storyWhale = useMemo(() => {
-    if (!shapDrivers || shapDrivers.length === 0 || !metrics.oi_change_24h || metrics.oi_change_24h === 'N/A' || !metrics.funding_rate || metrics.funding_rate === 'N/A') return null;
+  const evidenceSummary = useMemo(() => {
+    if (featureDrivers.length === 0 || !metrics.oi_change_24h || metrics.oi_change_24h === 'N/A' || !metrics.funding_rate || metrics.funding_rate === 'N/A') return null;
     if (isZh) {
-      return `当前观测到 **${symbol}** 的数据特征。24h 持仓量 (OI) 变动为 **${metrics.oi_change_24h || 'N/A'}**，资金费率为 **${metrics.funding_rate || 'N/A'}**。SHAP 模型监测到核心驱动因子为 \`${topDriversText}\`，这是当前风险评分的主要构成。`;
+      return `当前观测到 **${symbol}** 的数据特征。24h 持仓量 (OI) 变动为 **${metrics.oi_change_24h || 'N/A'}**，资金费率为 **${metrics.funding_rate || 'N/A'}**。加权评分中贡献较大的分项为 \`${topDriversText}\`。这些分项不是 SHAP，也不代表因果归因。`;
     }
     if (isKo) {
-      return `현재 **${symbol}**에 대한 관측 지표입니다. 24시간 미결제약정(OI) 변화율은 **${metrics.oi_change_24h || 'N/A'}**이며 펀딩비는 **${metrics.funding_rate || 'N/A'}**입니다. SHAP 분석 결과 \`${topDriversText}\` 요인이 현재 리스크 점수의 주요 원인으로 식별되었습니다.`;
+      return `현재 **${symbol}**에 대한 관측 지표입니다. 24시간 미결제약정(OI) 변화율은 **${metrics.oi_change_24h || 'N/A'}**이며 펀딩비는 **${metrics.funding_rate || 'N/A'}**입니다. 가중 점수에서 기여도가 큰 항목은 \`${topDriversText}\`입니다. 이 항목은 SHAP 또는 인과 귀속이 아닙니다.`;
     }
     if (isEn) {
-      return `Observed metrics for **${symbol}**: Open Interest change is **${metrics.oi_change_24h || 'N/A'}** with Funding Rate at **${metrics.funding_rate || 'N/A'}**. Machine learning SHAP decomposition highlights \`${topDriversText}\` as the primary catalysts for the current risk score.`;
+      return `Observed metrics for **${symbol}**: Open Interest change is **${metrics.oi_change_24h || 'N/A'}** with Funding Rate at **${metrics.funding_rate || 'N/A'}**. The largest weighted score components are \`${topDriversText}\`. They are not SHAP values or causal attribution.`;
     }
-    return `Dữ liệu quan sát của **${symbol}**: Chỉ số OI thay đổi **${metrics.oi_change_24h || 'N/A'}** cùng tỷ lệ Funding **${metrics.funding_rate || 'N/A'}**. Bóc tách SHAP chỉ ra động cơ chính gồm \`${topDriversText}\`, đóng góp lớn nhất vào điểm số rủi ro hiện tại.`;
+    return `Dữ liệu quan sát của **${symbol}**: OI thay đổi **${metrics.oi_change_24h || 'N/A'}** và Funding Rate là **${metrics.funding_rate || 'N/A'}**. Các thành phần có trọng số lớn nhất trong điểm tổng hợp gồm \`${topDriversText}\`. Đây không phải giá trị SHAP hay quy kết nhân quả.`;
   }, [symbol, metrics, topDriversText, isEn, isZh, isKo]);
 
   const gameplan = useMemo(() => {
@@ -206,7 +206,7 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
               </span>
             </h3>
             <p className="text-[10px] sm:text-[11px] text-slate-400">
-              {isZh ? '由量化特征、SHAP 归因与订单流实时综合生成的通俗决策指南' : isKo ? '정량 지표, SHAP 기여도 및 오더플로우를 자연어로 요약한 실전 가이드' : isEn ? 'Plain-language actionable synthesis compiled from quant features & orderflow' : 'Bản dịch ngôn ngữ tự nhiên từ dữ liệu định lượng & dòng tiền để hỗ trợ ra quyết định dứt khoát'}
+              {isZh ? '基于量化指标、加权评分分项与订单流的通俗摘要' : isKo ? '정량 지표, 가중 점수 구성 및 오더플로를 요약한 안내' : isEn ? 'Plain-language summary of quant features, weighted score components and order flow' : 'Tóm tắt dữ liệu định lượng, thành phần điểm có trọng số và dòng lệnh'}
             </p>
           </div>
         </div>
@@ -257,18 +257,18 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
 
       {/* 3 Main Conversational Sections Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
-        {/* Section 1: Whale Flow & Market Dynamics */}
+        {/* Section 1: observed market evidence */}
         <div className="bg-slate-900/70 border border-slate-800 rounded-lg p-3 flex flex-col justify-between hover:border-slate-700 transition">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-bold text-sky-300 uppercase mb-2">
               <Compass className="w-3.5 h-3.5 text-sky-400" />
-              <span>{isZh ? '1. 巨鲸动向与资金流故事' : isKo ? '1. 고래 자금 흐름 스토리' : isEn ? '1. Whale Flow & Dynamics' : '1. Dòng Tiền & Hành Vi Cá Mập'}</span>
+              <span>{isZh ? '1. 已观测市场证据' : isKo ? '1. 관측된 시장 근거' : isEn ? '1. Observed Market Evidence' : '1. Bằng Chứng Thị Trường Quan Sát Được'}</span>
             </div>
             <p className="text-[11px] text-slate-300 leading-relaxed">
-              {storyWhale || (isEn ? 'Insufficient data for whale flow narrative.' : 'Không đủ dữ liệu tạo lập để phân tích dòng tiền.')}
+              {evidenceSummary || (isEn ? 'Insufficient observed data for this summary.' : 'Chưa đủ dữ liệu quan sát để tạo bản tóm tắt.')}
             </p>
           </div>
-          {storyWhale && (
+          {evidenceSummary && (
             <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-400 font-mono">
               <span>OI: <strong className="text-sky-400">{metrics.oi_change_24h || 'N/A'}</strong></span>
               <span>Funding: <strong className="text-amber-400">{metrics.funding_rate || 'N/A'}</strong></span>

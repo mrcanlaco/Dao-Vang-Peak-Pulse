@@ -5,7 +5,7 @@ Executes:
 1. 10-Fold Walk-Forward on 2024-01 -> 2026-08 (embargo 48h, 327 coins).
 2. Regime-Conditioned Backtest (Trending Bull, Trending Bear, High Vol Chop, Sideway).
 3. Stress Test on Black Swan Events (Luna May 2024, Halving Apr 2024, FTX aftermath, ETF rally).
-4. Feature Importance & SHAP Ablation Study.
+4. LightGBM gain-based feature-importance ranking.
 5. Champion (LogisticRegression) vs Challenger (LightGBM) vs Ensemble comparison.
 6. Release-grade Report Generation with 95% Bootstrap Confidence Intervals.
 """
@@ -399,7 +399,7 @@ def run_comprehensive_validation(
             "pass": bool(evt_pass),
         })
 
-    # 4. Feature Importance & SHAP Ranking
+    # 4. LightGBM gain-based feature-importance ranking (not SHAP attribution)
     gain_importance = bst.feature_importance(importance_type="gain")
     feat_ranking = [
         {"feature": feat, "importance_gain": round(float(imp), 2)}

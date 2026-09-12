@@ -281,6 +281,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
               return (
                 <button
                   key={tab.id}
+                  data-testid={'workspace-tab-' + tab.id.toLowerCase()}
                   type="button"
                   onClick={() => handleSelectTab(tab.id)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition-all duration-150 ${
@@ -312,6 +313,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
             {labTabs.length > 0 && (
             <div className="relative">
               <button
+                data-testid="workspace-lab-menu"
                 type="button"
                 onClick={() => setOpenDropdown(openDropdown === 'LAB' ? null : 'LAB')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition-all duration-150 ${
@@ -354,6 +356,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
                     return (
                       <button
                         key={tab.id}
+                        data-testid={'workspace-tab-' + tab.id.toLowerCase()}
                         type="button"
                         onClick={() => handleSelectTab(tab.id)}
                         className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center justify-between gap-2 transition ${
@@ -385,6 +388,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
             {/* Dropdown 2: System & Logs */}
             <div className="relative">
               <button
+                data-testid="workspace-system-menu"
                 type="button"
                 onClick={() => setOpenDropdown(openDropdown === 'SYSTEM' ? null : 'SYSTEM')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition-all duration-150 ${
@@ -446,6 +450,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
                     return (
                       <button
                         key={tab.id}
+                        data-testid={'workspace-tab-' + tab.id.toLowerCase()}
                         type="button"
                         onClick={() => handleSelectTab(tab.id)}
                         className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center justify-between gap-2 transition ${

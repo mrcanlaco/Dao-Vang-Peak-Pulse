@@ -461,16 +461,16 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
           <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-xl space-y-2.5">
             <div className="flex items-center gap-2 text-xs font-bold text-sky-400 uppercase tracking-wide">
               <Server className="w-4 h-4 text-sky-400" />
-              <span>{isZh ? '内置量化分析引擎 (Built-in Quant Engine Fallback)' : isKo ? '자체 탑재 정량 분석 엔진 (Built-in Quant Engine)' : isEn ? 'Built-in Quantitative Engine (Zero-Latency Fallback)' : 'Bộ Phân Tích Định Lượng Tích Hợp (0ms Fallback)'}</span>
+              <span>{isZh ? '内置定量摘要引擎（LLM 备用）' : isKo ? '내장 정량 요약 엔진 (LLM 대체)' : isEn ? 'Built-in Quantitative Summary (LLM Fallback)' : 'Bộ Tóm Tắt Định Lượng Tích Hợp (Dự Phòng LLM)'}</span>
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
               {isZh
-                ? '系统搭载了原生的多维度量化规则与 SHAP 贡献度解析引擎。即便用户未配置任何第三方 LLM API 密钥，系统仍可在 0 毫秒内生成具备深度洞察的 3 段式执行简报与实战问答，确保 100% 离线高可用。'
+                ? '当外部 LLM 未配置或暂不可用时，系统会根据当前市场指标、交易设置和加权评分分项生成确定性摘要。评分分项不是 SHAP，也不代表因果归因。'
                 : isKo
-                ? '본 시스템은 고유의 정량적 규칙 및 SHAP 분해 분석 엔진을 탑재하고 있습니다. 외부 API 키가 없어도 0ms 즉각 응답으로 3단계 브리핑 및 실전 질의응답을 완벽히 수행합니다.'
+                ? '외부 LLM이 설정되지 않았거나 일시적으로 사용할 수 없으면 현재 시장 지표, 트레이드 설정 및 가중 점수 항목을 기반으로 결정론적 요약을 생성합니다. 점수 항목은 SHAP 또는 인과 귀속이 아닙니다.'
                 : isEn
-                ? 'PeakPulse incorporates a native quantitative inference and SHAP attribution engine. Even without external API keys, it generates 3-section executive briefings and interactive Q&A instantly (0ms latency), ensuring 100% offline availability and privacy.'
-                : 'Hệ thống tích hợp sẵn Bộ máy quy tắc định lượng & bóc tách SHAP nguyên bản. Ngay cả khi bạn chưa gắn API Key ngoài, hệ thống vẫn tạo Bản tin Tóm tắt 3 phần và trả lời câu hỏi với tốc độ 0ms, đảm bảo tính sẵn sàng và bảo mật 100%.'}
+                ? 'When the external LLM is not configured or temporarily unavailable, PeakPulse produces a deterministic summary from current market metrics, trade setup data and weighted score components. Components are not SHAP or causal attribution.'
+                : 'Khi LLM ngoài chưa được cấu hình hoặc tạm thời không khả dụng, hệ thống tạo bản tóm tắt xác định từ chỉ số thị trường, Trade Setup và các thành phần điểm có trọng số hiện có. Các thành phần này không phải SHAP hay quy kết nhân quả.'}
             </p>
           </div>
         </div>

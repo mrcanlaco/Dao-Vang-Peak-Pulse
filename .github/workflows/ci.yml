@@ -36,8 +36,7 @@ jobs:
         run: uv run --frozen ruff check .
         
       - name: Type checking
-        # Keep the release gate focused while the legacy pandas-heavy scripts
-        # are migrated to typed boundaries in a separate cleanup.
+        # Release-critical runtime boundaries must remain type-clean.
         run: >-
           uv run --frozen pyright
           src/dao_vang/config/settings.py
@@ -45,6 +44,8 @@ jobs:
           src/dao_vang/scoring/frozen_inference.py
           src/dao_vang/scoring/engine_comparison.py
           src/dao_vang/scanner/healthcheck.py
+          src/dao_vang/web/api_server.py
+          src/dao_vang/web/ai_analyst.py
           src/dao_vang/web/version_history.py
 
       - name: Validate operational scripts
@@ -93,3 +94,12 @@ jobs:
 
       - name: Build and Typecheck
         run: npm run build
+
+      - name: Enforce bundle budgets
+        run: npm run check:bundle
+
+      - name: Install Chromium for browser smoke
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser smoke
+        run: npm run test:smoke

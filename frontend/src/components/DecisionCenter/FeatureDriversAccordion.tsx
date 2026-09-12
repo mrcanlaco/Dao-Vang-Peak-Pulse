@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
 import { AlertOctagon, ChevronDown, ChevronUp, Layers } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
-import { getShapFeatureLabel, formatShapExplanation } from '../../i18n/translations';
-import type { DeepAnalysis, ShapDriver } from '../../types';
+import { getFeatureDriverLabel, formatFeatureDriverExplanation } from '../../i18n/translations';
+import type { DeepAnalysis, FeatureDriver } from '../../types';
 
-interface AiShapAccordionProps {
-  shapDrivers: ShapDriver[];
+interface FeatureDriversAccordionProps {
+  featureDrivers: FeatureDriver[];
   deepAnalysis?: DeepAnalysis | null;
 }
 
-export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
-  shapDrivers,
+export const FeatureDriversAccordion: React.FC<FeatureDriversAccordionProps> = ({
+  featureDrivers,
   deepAnalysis,
 }) => {
   const { language, t } = useTranslation();
   
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const sortedDrivers = [...(shapDrivers || [])].sort((a, b) => b.impact_score - a.impact_score);
+  const sortedDrivers = [...(featureDrivers || [])].sort((a, b) => b.impact_score - a.impact_score);
   const top3Drivers = sortedDrivers.slice(0, 3);
   const components = deepAnalysis?.components || [];
   const sortedComponents = [...components].sort((a, b) => b.weighted_score - a.weighted_score);
@@ -60,8 +60,8 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
                       #{idx + 1}
                     </span>
                     <div className="min-w-0 truncate">
-                      <div className="text-xs font-bold text-slate-200 truncate">{getShapFeatureLabel(driver.feature, language)}</div>
-                      <div className="text-[10px] text-slate-400 truncate">{formatShapExplanation(driver.feature, driver.description, driver.impact_score, language)}</div>
+                      <div className="text-xs font-bold text-slate-200 truncate">{getFeatureDriverLabel(driver.feature, language)}</div>
+                      <div className="text-[10px] text-slate-400 truncate">{formatFeatureDriverExplanation(driver.description, language)}</div>
                     </div>
                   </div>
                   <span className={`px-2 py-0.5 font-mono font-bold text-xs rounded border shrink-0 ${
@@ -98,7 +98,7 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
           >
             <span className="flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-amber-400" />
-              {isExpanded ? t('shap_collapse_8_factors') : t('shap_expand_8_factors')}
+              {isExpanded ? t('driver_collapse_8_factors') : t('driver_expand_8_factors')}
             </span>
             {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -107,8 +107,8 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
           {isExpanded && (
             <div className="mt-2.5 space-y-2 animate-fadeIn">
               <div className="flex items-center justify-between px-1 text-[10px] text-slate-400">
-                <span>{t('shap_col_component')}</span>
-                <span>{t('shap_col_weight_contribution')}</span>
+                <span>{t('driver_col_component')}</span>
+                <span>{t('driver_col_weight_contribution')}</span>
               </div>
               {sortedComponents.map((comp, idx) => (
                 <div key={idx} className="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800">
@@ -122,9 +122,9 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
                         {idx + 1}
                       </span>
                       <div className="min-w-0">
-                        <span className="text-xs font-bold text-slate-200">{getShapFeatureLabel(comp.raw_name || comp.name, language)}</span>
+                        <span className="text-xs font-bold text-slate-200">{getFeatureDriverLabel(comp.raw_name || comp.name, language)}</span>
                         <span className="text-[9px] text-slate-500 font-mono ml-1.5">
-                          ({comp.weight}% {t('shap_weight_unit')})
+                          ({comp.weight}% {t('driver_weight_unit')})
                         </span>
                       </div>
                     </div>
@@ -147,13 +147,16 @@ export const AiShapAccordion: React.FC<AiShapAccordionProps> = ({
                       style={{ width: `${comp.score}%` }}
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500 leading-tight">{formatShapExplanation(comp.raw_name || comp.name, comp.explanation, comp.raw_value, language)}</p>
+                  <p className="text-[10px] text-slate-500 leading-tight">{formatFeatureDriverExplanation(comp.explanation, language)}</p>
                 </div>
               ))}
             </div>
           )}
         </div>
       )}
+      <p className="text-[9px] leading-relaxed text-slate-600">
+        {t('driver_method_disclaimer')}
+      </p>
     </div>
   );
 };

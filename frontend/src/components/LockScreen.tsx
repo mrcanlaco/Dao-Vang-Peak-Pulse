@@ -151,6 +151,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({
 
               <div className="relative">
                 <input
+                  data-testid="login-password"
                   ref={inputRef}
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -192,6 +193,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({
 
             {/* Submit Button */}
             <button
+              data-testid="login-submit"
               type="submit"
               disabled={!password.trim() || isLoading || isSuccess}
               className={`w-full py-3 px-4 rounded-xl font-bold text-sm tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${

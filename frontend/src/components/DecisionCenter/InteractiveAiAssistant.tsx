@@ -52,7 +52,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
     rsi_15m: null,
     volume_delta_24h: 'N/A',
   };
-  const shapDrivers = displayDetail?.shap_drivers || [];
+  const featureDrivers = displayDetail?.feature_drivers || [];
 
   // LLM Config state
   const [llmConfig, setLlmConfig] = useState<LlmConfig>(() => readStoredLlmConfig());
@@ -181,7 +181,8 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
           probability: prob,
           risk_level: riskLevel,
           trade_setup: tradeSetup || undefined,
-          shap_drivers: shapDrivers,
+          attribution_method: displayDetail.attribution_method,
+          feature_drivers: featureDrivers,
           metrics,
           btc_regime: btcRegime,
           parabolic_pump: isPump,
@@ -313,7 +314,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
                 )}
               </h3>
               <p className="text-[10px] text-slate-400 truncate">
-                {isZh ? '实时注入行情、订单流与 SHAP 特征的多模型问答助理' : isKo ? '실시간 오더플로우 및 SHAP 지표가 주입된 다중 모델 AI 어시스턴트' : isEn ? 'Real-time context-injected quant assistant for deep analysis' : 'Trợ lý phân tích có nạp toàn bộ dữ liệu dòng tiền & SHAP của coin'}
+                {isZh ? '注入实时行情、订单流与加权评分因子的多模型问答助理' : isKo ? '실시간 시장·오더플로 및 가중 점수 요인이 포함된 멀티모델 어시스턴트' : isEn ? 'Real-time context-injected quant assistant with weighted score components' : 'Trợ lý phân tích dùng dữ liệu thị trường và thành phần điểm có trọng số'}
               </p>
             </div>
           </div>

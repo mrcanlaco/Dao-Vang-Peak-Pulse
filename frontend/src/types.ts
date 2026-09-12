@@ -341,7 +341,7 @@ export interface CandlePoint {
   is_signal_point?: boolean;
 }
 
-export interface ShapDriver {
+export interface FeatureDriver {
   feature: string;
   impact_score: number;
   description: string;
@@ -358,7 +358,7 @@ export interface CoinDetail extends MarketCapFields {
   risk_level: RiskLevel | null;
   target_drawdown: number;
   target_price: number;
-  signal_timestamp: string;
+  signal_timestamp: string | null;
   chart_data: CandlePoint[];
   metrics: {
     oi_change_24h: string;
@@ -378,7 +378,8 @@ export interface CoinDetail extends MarketCapFields {
     rsi_15m: number | null;
     volume_delta_24h: string;
   };
-  shap_drivers: ShapDriver[];
+  attribution_method: 'component_weight' | 'none';
+  feature_drivers: FeatureDriver[];
 }
 
 export interface DeepAnalysisComponent {
@@ -1163,7 +1164,8 @@ export interface AiAskRequest {
     probability?: number;
     risk_level?: string;
     trade_setup?: TradeSetup | Record<string, unknown>;
-    shap_drivers?: ShapDriver[];
+    attribution_method?: 'component_weight' | 'none';
+    feature_drivers?: FeatureDriver[];
     metrics?: Record<string, any>;
     btc_regime?: string;
     parabolic_pump?: boolean;

@@ -721,12 +721,13 @@ export const translations = {
     "scanner_stopped": "Đã dừng",
     "search_placeholder": "Tìm mã coin (VD: BTC, ETH, SOL)...",
     "select_coins_to_scan": "Chọn danh sách coin để quét",
-    "shap_col_component": "Thành phần / Chỉ số",
-    "shap_col_weight_contribution": "Trọng số → Điểm đóng góp",
-    "shap_collapse_8_factors": "Thu gọn bảng phân rã 8 thành phần",
-    "shap_expand_8_factors": "Xem chi tiết phân rã toàn diện 8 thành phần",
-    "shap_no_distribution_footprints": "Không có dấu hiệu phân phối",
-    "shap_weight_unit": "trọng số",
+    "driver_col_component": "Thành phần / Chỉ số",
+    "driver_col_weight_contribution": "Trọng số → Điểm đóng góp",
+    "driver_collapse_8_factors": "Thu gọn bảng phân rã 8 thành phần",
+    "driver_expand_8_factors": "Xem chi tiết phân rã toàn diện 8 thành phần",
+    "driver_no_distribution_footprints": "Không có dấu hiệu phân phối",
+    "driver_weight_unit": "trọng số",
+    "driver_method_disclaimer": "Thành phần điểm có trọng số; không phải SHAP hay quy kết nhân quả.",
     "signal_play_test_sound": "Phát âm thanh thử nghiệm",
     "sort_expiring_soon": "Sắp hết hạn",
     "sort_newest": "Mới nhất",
@@ -962,17 +963,17 @@ export const translations = {
     "ws_rec_standby_badge": "⚪ BỎ QUA",
     "ws_rec_watch_badge": "🟡 THEO DÕI",
     "ws_rescore_btn": "Chạy lại chấm điểm",
-    "ws_risk_drivers_empty": "Chưa có dữ liệu nguyên nhân. Chạy \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",
+    "ws_risk_drivers_empty": "Chưa có dữ liệu thành phần điểm cho tín hiệu này.",
     "ws_risk_drivers_factors": "yếu tố",
-    "ws_risk_drivers_title": "🔮 NGUYÊN NHÂN AI DỰ BÁO XẢ",
+    "ws_risk_drivers_title": "THÀNH PHẦN ĐIỂM RỦI RO",
     "ws_score_source": "Nguồn: ",
     "ws_send_telegram_btn": "Gửi Telegram",
-    "ws_shap_col_factor": "Thành phần / Chỉ số",
-    "ws_shap_col_weight_score": "Trọng số → Điểm đóng góp",
-    "ws_shap_collapse_btn": "Thu gọn bảng phân rã 8 thành phần",
-    "ws_shap_expand_btn": "Xem chi tiết phân rã toàn diện 8 thành phần",
-    "ws_shap_factors_count": "{count} yếu tố",
-    "ws_shap_weight_label": "trọng số",
+    "ws_driver_col_factor": "Thành phần / Chỉ số",
+    "ws_driver_col_weight_score": "Trọng số → Điểm đóng góp",
+    "ws_driver_collapse_btn": "Thu gọn bảng phân rã 8 thành phần",
+    "ws_driver_expand_btn": "Xem chi tiết phân rã toàn diện 8 thành phần",
+    "ws_driver_factors_count": "{count} yếu tố",
+    "ws_driver_weight_label": "trọng số",
     "ws_signal_time_label": "Tín hiệu:",
     "ws_source_alert": "cảnh báo đã gửi",
     "ws_source_scan": "quét gần nhất",
@@ -1831,12 +1832,13 @@ export const translations = {
     "scanner_stopped": "Stopped",
     "search_placeholder": "Search symbol (e.g. BTC, ETH, SOL)...",
     "select_coins_to_scan": "Select coins to scan",
-    "shap_col_component": "Component / Feature Factor",
-    "shap_col_weight_contribution": "Weight → Contribution Score",
-    "shap_collapse_8_factors": "Collapse 8-factor score breakdown",
-    "shap_expand_8_factors": "View 8-factor score breakdown",
-    "shap_no_distribution_footprints": "No distribution footprints",
-    "shap_weight_unit": "weight",
+    "driver_col_component": "Component / Feature Factor",
+    "driver_col_weight_contribution": "Weight → Contribution Score",
+    "driver_collapse_8_factors": "Collapse 8-factor score breakdown",
+    "driver_expand_8_factors": "View 8-factor score breakdown",
+    "driver_no_distribution_footprints": "No distribution footprints",
+    "driver_weight_unit": "weight",
+    "driver_method_disclaimer": "Weighted score components; not SHAP or causal attribution.",
     "signal_play_test_sound": "Play test sound",
     "sort_expiring_soon": "Expiring Soon",
     "sort_newest": "Newest First",
@@ -2072,17 +2074,17 @@ export const translations = {
     "ws_rec_standby_badge": "⚪ STANDBY",
     "ws_rec_watch_badge": "🟡 WATCHLIST",
     "ws_rescore_btn": "Re-score Analysis",
-    "ws_risk_drivers_empty": "No risk driver data yet. Run \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\",
+    "ws_risk_drivers_empty": "No score-component data is available for this signal.",
     "ws_risk_drivers_factors": "factors",
-    "ws_risk_drivers_title": "🔮 AI RISK DRIVERS (SHAP DECOMPOSITION)",
+    "ws_risk_drivers_title": "RISK SCORE COMPONENTS",
     "ws_score_source": "Source: ",
     "ws_send_telegram_btn": "Send Telegram",
-    "ws_shap_col_factor": "Component / Factor",
-    "ws_shap_col_weight_score": "Weight → Contribution",
-    "ws_shap_collapse_btn": "Collapse 8-Component Score Breakdown",
-    "ws_shap_expand_btn": "Expand Full 8-Component Decomposition",
-    "ws_shap_factors_count": "{count} factors",
-    "ws_shap_weight_label": "weight",
+    "ws_driver_col_factor": "Component / Factor",
+    "ws_driver_col_weight_score": "Weight → Contribution",
+    "ws_driver_collapse_btn": "Collapse 8-Component Score Breakdown",
+    "ws_driver_expand_btn": "Expand Full 8-Component Decomposition",
+    "ws_driver_factors_count": "{count} factors",
+    "ws_driver_weight_label": "weight",
     "ws_signal_time_label": "Signal:",
     "ws_source_alert": "dispatched alert",
     "ws_source_scan": "latest scan",
@@ -2613,7 +2615,7 @@ export const translations = {
     "guide_cli_start_desc": "启动 24/7 后台扫描守护进程",
     "guide_cli_stop_desc": "停止扫描守护进程",
     "guide_cli_title": "终端命令行工具 (CLI)",
-    "guide_decision_module_desc": "单个币种深度剖析：5 大衍生品核心指标（OI 变化、资金费率、主动卖出比、RSI、目标回撤）、BTC 宏观背景及 8 因子 SHAP 归因。",
+    "guide_decision_module_desc": "单个币种深度剖析：5 大衍生品核心指标（OI 变化、资金费率、主动卖出比、RSI、目标回撤）、BTC 宏观背景及 8 个加权评分分项。",
     "guide_decision_module_title": "决策中心 (交易研判)",
     "guide_forward_desc": "使用已冻结的模型对实盘最新样本外数据进行打分与稳定性检验。",
     "guide_forward_module_desc": "冻结模型在新数据上的表现追踪及概率校准曲线评估。",
@@ -2939,12 +2941,13 @@ export const translations = {
     "scanner_stopped": "已停止",
     "search_placeholder": "搜索币种 (例如: BTC, ETH, SOL)...",
     "select_coins_to_scan": "选择扫描币种范围",
-    "shap_col_component": "因子 / 特征分项",
-    "shap_col_weight_contribution": "权重 → 贡献得分",
-    "shap_collapse_8_factors": "收起 8 因子得分分解",
-    "shap_expand_8_factors": "展开 8 因子得分分解",
-    "shap_no_distribution_footprints": "无派发特征",
-    "shap_weight_unit": "权重",
+    "driver_col_component": "因子 / 特征分项",
+    "driver_col_weight_contribution": "权重 → 贡献得分",
+    "driver_collapse_8_factors": "收起 8 因子得分分解",
+    "driver_expand_8_factors": "展开 8 因子得分分解",
+    "driver_no_distribution_footprints": "无派发特征",
+    "driver_weight_unit": "权重",
+    "driver_method_disclaimer": "加权评分分项；不是 SHAP，也不代表因果归因。",
     "signal_play_test_sound": "播放测试音频",
     "sort_expiring_soon": "即将失效",
     "sort_newest": "最新优先",
@@ -3182,15 +3185,15 @@ export const translations = {
     "ws_rescore_btn": "重新计算评分",
     "ws_risk_drivers_empty": "暂无归因数据。点击“重新计算评分”以查看 8 因子分解。",
     "ws_risk_drivers_factors": "个因子",
-    "ws_risk_drivers_title": "🔮 AI 暴跌归因分解 (SHAP 归因)",
+    "ws_risk_drivers_title": "风险评分构成",
     "ws_score_source": "得分来源: ",
     "ws_send_telegram_btn": "推送到 Telegram",
-    "ws_shap_col_factor": "因子 / 特征分项",
-    "ws_shap_col_weight_score": "权重 → 贡献得分",
-    "ws_shap_collapse_btn": "收起 8 因子得分分解",
-    "ws_shap_expand_btn": "展开完整 8 因子归因分解",
-    "ws_shap_factors_count": "{count} 个归因因子",
-    "ws_shap_weight_label": "权重",
+    "ws_driver_col_factor": "因子 / 特征分项",
+    "ws_driver_col_weight_score": "权重 → 贡献得分",
+    "ws_driver_collapse_btn": "收起 8 因子得分分解",
+    "ws_driver_expand_btn": "展开完整 8 因子得分分解",
+    "ws_driver_factors_count": "{count} 个评分因子",
+    "ws_driver_weight_label": "权重",
     "ws_signal_time_label": "信号时间:",
     "ws_source_alert": "已发送警报",
     "ws_source_scan": "最新扫描",
@@ -4047,12 +4050,13 @@ export const translations = {
     "scanner_stopped": "중지됨",
     "search_placeholder": "심볼 검색 (예: BTC, ETH, SOL)...",
     "select_coins_to_scan": "스캔 코인 선택",
-    "shap_col_component": "지표 성분 / 요인",
-    "shap_col_weight_contribution": "가중치 → 기여 점수",
-    "shap_collapse_8_factors": "8개 요인 점수 분해 접기",
-    "shap_expand_8_factors": "8개 요인 점수 분해 보기",
-    "shap_no_distribution_footprints": "분산 신호 없음",
-    "shap_weight_unit": "가중치",
+    "driver_col_component": "지표 성분 / 요인",
+    "driver_col_weight_contribution": "가중치 → 기여 점수",
+    "driver_collapse_8_factors": "8개 요인 점수 분해 접기",
+    "driver_expand_8_factors": "8개 요인 점수 분해 보기",
+    "driver_no_distribution_footprints": "분산 신호 없음",
+    "driver_weight_unit": "가중치",
+    "driver_method_disclaimer": "가중 점수 항목이며 SHAP 또는 인과 귀속이 아닙니다.",
     "signal_play_test_sound": "알림음 테스트",
     "sort_expiring_soon": "만료 임박순",
     "sort_newest": "최신순",
@@ -4290,15 +4294,15 @@ export const translations = {
     "ws_rescore_btn": "재채점 분석",
     "ws_risk_drivers_empty": "위험 요인 데이터가 없습니다. '재채점 분석'을 실행하여 8개 요인 분해를 확인하세요.",
     "ws_risk_drivers_factors": "개 요인",
-    "ws_risk_drivers_title": "🔮 AI 급락 위험 요인 분석 (SHAP 분해)",
+    "ws_risk_drivers_title": "위험 점수 구성 요소",
     "ws_score_source": "점수 출처: ",
     "ws_send_telegram_btn": "텔레그램 발송",
-    "ws_shap_col_factor": "지표 성분 / 요인",
-    "ws_shap_col_weight_score": "가중치 → 기여 점수",
-    "ws_shap_collapse_btn": "8개 요인 점수 분해 접기",
-    "ws_shap_expand_btn": "전체 8개 요인 분해 펼치기",
-    "ws_shap_factors_count": "{count}개 위험 요인",
-    "ws_shap_weight_label": "가중치",
+    "ws_driver_col_factor": "지표 성분 / 요인",
+    "ws_driver_col_weight_score": "가중치 → 기여 점수",
+    "ws_driver_collapse_btn": "8개 요인 점수 분해 접기",
+    "ws_driver_expand_btn": "전체 8개 요인 분해 펼치기",
+    "ws_driver_factors_count": "{count}개 위험 요인",
+    "ws_driver_weight_label": "가중치",
     "ws_signal_time_label": "신호 시간:",
     "ws_source_alert": "발송된 경보",
     "ws_source_scan": "최신 스캔",
@@ -4639,7 +4643,7 @@ export const formatTelegramSignalText = (
   return `🚨 [CẢNH BÁO ĐẢO VÀNG AI]\n🪙 Coin: ${symbol}\n📊 Xác suất xả: ${probPct}%\n🎯 Mức rủi ro: ${tier}\n💡 Khuyến nghị: Canh Short vùng đỉnh (-8% TP, 24h)`;
 };
 
-export function getShapFeatureLabel(rawName: string, lang: Language): string {
+export function getFeatureDriverLabel(rawName: string, lang: Language): string {
   const norm = rawName.toLowerCase().replace(/[\s_-]+/g, '_');
   
   const dict: Record<string, Record<Language, string>> = {
@@ -4721,64 +4725,10 @@ export function getShapFeatureLabel(rawName: string, lang: Language): string {
   return rawName.replace(/[_-]+/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 }
 
-export function formatShapExplanation(rawName: string, explanation: string, rawValue: any, lang: Language): string {
-  if (!explanation) return '';
-  if (lang === 'en') return explanation;
+export function formatFeatureDriverExplanation(explanation: string, lang: Language): string {
+  if (!explanation || lang === 'en') return explanation;
 
-  const norm = rawName.toLowerCase().replace(/[\s_-]+/g, '_');
-
-  // 1. Distance from high
-  if (norm.includes('distance') || norm.includes('high')) {
-    const pct = typeof rawValue === 'number' ? (rawValue <= 1 ? rawValue * 100 : rawValue).toFixed(1) : '2.5';
-    if (lang === 'vi') return `Cách đỉnh 24h: ${pct}% (Sát vùng đỉnh trong phạm vi 5%, vùng xả hàng lý tưởng của phe Short).`;
-    if (lang === 'zh') return `距离24h高点 ${pct}% (处于高点 5% 狭窄区间，属于主力做空绝佳派发区)。`;
-    if (lang === 'ko') return `24시간 고점 대비 거리: ${pct}% (고점 5% 이내 근접, 이상적인 숏 분산 구간).`;
-  }
-
-  // 2. RSI Overbought
-  if (norm.includes('rsi')) {
-    const rsiVal = typeof rawValue === 'number' ? rawValue.toFixed(1) : '78.4';
-    if (lang === 'vi') return `Chỉ số RSI 15m đạt ${rsiVal} (vùng quá mua > 70, áp lực đảo chiều giảm mạnh).`;
-    if (lang === 'zh') return `RSI 15m 达到 ${rsiVal} (超买区间 > 70，向下均值回归动能强劲)。`;
-    if (lang === 'ko') return `15분 RSI ${rsiVal} 도달 (과매수 구간 > 70, 강한 하락 반전 압력).`;
-  }
-
-  // 3. Price volume divergence
-  if (norm.includes('divergence') && (norm.includes('volume') || norm.includes('price'))) {
-    if (lang === 'vi') return 'Giá tăng mạnh nhưng khối lượng sụt giảm (dấu hiệu xả hàng ngầm của dòng tiền thông minh).';
-    if (lang === 'zh') return '价格上涨但成交量显著萎缩 (主力资金隐蔽派发典型特征)。';
-    if (lang === 'ko') return '가격은 상승했으나 거래량 감소 (스마트 머니의 은밀한 물량 정리 징후).';
-  }
-
-  // 4. Momentum exhaustion
-  if (norm.includes('momentum') || norm.includes('exhaustion')) {
-    if (lang === 'vi') return 'Động lượng tăng trưởng suy giảm rõ rệt trên các khung thời gian 15m/1h.';
-    if (lang === 'zh') return '15m/1h 周期多头拉升动能出现明显衰竭减速。';
-    if (lang === 'ko') return '15분/1시간 주기에서 상승 탄력이 뚜렷하게 둔화 소진됨.';
-  }
-
-  // 5. OI divergence
-  if (norm.includes('oi')) {
-    if (lang === 'vi') return 'Hợp đồng mở OI sụt giảm khi giá tăng/đi ngang (dấu hiệu tổ chức đang tất toán vị thế).';
-    if (lang === 'zh') return '持仓量 OI 下降但价格滞涨 (机构主力正在平多撤退)。';
-    if (lang === 'ko') return '가격 횡보 중 미결제약정(OI) 감소 (기관의 포지션 청산 징후).';
-  }
-
-  // 6. Funding spike
-  if (norm.includes('funding')) {
-    if (lang === 'vi') return 'Phí funding tăng vọt (phe Long đang dùng đòn bẩy quá mức, đối mặt rủi ro thanh lý chuỗi).';
-    if (lang === 'zh') return '资金费率异常飙升 (多头杠杆严重拥挤，面临连锁踩踏清算风险)。';
-    if (lang === 'ko') return '펀딩비 급등 (롱 레버리지 과열, 연쇄 청산 위험).';
-  }
-
-  // 7. Taker sell pressure
-  if (norm.includes('taker') || norm.includes('sell')) {
-    if (lang === 'vi') return 'Khối lượng lệnh bán chủ động áp đảo phe mua (lực bán tháo mạnh trên sổ lệnh).';
-    if (lang === 'zh') return '市场主动吃单卖盘量显著超过买盘 (盘口涌现强烈抛售压力)。';
-    if (lang === 'ko') return '시장가 매도 거래량이 매수를 압도 (오더북 상 강한 매도세).';
-  }
-
-  // Fallback translation if contains common phrases
+  // Translate only the source explanation. Never synthesize a value or a causal claim.
   let translated = explanation;
   if (lang === 'vi') {
     translated = translated

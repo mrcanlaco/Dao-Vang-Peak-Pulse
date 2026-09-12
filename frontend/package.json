@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "check:bundle": "node check-bundle-budget.mjs",
+    "test:smoke": "playwright test --project=chromium",
     "watch": "vite build --watch",
     "lint": "oxlint",
     "preview": "vite preview"
@@ -24,6 +26,7 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",

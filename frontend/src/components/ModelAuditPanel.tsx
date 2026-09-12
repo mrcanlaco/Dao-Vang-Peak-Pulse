@@ -11,7 +11,7 @@ export function ModelAuditPanel({ audit }: { audit: ModelAudit }) {
   const missing = vi ? 'Chưa có dữ liệu' : 'No data available';
   const card = 'rounded-xl border border-slate-800 bg-slate-950 p-4';
   return (
-    <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+    <div data-testid="model-audit-report" className="flex-1 overflow-y-auto space-y-4 pr-1">
       <section className={card}>
         <h3 className="text-sm font-bold text-slate-100">{t('audit_matrix_title')}</h3>
         <p className="mt-2 text-xs text-slate-400">{vi ? 'Mô hình đang cấu hình' : 'Configured model'}: {audit.model_name}</p>

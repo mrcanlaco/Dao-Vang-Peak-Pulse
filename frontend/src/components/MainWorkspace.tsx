@@ -1,5 +1,4 @@
-import { ModelAuditPanel } from './ModelAuditPanel';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useMemo, useRef } from 'react';
 import type { SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, ScannerTelemetry, DeepAnalysis, CandlePoint, TrackingWatchlistItem, TradeSetup, FilterTag, SignalSort, TelegramFilter } from '../types';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, AreaChart, Area, ComposedChart
@@ -8,25 +7,15 @@ import {
   Activity, BarChart3,
   ArrowUpRight, ArrowDownRight, CheckCircle2, Radio, Terminal, Send, Clock, Play, Loader2, LineChart as LineChartIcon, RefreshCw, Target, Award, ChevronDown, ChevronUp, HelpCircle, Eye, EyeOff
 } from 'lucide-react';
-import { SignalFeed } from './SignalFeed';
-import { MultiCoinScan } from './MultiCoinScan';
-import { BacktestExperiments } from './BacktestExperiments';
-import { ForwardTest } from './ForwardTest';
-import { SystemHistoryTab } from './SystemHistoryTab';
-import { VersionHistoryTab } from './VersionHistoryTab';
-import ModelsDocTab from './ModelsDocTab';
-import { TrackingWatchlist } from './TrackingWatchlist';
 import { WorkspaceTabBar, type WorkspaceTab } from './WorkspaceTabBar';
-import { SystemSettingsTab } from './SystemSettingsTab';
 import { ErrorBoundary } from './ErrorBoundary';
 
-import { CandlestickChart } from './CandlestickChart';
 import type { CandlestickSignalMarker } from './CandlestickChart';
 import { DecisionHeader } from './DecisionCenter/DecisionHeader';
 import { TradeSetupCard } from './DecisionCenter/TradeSetupCard';
 import { TradeSetupCardV2 } from './v2/TradeSetupCardV2';
 import { AiDecisionCockpit } from './DecisionCenter/AiDecisionCockpit';
-import { AiShapAccordion } from './DecisionCenter/AiShapAccordion';
+import { FeatureDriversAccordion } from './DecisionCenter/FeatureDriversAccordion';
 import { AiExecutiveBriefing } from './DecisionCenter/AiExecutiveBriefing';
 import { CoinLink } from './CoinLink';
 import { formatSystemTime, parseSystemDate } from '../utils/time';
@@ -38,6 +27,38 @@ import {
   getExecutionStatusLabel,
   getScannerStatusLabel,
 } from '../i18n/translations';
+
+const ModelAuditPanel = lazy(() =>
+  import('./ModelAuditPanel').then(({ ModelAuditPanel: component }) => ({ default: component }))
+);
+const SignalFeed = lazy(() =>
+  import('./SignalFeed').then(({ SignalFeed: component }) => ({ default: component }))
+);
+const MultiCoinScan = lazy(() =>
+  import('./MultiCoinScan').then(({ MultiCoinScan: component }) => ({ default: component }))
+);
+const BacktestExperiments = lazy(() =>
+  import('./BacktestExperiments').then(({ BacktestExperiments: component }) => ({ default: component }))
+);
+const ForwardTest = lazy(() =>
+  import('./ForwardTest').then(({ ForwardTest: component }) => ({ default: component }))
+);
+const SystemHistoryTab = lazy(() =>
+  import('./SystemHistoryTab').then(({ SystemHistoryTab: component }) => ({ default: component }))
+);
+const VersionHistoryTab = lazy(() =>
+  import('./VersionHistoryTab').then(({ VersionHistoryTab: component }) => ({ default: component }))
+);
+const ModelsDocTab = lazy(() => import('./ModelsDocTab'));
+const TrackingWatchlist = lazy(() =>
+  import('./TrackingWatchlist').then(({ TrackingWatchlist: component }) => ({ default: component }))
+);
+const SystemSettingsTab = lazy(() =>
+  import('./SystemSettingsTab').then(({ SystemSettingsTab: component }) => ({ default: component }))
+);
+const CandlestickChart = lazy(() =>
+  import('./CandlestickChart').then(({ CandlestickChart: component }) => ({ default: component }))
+);
 
 interface MainWorkspaceProps {
   signals: SignalItem[];
@@ -451,7 +472,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             rsi_15m: null,
             volume_delta_24h: 'N/A',
           },
-          shap_drivers: [],
+          attribution_method: 'none',
+          feature_drivers: [],
         };
       }
       if (candidates && candidates.length > 0) {
@@ -481,7 +503,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             rsi_15m: null,
             volume_delta_24h: c.volume_24h ?? 'N/A',
           },
-          shap_drivers: [],
+          attribution_method: 'none',
+          feature_drivers: [],
         };
       }
       return null;
@@ -645,7 +668,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 sm:p-3.5 flex flex-col h-auto lg:h-full overflow-visible lg:overflow-hidden relative">
+    <div
+      data-testid="main-workspace"
+      className="bg-slate-900/80 border border-slate-800 rounded-xl p-2.5 sm:p-3.5 flex flex-col h-auto lg:h-full overflow-visible lg:overflow-hidden relative"
+    >
 
       {/* Real-time Scanning Progress Overlay Banner */}
       {isTriggeringScan && (
@@ -673,6 +699,22 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         isTelemetryActive={telemetryData ? telemetryData.scanner_engine_status !== 'ERROR' : false}
         onOpenTabHelp={onOpenTabHelp}
       />
+      <Suspense
+        fallback={(
+          <div
+            role="status"
+            className="flex-1 min-h-[240px] flex items-center justify-center text-xs text-slate-400"
+          >
+            {language === 'zh'
+              ? '正在加载工作区…'
+              : language === 'ko'
+                ? '작업 공간을 불러오는 중…'
+                : language === 'vi'
+                  ? 'Đang tải không gian làm việc…'
+                  : 'Loading workspace…'}
+          </div>
+        )}
+      >
       {/* TAB: RADAR SIGNAL FEED */}
       {activeTab === 'RADAR' && (
         <div className="flex-1 overflow-hidden h-full min-h-[500px]">
@@ -998,9 +1040,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
                   {decisionSubTab === 'AI' && (
                     <>
-                      {/* SHAP Drivers & 8-Component Decomposition Accordion */}
-                      <AiShapAccordion
-                        shapDrivers={displayDetail.shap_drivers}
+                      {/* Weighted score components and 8-component breakdown */}
+                      <FeatureDriversAccordion
+                        featureDrivers={displayDetail.feature_drivers}
                         deepAnalysis={deepAnalysis}
                       />
 
@@ -1764,6 +1806,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   </button>
                 )}
                 <button
+                  data-testid="scanner-trigger"
                   onClick={onTriggerManualScan}
                   disabled={isTriggeringScan}
                   className="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 disabled:opacity-50"
@@ -2310,6 +2353,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           />
         </ErrorBoundary>
       )}
+      </Suspense>
     </div>
   );
 };

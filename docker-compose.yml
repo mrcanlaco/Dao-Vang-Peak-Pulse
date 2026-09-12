@@ -46,6 +46,7 @@ services:
       - .env.docker
     environment:
       - TZ=Asia/Ho_Chi_Minh
+      - DAO_VANG_CONFIG_PATH=configs/live.yaml
       - DAO_VANG_PATHS__DATA_DIR=data_live
       - DAO_VANG_UPDATER__ENABLED=false
       - DAO_VANG_PATHS__RAW_DIR=data_live/raw

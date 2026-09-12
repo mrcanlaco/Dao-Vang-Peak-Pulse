@@ -14,6 +14,8 @@ import urllib.request
 from datetime import datetime, timezone
 from typing import Any
 
+from dao_vang.config.settings import load_runtime_settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +24,7 @@ DEFAULT_PROJECT_KNOWLEDGE = """
 - DAO VANG là dashboard cảnh báo sớm cho thị trường Binance USD-M Futures. Mục tiêu là phát hiện dấu hiệu phân phối/tạo đỉnh và rủi ro đảo chiều của crypto; đây không phải hệ thống đảm bảo lợi nhuận hay lệnh giao dịch tự động.
 - Luồng dữ liệu chính gồm nến 5m và các dữ liệu phái sinh như Open Interest (OI), Funding Rate, Taker Sell/Buy, khối lượng, RSI và bối cảnh BTC. Dữ liệu được kiểm tra chất lượng và tính theo thời điểm thực tế để hạn chế nhìn trước tương lai.
 - Kết quả cần phân biệt rõ: calibrated/model probability là xác suất đã hiệu chuẩn của model; heuristic/composite score là điểm luật và tín hiệu định lượng; anomaly score là điểm radar bất thường độc lập, không phải xác suất.
-- Decision Center hiển thị chart, Trade Setup, metrics, AI Decision Cockpit, SHAP drivers và Executive Briefing cho coin đang chọn. Radar hiển thị tín hiệu và bộ lọc. Tracking/Watchlist theo dõi vị thế. Candidate Ranking xếp hạng ứng viên và so sánh các bộ lọc.
+- Decision Center hiển thị chart, Trade Setup, metrics, AI Decision Cockpit, các thành phần điểm có trọng số và Executive Briefing cho coin đang chọn. Các thành phần này không phải SHAP và không chứng minh quan hệ nhân quả. Radar hiển thị tín hiệu và bộ lọc. Tracking/Watchlist theo dõi vị thế. Candidate Ranking xếp hạng ứng viên và so sánh các bộ lọc.
 - Nhóm Lab gồm Multi-Scan, Backtest Experiments và Forward Test. Nhóm System gồm Model Audit, Telemetry, System History, Models, Updates và System Settings.
 - Có giao diện V1 cổ điển và V2 responsive theo phong cách trading cockpit; V2 có thanh điều hướng mobile. Scanner chạy model frozen/champion đang được cấu hình; challenger/self-learning chỉ dùng để so sánh hoặc đề xuất và không tự động thay champion.
 - Model scanner (tạo tín hiệu) và model LLM (trả lời hội thoại) là hai cấu hình khác nhau; khi người dùng hỏi “model hiện tại”, hãy nói rõ đang nói đến loại nào. Trợ lý AI dùng provider/model trong cấu hình LLM hiện tại của ứng dụng; nếu API không khả dụng, hệ thống có thể chuyển sang Built-in Quantitative Engine. Khi trả lời, phải bám dữ liệu hiện tại được cung cấp, nói rõ khi thiếu dữ liệu và không tự bịa chỉ số.
@@ -73,8 +75,8 @@ def build_system_prompt(symbol: str, context_str: str, app_context_str: str = ""
         f"NGUYÊN TẮC GIAO TIẾP & ĐỊNH DẠNG BÁO CÁO:\n"
         f"1. GIAO TIẾP TỰ NHIÊN, CÓ HỒN: Hãy đối thoại tự nhiên, thân thiện và sắc bén như một Pro Trader / Quantitative Analyst dạn dày kinh nghiệm đang trò chuyện trực tiếp 1-1 với trader. Tránh xa lối nói văn mẫu, không lặp lại các tiêu đề mục cứng nhắc nếu người dùng chỉ hỏi một câu cụ thể.\n"
         f"2. ĐI THẲNG VÀO TRỌNG TÂM: Trả lời trực diện câu hỏi của trader trước tiên, sau đó giải thích logic đằng sau (tại sao số liệu lại dẫn đến nhận định đó).\n"
-        f"3. PHÂN TÍCH BẢN CHẤT DÒNG TIỀN: Luôn liên kết các chỉ số (OI biến động, Funding Rate, Taker Volume Delta, SHAP drivers) với hành vi thực tế của Smart Money (cá mập) và đám đông FOMO (ví dụ: bẫy Long, cạn kiệt lực cầu, phân phối âm thầm, thanh lý dồn dập).\n"
-        f"4. BẢNG BIỂU & TÍNH TOÁN RÕ RÀNG: Khi người dùng hỏi về tính toán vốn, phân bổ lệnh, đòn bẩy hoặc so sánh kịch bản, HÃY DÙNG BẢNG MARKDOWN chuẩn (ví dụ các cột: Mức rủi ro, Vị thế Notional, Ký quỹ Margin, Dính SL mất $, % Tài khoản) kèm số liệu tính toán chính xác, trực quan.\n"
+        f"3. BÁM SÁT BẰNG CHỨNG: Chỉ mô tả những gì các chỉ số quan sát được và thành phần điểm có trọng số thực sự cho biết. Không gọi thành phần điểm là SHAP, không suy diễn hành vi cá voi/tổ chức, quan hệ nhân quả hoặc xác suất kịch bản nếu dữ liệu không cung cấp trực tiếp.\n"
+        f"4. BẢNG BIỂU & TÍNH TOÁN RÕ RÀNG: Khi người dùng hỏi về vốn, đòn bẩy hoặc so sánh kịch bản, chỉ tính từ số liệu họ đã cung cấp và nêu rõ dữ liệu còn thiếu. Không tự đặt tỷ lệ vốn, đòn bẩy hay xác suất; phân biệt mốc tham chiếu của hệ thống với khuyến nghị cá nhân.\n"
         f"5. TUYỆT ĐỐI KHÔNG DÙNG KÝ HIỆU LATEX: Dùng ký tự Unicode trực tiếp như mũi tên `→`, dấu `≥`, `≤`, `≈`, `×`, `±`. Tuyệt đối không viết `$\\rightarrow$` hay `$\\approx$` vì gây lỗi hiển thị giao diện.\n"
         f"6. LIÊN KẾT MẠCH HỘI THOẠI: Nếu đây là câu hỏi tiếp nối trong cuộc trò chuyện, hãy nhớ ngữ cảnh trước đó để trả lời mượt mà, không lặp lại những gì đã nói."
     )
@@ -89,12 +91,15 @@ def build_context_summary(symbol: str, context: dict[str, Any]) -> str:
     btc_regime = context.get("btc_regime") or "NEUTRAL"
     is_pump = context.get("parabolic_pump", False)
 
-    metrics = context.get("metrics") or {}
-    trade_setup = context.get("trade_setup") or {}
-    shap_drivers = context.get("shap_drivers") or []
+    raw_metrics = context.get("metrics")
+    metrics = raw_metrics if isinstance(raw_metrics, dict) else {}
+    raw_trade_setup = context.get("trade_setup")
+    trade_setup = raw_trade_setup if isinstance(raw_trade_setup, dict) else {}
+    raw_feature_drivers = context.get("feature_drivers")
+    feature_drivers = raw_feature_drivers if isinstance(raw_feature_drivers, list) else []
 
     driver_parts: list[str] = []
-    for driver in shap_drivers[:4]:
+    for driver in feature_drivers[:4]:
         if not isinstance(driver, dict):
             continue
         name = driver.get("feature_name") or driver.get("feature") or "unknown"
@@ -130,7 +135,8 @@ def build_context_summary(symbol: str, context: dict[str, Any]) -> str:
         f"- Chốt lời 1 (TP1 -4%): ${tp1}",
         f"- Chốt lời 2 (TP2 -8%): ${tp2}",
         f"- Tỷ lệ Lời/Lỗ (R:R Ratio): {rr}",
-        f"- Top nguyên nhân SHAP chính: {drivers_text}",
+        f"- Thành phần đóng góp điểm lớn nhất: {drivers_text}",
+        "- Phương pháp diễn giải: trọng số thành phần; không phải SHAP hay quy kết nhân quả",
         "==========================================================",
     ]
     return "\n".join(lines)
@@ -304,7 +310,8 @@ def _call_claude(
 
 def _generate_project_response(symbol: str, context: dict[str, Any]) -> str:
     """Answer common product/how-to questions without requiring an external LLM."""
-    app_context = context.get("app_context") if isinstance(context.get("app_context"), dict) else {}
+    raw_app_context = context.get("app_context")
+    app_context = raw_app_context if isinstance(raw_app_context, dict) else {}
     active_tab = app_context.get("active_tab_label") or app_context.get("active_tab") or "màn hình hiện tại"
     scanner_model = app_context.get("scanner_model_id") or app_context.get("selected_model_key") or "model đang cấu hình"
     llm_model = app_context.get("llm_model_id") or "LLM model đang cấu hình"
@@ -314,7 +321,7 @@ def _generate_project_response(symbol: str, context: dict[str, Any]) -> str:
         return (
             f"### 🧭 DAO VANG app overview\n\n"
             f"You are currently on **{active_tab}**, with **{symbol}** as the active context. DAO VANG is a Binance USD-M Futures early-warning dashboard for distribution/top-formation and reversal risk.\n\n"
-            f"- **Decision Center**: chart, trade setup, metrics, SHAP drivers and the executive AI brief.\n"
+            f"- **Decision Center**: chart, trade setup, metrics, weighted score components and the executive AI brief. Components are not SHAP or causal attribution.\n"
             f"- **Radar**: active signals and advanced filters. **Tracking** stores positions to monitor. **Candidate Ranking** compares discovered coins and filters.\n"
             f"- **Lab**: Multi-Scan, Backtest Experiments and Forward Test. **System**: Model Audit, Telemetry, History, Models, Updates and Settings.\n"
             f"- The current scanner model is **{scanner_model}**. Frozen/champion output is the serving lane; challenger and self-learning results remain observational until explicitly promoted.\n"
@@ -325,7 +332,7 @@ def _generate_project_response(symbol: str, context: dict[str, Any]) -> str:
     return (
         f"### 🧭 Tổng quan ứng dụng DAO VANG\n\n"
         f"Bạn đang ở **{active_tab}**, với **{symbol}** là ngữ cảnh hiện tại. DAO VANG là dashboard cảnh báo sớm thị trường Binance USD-M Futures, tập trung phát hiện phân phối/tạo đỉnh và rủi ro đảo chiều.\n\n"
-        f"- **Decision Center**: biểu đồ, Trade Setup, các chỉ số, SHAP drivers và bản tin AI tổng hợp.\n"
+        f"- **Decision Center**: biểu đồ, Trade Setup, các chỉ số, thành phần điểm có trọng số và bản tin AI tổng hợp. Đây không phải SHAP hay quy kết nhân quả.\n"
         f"- **Radar**: tín hiệu đang hoạt động và bộ lọc nâng cao. **Tracking** dùng để theo dõi vị thế. **Xếp hạng ứng viên** dùng để so sánh các coin/bộ lọc.\n"
         f"- **Lab**: Multi-Scan, Backtest Experiments và Forward Test. **System**: Model Audit, Telemetry, History, Models, Updates và Settings.\n"
         f"- Model scanner hiện tại là **{scanner_model}**. Model frozen/champion là luồng phục vụ; challenger và self-learning chỉ mang tính quan sát cho đến khi được duyệt rõ ràng.\n"
@@ -339,15 +346,23 @@ def _generate_rule_based_response(
     symbol: str,
     context: dict[str, Any],
 ) -> str:
-    """Intelligent built-in quantitative analyst synthesis engine."""
+    """Build an evidence-bound summary when an external LLM is unavailable."""
     q_lower = question.lower()
-    prob = context.get("probability", 0)
-    risk_level = context.get("risk_level", "MEDIUM")
-    metrics = context.get("metrics") or {}
-    trade_setup = context.get("trade_setup") or {}
-    btc_regime = context.get("btc_regime", "NEUTRAL")
-    is_pump = context.get("parabolic_pump", False)
-    shap_drivers = context.get("shap_drivers") or []
+    raw_probability = context.get("probability")
+    probability_text = (
+        f"{float(raw_probability):.1f}%"
+        if isinstance(raw_probability, (int, float)) and not isinstance(raw_probability, bool)
+        else "chưa có"
+    )
+    risk_level = str(context.get("risk_level") or "chưa có")
+    raw_metrics = context.get("metrics")
+    metrics = raw_metrics if isinstance(raw_metrics, dict) else {}
+    raw_trade_setup = context.get("trade_setup")
+    trade_setup = raw_trade_setup if isinstance(raw_trade_setup, dict) else {}
+    btc_regime = str(context.get("btc_regime") or "chưa có")
+    is_pump = context.get("parabolic_pump") is True
+    raw_feature_drivers = context.get("feature_drivers")
+    feature_drivers = raw_feature_drivers if isinstance(raw_feature_drivers, list) else []
 
     cur_price = context.get("current_price") or context.get("price") or "—"
     entry = trade_setup.get("entry_price") or cur_price
@@ -362,10 +377,10 @@ def _generate_rule_based_response(
 
     top_drivers_names = [
         d.get("feature_name") or d.get("feature") or ""
-        for d in shap_drivers[:3]
+        for d in feature_drivers[:3]
         if isinstance(d, dict)
     ]
-    top_drivers_str = ", ".join(top_drivers_names) if top_drivers_names else "Kiệt sức mua & phân kỳ dòng tiền"
+    top_drivers_str = ", ".join(str(name) for name in top_drivers_names if name) or "chưa có dữ liệu thành phần"
 
     # Product/how-to questions should be answered before trading heuristics so
     # a phrase such as "mô hình của ứng dụng" is not mistaken for a coin setup.
@@ -382,63 +397,72 @@ def _generate_rule_based_response(
     # 1. Câu hỏi về "Tại sao điểm cao / Tại sao có tín hiệu xả?"
     if any(k in q_lower for k in ["tại sao", "tai sao", "nguyên nhân", "nguyen nhan", "điểm cao", "diem cao", "lý do", "ly do", "why", "score"]):
         return (
-            f"### 🔍 Phân Tích Nguyên Nhân **{symbol}** Có Tín Hiệu Rủi Ro Cao\n\n"
-            f"Cặp **{symbol}** hiện đạt mức xác suất xả **{prob:.1f}%** ({risk_level}) do sự kết hợp của các yếu tố định lượng sau:\n\n"
-            f"1. **Động Lượng SHAP Chính**: Hệ thống máy học ghi nhận tín hiệu chủ yếu từ `{top_drivers_str}`.\n"
-            f"2. **Dòng Tiền & Hợp Đồng (OI/Funding)**: Biến động OI ghi nhận `{oi_val}` cùng Funding Rate `{funding_val}`. Khi Funding dương cao kết hợp OI phình to, phe Long đang trả phí lớn để giữ lệnh mua đuổi — tạo điều kiện thuận lợi cho phe cá mập xả hàng thanh lý.\n"
-            f"3. **Áp Lực Khớp Lệnh Chủ Động (Taker)**: Tỷ lệ Taker `{taker_val}` cho thấy lực mua đuổi bắt đầu hụt hơi và có dấu hiệu xuất hiện các lệnh bán chủ động lớn.\n"
-            f"4. **Bối Cảnh Thị Trường**: BTC đang ở trạng thái **{btc_regime}** {('kèm cảnh báo Bơm Thẳng Đứng (Parabolic Pump)' if is_pump else '')}.\n\n"
-            f"💡 **Kết Luận**: Rủi ro đảo chiều xả hàng đang ở mức cao. Không nên mua đuổi giá (FOMO Long) tại vùng này."
+            f"### 🔍 Bằng chứng hiện có cho **{symbol}**\n\n"
+            f"- Giá trị xác suất/điểm do giao diện cung cấp: **{probability_text}**; mức rủi ro: **{risk_level}**.\n"
+            f"- Thành phần đóng góp điểm lớn nhất: `{top_drivers_str}`.\n"
+            f"- OI 24h: `{oi_val}`; Funding Rate: `{funding_val}`; Taker ratio: `{taker_val}`.\n"
+            f"- Bối cảnh BTC: **{btc_regime}**{'; cờ tăng nóng đang bật' if is_pump else ''}.\n\n"
+            "Các thành phần trên là trọng số trong điểm tổng hợp, không phải SHAP và không chứng minh nguyên nhân hay hành vi của một nhóm giao dịch cụ thể. "
+            "Nếu một chỉ số đang là N/A, chưa đủ dữ liệu để dùng chỉ số đó làm bằng chứng."
         )
 
     # 2. Câu hỏi về "Kịch bản nếu BTC tăng / Bối cảnh BTC"
     if any(k in q_lower for k in ["btc", "bitcoin", "thị trường", "thi truong", "kịch bản", "kich ban", "scenario"]):
+        invalidation_note = (
+            f" Mốc vô hiệu do hệ thống cung cấp hiện là **${sl}**."
+            if sl != "—"
+            else " Hiện chưa có mốc vô hiệu để lượng hóa rủi ro."
+        )
         return (
-            f"### 📈 Kịch Bản Giao Dịch **{symbol}** Theo Diễn Biến BTC\n\n"
+            f"### 📈 Kịch bản tham chiếu cho **{symbol}** theo BTC\n\n"
             f"Trạng thái Bitcoin hiện tại: **{btc_regime}**.\n\n"
-            f"- **Kịch Bản 1 (BTC Đi Ngang hoặc Điều Chỉnh Nhẹ - Xác suất 70%)**: {symbol} đang có xung lực yếu hơn thị trường chung với điểm rủi ro {prob:.1f}%. Đây là kịch bản lý tưởng nhất để mở vị thế Short quanh vùng `${entry}` nhắm về TP1 `${tp1}` và TP2 `${tp2}`.\n"
-            f"- **Kịch Bản 2 (BTC Đột Ngột Dựng Cột Bơm Mạnh - Xác suất 30%)**: Khi BTC tăng tốc đột ngột, dòng tiền có thể kéo cả thị trường altcoin chạy theo quán tính. Nếu {symbol} phá qua mốc Invalidation **${sl}**, bạn **bắt buộc phải kích hoạt Stop Loss** và đứng ngoài quan sát.\n\n"
-            f"🛡️ **Nguyên Tắc Bất Di Bất Dịch**: Luôn tôn trọng điểm SL `${sl}` để bảo toàn vốn trước biến động của BTC."
+            f"- Nếu BTC mạnh lên, cần quan sát phản ứng thực tế của {symbol}; dữ liệu hiện tại không cung cấp xác suất cho kịch bản này.\n"
+            f"- Nếu BTC suy yếu hoặc biến động tăng, theo dõi xem điểm rủi ro và các chỉ số của {symbol} có được xác nhận ở lần quét mới hay không.\n\n"
+            f"{invalidation_note} Đây là mốc tham chiếu của hệ thống, không phải dự báo chắc chắn hay lệnh giao dịch."
         )
 
     # 3. Câu hỏi về "Cắt lỗ ở đâu / Chốt lời / Điểm vào lệnh / SL / TP / Entry"
     if any(k in q_lower for k in ["cắt lỗ", "cat lo", "chốt lời", "chot loi", "vào lệnh", "vao lenh", "sl", "tp", "entry", "stop loss", "take profit"]):
         return (
-            f"### 🎯 Kế Hoạch Vào Lệnh Chi Tiết Cho **{symbol}**\n\n"
-            f"Dựa trên cấu trúc nến và thuật toán tính toán biên độ vi phạm:\n\n"
-            f"- **Vùng Vào Lệnh (Entry Zone)**: `${entry}` (Giá hiện tại: `${cur_price}`).\n"
-            f"- **Mức Cắt Lỗ Vi Phạm (Invalidation SL)**: **`${sl}`** (Khoảng cách an toàn trên vùng tạo đỉnh).\n"
-            f"- **Mục Tiêu Chốt Lời 1 (TP1)**: **`${tp1}`** (-4.0% — Khuyến nghị chốt 50% vị thế và dời SL về hòa vốn).\n"
-            f"- **Mục Tiêu Chốt Lời 2 (TP2)**: **`${tp2}`** (-8.0% — Vùng hỗ trợ dòng tiền sâu hơn).\n"
-            f"- **Tỷ Lệ Lời/Lỗ (R:R)**: `{rr}`.\n\n"
-            f"⚠️ **Lưu ý**: Nếu giá đã trôi qua TP1, tuyệt đối **không đuổi theo lệnh (Chased Entry)** mà hãy chờ nhịp hồi phục để tìm điểm vào lệnh tối ưu hơn."
+            f"### 🎯 Các mốc hệ thống đang hiển thị cho **{symbol}**\n\n"
+            f"- Giá hiện tại: **${cur_price}**; vùng tham chiếu Entry: **${entry}**.\n"
+            f"- Mốc vô hiệu/SL: **${sl}**.\n"
+            f"- TP1: **${tp1}**; TP2: **${tp2}**; R:R: **{rr}**.\n\n"
+            "Các mốc này được sao chép từ Trade Setup hiện tại. Hãy coi chúng là dữ liệu tham chiếu và kiểm tra độ mới, phí, trượt giá cùng mức chịu lỗ cá nhân trước khi ra quyết định."
         )
 
     # 4. Câu hỏi về "Đi vốn / Đòn bẩy / Quản lý rủi ro / Leverage / Position Size"
     if any(k in q_lower for k in ["đi vốn", "di von", "đòn bẩy", "don bay", "vốn", "von", "leverage", "rủi ro", "rui ro", "risk", "margin"]):
+        distance_note = ""
+        if (
+            isinstance(entry, (int, float))
+            and not isinstance(entry, bool)
+            and isinstance(sl, (int, float))
+            and not isinstance(sl, bool)
+            and float(entry) != 0
+        ):
+            stop_distance_pct = abs(float(sl) - float(entry)) / abs(float(entry)) * 100
+            distance_note = (
+                f"\n- Khoảng cách Entry–SL hiện tại: **{stop_distance_pct:.2f}%**. "
+                "Công thức tham khảo: notional = mức lỗ tối đa bằng tiền / "
+                f"{stop_distance_pct / 100:.6f}, trước khi cộng phí và trượt giá."
+            )
         return (
-            f"### 🛡️ Chiến Lược Đi Vốn & Đòn Bẩy Đề Xuất Cho **{symbol}**\n\n"
-            f"Vì {symbol} đang có mức rủi ro **{risk_level}** ({prob:.1f}% xác suất xả):\n\n"
-            f"1. **Mức Đòn Bẩy Khuyến Nghị**: Tối đa **x3 - x5** (Không nên dùng đòn bẩy > x10 đối với altcoin biến động mạnh).\n"
-            f"2. **Tỷ Trọng Vốn (Position Sizing)**: Tối đa **1.0% - 2.0% tổng tài khoản (NAV)** cho toàn bộ khoảng cách từ Entry `${entry}` đến SL `${sl}`.\n"
-            f"3. **Phương Pháp Phân Bổ Lệnh**: Chia vốn làm 2 phần:\n"
-            f"   - Phần 1 (60%): Vào ngay khi xuất hiện nến 5m từ chối giá tại `${entry}`.\n"
-            f"   - Phần 2 (40%): Nhồi thêm khi giá retest nhẹ vùng cản hoặc gãy đường xu hướng ngắn hạn.\n"
-            f"4. **Kỷ Luật Khóa Lợi Nhuận**: Khi giá chạm TP1 `${tp1}`, đóng 50% khối lượng và kéo Stop Loss về điểm Entry (Risk-Free Trade)."
+            f"### 🛡️ Dữ liệu cần để tính quy mô vị thế **{symbol}**\n\n"
+            f"Trạng thái hiện có: mức rủi ro **{risk_level}**, xác suất/điểm **{probability_text}**, Entry **${entry}**, SL **${sl}**."
+            f"{distance_note}\n\n"
+            "Chưa thể đề xuất đòn bẩy hoặc tỷ trọng cụ thể nếu thiếu NAV, mức lỗ tối đa chấp nhận được, phí, trượt giá và quy tắc thanh lý của sàn. "
+            "Đòn bẩy không làm giảm rủi ro giá; nó chỉ thay đổi ký quỹ và khoảng cách tới thanh lý."
         )
 
     # 5. Câu hỏi tổng quát mặc định
     return (
-        f"### 📊 Báo Cáo Phân Tích Tổng Hợp **{symbol}**\n\n"
-        f"**Tình trạng hiện tại**:\n"
-        f"- Xác suất xả AI: **{prob:.1f}%** ({risk_level})\n"
-        f"- Giá hiện tại: **${cur_price}** | Entry khuyến nghị: **${entry}**\n"
-        f"- Cắt lỗ SL: **${sl}** | Chốt lời TP1: **${tp1}** | TP2: **${tp2}** (R:R: `{rr}`)\n"
-        f"- Yếu tố trọng yếu: `{top_drivers_str}` | BTC: **{btc_regime}**\n\n"
-        f"**Khuyến nghị hành động**:\n"
-        f"1. Ưu tiên canh mở vị thế SHORT hoặc chốt lời vị thế Long có sẵn.\n"
-        f"2. Luôn đặt sẵn lệnh Stop Loss tại `${sl}` ngay khi khớp vị thế.\n"
-        f"3. Theo dõi sát biến động BTC để xử lý kịp thời nếu thị trường có tín hiệu bẫy thanh khoản."
+        f"### 📊 Tóm tắt dữ liệu **{symbol}**\n\n"
+        f"- Xác suất/điểm do giao diện cung cấp: **{probability_text}**; mức rủi ro: **{risk_level}**.\n"
+        f"- Giá hiện tại: **${cur_price}**; Entry tham chiếu: **${entry}**.\n"
+        f"- Mốc vô hiệu: **${sl}**; TP1: **${tp1}**; TP2: **${tp2}**; R:R: **{rr}**.\n"
+        f"- Thành phần điểm lớn nhất: `{top_drivers_str}`; BTC: **{btc_regime}**.\n\n"
+        "Đây là bản tóm tắt dữ liệu hiện có, không phải lệnh giao dịch. Thành phần điểm không phải SHAP hoặc bằng chứng nhân quả; cần kiểm tra dữ liệu mới nhất và điều kiện quản trị rủi ro trước khi quyết định."
     )
 
 
@@ -450,8 +474,7 @@ def ask_ai_analyst(
     history: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Process an AI question with real-time coin context and multi-turn chat history."""
-    from dao_vang.config.settings import AppSettings
-    _app_settings = AppSettings()
+    _app_settings = load_runtime_settings()
 
     cfg = llm_config or {}
     provider = (cfg.get("provider") or "").lower().strip()
@@ -531,7 +554,12 @@ def ask_ai_analyst(
                 )
         except Exception as exc:
             logger.warning("LLM call failed provider=%s error=%s, falling back to rule-based engine", provider, exc)
-            answer = f"> ⚠️ *Không thể kết nối đến {provider.title()} API ({exc}). Đang chuyển sang Bộ phân tích định lượng tích hợp:*\n\n" + _generate_rule_based_response(question, symbol, context)
+            answer = (
+                f"> ⚠️ *Không thể kết nối đến {provider.title()} API. "
+                "Chi tiết kỹ thuật đã được ghi vào log; đang dùng bộ tóm tắt "
+                "định lượng tích hợp:*\n\n"
+                + _generate_rule_based_response(question, symbol, context)
+            )
             used_provider = f"{provider.title()} (Fallback to Built-in)"
 
     if not answer:

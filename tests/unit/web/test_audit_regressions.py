@@ -171,6 +171,42 @@ def test_klines_route_has_handler_and_bounded_limit(web, monkeypatch):
     assert client.get.call_args.args[1]["limit"] == 1500
 
 
+def test_legacy_shap_route_fails_closed_without_fabricated_values(
+    web,
+    monkeypatch,
+):
+    monkeypatch.setattr(api.APIHandler, "_check_auth", lambda self: True)
+
+    status, body, _ = call(web, "/api/coin/BTCUSDT/shap")
+
+    assert status == 501
+    payload = json.loads(body)
+    assert payload["available"] is False
+    assert payload["attribution_method"] == "none"
+    assert payload["reason"] == "shap_not_computed"
+    assert "values" not in payload
+
+
+def test_component_drivers_are_weighted_scores_not_shap_values():
+    drivers = api._component_feature_drivers(
+        [
+            {
+                "name": "funding_spike",
+                "weighted_score": 15,
+                "explanation": "Measured component explanation",
+            },
+            {"name": "invalid", "weighted_score": "not-a-number"},
+        ]
+    )
+
+    assert drivers[0] == {
+        "feature": "Funding Spike",
+        "impact_score": 0.15,
+        "description": "Measured component explanation",
+    }
+    assert drivers[1]["impact_score"] == 0.0
+
+
 def test_audit_does_not_invent_metrics(monkeypatch):
     store = MagicMock()
     store.stats.return_value = {"n_judged": 0, "total": 0, "hit_rate": None}

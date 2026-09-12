@@ -38,9 +38,17 @@ def test_build_context_summary():
             "tp2_price": 99.36,
             "risk_reward_ratio": "1.92",
         },
-        "shap_drivers": [
-            {"feature_name": "Volume Exhaustion", "impact_percentage": 34.5},
-            {"feature_name": "Funding Climax", "impact_percentage": 28.0},
+        "feature_drivers": [
+            {
+                "feature": "Volume Exhaustion",
+                "impact_score": 0.345,
+                "description": "Observed volume component",
+            },
+            {
+                "feature": "Funding Climax",
+                "impact_score": 0.28,
+                "description": "Observed funding component",
+            },
         ],
     }
     summary = build_context_summary("SOLUSDT", context)
@@ -50,6 +58,7 @@ def test_build_context_summary():
     assert "HIGH" in summary
     assert "+18.2%" in summary
     assert "$112.5" in summary
+    assert "không phải SHAP" in summary
 
 
 def test_build_app_context_summary_includes_current_screen_and_model():
@@ -80,9 +89,16 @@ def test_ask_ai_analyst_rule_based_fallback():
     }
 
     # Test why score is high with disabled LLM or no API key
-    with patch("dao_vang.config.settings.AppSettings.ai", create=True) as mock_ai:
-        mock_ai.api_key = None
-        mock_ai.enabled = True
+    server_settings = MagicMock()
+    server_settings.ai.provider = "openai"
+    server_settings.ai.api_key = None
+    server_settings.ai.model_id = "test-model"
+    server_settings.ai.base_url = "https://proxy-ai.example.test/v1"
+    server_settings.ai.enabled = True
+    with patch(
+        "dao_vang.web.ai_analyst.load_runtime_settings",
+        return_value=server_settings,
+    ):
         res1 = ask_ai_analyst("Tại sao con này có điểm cao?", "LINKUSDT", context, llm_config={"enabled": False})
         assert res1["provider"] == "Built-in Quantitative Engine"
         assert "LINKUSDT" in res1["answer"]
@@ -98,9 +114,16 @@ def test_ask_ai_analyst_rule_based_fallback():
 
 
 def test_ask_ai_analyst_project_question_uses_app_context():
-    with patch("dao_vang.config.settings.AppSettings.ai", create=True) as mock_ai:
-        mock_ai.api_key = None
-        mock_ai.enabled = True
+    server_settings = MagicMock()
+    server_settings.ai.provider = "openai"
+    server_settings.ai.api_key = None
+    server_settings.ai.model_id = "test-model"
+    server_settings.ai.base_url = "https://proxy-ai.example.test/v1"
+    server_settings.ai.enabled = True
+    with patch(
+        "dao_vang.web.ai_analyst.load_runtime_settings",
+        return_value=server_settings,
+    ):
         result = ask_ai_analyst(
             "Ứng dụng này có những tính năng gì?",
             "BTCUSDT",
@@ -163,7 +186,7 @@ def test_ask_ai_analyst_server_default_mock():
 
     with (
         patch(
-            "dao_vang.config.settings.AppSettings",
+            "dao_vang.web.ai_analyst.load_runtime_settings",
             return_value=server_settings,
         ),
         patch("urllib.request.urlopen", return_value=mock_resp),

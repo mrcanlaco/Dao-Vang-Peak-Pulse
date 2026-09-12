@@ -99,7 +99,7 @@ Features in DAO VANG must be calculated point-in-time. Add a leakage regression 
 Scoring combines ML model probabilities and deterministic market signals:
 
 - **Location:** `src/dao_vang/scoring/distribution_scorer.py`
-- **Rule Adjustments:** Adjust weights, thresholds, or SHAP contribution logic in `DistributionScorer.calculate_score()`.
+- **Rule Adjustments:** Adjust weights, thresholds, or weighted component logic in `DistributionScorer.calculate_score()`.
 - **BTC Context:** Update BTC correlation / market trend weighting in `src/dao_vang/scoring/btc_context.py`.
 
 ---

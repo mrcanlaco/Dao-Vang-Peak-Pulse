@@ -1,3 +1,4 @@
+import os
 import typing
 from pathlib import Path
 from typing import Annotated, Literal
@@ -403,3 +404,27 @@ class AppSettings(BaseSettings):
             config_dict = typing.cast(dict[str, typing.Any], loaded) if loaded else {}
 
         return cls(**config_dict)
+
+
+RUNTIME_CONFIG_ENV = "DAO_VANG_CONFIG_PATH"
+
+
+def load_runtime_settings(config_path: str | Path | None = None) -> AppSettings:
+    """Load one versioned runtime config while retaining env-only secrets.
+
+    YAML values intentionally win over duplicate environment values. This keeps
+    the production model and scanner policy canonical, while nested fields that
+    are absent from YAML (passwords, tokens and API keys) still come from the
+    environment through `BaseSettings`.
+    """
+
+    configured_path = str(config_path or os.getenv(RUNTIME_CONFIG_ENV, "")).strip()
+    if not configured_path:
+        return AppSettings()
+
+    path = Path(configured_path)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Runtime config from {RUNTIME_CONFIG_ENV} does not exist: {path}"
+        )
+    return AppSettings.from_yaml(path)

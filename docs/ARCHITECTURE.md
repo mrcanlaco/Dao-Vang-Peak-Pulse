@@ -99,7 +99,7 @@ The Web Dashboard is built with **React 19 + TypeScript + Vite**:
 - **`src/components/Sidebar.tsx`**: Navigation menu for Dashboard, Live Scanner, Signals Feed, Watchlist, Alpha Lab, and System Settings.
 - **`src/components/SignalFeed.tsx`**: Polling-refreshed signal stream with hit/miss outcome badges, lead-time stats, and quick filtering.
 - **`src/components/WatchlistPanel.tsx`**: Polling-refreshed watchlist tracking symbols under accumulation/distribution observation.
-- **`src/components/AlphaLab.tsx`**: Visual research workbench for running Triple Barrier backtests, regime audits, and SHAP feature attribution.
+- **`src/components/AlphaLab.tsx`**: Visual research workbench for running Triple Barrier backtests, regime audits, and model feature-importance analysis.
 
 ---
 

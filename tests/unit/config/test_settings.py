@@ -5,7 +5,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from dao_vang.config.settings import AppSettings
+from dao_vang.config.settings import AppSettings, load_runtime_settings
 
 
 def test_default_config() -> None:
@@ -50,6 +50,45 @@ def test_yaml_load(tmp_path: Path) -> None:
     settings = AppSettings.from_yaml(yaml_file)
     assert settings.binance.symbol == "BNBUSDT"
     assert settings.collection.timeout_seconds == 30
+
+
+def test_runtime_yaml_is_canonical_while_secrets_come_from_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    yaml_file = tmp_path / "live.yaml"
+    yaml_file.write_text(
+        yaml.safe_dump(
+            {
+                "scanner": {"frozen_model_id": "frozen_from_versioned_yaml"},
+                "updater": {"enabled": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("DAO_VANG_CONFIG_PATH", str(yaml_file))
+    monkeypatch.setenv(
+        "DAO_VANG_SCANNER__FROZEN_MODEL_ID",
+        "stale_environment_model",
+    )
+    monkeypatch.setenv("DAO_VANG_WEB__ACCESS_PASSWORD", "runtime-only-secret")
+
+    settings = load_runtime_settings()
+
+    assert settings.scanner.frozen_model_id == "frozen_from_versioned_yaml"
+    assert settings.web.access_password == "runtime-only-secret"
+    assert settings.updater.enabled is False
+
+
+def test_runtime_config_path_fails_closed_when_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    missing_path = tmp_path / "missing-live.yaml"
+    monkeypatch.setenv("DAO_VANG_CONFIG_PATH", str(missing_path))
+
+    with pytest.raises(FileNotFoundError, match="DAO_VANG_CONFIG_PATH"):
+        load_runtime_settings()
 
 
 def test_candidate_comparison_defaults_are_safe() -> None:

@@ -33,7 +33,7 @@ import duckdb
 
 from dao_vang.alerts.store import AlertStore
 from dao_vang.alerts.telegram import TelegramNotifier
-from dao_vang.config.settings import AppSettings
+from dao_vang.config.settings import load_runtime_settings
 from dao_vang.data.binance_listing import get_stats_for_today
 from dao_vang.data.storage.duckdb import open_read_only_connection
 from dao_vang.domain.time import (
@@ -78,7 +78,7 @@ logger = logging.getLogger("dao_vang_api")
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DIST_DIR = (REPO_ROOT / "frontend" / "dist").resolve()
 
-_settings = AppSettings()
+_settings = load_runtime_settings()
 _AUTH_FAILURES: dict[str, list[float]] = {}
 _AUTH_FAILURE_WINDOW_SECONDS = 300.0
 _AUTH_FAILURE_LIMIT = 5
@@ -725,8 +725,11 @@ def _self_learning_status() -> dict[str, Any]:
             ).fetchall()
         }
         if "predictions" in tables:
-            stats["predictions"] = int(
-                conn.execute("SELECT count(*) FROM predictions").fetchone()[0]
+            prediction_row = conn.execute(
+                "SELECT count(*) FROM predictions"
+            ).fetchone()
+            stats["predictions"] = (
+                int(prediction_row[0] or 0) if prediction_row is not None else 0
             )
         if "prediction_outcomes" in tables:
             outcome_row = conn.execute(
@@ -738,40 +741,46 @@ def _self_learning_status() -> dict[str, Any]:
                 FROM prediction_outcomes
                 """
             ).fetchone()
-            stats["outcomes"] = int(outcome_row[0] or 0)
-            stats["excluded"] = int(outcome_row[1] or 0)
-            stats["materialized_positive"] = int(outcome_row[2] or 0)
-            stats["latest_outcome_time"] = _system_history_timestamp(outcome_row[3])
-            stats["live_outcomes"] = int(outcome_row[0] or 0)
+            if outcome_row is not None:
+                stats["outcomes"] = int(outcome_row[0] or 0)
+                stats["excluded"] = int(outcome_row[1] or 0)
+                stats["materialized_positive"] = int(outcome_row[2] or 0)
+                stats["latest_outcome_time"] = _system_history_timestamp(
+                    outcome_row[3]
+                )
+                stats["live_outcomes"] = int(outcome_row[0] or 0)
         if {"predictions", "prediction_outcomes"}.issubset(tables):
-            stats["pending"] = int(
-                conn.execute(
-                    """
-                    SELECT count(*)
-                    FROM predictions p
-                    LEFT JOIN prediction_outcomes o
-                      ON o.prediction_id = p.prediction_id
-                    WHERE p.invalidation_time IS NOT NULL
-                      AND p.invalidation_time <= CURRENT_TIMESTAMP
-                      AND o.prediction_id IS NULL
-                    """
-                ).fetchone()[0]
+            pending_row = conn.execute(
+                """
+                SELECT count(*)
+                FROM predictions p
+                LEFT JOIN prediction_outcomes o
+                  ON o.prediction_id = p.prediction_id
+                WHERE p.invalidation_time IS NOT NULL
+                  AND p.invalidation_time <= CURRENT_TIMESTAMP
+                  AND o.prediction_id IS NULL
+                """
+            ).fetchone()
+            stats["pending"] = (
+                int(pending_row[0] or 0) if pending_row is not None else 0
             )
         if "labels" in tables and stats["historical_outcomes"] == 0:
-            stats["historical_outcomes"] = int(
-                conn.execute(
-                    "SELECT count(*) FROM labels WHERE horizon_hours = ? AND label_value IN (0, 1)",
-                    [int(horizon_hours)],
-                ).fetchone()[0]
+            historical_row = conn.execute(
+                "SELECT count(*) FROM labels WHERE horizon_hours = ? AND label_value IN (0, 1)",
+                [int(horizon_hours)],
+            ).fetchone()
+            stats["historical_outcomes"] = (
+                int(historical_row[0] or 0) if historical_row is not None else 0
             )
         if stats["training_outcomes"] == 0:
             stats["training_outcomes"] = stats["historical_outcomes"] + stats["live_outcomes"]
         if stats["training_positive_events"] == 0 and "labels" in tables:
-            stats["training_positive_events"] = int(
-                conn.execute(
-                    "SELECT count(*) FROM labels WHERE horizon_hours = ? AND label_value = 1",
-                    [int(horizon_hours)],
-                ).fetchone()[0]
+            positive_row = conn.execute(
+                "SELECT count(*) FROM labels WHERE horizon_hours = ? AND label_value = 1",
+                [int(horizon_hours)],
+            ).fetchone()
+            stats["training_positive_events"] = (
+                int(positive_row[0] or 0) if positive_row is not None else 0
             )
     except Exception as exc:
         logger.warning("self_learning_stats_failed error=%s", exc)
@@ -907,6 +916,37 @@ def _scan_risk_level(recommendation: Any, probability: float) -> str:
         "WATCH": "MEDIUM",
         "WAIT": "SAFE",
     }.get(tier, _risk_bucket(probability * 100.0))
+
+
+def _component_weighted_score(component: dict[str, Any]) -> float:
+    try:
+        score = float(component.get("weighted_score", 0.0))
+    except (TypeError, ValueError):
+        return 0.0
+    return score if math.isfinite(score) else 0.0
+
+
+def _component_feature_drivers(
+    components: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Expose weighted score components without claiming SHAP attribution."""
+
+    drivers: list[dict[str, Any]] = []
+    for component in sorted(
+        components,
+        key=_component_weighted_score,
+        reverse=True,
+    ):
+        weighted_score = _component_weighted_score(component)
+        name = str(component.get("name") or "unknown")
+        drivers.append(
+            {
+                "feature": name.replace("_", " ").title(),
+                "impact_score": weighted_score / 100.0,
+                "description": str(component.get("explanation") or ""),
+            }
+        )
+    return drivers
 
 
 class APIHandler(BaseHTTPRequestHandler):
@@ -1170,7 +1210,6 @@ class APIHandler(BaseHTTPRequestHandler):
             try:
                 err_body = json.dumps({
                     "error": "service temporarily unavailable",
-                    "detail": str(exc),
                 }).encode("utf-8")
                 self._set_headers(503, content_length=len(err_body))
                 self.wfile.write(err_body)
@@ -1550,7 +1589,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     freeze_model as _freeze_model,
                 )
 
-                settings = AppSettings()
+                settings = _settings
                 db = DuckDBQueryLayer(str(settings.scanner.db_path))
                 try:
                     ft_df = db.conn.execute(
@@ -1568,7 +1607,10 @@ class APIHandler(BaseHTTPRequestHandler):
                     self._set_headers(400)
                     self.wfile.write(json.dumps({"error": f"Cần >=200 dòng (hiện có {len(ft_df)}). Chạy Backtest trước."}).encode('utf-8'))
                     return
-                if ft_df["is_distribution"].nunique() < 2:
+                initial_labels = _np.asarray(
+                    ft_df.loc[:, "is_distribution"], dtype=int
+                ).reshape(-1)
+                if _np.unique(initial_labels).size < 2:
                     self._set_headers(400)
                     self.wfile.write(json.dumps({"error": "Cần cả 2 loại nhãn (có xả + không xả)"}).encode('utf-8'))
                     return
@@ -1580,6 +1622,20 @@ class APIHandler(BaseHTTPRequestHandler):
                 val_cut = ft_df["feature_time"].quantile(0.8)
                 tr = ft_df[ft_df["feature_time"] < val_cut]
                 va = ft_df[ft_df["feature_time"] >= val_cut]
+                tr_labels = _np.asarray(
+                    tr.loc[:, "is_distribution"], dtype=int
+                ).reshape(-1)
+                va_labels = _np.asarray(
+                    va.loc[:, "is_distribution"], dtype=int
+                ).reshape(-1)
+                if _np.unique(tr_labels).size < 2:
+                    self._set_headers(400)
+                    self.wfile.write(
+                        json.dumps(
+                            {"error": "Training partition cần cả 2 loại nhãn"}
+                        ).encode("utf-8")
+                    )
+                    return
                 # Fit preprocessing on the training partition only.  Missing
                 # values are not silently converted to a semantic zero.
                 m = _Pipeline(
@@ -1588,12 +1644,12 @@ class APIHandler(BaseHTTPRequestHandler):
                         ("model", _LR(max_iter=1000, random_state=42, class_weight="balanced")),
                     ]
                 )
-                m.fit(tr[feats], tr["is_distribution"])
+                m.fit(tr[feats], tr_labels)
 
                 best_t, best_f1 = 0.5, 0.0
-                if len(va) > 0 and va["is_distribution"].nunique() >= 2:
+                if len(va) > 0 and _np.unique(va_labels).size >= 2:
                     yp = m.predict_proba(va[feats])[:, 1]
-                    yv = va["is_distribution"].values
+                    yv = va_labels
                     for t in _np.arange(0.05, 0.95, 0.05):
                         yp_t = (yp >= t).astype(int)
                         tp = int(((yp_t == 1) & (yv == 1)).sum())
@@ -1614,7 +1670,10 @@ class APIHandler(BaseHTTPRequestHandler):
                         ("model", _LR(max_iter=1000, random_state=42, class_weight="balanced")),
                     ]
                 )
-                final_m.fit(ft_df[feats], ft_df["is_distribution"])
+                final_labels = _np.asarray(
+                    ft_df.loc[:, "is_distribution"], dtype=int
+                ).reshape(-1)
+                final_m.fit(ft_df[feats], final_labels)
 
                 info = _freeze_model(
                     model=final_m,
@@ -1624,7 +1683,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     train_cutoff=ft_df["feature_time"].max(),
                     training_stats={
                         "train_size": len(ft_df),
-                        "train_positives": int(ft_df["is_distribution"].sum()),
+                        "train_positives": int(final_labels.sum()),
                         "threshold": float(best_t),
                         "n_features": len(feats),
                     },
@@ -1638,7 +1697,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     "threshold": info.threshold,
                     "n_features": len(info.feature_cols),
                     "train_size": len(ft_df),
-                    "train_positives": int(ft_df["is_distribution"].sum()),
+                    "train_positives": int(final_labels.sum()),
                 }, default=str).encode('utf-8'))
             except Exception as exc:
                 logger.warning(f"freeze_model_failed error={exc}")
@@ -1809,10 +1868,12 @@ class APIHandler(BaseHTTPRequestHandler):
             except (TypeError, ValueError):
                 current_price = None
             if current_price is None and latest_scan:
-                try:
-                    current_price = float(latest_scan.get("close_price"))
-                except (TypeError, ValueError):
-                    current_price = None
+                latest_close_price = latest_scan.get("close_price")
+                if latest_close_price is not None:
+                    try:
+                        current_price = float(latest_close_price)
+                    except (TypeError, ValueError):
+                        current_price = None
             if current_price is None:
                 current_price = source_price
 
@@ -2448,9 +2509,15 @@ class APIHandler(BaseHTTPRequestHandler):
             resolved_rows = []
 
         # Merge and deduplicate by prediction_id
-        pred_dict = {pr.get("prediction_id"): pr for pr in prediction_rows if pr.get("prediction_id")}
+        pred_dict: dict[str, dict[str, Any]] = {}
+        for prediction in prediction_rows:
+            raw_prediction_id = prediction.get("prediction_id")
+            if raw_prediction_id:
+                pred_dict[str(raw_prediction_id)] = prediction
         for rr in resolved_rows:
-            pred_dict[rr.get("prediction_id")] = rr
+            raw_prediction_id = rr.get("prediction_id")
+            if raw_prediction_id:
+                pred_dict[str(raw_prediction_id)] = rr
         prediction_rows = list(pred_dict.values())
 
         pred_ids = list(pred_dict.keys())
@@ -2458,7 +2525,8 @@ class APIHandler(BaseHTTPRequestHandler):
         
         # Manually seed outcomes_map with data from recent_resolved_predictions to avoid redundant query
         for rr in resolved_rows:
-            pid = rr.get("prediction_id")
+            raw_prediction_id = rr.get("prediction_id")
+            pid = str(raw_prediction_id) if raw_prediction_id else ""
             if pid and pid not in outcomes_map:
                 outcomes_map[pid] = {
                     "label_value": rr.get("label_value"),
@@ -2730,6 +2798,23 @@ class APIHandler(BaseHTTPRequestHandler):
         self._set_headers(200)
         self.wfile.write(json.dumps(payload, default=str).encode("utf-8"))
 
+    def get_shap_analysis(self, symbol: str) -> None:
+        """Fail closed: this release does not compute per-observation SHAP."""
+
+        payload = {
+            "symbol": symbol,
+            "available": False,
+            "attribution_method": "none",
+            "reason": "shap_not_computed",
+            "message": (
+                "This release exposes weighted score components as "
+                "feature_drivers; it does not compute SHAP values."
+            ),
+        }
+        body = json.dumps(payload).encode("utf-8")
+        self._set_headers(501, content_length=len(body))
+        self.wfile.write(body)
+
     def get_coin_detail(self, symbol: str):
         chart_points: list[dict[str, Any]] = []
         closes: list[float] = []
@@ -2962,17 +3047,14 @@ class APIHandler(BaseHTTPRequestHandler):
         components: list[dict[str, Any]] = []
         if latest_alert and latest_alert.get("components_json"):
             try:
-                components = json.loads(latest_alert["components_json"])
+                parsed_components = json.loads(latest_alert["components_json"])
+                if isinstance(parsed_components, list):
+                    components = [
+                        item for item in parsed_components if isinstance(item, dict)
+                    ]
             except (json.JSONDecodeError, TypeError):
                 components = []
-        shap_drivers = [
-            {
-                "feature": c.get("name", "").replace("_", " ").title(),
-                "impact_score": c.get("weighted_score", 0.0) / 100.0,
-                "description": c.get("explanation", ""),
-            }
-            for c in sorted(components, key=lambda c: c.get("weighted_score", 0), reverse=True)
-        ]
+        feature_drivers = _component_feature_drivers(components)
 
         if latest_alert:
             score_source = "alert"
@@ -2999,6 +3081,7 @@ class APIHandler(BaseHTTPRequestHandler):
             risk_level = None
             sig_time = None
 
+        signal_display_time = _system_display_datetime(sig_time)
         target_drawdown = -8.0
         detail = {
             "symbol": symbol,
@@ -3013,8 +3096,8 @@ class APIHandler(BaseHTTPRequestHandler):
             "target_drawdown": target_drawdown,
             "target_price": round(current_price * (1 + target_drawdown / 100.0), 8) if current_price else 0.0,
             "signal_timestamp": (
-                f"{_system_display_datetime(sig_time).strftime('%Y-%m-%d %H:%M:%S')} UTC+7"
-                if _system_display_datetime(sig_time) is not None
+                f"{signal_display_time.strftime('%Y-%m-%d %H:%M:%S')} UTC+7"
+                if signal_display_time is not None
                 else None
             ),
             "chart_data": chart_points,
@@ -3062,7 +3145,10 @@ class APIHandler(BaseHTTPRequestHandler):
                 "rsi_15m": rsi_15m,
                 "volume_delta_24h": vol_delta_str,
             },
-            "shap_drivers": shap_drivers,
+            "attribution_method": (
+                "component_weight" if feature_drivers else "none"
+            ),
+            "feature_drivers": feature_drivers,
         }
         self._set_headers(200)
         self.wfile.write(json.dumps(detail, default=str).encode('utf-8'))
@@ -3111,7 +3197,7 @@ class APIHandler(BaseHTTPRequestHandler):
                             feature_dict[col] = val
                     ft_raw = latest.get("feature_time")
                     if pd.notna(ft_raw):
-                        feature_time = pd.Timestamp(ft_raw).to_pydatetime()
+                        feature_time = _as_utc_datetime(ft_raw)
             finally:
                 conn.close()
 
@@ -3689,9 +3775,13 @@ class APIHandler(BaseHTTPRequestHandler):
             try:
                 conn = _duckdb.connect(scan_db_path, read_only=True)
                 try:
-                    has_labels = conn.execute(
+                    label_table_row = conn.execute(
                         "SELECT count(*) FROM information_schema.tables WHERE table_name = 'labels'"
-                    ).fetchone()[0] > 0
+                    ).fetchone()
+                    has_labels = bool(
+                        label_table_row is not None
+                        and int(label_table_row[0] or 0) > 0
+                    )
                     if has_labels:
                         rows = conn.execute("""
                             SELECT symbol, count(*) AS total,
@@ -4075,7 +4165,7 @@ class APIHandler(BaseHTTPRequestHandler):
         from dao_vang.experiments.forward_test import evaluate_frozen
 
         try:
-            settings = AppSettings()
+            settings = _settings
             db = DuckDBQueryLayer(str(settings.scanner.db_path))
             try:
                 df = db.conn.execute(
@@ -4144,7 +4234,14 @@ class APIHandler(BaseHTTPRequestHandler):
                     )
                     for t in tables:
                         try:
-                            n = int(conn.execute(f"SELECT count(*) FROM {t}").fetchone()[0])
+                            count_row = conn.execute(
+                                f"SELECT count(*) FROM {t}"
+                            ).fetchone()
+                            n = (
+                                int(count_row[0] or 0)
+                                if count_row is not None
+                                else 0
+                            )
                         except Exception:
                             n = 0
                         cols = [r[1] for r in conn.execute(
@@ -4155,16 +4252,22 @@ class APIHandler(BaseHTTPRequestHandler):
                         if ts_col and n > 0:
                             try:
                                 if t == "scan_results" and ts_col == "scan_time":
-                                    mn = conn.execute(
+                                    min_row = conn.execute(
                                         f"SELECT min({ts_col}) FROM {t}"
-                                    ).fetchone()[0]
-                                    mx = conn.execute(
+                                    ).fetchone()
+                                    max_row = conn.execute(
                                         f"SELECT {ts_col} FROM {t} ORDER BY rowid DESC LIMIT 1"
-                                    ).fetchone()[0]
+                                    ).fetchone()
+                                    mn = min_row[0] if min_row is not None else None
+                                    mx = max_row[0] if max_row is not None else None
                                 else:
-                                    mn, mx = conn.execute(
+                                    range_row = conn.execute(
                                         f"SELECT min({ts_col}), max({ts_col}) FROM {t}"
                                     ).fetchone()
+                                    if range_row is None:
+                                        mn, mx = None, None
+                                    else:
+                                        mn, mx = range_row
                                 row["ts_column"] = ts_col
                                 row["min_time"] = _system_history_timestamp(mn)
                                 row["max_time"] = _system_history_timestamp(mx)

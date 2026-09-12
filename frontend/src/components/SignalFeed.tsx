@@ -1266,7 +1266,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                     {/* AI Warning Drivers */}
                     <div className="space-y-1.5">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Lý do AI Cảnh báo (SHAP / Feature Drivers)
+                        Thành phần đóng góp điểm cảnh báo
                       </span>
                       <div className="flex flex-wrap gap-1.5">
                         {activeInspectedSignal.drivers.map((d, idx) => (
