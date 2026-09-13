@@ -1,11 +1,11 @@
 import React, { lazy, Suspense, useState, useEffect, useMemo, useRef } from 'react';
-import type { SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, ScannerTelemetry, DeepAnalysis, CandlePoint, TrackingWatchlistItem, TradeSetup, FilterTag, SignalSort, TelegramFilter } from '../types';
+import type { SignalItem, CoinDetail, CandidateCoin, CandidateRefreshStatus, ModelAudit, MarketOverviewData, ScannerTelemetry, DeepAnalysis, CandlePoint, TrackingWatchlistItem, TradeSetup, FilterTag, SignalSort, TelegramFilter } from '../types';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid, AreaChart, Area, ComposedChart
 } from 'recharts';
 import {
   Activity, BarChart3,
-  ArrowUpRight, ArrowDownRight, CheckCircle2, Radio, Terminal, Send, Clock, Play, Loader2, LineChart as LineChartIcon, RefreshCw, Target, Award, ChevronDown, ChevronUp, HelpCircle, Eye, EyeOff
+  ArrowUpRight, ArrowDownRight, CheckCircle2, Radio, Terminal, Send, Clock, Play, Loader2, LineChart as LineChartIcon, RefreshCw, HelpCircle, Eye, EyeOff
 } from 'lucide-react';
 import { WorkspaceTabBar, type WorkspaceTab } from './WorkspaceTabBar';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -65,8 +65,8 @@ interface MainWorkspaceProps {
   selectedSignal: SignalItem | null;
   coinDetail: CoinDetail | null;
   candidates: CandidateCoin[];
-  candidateComparison: CandidateFilterComparison | null;
   isRefreshingCandidates: boolean;
+  candidateRefreshStatus: CandidateRefreshStatus;
   onRefreshCandidates: () => void | Promise<void>;
   auditData: ModelAudit | null;
   marketData: MarketOverviewData | null;
@@ -127,8 +127,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   selectedSignal,
   coinDetail,
   candidates,
-  candidateComparison,
   isRefreshingCandidates,
+  candidateRefreshStatus,
   onRefreshCandidates,
   auditData,
   marketData,
@@ -191,24 +191,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     MEDIUM: getRiskLabel('MEDIUM', language),
     SAFE: getRiskLabel('SAFE', language),
   };
-  const comparisonReport = candidateComparison?.comparison;
-  const championVersion = candidateComparison?.champion_version || comparisonReport?.champion_version;
-  const challengerVersion = candidateComparison?.challenger_version || comparisonReport?.challenger_version;
-  const championMetrics = championVersion
-    ? comparisonReport?.metrics?.[championVersion]
-    : undefined;
-  const challengerMetrics = challengerVersion
-    ? comparisonReport?.metrics?.[challengerVersion]
-    : undefined;
-  const versionShortLabel = (version?: string) => {
-    const normalized = (version || '').toLowerCase();
-    if (normalized.includes('v2')) return 'V2';
-    if (normalized.includes('v1')) return 'V1';
-    return version || 'Chưa xác định';
+  const championLabel = 'V1';
+  const candidateRefreshMessage: Record<Exclude<CandidateRefreshStatus, 'idle'>, string> = {
+    queued: language === 'vi' ? 'Đã gửi yêu cầu quét. Bảng sẽ tự cập nhật khi snapshot mới sẵn sàng.' : language === 'zh' ? '扫描请求已排队，新快照就绪后列表会自动更新。' : language === 'ko' ? '스캔 요청이 대기열에 추가되었습니다. 새 스냅샷이 준비되면 자동으로 갱신됩니다.' : 'Scan requested. The table will update when a fresh snapshot is ready.',
+    updated: language === 'vi' ? 'Đã cập nhật bảng ứng viên V1 bằng snapshot mới.' : language === 'zh' ? 'V1 候选榜已更新为最新快照。' : language === 'ko' ? 'V1 후보 목록이 최신 스냅샷으로 갱신되었습니다.' : 'The V1 candidate table is now up to date.',
+    timeout: language === 'vi' ? 'Scanner chưa hoàn tất trong thời gian chờ. Bảng vẫn tự đồng bộ mỗi 30 giây.' : language === 'zh' ? '扫描器未在等待时间内完成；列表仍会每 30 秒自动同步。' : language === 'ko' ? '대기 시간 내 스캔이 완료되지 않았습니다. 목록은 30초마다 계속 동기화됩니다.' : 'The scan did not finish within the wait window. The table still syncs every 30 seconds.',
+    error: language === 'vi' ? 'Không thể gửi yêu cầu làm mới. Vui lòng kiểm tra trạng thái Scanner.' : language === 'zh' ? '无法提交刷新请求，请检查扫描器状态。' : language === 'ko' ? '새로고침 요청을 보낼 수 없습니다. 스캐너 상태를 확인하세요.' : 'The refresh request failed. Check the scanner status.',
   };
-  const championLabel = versionShortLabel(championVersion);
-  const challengerLabel = versionShortLabel(challengerVersion);
-  const [isAbSectionExpanded, setIsAbSectionExpanded] = useState(false);
   const [decisionSubTab, setDecisionSubTab] = useState<'TRADE' | 'METRICS' | 'AI'>('TRADE');
   const [isChartHidden, setIsChartHidden] = useState(false);
   const [localCountdown, setLocalCountdown] = useState<number | null>(telemetryData?.next_scan_in_seconds ?? null);
@@ -223,16 +212,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
-  const metricPercent = (value: number | null | undefined) => (
-    value == null 
-      ? t('badge_insufficient_data') 
-      : `${(value * 100).toFixed(1)}%`
-  );
-  const deltaWithCi = (value: { point: number | null; ci_lower: number | null; ci_upper: number | null } | undefined) => (
-    value?.point == null || value.ci_lower == null || value.ci_upper == null
-      ? t('badge_insufficient_data')
-      : `${value.point >= 0 ? '+' : ''}${(value.point * 100).toFixed(1)}pp (CI95% ${(value.ci_lower * 100).toFixed(1)} → ${(value.ci_upper * 100).toFixed(1)})`
-  );
   const executionStatusLabels: Record<string, string> = {
     'ALERT FIRED': getExecutionStatusLabel('ALERT FIRED', language),
     COMPLETED: getExecutionStatusLabel('COMPLETED', language),
@@ -258,89 +237,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const [listingRefreshing, setListingRefreshing] = useState(false);
   const [candleInterval, setCandleInterval] = useState('15m');
   const [candleDataOverride, setCandleDataOverride] = useState<CandlePoint[] | null>(null);
-  const [candidateFilterSegment, setCandidateFilterSegment] = useState<'ALL' | 'V2_CHAMPION' | 'V1_CHALLENGER' | 'OVERLAP' | 'V2_UNIQUE' | 'V3_PREVIEW'>('ALL');
-  const comparisonSelections = useMemo(() => {
-    const champVer = (candidateComparison?.champion_version || '').toLowerCase();
-    const challVer = (candidateComparison?.challenger_version || '').toLowerCase();
-
-    // The API arrays are always keyed by their actual champion/challenger
-    // roles.  Translate them to stable V1/V2 views without relabelling the
-    // production role as a particular version.
-    const isChampV2 = champVer.includes('v2')
-      || (!champVer.includes('v1') && !challVer.includes('v1'));
-
-    const rawChamp = candidateComparison?.selected?.champion ?? [];
-    const rawChall = candidateComparison?.selected?.challenger ?? [];
-
-    const v2 = isChampV2 ? rawChamp : rawChall;
-    const v1 = isChampV2 ? rawChall : rawChamp;
-
-    const v1Symbols = new Set(v1.map((item) => item.symbol));
-
-    const rawOverlap = candidateComparison?.selected?.overlap && candidateComparison.selected.overlap.length > 0
-      ? candidateComparison.selected.overlap
-      : v2.filter((item) => v1Symbols.has(item.symbol));
-
-    const rawChampOnly = candidateComparison?.selected?.champion_only && candidateComparison.selected.champion_only.length > 0
-      ? candidateComparison.selected.champion_only
-      : rawChamp.filter((item) => !new Set(rawChall.map((c) => c.symbol)).has(item.symbol));
-
-    const rawChallOnly = candidateComparison?.selected?.challenger_only && candidateComparison.selected.challenger_only.length > 0
-      ? candidateComparison.selected.challenger_only
-      : rawChall.filter((item) => !new Set(rawChamp.map((c) => c.symbol)).has(item.symbol));
-
-    const v2Only = isChampV2 ? rawChampOnly : rawChallOnly;
-    const v1Only = isChampV2 ? rawChallOnly : rawChampOnly;
-
-    return {
-      v2,
-      v1,
-      champion: rawChamp,
-      challenger: rawChall,
-      overlap: rawOverlap,
-      champion_only: rawChampOnly,
-      challenger_only: rawChallOnly,
-      v2_only: v2Only,
-      v1_only: v1Only,
-      isChampionV2: isChampV2,
-    };
-  }, [candidateComparison]);
-
-  const isChampionV2 = comparisonSelections.isChampionV2;
-  const v2Version = isChampionV2 ? championVersion : challengerVersion;
-  const v1Version = isChampionV2 ? challengerVersion : championVersion;
-  const v2Metrics = v2Version ? comparisonReport?.metrics?.[v2Version] : undefined;
-  const v1Metrics = v1Version ? comparisonReport?.metrics?.[v1Version] : undefined;
-  const championSelectedCount = candidateComparison?.champion_selected ?? comparisonSelections.champion.length;
-  const challengerSelectedCount = candidateComparison?.challenger_selected ?? comparisonSelections.challenger.length;
-  const v2SelectedCount = isChampionV2 ? championSelectedCount : challengerSelectedCount;
-  const v1SelectedCount = isChampionV2 ? challengerSelectedCount : championSelectedCount;
-  const championOnlyCount = candidateComparison?.champion_only ?? comparisonSelections.champion_only.length;
-  const challengerOnlyCount = candidateComparison?.challenger_only ?? comparisonSelections.challenger_only.length;
-  const v2OnlyCount = isChampionV2 ? championOnlyCount : challengerOnlyCount;
-  const overlapCount = candidateComparison?.overlap ?? comparisonSelections.overlap.length;
-
-  const v2MinusV1Delta = (delta: { point: number | null; ci_lower: number | null; ci_upper: number | null } | undefined) => {
-    if (!delta || isChampionV2) return delta
-      ? {
-          point: delta.point == null ? null : -delta.point,
-          ci_lower: delta.ci_upper == null ? null : -delta.ci_upper,
-          ci_upper: delta.ci_lower == null ? null : -delta.ci_lower,
-        }
-      : undefined;
-    return delta;
-  };
-  const versionAdvantage = (
-    v2Value: number | null | undefined,
-    v1Value: number | null | undefined,
-    lowerIsBetter = false,
-  ) => {
-    if (v2Value == null || v1Value == null) return t('badge_insufficient_data');
-    if (v2Value === v1Value) return language === 'en' ? 'Tie' : language === 'zh' ? '持平' : language === 'ko' ? '동률' : 'Ngang nhau';
-    const v2Wins = lowerIsBetter ? v2Value < v1Value : v2Value > v1Value;
-    const winner = v2Wins ? 'V2' : 'V1';
-    return language === 'en' ? `${winner} better` : language === 'zh' ? `${winner} 更优` : language === 'ko' ? `${winner} 우위` : `${winner} tốt hơn`;
-  };
   useEffect(() => {
     if (!isDevMode) {
       const devTabs = ['MULTISCAN', 'BACKTEST', 'FORWARD', 'TELEMETRY', 'MODELS', 'UPDATES'];
@@ -350,34 +246,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     }
   }, [isDevMode, activeTab, setActiveTab]);
 
-  const officialRoleLabel = language === 'en' ? 'Official' : language === 'zh' ? '主版本' : language === 'ko' ? '주 버전' : 'Bản chính';
-  const challengerRoleLabel = language === 'en' ? 'Challenger' : language === 'zh' ? '对照版' : language === 'ko' ? '대조 버전' : 'Bản đối chiếu';
-  const v2RoleLabel = isChampionV2 ? officialRoleLabel : challengerRoleLabel;
-  const v1RoleLabel = isChampionV2 ? challengerRoleLabel : officialRoleLabel;
-
-
-  const filteredCandidates = useMemo(() => {
-    if (candidateFilterSegment === 'ALL') {
-      return candidates;
-    }
-    if (candidateFilterSegment === 'V2_CHAMPION') {
-      const v2Symbols = new Set(comparisonSelections.v2.map((c) => c.symbol));
-      return v2Symbols.size > 0 ? candidates.filter((c) => v2Symbols.has(c.symbol)) : [];
-    }
-    if (candidateFilterSegment === 'V1_CHALLENGER') {
-      const v1Symbols = new Set(comparisonSelections.v1.map((c) => c.symbol));
-      return candidates.filter((c) => v1Symbols.has(c.symbol));
-    }
-    if (candidateFilterSegment === 'OVERLAP') {
-      const overlapSymbols = new Set(comparisonSelections.overlap.map((c) => c.symbol));
-      return candidates.filter((c) => overlapSymbols.has(c.symbol));
-    }
-    if (candidateFilterSegment === 'V2_UNIQUE') {
-      const v2UniqueSymbols = new Set(comparisonSelections.v2_only.map((c) => c.symbol));
-      return candidates.filter((c) => v2UniqueSymbols.has(c.symbol));
-    }
-    return candidates;
-  }, [candidates, candidateFilterSegment, comparisonSelections]);
+  const filteredCandidates = candidates;
+  const hasStaleCandidateData = candidates.some((candidate) => candidate.is_stale);
+  const visibleDataIsStale = hasStaleCandidateData;
 
   const candleCacheRef = useRef<Map<string, CandlePoint[]>>(new Map());
 
@@ -791,7 +662,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     decisionSubTab === 'TRADE' ? 'bg-slate-800 text-amber-400 border-b-2 border-amber-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
                   }`}
                 >
-                  {language === 'en' ? 'Order Setup' : 'Đặt Lệnh (Setup)'}
+                  {language === 'en' ? 'Order Setup' : 'Kế Hoạch Lệnh'}
                 </button>
                 <button
                   type="button"
@@ -828,7 +699,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <div className={`grid grid-cols-1 ${isChartHidden ? '' : 'lg:grid-cols-12'} gap-3 items-start min-w-0`}>
                 {/* LEFT COLUMN (65% width on LG): Candlestick Chart ALWAYS visible */}
                 {!isChartHidden && (
-                  <div className="lg:col-span-8 space-y-3 min-w-0">
+                  <div data-testid="decision-chart-column" className="order-2 lg:order-1 lg:col-span-8 space-y-3 min-w-0">
                     {/* Candlestick Chart Card */}
                     <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 sm:p-3.5 min-w-0 shadow-lg lg:sticky lg:top-0 z-10">
 
@@ -854,7 +725,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 )}
 
                 {/* RIGHT COLUMN (35% width on LG): Dynamic Content based on Active Sub-Tab */}
-                <div className={`${isChartHidden ? '' : 'lg:col-span-4'} space-y-3 min-w-0`}>
+                <div data-testid="decision-summary-column" className={`order-1 lg:order-2 ${isChartHidden ? '' : 'lg:col-span-4'} space-y-3 min-w-0`}>
                   {decisionSubTab === 'TRADE' && (
                     <>
 
@@ -1074,7 +945,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
       {/* TAB 2: CANDIDATE SELL RANKING TABLE */}
       {activeTab === 'RANKING' && (
-        <div className="flex-1 overflow-y-auto pr-1 space-y-3">
+        <div data-testid="candidate-ranking" className="flex-1 overflow-y-auto pr-1 space-y-3">
           {/* Header Banner */}
           <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 sm:p-3.5 shadow-md">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2.5 mb-2.5">
@@ -1114,6 +985,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">{t('ranking_sorted_by_risk')}</span>
                 <button
                   type="button"
+                  data-testid="candidate-refresh"
                   onClick={() => onRefreshCandidates()}
                   disabled={isRefreshingCandidates}
                   className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900 px-2.5 py-1 text-[10px] font-bold text-slate-300 transition hover:border-violet-500/60 hover:text-violet-300 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 shadow-sm"
@@ -1125,93 +997,40 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               </div>
             </div>
 
-            {/* Segment Filter Toolbar */}
-            <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto text-[11px] font-semibold [&::-webkit-scrollbar]:hidden">
-              <span className="text-[10px] uppercase font-bold text-slate-500 pl-1 pr-1 shrink-0">
-                {t('ranking_view_mode_label') || 'Lọc nhóm:'}
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-violet-700/70 bg-violet-950/50 px-2.5 py-1 font-bold text-violet-200">
+                👑 V1 · {language === 'vi' ? 'Bản chính duy nhất' : 'Single official version'}
               </span>
-
-              {/* All */}
-              <button
-                type="button"
-                onClick={() => setCandidateFilterSegment('ALL')}
-                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition shrink-0 ${
-                  candidateFilterSegment === 'ALL'
-                    ? 'bg-slate-700 text-white font-bold shadow-sm'
-                    : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
-                }`}
-              >
-                <span>{t('ranking_filter_all')}</span>
-                <span className="rounded bg-slate-800/80 px-1.5 py-0.2 text-[9px] font-mono">
-                  {candidates.length}
-                </span>
-              </button>
-
-              {/* V2 lane (role is resolved from the live comparison payload) */}
-              <button
-                type="button"
-                onClick={() => setCandidateFilterSegment('V2_CHAMPION')}
-                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition shrink-0 ${
-                  candidateFilterSegment === 'V2_CHAMPION'
-                    ? 'bg-violet-950 border border-violet-500 text-violet-200 font-bold shadow-sm'
-                    : 'bg-slate-900 text-violet-400/80 hover:text-violet-200 border border-slate-800'
-                }`}
-              >
-                <span>👑 V2 ({v2RoleLabel})</span>
-                <span className="rounded bg-violet-900/60 px-1.5 py-0.2 text-[9px] font-mono font-bold text-violet-300">
-                  {v2SelectedCount}
-                </span>
-              </button>
-
-              {/* V1 lane (role is resolved from the live comparison payload) */}
-              <button
-                type="button"
-                onClick={() => setCandidateFilterSegment('V1_CHALLENGER')}
-                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition shrink-0 ${
-                  candidateFilterSegment === 'V1_CHALLENGER'
-                    ? 'bg-amber-950 border border-amber-500 text-amber-200 font-bold shadow-sm'
-                    : 'bg-slate-900 text-amber-400/80 hover:text-amber-200 border border-slate-800'
-                }`}
-              >
-                <span>📊 V1 ({v1RoleLabel})</span>
-                <span className="rounded bg-amber-900/60 px-1.5 py-0.2 text-[9px] font-mono text-amber-300">
-                  {v1SelectedCount}
-                </span>
-              </button>
-
-              {/* Overlap */}
-              <button
-                type="button"
-                onClick={() => setCandidateFilterSegment('OVERLAP')}
-                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition shrink-0 ${
-                  candidateFilterSegment === 'OVERLAP'
-                    ? 'bg-emerald-950 border border-emerald-500 text-emerald-200 font-bold shadow-sm'
-                    : 'bg-slate-900 text-emerald-400/80 hover:text-emerald-200 border border-slate-800'
-                }`}
-              >
-                <span>🎯 {t('ranking_filter_high_conviction')}</span>
-                <span className="rounded bg-emerald-900/60 px-1.5 py-0.2 text-[9px] font-mono text-emerald-300 font-bold">
-                  {comparisonSelections.overlap.length}
-                </span>
-              </button>
-
-              {/* V2 Unique */}
-              <button
-                type="button"
-                onClick={() => setCandidateFilterSegment('V2_UNIQUE')}
-                className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1 transition shrink-0 ${
-                  candidateFilterSegment === 'V2_UNIQUE'
-                    ? 'bg-cyan-950 border border-cyan-500 text-cyan-200 font-bold shadow-sm'
-                    : 'bg-slate-900 text-cyan-400/80 hover:text-cyan-200 border border-slate-800'
-                }`}
-              >
-                <span>💡 {t('ranking_filter_v2_early')}</span>
-                <span className="rounded bg-cyan-900/60 px-1.5 py-0.2 text-[9px] font-mono text-cyan-300">
-                  {v2OnlyCount}
-                </span>
-              </button>
+              <span className="font-mono text-[10px] text-slate-500">
+                {candidates.length} {language === 'vi' ? 'ứng viên' : 'candidates'}
+              </span>
             </div>
           </div>
+
+          {candidateRefreshStatus !== 'idle' && (
+            <div
+              role="status"
+              data-testid="candidate-refresh-status"
+              className={`rounded-xl border px-3 py-2.5 text-xs ${
+                candidateRefreshStatus === 'updated'
+                  ? 'border-emerald-700/70 bg-emerald-950/40 text-emerald-200'
+                  : candidateRefreshStatus === 'error'
+                    ? 'border-red-700/70 bg-red-950/50 text-red-200'
+                    : 'border-amber-700/70 bg-amber-950/40 text-amber-200'
+              }`}
+            >
+              {candidateRefreshMessage[candidateRefreshStatus]}
+            </div>
+          )}
+
+          {visibleDataIsStale && (
+            <div role="alert" className="rounded-xl border border-red-700/70 bg-red-950/50 px-3 py-2.5 text-xs text-red-200">
+              <span className="font-bold">⚠ {language === 'vi' ? 'Dữ liệu đã cũ.' : 'Stale data.'}</span>{' '}
+              {language === 'vi'
+                ? 'Scanner chưa xuất bản snapshot mới trong giới hạn an toàn. Chỉ dùng để tham khảo; thao tác vào lệnh đã bị khóa.'
+                : 'The scanner has not published a fresh snapshot within the safety window. Trading actions are disabled.'}
+            </div>
+          )}
 
           {/* MAIN CANDIDATE TABLE (HIỂN THỊ NGAY TRÊN CÙNG) */}
           <div className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
@@ -1242,10 +1061,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     </tr>
                   )}
                   {filteredCandidates.map((c, i) => {
-                    const isOverlap = comparisonSelections.overlap.some((item) => item.symbol === c.symbol);
-                    const isV2Only = comparisonSelections.v2_only.some((item) => item.symbol === c.symbol);
-                    const isV1Only = comparisonSelections.v1_only.some((item) => item.symbol === c.symbol);
-                    const isV2Selected = comparisonSelections.v2.some((item) => item.symbol === c.symbol);
                     const candidateCapInfo = getCoinMarketCapInfo(c.symbol, c);
                     const candidateCapBadge = getMarketCapBadgeConfig(
                       candidateCapInfo.market_cap_tier,
@@ -1253,18 +1068,14 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       language,
                       candidateCapInfo.market_cap_is_estimate,
                     );
-                    const stageName = isOverlap
-                      ? t('cand_badge_overlap')
-                      : isV2Only
-                      ? t('cand_badge_unique')
-                      : isV1Only
-                      ? 'V1 PUMP'
-                      : isV2Selected
-                      ? 'V2 QUANT'
-                      : c.stage || 'ACTIVE';
+                    const stageName = c.stage || 'PUMP_CANDIDATE';
+                    const hasLiveSignal = signals.some(
+                      (signal) => signal.symbol === c.symbol && signal.validity_hours_left > 0,
+                    );
+                    const canEnterTrade = Boolean(c.alertable && hasLiveSignal && !c.is_stale);
 
                     return (
-                      <tr key={i} className="hover:bg-slate-900/60 transition group">
+                      <tr key={c.symbol} className={`hover:bg-slate-900/60 transition group ${c.is_stale ? 'opacity-60' : ''}`}>
                         <td className="p-2.5 font-bold text-white flex items-center gap-2">
                           <span className="text-slate-500 font-normal text-[10px]">#{i + 1}</span>
                           <CoinLink
@@ -1281,22 +1092,23 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           </span>
                         </td>
                         <td className="p-2.5">
-                          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold ${
-                            isOverlap
-                              ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                              : isV2Only
-                              ? 'bg-cyan-950 text-cyan-300 border border-cyan-800'
-                              : isV1Only
-                              ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                              : 'bg-violet-950 text-violet-300 border border-violet-800'
-                          }`}>
-                            {isOverlap ? '🎯 ' : isV2Only ? '💡 ' : isV1Only ? '📊 ' : '👑 '}
+                          <span className="inline-flex items-center gap-1 rounded border border-violet-800 bg-violet-950 px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
+                            👑{' '}
                             {stageName}
                           </span>
                         </td>
-                        <td className="p-2.5 text-amber-400 font-bold">${c.price > 0 ? (c.price < 1 ? c.price.toFixed(5) : c.price.toFixed(2)) : '—'}</td>
+                        <td className="p-2.5 text-amber-400 font-bold">{c.price > 0 ? `$${c.price < 1 ? c.price.toFixed(5) : c.price.toFixed(2)}` : '—'}</td>
                         <td className="p-2.5">
-                          <span className="font-bold text-red-400">{c.score.toFixed(1)} {language === 'zh' ? '分' : language === 'ko' ? '점' : t('unit_points')}</span>
+                          <div>
+                            <span className="font-bold text-red-400">{c.score.toFixed(1)} {language === 'zh' ? '分' : language === 'ko' ? '점' : t('unit_points')}</span>
+                            <span className={`block text-[9px] ${c.alertable ? 'text-emerald-400' : 'text-slate-500'}`}>
+                              {getRiskLabel(c.recommendation || 'WAIT', language)}
+                              {c.calibrated_probability != null ? ` · ML ${(c.calibrated_probability * 100).toFixed(1)}%` : ''}
+                            </span>
+                            <span className="block text-[9px] text-slate-500">
+                              {c.data_quality_score != null ? `${language === 'vi' ? 'Dữ liệu' : 'Data'} ${(c.data_quality_score * 100).toFixed(0)}% · ` : ''}{c.age}
+                            </span>
+                          </div>
                         </td>
                         <td className="p-2.5">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1310,7 +1122,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         </td>
                         <td className="p-2.5 text-red-400">{c.oi_24h}</td>
                         <td className="p-2.5 text-amber-300">{c.funding}</td>
-                        <td className="p-2.5">{c.taker_ratio}</td>
+                        <td className="p-2.5">{`${(c.taker_ratio * 100).toFixed(1)}%`}</td>
                         <td className="p-2.5 text-slate-400">{c.volume_24h}</td>
                         <td className="p-2.5">
                           <div className="flex max-w-[190px] flex-wrap items-center gap-1">
@@ -1336,13 +1148,26 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         <td className="p-2.5 text-right">
                           <button
                             type="button"
+                            data-testid={`candidate-action-${c.symbol}`}
                             onClick={() => {
                               onSelectCandidate(c.symbol);
                               setActiveTab('DECISION');
+                              if (canEnterTrade && onOpenOrderModal) {
+                                window.setTimeout(onOpenOrderModal, 0);
+                              }
                             }}
-                            className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-bold rounded text-[10px] transition active:scale-95 shadow-sm"
+                            className={`px-2.5 py-1 font-bold rounded text-[10px] transition shadow-sm ${
+                              canEnterTrade
+                                ? 'bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 text-red-300 active:scale-95'
+                                : 'bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 active:scale-95'
+                            }`}
+                            title={c.is_stale
+                              ? (language === 'vi' ? 'Mở dữ liệu tham khảo; giao dịch bị khóa vì snapshot đã cũ.' : 'Open for reference; trading is blocked because the snapshot is stale.')
+                              : undefined}
                           >
-                            Vào lệnh
+                            {canEnterTrade
+                              ? (language === 'vi' ? 'Vào lệnh' : 'Trade')
+                              : (language === 'vi' ? 'Phân tích' : 'Analyze')}
                           </button>
                         </td>
                       </tr>
@@ -1353,414 +1178,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
             </div>
           </div>
 
-          {/* KHỐI ĐỐI SOÁT THỬ NGHIỆM A/B & TIẾN ĐỘ NGHIỆM THU V2 (GẬP MỞ GỌN GÀNG) */}
-          <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3 shadow-md">
-            <button
-              type="button"
-              onClick={() => setIsAbSectionExpanded(v => !v)}
-              className="w-full flex flex-wrap items-center justify-between gap-2 text-left"
-            >
-              <div className="flex items-center gap-2">
-                <div className="p-1 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                  <Award className="h-4 w-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
-                    <span>{language === 'zh' ? 'A/B 测试对照与升级评估进度' : language === 'ko' ? 'A/B 테스트 대조 및 승격 평가' : language === 'en' ? 'A/B Comparison & Promotion Readiness' : 'Đối soát A/B & Tiến độ đánh giá thăng hạng'}</span>
-                    <span className="text-[10px] text-violet-300 font-mono">
-                      {language === 'en'
-                        ? `Official: ${championLabel} vs Challenger: ${challengerLabel}`
-                        : language === 'zh'
-                        ? `主版本: ${championLabel} vs 对照版: ${challengerLabel}`
-                        : language === 'ko'
-                        ? `주 버전: ${championLabel} vs 대조 버전: ${challengerLabel}`
-                        : `Bản chính: ${championLabel} vs Bản đối chiếu: ${challengerLabel}`}
-                    </span>
-                  </h4>
-                  <p className="text-[10px] text-slate-400">
-                    {isAbSectionExpanded
-                      ? (language === 'zh' ? '点击折叠 A/B 测试详情与进度条' : language === 'ko' ? 'A/B 테스트 상세 접기' : language === 'en' ? 'Inspect the three quantitative gates before any manual promotion.' : 'Theo dõi 3 tiêu chí định lượng trước khi xem xét thăng hạng thủ công.')
-                      : (language === 'zh' ? '点击展开 3 条评估进度条、完成预测与 V2 vs V1 对照' : language === 'ko' ? 'A/B 검증 진행률 및 맞대결 스코어카드 열기' : language === 'en' ? 'Open the three evaluation gates and V2 vs V1 comparison.' : 'Bấm để mở 3 tiêu chí đánh giá và bảng đối chiếu V2 với V1.')}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-0.5 rounded-full bg-violet-950 border border-violet-700/80 text-[10px] font-mono font-bold text-violet-300">
-                  {isAbSectionExpanded
-                    ? (language === 'zh' ? '点击折叠' : language === 'ko' ? '접기' : 'Thu gọn')
-                    : (language === 'zh' ? '查看 A/B 对照' : language === 'ko' ? 'A/B 상세 보기' : 'Mở chi tiết A/B')}
-                </span>
-                {isAbSectionExpanded ? <ChevronUp className="w-4 h-4 text-violet-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-              </div>
-            </button>
-
-            {isAbSectionExpanded && (
-              <div className="mt-3 pt-3 border-t border-slate-800 space-y-3">
-            {/* 6 Mini Stats Pills */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-              <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2 text-center">
-                <div className="text-[9px] uppercase text-slate-400">{t('ranking_shared_universe')}</div>
-                <div className="text-base font-bold text-white mt-0.5">{candidateComparison?.universe_count ?? 150}</div>
-              </div>
-              <div className="rounded-lg border border-violet-800/60 bg-violet-950/20 p-2 text-center">
-                <div className="text-[9px] uppercase text-violet-400 font-bold">{t('ranking_v2_selected_label')}</div>
-                <div className="text-base font-bold text-violet-300 mt-0.5">{v2SelectedCount}</div>
-              </div>
-              <div className="rounded-lg border border-amber-800/60 bg-amber-950/20 p-2 text-center">
-                <div className="text-[9px] uppercase text-amber-400 font-bold">{t('ranking_v1_selected_label')}</div>
-                <div className="text-base font-bold text-amber-300 mt-0.5">{v1SelectedCount}</div>
-              </div>
-              <div className="rounded-lg border border-emerald-800/60 bg-emerald-950/20 p-2 text-center">
-                <div className="text-[9px] uppercase text-emerald-400 font-bold">{t('ranking_both_selected_label')}</div>
-                <div className="text-base font-bold text-emerald-300 mt-0.5">{overlapCount}</div>
-              </div>
-              <div className="rounded-lg border border-cyan-800/60 bg-cyan-950/20 p-2 text-center">
-                <div className="text-[9px] uppercase text-cyan-400 font-bold">{t('ranking_v2_discoveries_label')}</div>
-                <div className="text-base font-bold text-cyan-300 mt-0.5">{v2OnlyCount}</div>
-              </div>
-              <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-2 text-center">
-                <div className="text-[9px] uppercase text-slate-400">{t('ranking_both_excluded_label')}</div>
-                <div className="text-base font-bold text-slate-400 mt-0.5">{candidateComparison?.neither ?? 0}</div>
-              </div>
-            </div>
-            {/* TIẾN ĐỘ THỬ NGHIỆM ĐỐI SOÁT A/B & DỰ KIẾN HOÀN TẤT */}
-            {(() => {
-              const comp = candidateComparison?.comparison;
-              const promo = comp?.promotion;
-              const evalDays = comp?.evaluation_days ?? 0;
-              const minDays = promo?.min_evaluation_days ?? 14;
-              const posEvents = promo?.positive_events ?? 0;
-              const minEvents = promo?.min_positive_events ?? 50;
-              const resolvedCount = championMetrics?.resolved ?? challengerMetrics?.resolved ?? 0;
-              const minResolved = promo?.min_resolved ?? 200;
-
-              const daysPct = Math.min(100, Math.round((evalDays / minDays) * 100));
-              const eventsPct = Math.min(100, Math.round((posEvents / minEvents) * 100));
-              const resolvedPct = Math.min(100, Math.round((resolvedCount / minResolved) * 100));
-              const overallPct = Math.round((daysPct + eventsPct + resolvedPct) / 3);
-              const daysRemaining = Math.max(1, Math.ceil(minDays - evalDays));
-              const isReadyForReview = Boolean(promo?.passed && daysPct >= 100 && eventsPct >= 100 && resolvedPct >= 100);
-              return (
-                <div className="mt-3 rounded-lg border border-violet-900/60 bg-gradient-to-r from-slate-950 via-violet-950/20 to-slate-950 p-3 shadow-md">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-md bg-violet-600/20 p-1 text-violet-400 border border-violet-500/30">
-                        <Clock className="h-4 w-4 animate-pulse" />
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-1.5">
-                          <span>{language === 'zh' ? 'A/B 测试实盘进度与完工预测' : language === 'ko' ? 'A/B 테스트 검증 진행률 및 완료 예상' : 'Tiến độ thử nghiệm đối soát A/B & Dự kiến hoàn tất'}</span>
-                          <span className="rounded bg-violet-900/60 border border-violet-700/60 px-1.5 py-0.2 font-mono text-[9px] text-violet-300 font-bold">
-                            {overallPct}%
-                          </span>
-                        </h4>
-                        <p className="text-[10px] text-slate-400">
-                          {language === 'zh'
-                            ? `实时追踪 ${challengerLabel} 的升格准则；达到 100% 后仍需人工批准`
-                            : language === 'ko'
-                            ? `${challengerLabel} 승격 기준을 추적하며 100% 달성 후에도 수동 승인이 필요합니다.`
-                            : language === 'en'
-                            ? `Track ${challengerLabel} promotion gates; 100% still requires manual approval.`
-                            : `Theo dõi tiêu chí thăng hạng của ${challengerLabel}; đạt 100% vẫn phải được duyệt thủ công.`}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {isReadyForReview ? (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/60 bg-emerald-950/80 px-2.5 py-1 text-[10px] font-bold text-emerald-300 shadow-sm">
-                          <CheckCircle2 className="h-3 w-3" />
-                          {language === 'zh' ? '✅ 已达标: 等待人工批准' : language === 'ko' ? '✅ 달성: 수동 승인 대기' : language === 'en' ? '✅ Gates met: manual approval required' : '✅ Đã đạt tiêu chí: chờ duyệt thủ công'}
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/50 bg-amber-950/70 px-2.5 py-1 text-[10px] font-bold text-amber-300 shadow-sm">
-                          <Clock className="h-3 w-3" />
-                          {language === 'zh' ? `⏳ 预计还需约 ${daysRemaining} - ${daysRemaining + 2} 天` : language === 'ko' ? `⏳ 약 ${daysRemaining} ~ ${daysRemaining + 2}일 소요 예상` : `⏳ Dự kiến hoàn tất trong ~${daysRemaining} - ${daysRemaining + 2} ngày tới`}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 3 Progress Bars Grid */}
-                  <div className="mt-3 grid gap-2.5 sm:grid-cols-3">
-                    {/* 1. Thời gian quan sát */}
-                    <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-semibold text-slate-300">{language === 'zh' ? '1. 评估时间周期' : language === 'ko' ? '1. 평가 관찰 기간' : language === 'en' ? '1. Evaluation Window' : '1. Thời gian quan sát thực tế'}</span>
-                        <span className="font-mono text-violet-300 font-bold">{evalDays.toFixed(1)} / {minDays} {language === 'en' ? 'days' : language === 'zh' ? '天' : language === 'ko' ? '일' : 'ngày'} ({daysPct}%)</span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-violet-600 to-indigo-400 transition-all duration-500"
-                          style={{ width: `${daysPct}%` }}
-                        />
-                      </div>
-                      <div className="mt-1 flex justify-between text-[9px] text-slate-400">
-                        <span>{language === 'zh' ? '已运行天数' : language === 'ko' ? '진행 일수' : language === 'en' ? 'Evaluated' : 'Cửa sổ đánh giá'}</span>
-                        <span className={daysPct >= 100 ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
-                          {daysPct >= 100
-                            ? (language === 'en' ? '✓ Met' : language === 'zh' ? '✓ 已达标' : language === 'ko' ? '✓ 달성' : '✓ Đã đạt')
-                            : (language === 'en' ? `${(minDays - evalDays).toFixed(1)} days left` : language === 'zh' ? `还缺 ${(minDays - evalDays).toFixed(1)} 天` : language === 'ko' ? `${(minDays - evalDays).toFixed(1)}일 부족` : `Thiếu ${(minDays - evalDays).toFixed(1)} ngày`)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 2. Sự kiện sập đỉnh */}
-                    <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-semibold text-slate-300">{language === 'zh' ? '2. 独立暴跌派发事件' : language === 'ko' ? '2. 독립적 급락 분산 이벤트' : language === 'en' ? '2. Positive Climax Events' : '2. Sự kiện sập đỉnh độc lập'}</span>
-                        <span className="font-mono text-amber-300 font-bold">{posEvents} / {minEvents} ({eventsPct}%)</span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-amber-600 to-yellow-400 transition-all duration-500"
-                          style={{ width: `${eventsPct}%` }}
-                        />
-                      </div>
-                      <div className="mt-1 flex justify-between text-[9px] text-slate-400">
-                        <span>{language === 'zh' ? 'Positive Events' : language === 'ko' ? '양성 사건수' : language === 'en' ? 'Dump Events' : 'Đợt tạo đỉnh xả'}</span>
-                        <span className={eventsPct >= 100 ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
-                          {eventsPct >= 100
-                            ? (language === 'en' ? '✓ Met' : language === 'zh' ? '✓ 已达标' : language === 'ko' ? '✓ 달성' : '✓ Đã đạt')
-                            : (language === 'en' ? `${minEvents - posEvents} events needed` : language === 'zh' ? `还需 ${minEvents - posEvents} 次` : language === 'ko' ? `${minEvents - posEvents}회 필요` : `Cần thêm ${minEvents - posEvents} đợt`)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 3. Tổng mẫu giải quyết */}
-                    <div className="rounded-md border border-slate-800 bg-slate-900/60 p-2">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-semibold text-slate-300">{language === 'zh' ? '3. 周期已结算样本' : language === 'ko' ? '3. 결산 완료 샘플수' : language === 'en' ? '3. Resolved Sample Cycles' : '3. Mẫu chu kỳ đã giải quyết'}</span>
-                        <span className="font-mono text-emerald-300 font-bold">{resolvedCount} / {minResolved} ({resolvedPct}%)</span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-teal-400 transition-all duration-500"
-                          style={{ width: `${resolvedPct}%` }}
-                        />
-                      </div>
-                      <div className="mt-1 flex justify-between text-[9px] text-slate-400">
-                        <span>{language === 'zh' ? 'Resolved Samples' : language === 'ko' ? '결산 샘플' : language === 'en' ? 'SL/TP Outcomes' : 'Tổng mẫu SL/TP'}</span>
-                        <span className="text-emerald-400 font-bold">
-                          {language === 'en' ? `✓ Met (${resolvedCount} samples)` : language === 'zh' ? `✓ 已达标 (${resolvedCount} 样本)` : language === 'ko' ? `✓ 달성 (${resolvedCount}개)` : `✅ Đã đạt (${resolvedCount} mẫu)`}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* Performance Benchmark: Head-to-Head & Decision Engine */}
-            <div className="mt-3 grid gap-3 lg:grid-cols-12">
-              {/* Cột 1: Bảng đối đầu chỉ số (7 cols) */}
-              <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 lg:col-span-7">
-                <div className="mb-2 flex items-center justify-between border-b border-slate-800 pb-1.5">
-                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-200">
-                    <Award className="h-3.5 w-3.5 text-violet-400" />
-                    <span>
-                      {language === 'en'
-                        ? `Head-to-Head: V2 vs V1 (${championLabel} official)`
-                        : language === 'zh'
-                        ? `对决战报: V2 vs V1（${championLabel} 主版本）`
-                        : language === 'ko'
-                        ? `맞대결: V2 vs V1 (${championLabel} 주 버전)`
-                        : `Đối chiếu: V2 và V1 (${championLabel} là bản chính)`}
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-violet-300 font-mono">
-                    Δ V2 − V1 (95% CI Bootstrap)
-                  </span>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-800/80 text-[10px] uppercase text-slate-400 font-mono">
-                        <th className="pb-1.5 font-semibold">{language === 'zh' ? '评估指标' : language === 'ko' ? '평가 지표' : t('h2h_col_metric')}</th>
-                        <th className="pb-1.5 font-semibold text-violet-400">V2 (Quant)</th>
-                        <th className="pb-1.5 font-semibold text-amber-400">V1 (Pump)</th>
-                        <th className="pb-1.5 font-semibold text-cyan-300">{t('cand_diff_delta')}</th>
-                        <th className="pb-1.5 text-right font-semibold">{language === 'zh' ? '优势' : language === 'ko' ? '우위 평가' : t('h2h_col_advantage')}</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-900 text-[11px]">
-                      {/* P@10 */}
-                      <tr className="hover:bg-slate-900/40">
-                        <td className="py-1.5 font-medium text-slate-300">
-                          {language === 'zh' ? 'Top 10 精准率 (P@10)' : language === 'ko' ? '상위 10개 정밀도 (P@10)' : t('h2h_p10_label')}
-                        </td>
-                        <td className="py-1.5 font-mono font-bold text-violet-300">
-                          {metricPercent(v2Metrics?.precision_at_10)}
-                        </td>
-                        <td className="py-1.5 font-mono font-bold text-amber-300">
-                          {metricPercent(v1Metrics?.precision_at_10)}
-                        </td>
-                        <td className="py-1.5 font-mono font-bold text-emerald-400">
-                          {deltaWithCi(v2MinusV1Delta(comparisonReport?.paired_deltas?.precision_at_10))}
-                        </td>
-                        <td className="py-1.5 text-right font-semibold text-emerald-400">
-                          {versionAdvantage(v2Metrics?.precision_at_10, v1Metrics?.precision_at_10)}
-                        </td>
-                      </tr>
-
-                      {/* Event Recall */}
-                      <tr className="hover:bg-slate-900/40">
-                        <td className="py-1.5 font-medium text-slate-300">
-                          {language === 'zh' ? '暴跌捕获率 (Event Recall)' : language === 'ko' ? '급락 포착률 (Event Recall)' : t('h2h_recall_label')}
-                        </td>
-                        <td className="py-1.5 font-mono font-bold text-violet-300">
-                          {metricPercent(v2Metrics?.event_recall)}
-                        </td>
-                        <td className="py-1.5 font-mono font-bold text-amber-300">
-                          {metricPercent(v1Metrics?.event_recall)}
-                        </td>
-                        <td className="py-1.5 font-mono font-bold text-emerald-400">
-                          {deltaWithCi(v2MinusV1Delta(comparisonReport?.paired_deltas?.event_recall))}
-                        </td>
-                        <td className="py-1.5 text-right font-semibold text-emerald-400">
-                          {versionAdvantage(v2Metrics?.event_recall, v1Metrics?.event_recall)}
-                        </td>
-                      </tr>
-
-                      {/* False Alarms */}
-                      <tr className="hover:bg-slate-900/40">
-                        <td className="py-1.5 font-medium text-slate-300">
-                          {language === 'zh' ? '每日误报候选数' : language === 'ko' ? '일일 오경보 후보 수' : t('h2h_false_alarm_label')}
-                        </td>
-                        <td className="py-1.5 font-mono text-violet-300 font-bold">
-                          {v2Metrics?.false_candidates_per_day == null ? t('badge_insufficient_data') : `${v2Metrics.false_candidates_per_day.toFixed(1)} coin/d`}
-                        </td>
-                        <td className="py-1.5 font-mono text-amber-300">
-                          {v1Metrics?.false_candidates_per_day == null ? t('badge_insufficient_data') : `${v1Metrics.false_candidates_per_day.toFixed(1)} coin/d`}
-                        </td>
-                        <td className="py-1.5 font-mono font-bold text-emerald-400">
-                          {v2Metrics?.false_candidates_per_day == null || v1Metrics?.false_candidates_per_day == null
-                            ? t('badge_insufficient_data')
-                            : `${(v2Metrics.false_candidates_per_day - v1Metrics.false_candidates_per_day) >= 0 ? '+' : ''}${(v2Metrics.false_candidates_per_day - v1Metrics.false_candidates_per_day).toFixed(1)} coin/d`}
-                        </td>
-                        <td className="py-1.5 text-right font-semibold text-emerald-400">
-                          {versionAdvantage(v2Metrics?.false_candidates_per_day, v1Metrics?.false_candidates_per_day, true)}
-                        </td>
-                      </tr>
-
-                      {/* Lead Time */}
-                      <tr className="hover:bg-slate-900/40">
-                        <td className="py-1.5 font-medium text-slate-300">
-                          {t('exp_median_lead_time')}
-                        </td>
-                        <td className="py-1.5 font-mono text-violet-300 font-bold">
-                          {v2Metrics?.median_lead_time_minutes == null
-                            ? t('badge_insufficient_data')
-                            : `${(v2Metrics.median_lead_time_minutes / 60).toFixed(1)}h (${v2Metrics.median_lead_time_minutes.toFixed(0)}m)`}
-                        </td>
-                        <td className="py-1.5 font-mono text-amber-300">
-                          {v1Metrics?.median_lead_time_minutes == null
-                            ? t('badge_insufficient_data')
-                            : `${(v1Metrics.median_lead_time_minutes / 60).toFixed(1)}h (${v1Metrics.median_lead_time_minutes.toFixed(0)}m)`}
-                        </td>
-                        <td className="py-1.5 font-mono font-bold text-emerald-400">
-                          {v2Metrics?.median_lead_time_minutes == null || v1Metrics?.median_lead_time_minutes == null
-                            ? t('badge_insufficient_data')
-                            : `${(v2Metrics.median_lead_time_minutes - v1Metrics.median_lead_time_minutes) >= 0 ? '+' : ''}${(v2Metrics.median_lead_time_minutes - v1Metrics.median_lead_time_minutes).toFixed(0)} phút`}
-                        </td>
-                        <td className="py-1.5 text-right font-semibold text-emerald-400">
-                          {versionAdvantage(v2Metrics?.median_lead_time_minutes, v1Metrics?.median_lead_time_minutes)}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Cột 2: Trạng Thái Vận Hành & Lộ Trình V3 (5 cols) */}
-              <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 lg:col-span-5 flex flex-col justify-between">
-                <div>
-                  <div className="mb-2 flex items-center justify-between border-b border-slate-800 pb-1.5">
-                    <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-200">
-                      <Target className="h-3.5 w-3.5 text-violet-400" />
-                      <span>
-                        {language === 'en'
-                          ? `Operating Status: ${championLabel} Official`
-                          : language === 'zh'
-                          ? `运行状态: ${championLabel} 主版本`
-                          : language === 'ko'
-                          ? `운영 상태: ${championLabel} 주 버전`
-                          : `Trạng thái: ${championLabel} Bản chính`}
-                      </span>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" />
-                      {language === 'zh' ? '已启用 (主力运行)' : language === 'ko' ? '활성화됨 (실서버)' : t('candidate_promoted_active')}
-                    </span>
-                  </div>
-
-                  {/* Operational Details */}
-                  <div className="space-y-2 text-[10px]">
-                    <div className="rounded border border-violet-900/60 bg-violet-950/30 p-2 text-violet-200">
-                      <div className="font-bold text-violet-300 flex items-center gap-1">
-                        <span>👑 {championLabel} ({officialRoleLabel})</span>
-                      </div>
-                      <p className="mt-0.5 text-slate-300">
-                        {language === 'en'
-                          ? 'This configured production lane drives candidate ranking and Telegram decisions.'
-                          : language === 'zh'
-                          ? '该配置的主版本负责候选排名和 Telegram 决策。'
-                          : language === 'ko'
-                          ? '현재 구성된 주 버전이 후보 순위와 텔레그램 결정을 담당합니다.'
-                          : 'Phiên bản được cấu hình làm bản chính điều phối xếp hạng ứng viên và quyết định gửi Telegram.'}
-                      </p>
-                    </div>
-
-                    <div className="rounded border border-amber-900/60 bg-amber-950/20 p-2 text-amber-200">
-                      <div className="font-bold text-amber-300 flex items-center gap-1">
-                        <span>📊 {challengerLabel} ({challengerRoleLabel})</span>
-                      </div>
-                      <p className="mt-0.5 text-slate-300">
-                        {language === 'en'
-                          ? 'Runs for paired evaluation only; it does not send Telegram alerts or replace the official lane automatically.'
-                          : language === 'zh'
-                          ? '仅用于配对评估；不会发送 Telegram 警报，也不会自动替换主版本。'
-                          : language === 'ko'
-                          ? '대조 평가용으로만 실행되며 텔레그램을 발송하거나 자동으로 주 버전을 교체하지 않습니다.'
-                          : 'Chỉ chạy để đối soát song song; không tự gửi Telegram và không tự động thay thế bản chính.'}
-                      </p>
-                    </div>
-
-                    <div className="rounded border border-indigo-900/60 bg-indigo-950/20 p-2 text-indigo-200">
-                      <div className="font-bold text-indigo-300 flex items-center gap-1">
-                        <span>{t('cand_v3_ai_desc')}</span>
-                      </div>
-                      <p className="mt-0.5 text-slate-300">
-                        {t('candidate_v3_roadmap_desc')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Kết luận chốt quyết định */}
-                <div className="mt-2.5 rounded-md border border-violet-900/60 bg-violet-950/30 p-2 text-[10px] leading-relaxed text-violet-200">
-                  <div className="font-bold flex items-center gap-1 text-violet-300">
-                    <CheckCircle2 className="h-3 w-3 text-emerald-400" />
-                    <span>
-                      {language === 'zh'
-                        ? `运行总结: ${championLabel} 为主版本`
-                        : language === 'ko'
-                        ? `실행 요약: ${championLabel} 주 버전`
-                        : language === 'en'
-                        ? `Production Summary: ${championLabel} Official`
-                        : `Tổng kết vận hành: ${championLabel} là bản chính`}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-slate-300">
-                    {t('candidate_conclusion_desc')}
-                  </p>
-                </div>
-              </div>
-            </div>
-            </div>
-          )}
-        </div>
       </div>
     )}
       {/* TAB 2.5: MULTI-COIN SCAN */}

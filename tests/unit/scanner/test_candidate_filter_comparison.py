@@ -71,6 +71,18 @@ def test_assembles_all_four_paired_strata_on_shared_price() -> None:
     assert audit.current["challenger_only"] == 1
     assert audit.current["neither"] == 1
     assert {item.reference_price for item in audit.decisions} == {100.0}
+    challenger_only = audit.current["selected"]["challenger_only"]
+    assert challenger_only == [
+        {
+            "symbol": "V2USDT",
+            "rank": 2,
+            "rank_score": 0.8,
+            "stage": "DISTRIBUTING",
+            "reference_price": 100.0,
+            "volume_24h_usd": 2_000_000.0,
+            "reason_codes": ["candidate_selected"],
+        }
+    ]
 
 
 def test_champion_fallback_matches_actual_deep_scoring_lane() -> None:

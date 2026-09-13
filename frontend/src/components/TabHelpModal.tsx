@@ -131,12 +131,12 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           nameEn: 'Candidate Filter',
           icon: BarChart3,
           category: 'TRADING',
-          badge: 'Tier 1 Filter (Live Configured Role)',
-          purpose: 'Tier 1 candidate screening across the live Binance Futures universe, with official and challenger roles read from configuration.',
+          badge: 'Official V1 Tier-1 Filter',
+          purpose: 'Tier 1 uses the single official V1 filter to select and rank potential dump candidates across Binance Futures.',
           mechanism: [
-            'Configured official lane vs challenger: the live comparison payload determines whether V1 or V2 drives rankings and Telegram; the other version remains evaluation-only.',
-            '72-Hour State Memory: Tracks pump lifecycle from Pump Active -> Climax Exhaustion -> Distribution -> Markdown.',
-            'A/B Verification Progress: Live countdown tracking 3 promotion gates (14 evaluation days, 50 positive climax events, 200 resolved samples) before safely retiring V1.'
+            'Official V1 screening removes coins that fail liquidity, pump-amplitude, and data-quality requirements before scoring.',
+            'Risk ranking combines price momentum, OI, funding, taker sell, and volume to surface the strongest candidates first.',
+            'Two-step safety gate only enables trade entry when the candidate is fresh and has a valid Radar signal; otherwise analysis remains available.'
           ],
           metrics: [
             { label: 'Rank Score', desc: 'Multi-factor quantitative score ranking highest probability dump candidates.' },
@@ -146,7 +146,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           ],
           playbook: [
             'Focus on candidates in "EXHAUSTION" or "DISTRIBUTION" stage for imminent short setups.',
-            'Check the A/B Test Verification Card to inspect model promotion readiness.'
+            'Check probability, data quality, and the live Radar signal before choosing "Enter trade".'
           ]
         },
         WATCHLIST: {
@@ -408,7 +408,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           { label: 'Tỷ Lệ R:R (Risk/Reward)', desc: 'Tỷ lệ lợi nhuận / rủi ro tính theo (Biên độ TP1 / Biên độ SL).' }
         ],
         playbook: [
-          'Kiểm tra tín hiệu xem đang ở trạng thái "FIRED" (đang xả) hay "ARMED" (sẵn sàng).',
+          'Kiểm tra tín hiệu xem đang ở trạng thái "Đã kích hoạt" (đang xả) hay "Đang sẵn sàng".',
           'Đối chiếu Taker Sell Ratio >= 55% và Open Interest bắt đầu giảm hoặc đi ngang.',
           'Vào lệnh Short trong Vùng Entry gợi ý, cài SL nghiêm ngặt và chốt lời 50% vị thế tại TP1 (-4%).'
         ]
@@ -423,18 +423,18 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         purpose: 'Bảng theo dõi dòng tín hiệu phân phối đỉnh hoạt động liên tục 24/7 trên toàn bộ các cặp coin USDT Futures sàn Binance.',
         mechanism: [
           'Tiến trình Quét Tự động: Quét toàn thị trường định kỳ 5 phút/lần và phát hiện ngay lập tức các coin đạt điểm phân phối.',
-          'Phân loại Trạng thái 2 Tầng: Gán nhãn rõ ràng ARMED (Tiền điều kiện đạt, canh nến đảo chiều) hoặc FIRED (Tín hiệu xả đã kích hoạt).',
+          'Phân loại trạng thái hai tầng: "Đang sẵn sàng" khi tiền điều kiện đã đạt và đang canh nến đảo chiều; "Đã kích hoạt" khi tín hiệu xả xuất hiện.',
           'Bộ lọc Chiến lược Đa chiều: Lọc theo Preset (Climax Dump, Bẫy Funding, OI Squeeze), Sector (AI, Meme, L1/L2), Vốn hóa và Mức độ rủi ro.',
           'Đẩy Cảnh báo Telegram: Tự động gửi cảnh báo phân tích chất lượng cao về nhóm Telegram.'
         ],
         metrics: [
-          { label: 'Trạng Thái FIRED / ARMED', desc: 'FIRED = Điểm vào lệnh Short ngay; ARMED = Đang tạo đỉnh, chờ nến 5m xác nhận.' },
+          { label: 'Trạng thái kích hoạt / sẵn sàng', desc: 'Đã kích hoạt = Có điểm vào lệnh Short; Đang sẵn sàng = Đang tạo đỉnh, chờ nến 5m xác nhận.' },
           { label: 'Mức Độ Rủi Ro (Risk Level)', desc: 'Phân cấp CRITICAL / HIGH / MEDIUM / SAFE dựa trên biến động và biên độ bơm.' },
           { label: 'Phân Hạng Vốn Hóa', desc: 'LARGE (> $1B), MID ($100M - $1B), SMALL (< $100M).' },
           { label: 'Thời Gian Hiệu Lực', desc: 'Số giờ còn lại trước khi tín hiệu hết hạn (mặc định 24h).' }
         ],
         playbook: [
-          'Chọn tab "FIRED" để xem các coin đang trong nhịp xả đẹp nhất ở hiện tại.',
+          'Chọn tab "Đã kích hoạt" để xem các coin đang trong nhịp xả rõ nhất ở hiện tại.',
           'Sử dụng các Preset chiến lược như "Climax Dump" hoặc "Bẫy Funding" để tìm setup theo sở trường.',
           'Bấm vào bất kỳ thẻ tín hiệu nào để mở ngay biểu đồ chi tiết bên màn hình Vào Lệnh.'
         ]
@@ -445,12 +445,12 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         nameEn: 'Candidate Filter',
         icon: BarChart3,
         category: 'TRADING',
-        badge: 'Bộ Lọc Tầng 1 (Theo cấu hình live)',
-        purpose: 'Tầng 1 chọn lọc ứng viên từ phạm vi Binance Futures theo cấu hình live; vai trò bản chính và bản đối chiếu cũng lấy từ cấu hình.',
+        badge: 'Bộ Lọc V1 Chính Thức',
+        purpose: 'Tầng 1 dùng duy nhất bộ lọc V1 để chọn và xếp hạng các ứng viên xả tiềm năng từ Binance Futures.',
         mechanism: [
-          'Bản chính vs bản đối chiếu: dữ liệu live quyết định V1 hay V2 điều phối xếp hạng và Telegram; phiên bản còn lại chỉ dùng để đối soát.',
-          'Bộ Nhớ Trạng Thái 72 Giờ: Theo dõi chu kỳ bơm xả qua từng giai đoạn (Đang bơm -> Kiệt sức -> Phân phối -> Bắt đầu xả).',
-          'Thanh Tiến Độ Kiểm Định A/B: Đo lường trực tiếp 3 điều kiện thăng hạng (14 ngày quan sát, 50 sự kiện sập đỉnh, 200 mẫu giải quyết) để biết thời điểm gỡ bỏ V1.'
+          'Bộ lọc V1 chính thức: loại coin không đạt thanh khoản, biên độ bơm và điều kiện chất lượng dữ liệu trước khi chấm điểm.',
+          'Xếp hạng rủi ro: tổng hợp động lượng giá, OI, funding, taker sell và volume để đưa các ứng viên đáng chú ý nhất lên đầu.',
+          'Chốt an toàn hai tầng: ứng viên chỉ được phép vào lệnh khi còn mới và có tín hiệu Radar hợp lệ; nếu chưa đủ điều kiện thì chỉ cho phép phân tích.'
         ],
         metrics: [
           { label: 'Điểm Rank Score', desc: 'Điểm tổng hợp định lượng xếp hạng các ứng viên có xác suất sập cao nhất.' },
@@ -460,7 +460,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         ],
         playbook: [
           'Ưu tiên chọn các coin ở giai đoạn "EXHAUSTION" hoặc "DISTRIBUTION" để chuẩn bị lệnh Short đón đầu.',
-          'Theo dõi Card "Tiến độ thử nghiệm A/B" để biết chính xác thời gian hoàn thành nghiệm thu.'
+          'Kiểm tra xác suất, chất lượng dữ liệu và tín hiệu Radar trước khi bấm "Vào lệnh".'
         ]
       },
       WATCHLIST: {
@@ -719,7 +719,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
             </div>
             <div>
               <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                <span>{language === 'en' ? 'DAO VANG — System Knowledge & User Guide' : language === 'zh' ? '刀锋量化系统 — 用户操作全指南与架构解析' : language === 'ko' ? '다오방 — 시스템 가이드 및 지식 센터' : 'ĐẢO VÀNG — CẨM NANG HỆ THỐNG & HƯỚNG DẪN NGƯỜI DÙNG'}</span>
+                <span>{language === 'en' ? 'ĐẢO VÀNG AI RADAR — System Knowledge & User Guide' : language === 'zh' ? 'ĐẢO VÀNG AI RADAR — 用户操作全指南与架构解析' : language === 'ko' ? 'ĐẢO VÀNG AI RADAR — 시스템 가이드 및 지식 센터' : 'ĐẢO VÀNG AI RADAR — CẨM NANG HỆ THỐNG & HƯỚNG DẪN NGƯỜI DÙNG'}</span>
                 <span className="rounded bg-amber-500/20 border border-amber-500/40 px-2 py-0.5 text-[10px] font-mono text-amber-300 font-bold">
                   v2.0 Pro
                 </span>
@@ -824,7 +824,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                   <span>Mục Đích Của Ứng Dụng & Triết Lý Cốt Lõi</span>
                 </div>
                 <p className="text-xs text-slate-200 leading-relaxed">
-                  <strong>Đảo Vàng (PeakPulse Quant Center)</strong> là hệ thống định lượng chuyên biệt được thiết kế để giải quyết bài toán: <strong>Bắt đỉnh phân phối và đi lệnh Short đón đầu các đợt sập giá của coin bơm xả (Pump & Dump Altcoins/Memecoins) trên sàn Binance USDT Futures</strong>.
+                  <strong>Đảo Vàng AI Radar</strong> là hệ thống định lượng chuyên biệt được thiết kế để giải quyết bài toán: <strong>Bắt đỉnh phân phối và đi lệnh Short đón đầu các đợt sập giá của coin bơm xả (Pump & Dump Altcoins/Memecoins) trên sàn Binance USDT Futures</strong>.
                 </p>
                 <div className="p-2.5 rounded-lg bg-slate-950/80 border border-amber-500/20 text-xs font-mono text-amber-200">
                   🎯 <strong>Nguyên lý cốt tử:</strong> &ldquo;Tăng đột biến thì mới sụt đột biến&rdquo;. Hệ thống không đánh đuổi theo sóng tăng bất tận, mà chỉ săn lùng những tài sản đã bơm căng phồng từ +50% đến +300% và bắt đầu có dấu hiệu cạn kiệt thanh khoản, tháo chạy vị thế ngầm của tay to.
@@ -931,7 +931,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       <div className="space-y-1.5 bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
                         <div className="font-bold text-amber-300 flex items-center gap-1.5 text-xs">
                           <Zap className="h-3.5 w-3.5 text-amber-400" />
-                          <span>Tầng 1 (HTF Macro Filter 1h/4h/24h) &rarr; ARMED</span>
+                          <span>Tầng 1 (Bộ lọc khung lớn 1h/4h/24h) &rarr; Đang sẵn sàng</span>
                         </div>
                         <p className="text-slate-300 text-[11px] leading-relaxed">
                           • <strong>Biên độ bơm:</strong> Tăng trưởng tích lũy từ <strong>+50% đến +300%</strong> trong 1–5 ngày.<br/>
@@ -943,7 +943,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       <div className="space-y-1.5 bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
                         <div className="font-bold text-emerald-300 flex items-center gap-1.5 text-xs">
                           <Target className="h-3.5 w-3.5 text-emerald-400" />
-                          <span>Tầng 2 (LTF Real-time Trigger 5m/15m) &rarr; FIRED</span>
+                          <span>Tầng 2 (Kích hoạt thời gian thực 5m/15m) &rarr; Đã kích hoạt</span>
                         </div>
                         <p className="text-slate-300 text-[11px] leading-relaxed">
                           • <strong>OI Unwind (Tháo chạy vị thế):</strong> Open Interest sụt giảm &ge; 3% khi giá chững lại.<br/>
@@ -972,7 +972,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       </div>
                       <div className="grid gap-1.5 sm:grid-cols-2 text-[11px] text-slate-300">
                         <div>• <strong>Tab Vào lệnh:</strong> Tính bảng Trade Setup (Entry, SL, TP1-3, R:R) & điểm Phân phối.</div>
-                        <div>• <strong>Tab Tín hiệu:</strong> Gán huy hiệu ARMED / FIRED & kích hoạt âm thanh cảnh báo.</div>
+                        <div>• <strong>Tab Tín hiệu:</strong> Gán huy hiệu Đang sẵn sàng / Đã kích hoạt và bật âm thanh cảnh báo.</div>
                         <div>• <strong>Tab Top coin xả:</strong> Tuyển chọn danh sách Top 30 ứng viên kiệt sức động lượng.</div>
                         <div>• <strong>Telegram Bot:</strong> Tự động đóng gói và bắn tin nhắn cảnh báo kèm mốc SL/TP.</div>
                       </div>
@@ -1273,7 +1273,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       <span className="font-bold text-slate-200 text-xs uppercase">Bước 1: Quét Tín Hiệu (Tab Tín hiệu / Telegram)</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed pl-7">
-                      Xem danh sách coin cảnh báo. Ưu tiên các coin có nhãn <strong>`FIRED`</strong> (đang bắt đầu xả) hoặc <strong>`HOT RISK`</strong> với xác suất $\ge 70\%$. Bấm vào coin để chuyển sang màn hình <em>Vào Lệnh</em>.
+                      Xem danh sách coin cảnh báo. Ưu tiên các coin có nhãn <strong>Đã kích hoạt</strong> (đang bắt đầu xả) hoặc <strong>Rủi ro nóng</strong> với xác suất $\ge 70\%$. Bấm vào coin để chuyển sang màn hình <em>Vào lệnh</em>.
                     </p>
                   </div>
 
@@ -1360,7 +1360,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       <span>4. Tuyên Bố Miễn Trừ Trách Nhiệm (Disclaimer)</span>
                     </div>
                     <p className="text-slate-400 leading-relaxed pl-5 text-[11px]">
-                      Hệ thống Đảo Vàng PeakPulse cung cấp các chỉ số, xác suất và phân tích định lượng độc lập nhằm hỗ trợ người dùng nâng cao chất lượng quyết định. Đây không phải là lời khuyên đầu tư tài chính hay ủy thác giao dịch. Mọi quyết định đi lệnh và quản trị vốn đều thuộc toàn quyền trách nhiệm của người sử dụng.
+                      Đảo Vàng AI Radar cung cấp các chỉ số, xác suất và phân tích định lượng độc lập nhằm hỗ trợ người dùng nâng cao chất lượng quyết định. Đây không phải là lời khuyên đầu tư tài chính hay ủy thác giao dịch. Mọi quyết định đi lệnh và quản trị vốn đều thuộc toàn quyền trách nhiệm của người sử dụng.
                     </p>
                   </div>
                 </div>

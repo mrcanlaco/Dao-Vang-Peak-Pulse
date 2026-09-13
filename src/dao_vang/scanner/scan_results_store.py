@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS scan_results (
     anomaly_level      VARCHAR,
     anomaly_count      INTEGER,
     anomalies_json     VARCHAR,
+    quality_status     VARCHAR,
+    max_feature_age_minutes DOUBLE,
     cycle              INTEGER,
     created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -133,6 +135,8 @@ _MIGRATIONS: list[str] = [
     "ALTER TABLE scan_results ADD COLUMN heuristic_score DOUBLE",
     "ALTER TABLE scan_results ADD COLUMN calibrated_probability DOUBLE",
     "ALTER TABLE scan_results ADD COLUMN data_quality_score DOUBLE",
+    "ALTER TABLE scan_results ADD COLUMN quality_status VARCHAR",
+    "ALTER TABLE scan_results ADD COLUMN max_feature_age_minutes DOUBLE",
     "ALTER TABLE scan_results ADD COLUMN horizon_hours INTEGER",
     "ALTER TABLE scan_results ADD COLUMN model_probability DOUBLE",
     "ALTER TABLE scan_results ADD COLUMN anomaly_score DOUBLE",
@@ -162,6 +166,8 @@ class ScanResultRecord:
     heuristic_score: float | None = None
     calibrated_probability: float | None = None
     data_quality_score: float | None = None
+    quality_status: str | None = None
+    max_feature_age_minutes: float | None = None
     horizon_hours: int | None = None
     anomaly_score: float = 0.0
     anomaly_level: str = "NORMAL"
@@ -669,8 +675,9 @@ class ScanResultStore:
                     taker_sell_ratio, volume_24h_usd, pump_pct, pump_days,
                     anomaly_score, anomaly_level, anomaly_count, anomalies_json,
                     cycle, model_probability, heuristic_score,
-                    calibrated_probability, data_quality_score, horizon_hours
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    calibrated_probability, data_quality_score, quality_status,
+                    max_feature_age_minutes, horizon_hours
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     [
@@ -695,6 +702,8 @@ class ScanResultStore:
                         r.heuristic_score,
                         r.calibrated_probability,
                         r.data_quality_score,
+                        r.quality_status,
+                        r.max_feature_age_minutes,
                         r.horizon_hours,
                     ]
                     for r in records
@@ -731,6 +740,19 @@ class ScanResultStore:
         time_filter = "WHERE scan_time >= ?" if cutoff is not None else ""
         params: list[Any] = [cutoff, limit] if cutoff is not None else [limit]
         with self._conn() as conn:
+            schema_columns = {
+                str(row[0]) for row in conn.execute("DESCRIBE scan_results").fetchall()
+            }
+            quality_status_select = (
+                "quality_status"
+                if "quality_status" in schema_columns
+                else "NULL::VARCHAR AS quality_status"
+            )
+            feature_age_select = (
+                "max_feature_age_minutes"
+                if "max_feature_age_minutes" in schema_columns
+                else "NULL::DOUBLE AS max_feature_age_minutes"
+            )
             rows = conn.execute(
                 f"""
                 SELECT symbol, scan_time, score, recommendation, close_price,
@@ -738,7 +760,8 @@ class ScanResultStore:
                        taker_sell_ratio, volume_24h_usd, pump_pct, pump_days,
                        anomaly_score, anomaly_level, anomaly_count, anomalies_json,
                        model_probability, heuristic_score, calibrated_probability,
-                       data_quality_score, horizon_hours
+                       data_quality_score, {quality_status_select}, {feature_age_select},
+                       horizon_hours
 
                 FROM (
                     SELECT *,
@@ -775,6 +798,8 @@ class ScanResultStore:
                 "heuristic_score",
                 "calibrated_probability",
                 "data_quality_score",
+                "quality_status",
+                "max_feature_age_minutes",
                 "horizon_hours",
 
             ]

@@ -1559,8 +1559,17 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(exc)}).encode('utf-8'))
         elif parsed.path == '/api/candidates/refresh':
             try:
-                _request_scan()
-                self.get_candidates()
+                trigger = _request_scan()
+                body = json.dumps({
+                    **trigger,
+                    "message": (
+                        "Scanner đang quét; bảng sẽ tự cập nhật khi chu kỳ hoàn tất."
+                        if trigger["status"] == "in_progress"
+                        else "Đã xếp hàng yêu cầu quét; bảng sẽ tự cập nhật khi có snapshot mới."
+                    ),
+                }).encode("utf-8")
+                self._set_headers(202, content_length=len(body))
+                self.wfile.write(body)
             except Exception as exc:
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"error": str(exc)}).encode('utf-8'))
@@ -2675,6 +2684,10 @@ class APIHandler(BaseHTTPRequestHandler):
     def get_candidates(self):
         rows: list[dict[str, Any]] = []
         data_is_stale = False
+        stale_after_minutes = max(
+            2 * int(_settings.scanner.poll_interval_minutes),
+            int(_settings.scanner.max_heartbeat_age_minutes),
+        )
 
         # Prefer the scanner-published snapshot. The scanner owns DuckDB's
         # writer lock for its whole lifetime on Windows, so a read-only API
@@ -2697,7 +2710,7 @@ class APIHandler(BaseHTTPRequestHandler):
                         generated_dt = generated_dt.replace(tzinfo=timezone.utc)
                     data_is_stale = (
                         datetime.now(timezone.utc) - generated_dt
-                    ).total_seconds() > 6 * 60 * 60
+                    ).total_seconds() > stale_after_minutes * 60
                 except ValueError:
                     data_is_stale = True
         else:
@@ -2741,15 +2754,41 @@ class APIHandler(BaseHTTPRequestHandler):
             row_is_stale = data_is_stale
             if scan_dt is not None:
                 age_minutes = (now - scan_dt).total_seconds() / 60.0
-                row_is_stale = row_is_stale or age_minutes > 6 * 60
+                row_is_stale = row_is_stale or age_minutes > stale_after_minutes
                 display_age = max(0.0, age_minutes)
                 age_str = f"{display_age:.0f}m ago" if display_age < 120 else f"{display_age / 60:.1f}h ago"
+            recommendation = str(r.get("recommendation") or "").upper()
+            calibrated_probability = r.get("calibrated_probability")
+            quality_status = r.get("quality_status")
+            data_quality_score = r.get("data_quality_score")
+            alertable = bool(
+                not row_is_stale
+                and recommendation in {"HIGH_CONFIDENCE", "WATCH"}
+                and calibrated_probability is not None
+                and quality_status == "valid"
+            )
+            risk = (
+                _scan_risk_level(
+                    recommendation,
+                    float(calibrated_probability or 0.0),
+                )
+                if recommendation
+                else _risk_bucket(r["score"])
+            )
             candidates.append({
                 "symbol": r["symbol"],
                 "scan_time": _system_history_timestamp(scan_dt) if scan_dt is not None else scan_time,
                 "price": r.get("close_price") or 0.0,
                 "score": r["score"],
-                "risk": _risk_bucket(r["score"]),
+                "risk": risk,
+                "recommendation": recommendation or None,
+                "model_probability": r.get("model_probability"),
+                "calibrated_probability": calibrated_probability,
+                "data_quality_score": data_quality_score,
+                "quality_status": quality_status,
+                "max_feature_age_minutes": r.get("max_feature_age_minutes"),
+                "horizon_hours": r.get("horizon_hours"),
+                "alertable": alertable,
                 "oi_24h": f"{r['oi_change_24h']:+.1%}" if r.get("oi_change_24h") is not None else "N/A",
                 "funding": f"{r['funding_rate']:+.3%}" if r.get("funding_rate") is not None else "N/A",
                 "taker_ratio": r.get("taker_sell_ratio") if r.get("taker_sell_ratio") is not None else 0.5,
@@ -2782,6 +2821,10 @@ class APIHandler(BaseHTTPRequestHandler):
             payload["available"] = True
             generated_at = payload.get("generated_at")
             stale = True
+            stale_after_minutes = max(
+                2 * int(_settings.scanner.poll_interval_minutes),
+                int(_settings.scanner.max_heartbeat_age_minutes),
+            )
             if isinstance(generated_at, str):
                 try:
                     generated_dt = datetime.fromisoformat(
@@ -2791,7 +2834,7 @@ class APIHandler(BaseHTTPRequestHandler):
                         generated_dt = generated_dt.replace(tzinfo=timezone.utc)
                     stale = (
                         datetime.now(timezone.utc) - generated_dt
-                    ).total_seconds() > 6 * 60 * 60
+                    ).total_seconds() > stale_after_minutes * 60
                 except ValueError:
                     stale = True
             payload["stale"] = stale

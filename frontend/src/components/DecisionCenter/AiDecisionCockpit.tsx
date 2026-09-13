@@ -61,6 +61,14 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
 
   const effectiveProbabilityPct = signalProbPct ?? deepProbabilityPct ?? detailProbPct;
 
+  const twoTierLabel = (state?: string | null) => {
+    if (state === 'FIRED') return t('feed_tag_fired');
+    if (state === 'ARMED') return t('feed_tag_armed');
+    if (state === 'WATCH') return t('ws_rec_watch_badge');
+    if (state === 'NORMAL' || state === 'STANDBY') return t('ws_rec_standby_badge');
+    return state || '—';
+  };
+
   const signalState = matchedSignal?.two_tier_state;
   const passesQualityGate = effectiveProbabilityPct != null && effectiveProbabilityPct >= ALERT_THRESHOLD_PCT;
   const recommendation = passesQualityGate
@@ -100,7 +108,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
               </span>
               {(matchedSignal || (isDeepMatching && deepAnalysis?.two_tier_analysis)) && (
                 <span className="text-[9px] font-mono text-violet-400 ml-1">
-                  Tier Score: {deepAnalysis?.two_tier_analysis?.total_score ?? '—'}
+                  {language === 'en' ? 'Tier score' : 'Điểm hai tầng'}: {deepAnalysis?.two_tier_analysis?.total_score ?? '—'}
                 </span>
               )}
             </div>
@@ -132,7 +140,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
               matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED' || deepAnalysis?.two_tier_analysis?.htf_state === 'ARMED'
                 ? 'bg-red-900 text-red-200 animate-pulse' : 'text-slate-500'
             }`}>
-              {((matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED') ? 'ARMED' : deepAnalysis?.two_tier_analysis?.htf_state) || '—'}
+              {twoTierLabel((matchedSignal?.two_tier_state === 'FIRED' || matchedSignal?.two_tier_state === 'ARMED') ? 'ARMED' : deepAnalysis?.two_tier_analysis?.htf_state)}
             </span>
           </div>
           <div className={`p-1.5 rounded-lg border flex items-center justify-between text-[9px] font-mono ${
@@ -144,7 +152,7 @@ export const AiDecisionCockpit: React.FC<AiDecisionCockpitProps> = ({
               matchedSignal?.two_tier_state === 'FIRED' || deepAnalysis?.two_tier_analysis?.ltf_state === 'FIRED'
                 ? 'bg-amber-500 text-slate-950' : 'text-slate-500'
             }`}>
-              {matchedSignal?.two_tier_state === 'FIRED' ? 'FIRED' : (deepAnalysis?.two_tier_analysis?.ltf_state || '—')}
+              {twoTierLabel(matchedSignal?.two_tier_state === 'FIRED' ? 'FIRED' : deepAnalysis?.two_tier_analysis?.ltf_state)}
             </span>
           </div>
         </div>

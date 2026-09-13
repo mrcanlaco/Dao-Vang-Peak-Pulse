@@ -39,7 +39,7 @@ export const StickyActionBar: React.FC<StickyActionBarProps> = ({
   const probValue = probability != null ? (probability <= 1 ? probability * 100 : probability) : null;
 
   return (
-    <div className="fixed bottom-[52px] left-0 right-0 z-30 sm:hidden bg-slate-950/95 backdrop-blur-md border-t border-slate-800/90 px-3 py-2 shadow-2xl">
+    <div data-testid="mobile-sticky-actions" className="mobile-sticky-actions fixed left-0 right-0 z-30 sm:hidden bg-slate-950/95 backdrop-blur-md border-t border-slate-800/90 px-3 py-2 shadow-2xl">
       <div className="flex items-center justify-between gap-2 max-w-lg mx-auto">
         {/* Coin Info Left */}
         <div className="flex flex-col min-w-0 pr-1">

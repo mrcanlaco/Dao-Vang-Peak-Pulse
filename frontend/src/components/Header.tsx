@@ -375,7 +375,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 text-sm font-bold text-slate-950 shadow-md shadow-amber-500/20 group-hover:scale-105 transition">
                 🪙
               </div>
-              <div className="hidden 2xl:block">
+              <div className="hidden xl:block">
                 <div className="text-[8px] font-semibold uppercase tracking-[0.16em] text-amber-400/80 leading-none">
                   {t('app_subtitle')}
                 </div>
@@ -427,7 +427,7 @@ export const Header: React.FC<HeaderProps> = ({
                 title={language === 'en' ? 'Active AI Model running on the server' : language === 'zh' ? '服务器正在运行的AI模型' : language === 'ko' ? '서버에서 실행 중인 활성 AI 모델' : 'Mô hình AI đang vận hành trực tiếp trên máy chủ'}
               >
                 <Cpu className="h-3.5 w-3.5 shrink-0 text-sky-400" />
-                <span className="truncate">V3.1 Sniper Target</span>
+                <span className="truncate">V3.1 Săn Đỉnh</span>
                 <span className="text-emerald-400 animate-pulse" title={t('online_247')}>●</span>
               </div>
             </div>

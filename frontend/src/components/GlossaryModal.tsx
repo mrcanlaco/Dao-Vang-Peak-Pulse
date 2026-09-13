@@ -133,7 +133,7 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({ isOpen, onClose })
           <div className="text-xs text-slate-300 leading-relaxed">
             <p className="mb-1">
               <strong className="text-amber-400">
-                {language === 'en' ? 'DAO VANG AI Radar' : language === 'zh' ? '刀锋 PeakPulse AI 雷达' : language === 'ko' ? '다오방 AI 레이더' : 'Đảo Vàng AI Radar'}
+                Đảo Vàng AI Radar
               </strong>{' '}
               {language === 'en' 
                 ? 'provides early detection of distribution phases before major crypto price drops. The system continuously scans Binance Futures pairs 24/7 across multi-dimensional derivatives metrics.'
@@ -186,7 +186,7 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({ isOpen, onClose })
             </div>
             <p className="text-[11px] text-slate-400">
               {language === 'en'
-                ? 'DAO VANG AI provides early probabilistic risk indicators. Always practice disciplined risk management, avoid overleveraging on newly listed meme tokens, and observe BTC market regime conditions.'
+                ? 'Đảo Vàng AI Radar provides early probabilistic risk indicators. Always practice disciplined risk management, avoid overleveraging on newly listed meme tokens, and observe BTC market regime conditions.'
                 : language === 'zh'
                 ? '刀锋 AI 提供高概率的早期风险预警。请始终执行严格的风控纪律，避免在极高波动的新币上过度杠杆，并密切结合 BTC 宏观环境。'
                 : language === 'ko'

@@ -49,6 +49,7 @@ interface FloatingAiAssistantProps {
   selectedModelKey: string;
   scannerModelId: string;
   status: SystemStatus | null;
+  hasMobileActionBar?: boolean;
 }
 
 const DEFAULT_SYMBOL = 'BTCUSDT';
@@ -80,6 +81,7 @@ export const FloatingAiAssistant = ({
   selectedModelKey,
   scannerModelId,
   status,
+  hasMobileActionBar = false,
 }: FloatingAiAssistantProps) => {
   const { language } = useTranslation();
   const isEn = language === 'en';
@@ -170,7 +172,7 @@ export const FloatingAiAssistant = ({
       candidates: candidatesCount,
       tracked_positions: trackingCount,
     },
-    assistant_scope: 'Trả lời câu hỏi về tính năng DAO VANG, cách dùng màn hình hiện tại và dữ liệu coin đang mở.',
+    assistant_scope: 'Trả lời câu hỏi về tính năng Đảo Vàng AI Radar, cách dùng màn hình hiện tại và dữ liệu coin đang mở.',
   }), [
     activeScanModes,
     activeTab,
@@ -220,12 +222,12 @@ export const FloatingAiAssistant = ({
   ]);
 
   const welcomeContent = isZh
-    ? `👋 你好！我是 **DAO VANG** 应用助手。当前位于 **${tabLabel}**，正在查看 **${symbol}**。你可以询问功能、模型、指标或当前页面的操作方式。`
+    ? `👋 你好！我是 **Đảo Vàng AI Radar** 应用助手。当前位于 **${tabLabel}**，正在查看 **${symbol}**。你可以询问功能、模型、指标或当前页面的操作方式。`
     : isKo
-      ? `👋 안녕하세요! **DAO VANG** 앱 어시스턴트입니다. 현재 **${tabLabel}**에서 **${symbol}**을(를) 보고 있습니다. 기능, 모델, 지표 또는 화면 사용법을 물어보세요.`
+      ? `👋 안녕하세요! **Đảo Vàng AI Radar** 앱 어시스턴트입니다. 현재 **${tabLabel}**에서 **${symbol}**을(를) 보고 있습니다. 기능, 모델, 지표 또는 화면 사용법을 물어보세요.`
       : isEn
-        ? `👋 Hi! I’m the **DAO VANG** app assistant. You’re on **${tabLabel}**, with **${symbol}** in context. Ask about features, models, metrics, or how to use this screen.`
-        : `👋 Xin chào! Tôi là trợ lý của ứng dụng **DAO VANG**. Bạn đang ở **${tabLabel}**, với **${symbol}** trong ngữ cảnh. Hãy hỏi về tính năng, mô hình, chỉ số hoặc cách dùng màn hình này.`;
+        ? `👋 Hi! I’m the **Đảo Vàng AI Radar** app assistant. You’re on **${tabLabel}**, with **${symbol}** in context. Ask about features, models, metrics, or how to use this screen.`
+        : `👋 Xin chào! Tôi là trợ lý của ứng dụng **Đảo Vàng AI Radar**. Bạn đang ở **${tabLabel}**, với **${symbol}** trong ngữ cảnh. Hãy hỏi về tính năng, mô hình, chỉ số hoặc cách dùng màn hình này.`;
 
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -234,7 +236,7 @@ export const FloatingAiAssistant = ({
     role: 'assistant',
     content: welcomeContent,
     timestamp: timestamp(),
-    providerUsed: 'PeakPulse App Assistant',
+    providerUsed: 'Trợ lý Đảo Vàng AI Radar',
   }]);
   const [inputQuestion, setInputQuestion] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -305,32 +307,32 @@ export const FloatingAiAssistant = ({
   const quickPrompts = useMemo(() => {
     if (isZh) {
       return [
-        { label: '🧭 应用有哪些功能？', prompt: '请介绍 DAO VANG 应用的主要功能和完整使用流程。' },
+        { label: '🧭 应用有哪些功能？', prompt: '请介绍 Đảo Vàng AI Radar 应用的主要功能和完整使用流程。' },
         { label: '📚 解释当前页面', prompt: `请解释当前的 ${tabLabel} 页面应该如何使用，以及关键字段代表什么。` },
-        { label: '🧠 当前模型如何工作？', prompt: '当前 DAO VANG 使用什么模型？概率、风险等级和信号是如何得到的？' },
+        { label: '🧠 当前模型如何工作？', prompt: '当前 Đảo Vàng AI Radar 使用什么模型？概率、风险等级和信号是如何得到的？' },
         { label: '📊 分析当前币种', prompt: `请结合当前数据分析 ${symbol}，并说明最重要的风险依据。` },
       ];
     }
     if (isKo) {
       return [
-        { label: '🧭 앱 기능은 무엇인가요?', prompt: 'DAO VANG 앱의 주요 기능과 전체 사용 흐름을 설명해 주세요.' },
+        { label: '🧭 앱 기능은 무엇인가요?', prompt: 'Đảo Vàng AI Radar 앱의 주요 기능과 전체 사용 흐름을 설명해 주세요.' },
         { label: '📚 현재 화면 설명', prompt: `현재 ${tabLabel} 화면을 어떻게 사용하는지, 주요 필드의 의미를 설명해 주세요.` },
-        { label: '🧠 모델은 어떻게 작동하나요?', prompt: '현재 DAO VANG 모델과 확률, 위험 등급, 시그널 산출 방식을 설명해 주세요.' },
+        { label: '🧠 모델은 어떻게 작동하나요?', prompt: '현재 Đảo Vàng AI Radar 모델과 확률, 위험 등급, 시그널 산출 방식을 설명해 주세요.' },
         { label: '📊 현재 코인 분석', prompt: `현재 데이터로 ${symbol}을 분석하고 핵심 리스크 근거를 알려 주세요.` },
       ];
     }
     if (isEn) {
       return [
-        { label: '🧭 What can this app do?', prompt: 'Explain DAO VANG’s main features and the recommended end-to-end workflow.' },
+        { label: '🧭 What can this app do?', prompt: 'Explain Đảo Vàng AI Radar’s main features and the recommended end-to-end workflow.' },
         { label: '📚 Explain this screen', prompt: `Explain how to use the current ${tabLabel} screen and what its key fields mean.` },
-        { label: '🧠 How does the model work?', prompt: 'What model is DAO VANG using now, and how are probability, risk, and signals produced?' },
+        { label: '🧠 How does the model work?', prompt: 'What model is Đảo Vàng AI Radar using now, and how are probability, risk, and signals produced?' },
         { label: '📊 Analyze current coin', prompt: `Analyze ${symbol} using the current context and explain the most important risk evidence.` },
       ];
     }
     return [
-      { label: '🧭 Ứng dụng có tính năng gì?', prompt: 'Hãy giới thiệu các tính năng chính của DAO VANG và quy trình sử dụng từ đầu đến cuối.' },
+      { label: '🧭 Ứng dụng có tính năng gì?', prompt: 'Hãy giới thiệu các tính năng chính của Đảo Vàng AI Radar và quy trình sử dụng từ đầu đến cuối.' },
       { label: '📚 Giải thích màn hình này', prompt: `Hãy giải thích cách dùng màn hình ${tabLabel} hiện tại và ý nghĩa các trường quan trọng.` },
-      { label: '🧠 Mô hình hoạt động thế nào?', prompt: 'DAO VANG đang dùng mô hình nào? Xác suất, mức rủi ro và tín hiệu được tạo ra như thế nào?' },
+      { label: '🧠 Mô hình hoạt động thế nào?', prompt: 'Đảo Vàng AI Radar đang dùng mô hình nào? Xác suất, mức rủi ro và tín hiệu được tạo ra như thế nào?' },
       { label: '📊 Phân tích coin hiện tại', prompt: `Hãy phân tích ${symbol} theo dữ liệu hiện tại và giải thích các bằng chứng rủi ro quan trọng nhất.` },
     ];
   }, [isEn, isKo, isZh, symbol, tabLabel]);
@@ -396,7 +398,7 @@ export const FloatingAiAssistant = ({
         role: 'assistant',
         content: data.answer || (isEn ? 'No answer was returned.' : 'Không nhận được câu trả lời từ máy chủ.'),
         timestamp: timestamp(),
-        providerUsed: data.provider && data.model ? `${data.provider} · ${data.model}` : 'PeakPulse Assistant',
+        providerUsed: data.provider && data.model ? `${data.provider} · ${data.model}` : 'Trợ lý Đảo Vàng AI Radar',
       }]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Network error';
@@ -417,11 +419,15 @@ export const FloatingAiAssistant = ({
 
   return (
     <>
-      <div className="fixed right-2 bottom-[calc(7.75rem+env(safe-area-inset-bottom))] z-[45] flex flex-col items-end gap-3 sm:right-5 sm:bottom-5">
+      <div className={`fixed right-2 z-[45] flex flex-col items-end gap-3 sm:right-5 sm:bottom-5 ${
+        guiVersion === 'v2'
+          ? hasMobileActionBar ? 'mobile-ai-anchor-actions' : 'mobile-ai-anchor-nav'
+          : 'mobile-ai-anchor-default'
+      }`}>
         {isOpen ? (
           <section
             role="dialog"
-            aria-label={isEn ? 'DAO VANG AI assistant' : 'Trợ lý AI DAO VANG'}
+            aria-label={isEn ? 'Đảo Vàng AI Radar assistant' : 'Trợ lý Đảo Vàng AI Radar'}
             className="flex h-[min(640px,calc(100dvh-9.5rem))] w-[min(420px,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border border-amber-500/30 bg-slate-950/95 shadow-2xl shadow-black/50 backdrop-blur-2xl sm:h-[min(680px,calc(100vh-2.5rem))] sm:w-[420px]"
           >
             <div className="flex items-center justify-between gap-3 border-b border-slate-800/90 bg-slate-900/90 px-3.5 py-3">
@@ -432,7 +438,7 @@ export const FloatingAiAssistant = ({
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 truncate text-xs font-bold text-slate-100 sm:text-sm">
-                    <span>{isEn ? 'DAO VANG Assistant' : isZh ? 'DAO VANG 应用助手' : isKo ? 'DAO VANG 앱 어시스턴트' : 'Trợ lý ứng dụng DAO VANG'}</span>
+                    <span>{isEn ? 'Đảo Vàng AI Radar Assistant' : isZh ? 'Đảo Vàng AI Radar 应用助手' : isKo ? 'Đảo Vàng AI Radar 앱 어시스턴트' : 'Trợ lý Đảo Vàng AI Radar'}</span>
                     <span className="rounded border border-cyan-500/25 bg-cyan-500/10 px-1.5 py-0.5 font-mono text-[9px] font-bold text-cyan-300">LIVE</span>
                   </div>
                   <p className="truncate text-[10px] text-slate-400">
@@ -595,10 +601,11 @@ export const FloatingAiAssistant = ({
           </section>
         ) : (
           <button
+            data-testid="floating-ai-button"
             type="button"
             onClick={() => setOpen(true)}
             aria-expanded={false}
-            aria-label={isEn ? 'Open DAO VANG AI assistant' : 'Mở Trợ lý AI DAO VANG'}
+            aria-label={isEn ? 'Open Đảo Vàng AI Radar assistant' : 'Mở Trợ lý Đảo Vàng AI Radar'}
             className="group relative flex h-14 w-14 items-center justify-center rounded-full border border-amber-300/70 bg-gradient-to-br from-amber-300 via-amber-500 to-orange-600 text-slate-950 shadow-xl shadow-amber-950/50 transition hover:scale-105 hover:shadow-amber-500/30 focus:outline-none focus:ring-2 focus:ring-amber-300 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
             <span className="absolute inset-0 rounded-full bg-amber-400/30 animate-ping" />
@@ -607,7 +614,7 @@ export const FloatingAiAssistant = ({
               <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-orange-500 bg-emerald-400" />
             </span>
             <span className="pointer-events-none absolute bottom-full right-0 mb-2 w-max max-w-[220px] translate-y-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-[10px] font-medium text-slate-200 opacity-0 shadow-xl transition group-hover:translate-y-0 group-hover:opacity-100">
-              {isEn ? 'Ask DAO VANG Assistant' : isZh ? '询问 DAO VANG 助手' : isKo ? 'DAO VANG 어시스턴트에게 질문' : 'Hỏi Trợ lý DAO VANG'}
+              {isEn ? 'Ask Đảo Vàng AI Radar' : isZh ? '询问 Đảo Vàng AI Radar 助手' : isKo ? 'Đảo Vàng AI Radar 어시스턴트에게 질문' : 'Hỏi Trợ lý Đảo Vàng AI Radar'}
             </span>
           </button>
         )}

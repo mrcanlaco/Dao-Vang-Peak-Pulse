@@ -4,7 +4,7 @@ import { LockScreen } from './components/LockScreen';
 import type { MobileTabType } from './components/v2/MobileBottomNav';
 import type { WorkspaceTab } from './components/WorkspaceTabBar';
 import type {
-  SignalItem, CoinDetail, CandidateCoin, CandidateFilterComparison, ModelAudit, MarketOverviewData, SystemStatus, FilterTag, SignalSort, TelegramFilter, AutomationSettings, ScannerTelemetry, WatchlistPreset, DeepAnalysis, ModelChoice, ModelsData, TrackingWatchlistItem
+  SignalItem, CoinDetail, CandidateCoin, CandidateRefreshStatus, ModelAudit, MarketOverviewData, SystemStatus, FilterTag, SignalSort, TelegramFilter, AutomationSettings, ScannerTelemetry, WatchlistPreset, DeepAnalysis, ModelChoice, ModelsData, TrackingWatchlistItem
 } from './types';
 import { isSignalFired, isSignalArmed } from './types';
 import { parseSystemDate } from './utils/time';
@@ -64,7 +64,6 @@ export function App() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [signals, setSignals] = useState<SignalItem[]>([]);
   const [candidates, setCandidates] = useState<CandidateCoin[]>([]);
-  const [candidateComparison, setCandidateComparison] = useState<CandidateFilterComparison | null>(null);
   const [auditData, setAuditData] = useState<ModelAudit | null>(null);
   const [marketData, setMarketData] = useState<MarketOverviewData | null>(null);
   const [telemetryData, setTelemetryData] = useState<ScannerTelemetry | null>(null);
@@ -130,6 +129,7 @@ export function App() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isRefreshingCandidates, setIsRefreshingCandidates] = useState(false);
+  const [candidateRefreshStatus, setCandidateRefreshStatus] = useState<CandidateRefreshStatus>('idle');
   const [loadingStep, setLoadingStep] = useState<string | null>(null);
   const [isTriggeringScan, setIsTriggeringScan] = useState(false);
   const [scanTriggeredSuccess, setScanTriggeredSuccess] = useState<string | null>(null);
@@ -214,23 +214,46 @@ export function App() {
     return Array.isArray(res) ? res : [];
   };
 
-  const loadCandidateComparison = async (): Promise<CandidateFilterComparison | null> => {
-    return fetchJsonOr<CandidateFilterComparison | null>('/api/candidates/compare', null);
-  };
-
   const handleRefreshCandidates = async () => {
     setIsRefreshingCandidates(true);
+    setCandidateRefreshStatus('idle');
     try {
+      const beforeFingerprint = candidates
+        .map((candidate) => `${candidate.symbol}:${candidate.scan_time || ''}`)
+        .join('|');
       const res = await fetch('/api/candidates/refresh', { method: 'POST' });
-      const data = await res.json().catch(() => ({}));
-      if (Array.isArray(data?.candidates)) {
-        setCandidates(data.candidates);
-      } else {
+      if (!res.ok) throw new Error(`Candidate refresh HTTP ${res.status}`);
+      setCandidateRefreshStatus('queued');
+
+      const telemetry = await fetchJsonOr<ScannerTelemetry | null>('/api/scanner/telemetry', null);
+      if (!telemetry || telemetry.scanner_engine_status === 'OFFLINE') {
         setCandidates(await loadCandidates());
+        setCandidateRefreshStatus('queued');
+        return;
       }
-      setCandidateComparison(await loadCandidateComparison());
+
+      // A scan runs in a separate daemon and can take 1-2 minutes. Keep the
+      // spinner truthful and wait for a different snapshot instead of
+      // immediately presenting the pre-scan cache as a successful refresh.
+      const deadline = Date.now() + 150_000;
+      let receivedFreshSnapshot = false;
+      while (Date.now() < deadline) {
+        await new Promise(resolve => window.setTimeout(resolve, 2_000));
+        const freshCandidates = await loadCandidates();
+        const freshFingerprint = freshCandidates
+          .map((candidate) => `${candidate.symbol}:${candidate.scan_time || ''}`)
+          .join('|');
+        if (freshFingerprint !== beforeFingerprint) {
+          setCandidates(freshCandidates);
+          receivedFreshSnapshot = true;
+          break;
+        }
+      }
+      setCandidates(await loadCandidates());
+      setCandidateRefreshStatus(receivedFreshSnapshot ? 'updated' : 'timeout');
     } catch (err) {
       console.error('Candidate ranking refresh error:', err);
+      setCandidateRefreshStatus('error');
     } finally {
       setIsRefreshingCandidates(false);
     }
@@ -249,7 +272,6 @@ export function App() {
 
       setLoadingStep(getStepText('s3', language));
       const candRes = await loadCandidates().catch(() => []);
-      const comparisonRes = await loadCandidateComparison();
 
       setLoadingStep(getStepText('s4', language));
       const auditRes = await fetchJsonOr<ModelAudit | null>('/api/audit', null);
@@ -276,7 +298,6 @@ export function App() {
       setStatus(statusRes);
       if (sigRes !== null) setSignals(sigRes);
       setCandidates(candRes);
-      setCandidateComparison(comparisonRes);
       setAuditData(auditRes);
       setMarketData(mktRes);
       setTelemetryData(telemRes);
@@ -362,8 +383,11 @@ export function App() {
         const telemRes = await fetchJsonOr<ScannerTelemetry | null>('/api/scanner/telemetry', null);
         if (telemRes) setTelemetryData(telemRes);
       } catch {}
-      const freshComparison = await loadCandidateComparison();
-      if (freshComparison !== null) setCandidateComparison(freshComparison);
+      try {
+        setCandidates(await loadCandidates());
+      } catch {
+        // keep previous snapshot
+      }
     }, 30_000);
     return () => window.clearInterval(timer);
   }, [isAuthenticated]);
@@ -792,6 +816,10 @@ export function App() {
     );
   }
 
+  const showMobileActionBar = guiVersion === 'v2'
+    && Boolean(coinDetail || selectedSignal)
+    && mobileTab === 'ANALYSIS';
+
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#080c14]" aria-label="Loading dashboard" />}>
       <div className="min-h-screen bg-[#080c14] text-slate-100 flex flex-col font-sans">
@@ -860,7 +888,11 @@ export function App() {
       {/* Main Workspace Layout - Full 12 columns by default (or 9 cols if Action Drawer open) */}
       {/* Main Workspace Layout - Full 100% Width */}
       <main className={`flex-1 max-w-[1750px] w-full mx-auto p-2.5 sm:p-3.5 block lg:overflow-hidden ${
-        guiVersion === 'v2' ? 'pb-24 sm:pb-3.5' : ''
+        guiVersion === 'v2'
+          ? showMobileActionBar
+            ? 'mobile-content-with-actions sm:pb-3.5'
+            : 'mobile-content-with-nav sm:pb-3.5'
+          : ''
       }`}>
         {/* Main Workspace & Charts */}
         <div className="min-w-0 w-full h-auto lg:h-[calc(100vh-120px)] lg:min-h-[600px] block">
@@ -869,8 +901,8 @@ export function App() {
             selectedSignal={selectedSignal}
             coinDetail={coinDetail}
             candidates={candidates}
-            candidateComparison={candidateComparison}
             isRefreshingCandidates={isRefreshingCandidates}
+            candidateRefreshStatus={candidateRefreshStatus}
             onRefreshCandidates={handleRefreshCandidates}
             auditData={auditData}
             marketData={marketData}
@@ -943,6 +975,7 @@ export function App() {
         selectedModelKey={selectedModelKey}
         scannerModelId={scannerModelId}
         status={status}
+        hasMobileActionBar={showMobileActionBar}
       />
 
       {/* GUI V2 Mobile Bottom Navigation Bar */}
@@ -972,7 +1005,7 @@ export function App() {
       )}
 
       {/* GUI V2 Sticky Action Bar (Mobile when coin selected) */}
-      {guiVersion === 'v2' && (coinDetail || selectedSignal) && mobileTab === 'ANALYSIS' && (
+      {showMobileActionBar && (
         <StickyActionBar
           symbol={coinDetail?.symbol || selectedSignal?.symbol || ''}
           currentPrice={coinDetail?.current_price || selectedSignal?.signal_price || 0}

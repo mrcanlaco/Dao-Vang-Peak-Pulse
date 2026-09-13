@@ -65,8 +65,9 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
   return (
     <nav
-      aria-label="Mobile Bottom Navigation"
-      className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/90 px-1 py-1 sm:hidden pb-safe"
+      data-testid="mobile-bottom-nav"
+      aria-label={t('mobile_nav_aria') || 'Điều hướng chính trên di động'}
+      className="mobile-bottom-nav fixed left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800/90 px-1 pt-1 sm:hidden"
     >
       <div className="grid grid-cols-5 gap-0.5 items-center justify-around">
         {navItems.map((item) => {

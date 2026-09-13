@@ -469,7 +469,7 @@ export const SystemSettingsTab: React.FC<SystemSettingsTabProps> = ({
                 : isKo
                 ? '외부 LLM이 설정되지 않았거나 일시적으로 사용할 수 없으면 현재 시장 지표, 트레이드 설정 및 가중 점수 항목을 기반으로 결정론적 요약을 생성합니다. 점수 항목은 SHAP 또는 인과 귀속이 아닙니다.'
                 : isEn
-                ? 'When the external LLM is not configured or temporarily unavailable, PeakPulse produces a deterministic summary from current market metrics, trade setup data and weighted score components. Components are not SHAP or causal attribution.'
+                ? 'When the external LLM is not configured or temporarily unavailable, Đảo Vàng AI Radar produces a deterministic summary from current market metrics, trade setup data and weighted score components. Components are not SHAP or causal attribution.'
                 : 'Khi LLM ngoài chưa được cấu hình hoặc tạm thời không khả dụng, hệ thống tạo bản tóm tắt xác định từ chỉ số thị trường, Trade Setup và các thành phần điểm có trọng số hiện có. Các thành phần này không phải SHAP hay quy kết nhân quả.'}
             </p>
           </div>

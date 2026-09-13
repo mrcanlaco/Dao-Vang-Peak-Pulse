@@ -3,6 +3,9 @@ import { expect, test, type Page } from '@playwright/test';
 interface ApiState {
   authenticated: boolean;
   scannerTriggers: number;
+  candidateRefreshes?: number;
+  candidates?: unknown[];
+  signals?: unknown[];
 }
 
 const statusFixture = {
@@ -80,6 +83,7 @@ async function mockApi(page: Page, state: ApiState) {
     const request = route.request();
     const pathname = new URL(request.url()).pathname;
     let body: unknown = {};
+    let status = 200;
 
     if (pathname === '/api/auth/status') {
       body = { auth_required: true, authenticated: state.authenticated };
@@ -98,11 +102,18 @@ async function mockApi(page: Page, state: ApiState) {
     } else if (pathname === '/api/status') {
       body = statusFixture;
     } else if (pathname === '/api/signals') {
-      body = [];
+      body = state.signals ?? [];
     } else if (pathname === '/api/candidates/compare') {
       body = null;
+    } else if (pathname === '/api/candidates/refresh') {
+      state.candidateRefreshes = (state.candidateRefreshes ?? 0) + 1;
+      status = 202;
+      body = { status: 'queued' };
     } else if (pathname === '/api/candidates') {
-      body = [];
+      body = (state.candidates ?? []).map((candidate) => ({
+        ...(candidate as Record<string, unknown>),
+        ...((state.candidateRefreshes ?? 0) > 0 ? { scan_time: '2026-09-13T01:35:37+07:00' } : {}),
+      }));
     } else if (pathname === '/api/audit') {
       body = auditFixture;
     } else if (pathname === '/api/market') {
@@ -122,10 +133,21 @@ async function mockApi(page: Page, state: ApiState) {
     } else if (pathname === '/api/scanner/trigger') {
       state.scannerTriggers += 1;
       body = { ok: true, accepted: true };
+    } else if (pathname.startsWith('/api/coin/')) {
+      body = pathname.endsWith('/deep-analysis')
+        ? {}
+        : {
+            symbol: pathname.split('/')[3],
+            current_price: 1.25,
+            probability: 0.82,
+            risk_level: 'CRITICAL',
+            metrics: {},
+            chart_data: [],
+          };
     }
 
     await route.fulfill({
-      status: 200,
+      status,
       contentType: 'application/json',
       body: JSON.stringify(body),
     });
@@ -187,4 +209,76 @@ test('scanner trigger and model audit report remain operable', async ({ page }) 
   await expect(page.getByTestId('model-audit-report')).toBeVisible();
   await expect(page.getByTestId('model-audit-report')).toContainText('frozen_test');
   await expect(page.getByTestId('model-audit-report')).toContainText('36.0%');
+});
+
+test('V1 candidate actions, stale analysis, and refresh feedback remain operable', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('dao_vang_app_language', 'vi');
+  });
+  const candidateBase = {
+    price: 1.25,
+    score: 82.5,
+    risk: 'CRITICAL',
+    oi_24h: '+12.5%',
+    funding: '+0.120%',
+    taker_ratio: 0.68,
+    volume_24h: '$12.0M',
+    age: '2m ago',
+    recommendation: 'HIGH_CONFIDENCE',
+    calibrated_probability: 0.82,
+    data_quality_score: 0.96,
+    quality_status: 'valid',
+    stage: 'DISTRIBUTION',
+  };
+  const state: ApiState = {
+    authenticated: true,
+    scannerTriggers: 0,
+    candidateRefreshes: 0,
+    candidates: [
+      { ...candidateBase, symbol: 'TESTUSDT', scan_time: '2026-09-13T01:30:37+07:00', alertable: true, is_stale: false },
+      { ...candidateBase, symbol: 'OLDUSDT', scan_time: '2026-09-12T01:30:37+07:00', alertable: false, is_stale: true },
+    ],
+    signals: [{
+      id: 'TESTUSDT-signal',
+      symbol: 'TESTUSDT',
+      name: 'TEST',
+      probability: 0.82,
+      risk_level: 'CRITICAL',
+      two_tier_state: 'FIRED',
+      signal_time: '2026-09-13T01:30:37+07:00',
+      signal_price: 1.25,
+      target_drawdown: -8,
+      target_price: 1.15,
+      validity_hours_left: 12,
+      lead_time_avg_hours: 2,
+      oi_change_24h: '+12.5%',
+      taker_sell_ratio: 0.68,
+      funding_rate: '+0.120%',
+      rsi_divergence: true,
+      trade_setup: { entry_price: 1.25, stop_loss: 1.3, tp1: 1.18, tp2: 1.12 },
+    }],
+  };
+  const requestedPaths: string[] = [];
+  page.on('request', request => requestedPaths.push(new URL(request.url()).pathname));
+  await mockApi(page, state);
+  await page.goto('/');
+
+  await page.getByTestId('workspace-tab-ranking').click();
+  await expect(page.getByTestId('candidate-ranking')).toBeVisible();
+  await expect(page.getByText('V1 · Bản chính duy nhất')).toBeVisible();
+  await expect(page.getByText('Dữ liệu 96% · 2m ago').first()).toBeVisible();
+  expect(requestedPaths).not.toContain('/api/candidates/compare');
+
+  await page.getByTestId('candidate-action-TESTUSDT').click();
+  await expect(page.getByText('SHORT SETUP')).toBeVisible();
+  await page.getByTestId('order-modal-close').click();
+
+  await page.getByTestId('workspace-tab-ranking').click();
+  await expect(page.getByTestId('candidate-action-OLDUSDT')).toBeEnabled();
+  await expect(page.getByTestId('candidate-action-OLDUSDT')).toHaveText('Phân tích');
+
+  await page.getByTestId('candidate-refresh').click();
+  await expect.poll(() => state.candidateRefreshes).toBe(1);
+  await expect(page.getByTestId('candidate-refresh-status')).toContainText('Đã cập nhật', { timeout: 10_000 });
+  await expect(page.getByTestId('candidate-refresh')).toBeEnabled();
 });

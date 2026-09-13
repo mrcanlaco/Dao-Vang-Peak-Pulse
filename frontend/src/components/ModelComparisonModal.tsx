@@ -221,7 +221,7 @@ export const ModelComparisonModal: React.FC<ModelComparisonModalProps> = ({
             <span>{t('model_architecture_why') || 'Tại sao Kiến trúc 2 Tầng (V2) đạt độ chính xác cao hơn?'}</span>
           </div>
           <ul className="list-disc list-inside space-y-1 text-slate-300 pl-1">
-            <li><strong>Tầng 1 (Bối cảnh Khung lớn):</strong> Chỉ kích hoạt trạng thái ARMED khi coin đã tăng nóng cực đại (+20% đến +100%) và chạm cản thanh khoản (Không chờ nến đóng đỏ).</li>
+            <li><strong>Tầng 1 (Bối cảnh khung lớn):</strong> Chuyển sang trạng thái sẵn sàng khi coin đã tăng nóng cực đại (+20% đến +100%) và chạm cản thanh khoản (không chờ nến đóng đỏ).</li>
             <li><strong>Tầng 2 (Dòng tiền xả 5m):</strong> Bắt tức thì nhịp xả hàng đầu tiên (OI giảm đột ngột + Taker Sell áp đảo + Râu nến xả), cho phép vào lệnh sát đỉnh với Stop Loss ngắn (+3.5%).</li>
           </ul>
         </div>

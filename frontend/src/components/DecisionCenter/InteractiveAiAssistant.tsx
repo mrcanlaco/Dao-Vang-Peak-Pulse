@@ -123,7 +123,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
         ? `👋 Hello! I am your dedicated AI Quant Assistant for **${symbol}**. Current Mark Price is **$${currentPrice}** with **${prob.toFixed(1)}%** Dump Probability (${riskLevel}). Ask any question or click a prompt below!`
         : `👋 Xin chào! Tôi là Trợ lý Định lượng AI cho cặp **${symbol}**. Giá hiện tại **$${currentPrice}**, Xác suất xả AI **${prob.toFixed(1)}%** (${riskLevel}). Bạn có thể bấm câu hỏi gợi ý nhanh bên dưới hoặc nhập câu hỏi bất kỳ!`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      providerUsed: 'PeakPulse Assistant',
+      providerUsed: 'Trợ lý Đảo Vàng AI Radar',
     };
     setMessages([welcomeMsg]);
   }, [symbol, currentPrice, prob, riskLevel, isEn, isZh, isKo]);
@@ -237,7 +237,7 @@ export const InteractiveAiAssistant: React.FC<InteractiveAiAssistantProps> = ({
     text += `================================================================================\n\n`;
 
     messages.forEach((m) => {
-      const speaker = m.role === 'user' ? `[TRADER (${m.timestamp})]` : `[AI TRỢ LÝ - ${m.providerUsed || 'PeakPulse AI'} (${m.timestamp})]`;
+      const speaker = m.role === 'user' ? `[TRADER (${m.timestamp})]` : `[AI TRỢ LÝ - ${m.providerUsed || 'Đảo Vàng AI Radar'} (${m.timestamp})]`;
       text += `${speaker}:\n${m.content}\n\n--------------------------------------------------------------------------------\n\n`;
     });
 

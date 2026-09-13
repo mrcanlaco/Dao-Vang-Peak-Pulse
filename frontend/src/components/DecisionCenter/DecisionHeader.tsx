@@ -2,6 +2,8 @@ import React from 'react';
 import { Flame, ChevronDown, CheckCircle2, XCircle, Clock, Send, Activity } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import type { CandidateCoin, SignalItem, SignalTradeSetup, RiskLevel } from '../../types';
+import { normalizeProbability } from '../../types';
+import { getRiskLabel } from '../../i18n/translations';
 
 interface DecisionHeaderProps {
   symbol: string;
@@ -34,6 +36,8 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
   displayDetail,
   high24h,
   low24h,
+  probability,
+  riskLevel,
 }) => {
   const { language, t } = useTranslation();
 
@@ -42,11 +46,19 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
     .sort((a, b) => (b.score || 0) - (a.score || 0))
     .slice(0, 5);
 
+  const probabilityPct = normalizeProbability(probability);
+  const stateLabel = selectedSignal?.two_tier_state === 'FIRED'
+    ? t('feed_tag_fired')
+    : selectedSignal?.two_tier_state === 'ARMED'
+      ? t('feed_tag_armed')
+      : t('ws_rec_watch_badge');
+  const localizedRisk = riskLevel ? getRiskLabel(riskLevel, language) : null;
+
 
   // 3. Exact Two-Tier State
   return (
     <div className="bg-gradient-to-r from-slate-950 via-slate-900/90 to-slate-950 border border-slate-800 rounded-xl p-3 sm:px-4 sm:py-3 shadow-md min-w-0">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 min-w-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 min-w-0">
         {/* Left: Ticker info & Price */}
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -111,7 +123,7 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
         </div>
 
         {/* Right: Binance Style 2x2 Stats Grid */}
-        <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-[10px] font-mono shrink-0">
+        <div className="hidden sm:grid grid-cols-2 gap-x-6 gap-y-1.5 text-[10px] font-mono shrink-0">
           <div className="flex flex-col">
             <span className="text-slate-500 font-sans">{language === 'en' ? '24h High' : 'Giá cao nhất 24h'}</span>
             <span className="text-slate-200 font-bold">{high24h ? (high24h < 1 ? high24h.toFixed(5) : high24h.toFixed(4)) : '—'}</span>
@@ -128,6 +140,25 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
             <span className="text-slate-500 font-sans">{language === 'en' ? 'Funding / Countdown' : 'Funding / Đếm ngược'}</span>
             <span className="text-amber-400 font-bold">{displayDetail?.metrics?.funding_rate || '—'}</span>
           </div>
+        </div>
+      </div>
+
+      <div className="mt-2 grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-2.5 py-2 sm:hidden">
+        <div className="min-w-0">
+          <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+            {language === 'en' ? 'Current decision' : 'Quyết định hiện tại'}
+          </div>
+          <div className="truncate text-xs font-black text-amber-300">{stateLabel}</div>
+        </div>
+        <div className="flex items-center gap-1.5 text-right">
+          {localizedRisk && (
+            <span className="rounded-md border border-red-800/70 bg-red-950/70 px-1.5 py-1 text-[9px] font-bold text-red-300">
+              {localizedRisk}
+            </span>
+          )}
+          <span className="font-mono text-lg font-black text-amber-400">
+            {probabilityPct != null ? `${probabilityPct.toFixed(1)}%` : '—'}
+          </span>
         </div>
       </div>
 

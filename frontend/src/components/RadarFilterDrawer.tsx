@@ -477,8 +477,8 @@ export const RadarFilterDrawer: React.FC<RadarFilterDrawerProps> = ({
               <div className="grid grid-cols-3 gap-1.5">
                 {[
                   { id: 'ALL', label: t('filter_all_states') },
-                  { id: 'FIRED', label: '⚡ FIRED Climax' },
-                  { id: 'ARMED', label: '🧭 ARMED Setup' },
+                  { id: 'FIRED', label: `⚡ ${t('feed_tag_fired')}` },
+                  { id: 'ARMED', label: `🧭 ${t('feed_tag_armed')}` },
                 ].map(st => (
                   <button
                     key={st.id}

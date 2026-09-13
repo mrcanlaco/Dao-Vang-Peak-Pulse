@@ -10,6 +10,8 @@
     --accent-red: #ef4444;
     --accent-emerald: #10b981;
     --accent-cyan: #06b6d4;
+    --mobile-nav-height: 3.75rem;
+    --mobile-action-height: 4rem;
   }
 
   body {
@@ -17,6 +19,39 @@
     color: #f8fafc;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     overflow-x: hidden;
+  }
+}
+
+@media (max-width: 639px) {
+  .mobile-bottom-nav {
+    bottom: 0;
+    min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: max(0.25rem, env(safe-area-inset-bottom, 0px));
+  }
+
+  .mobile-sticky-actions {
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px));
+    min-height: var(--mobile-action-height);
+  }
+
+  .mobile-content-with-nav {
+    padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + 1rem);
+  }
+
+  .mobile-content-with-actions {
+    padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-action-height) + env(safe-area-inset-bottom, 0px) + 1rem);
+  }
+
+  .mobile-ai-anchor-default {
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mobile-ai-anchor-nav {
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom, 0px) + 0.75rem);
+  }
+
+  .mobile-ai-anchor-actions {
+    bottom: calc(var(--mobile-nav-height) + var(--mobile-action-height) + env(safe-area-inset-bottom, 0px) + 0.75rem);
   }
 }
 

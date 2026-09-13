@@ -35,6 +35,8 @@ def _decision_summary(item: FilterAuditDecision) -> dict[str, Any]:
         "rank": item.rank,
         "rank_score": item.rank_score,
         "stage": item.stage,
+        "reference_price": item.reference_price,
+        "volume_24h_usd": item.volume_24h_usd,
         "reason_codes": list(item.reason_codes),
     }
 

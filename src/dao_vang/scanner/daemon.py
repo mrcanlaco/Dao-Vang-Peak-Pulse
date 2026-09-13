@@ -1021,6 +1021,8 @@ class ScannerDaemon:
             "heuristic_score",
             "calibrated_probability",
             "data_quality_score",
+            "quality_status",
+            "max_feature_age_minutes",
             "horizon_hours",
             "anomaly_score",
             "anomaly_level",
@@ -1059,7 +1061,8 @@ class ScannerDaemon:
                        price_change_24h, oi_change_24h, funding_rate,
                        taker_sell_ratio, volume_24h_usd, pump_pct, pump_days,
                        model_probability, heuristic_score, calibrated_probability,
-                       data_quality_score, horizon_hours, anomaly_score,
+                       data_quality_score, quality_status, max_feature_age_minutes,
+                       horizon_hours, anomaly_score,
                        anomaly_level, anomaly_count, anomalies_json
                 FROM (
                     SELECT *, ROW_NUMBER() OVER (
@@ -1744,6 +1747,8 @@ class ScannerDaemon:
                         heuristic_score=score.total_score,
                         calibrated_probability=result.calibrated_probability,
                         data_quality_score=result.quality.score,
+                        quality_status=result.quality.status,
+                        max_feature_age_minutes=result.quality.max_feature_age_minutes,
                         horizon_hours=horizon_hours,
                         close_price=close_price,
 

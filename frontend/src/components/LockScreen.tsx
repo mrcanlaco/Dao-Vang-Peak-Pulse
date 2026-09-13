@@ -126,7 +126,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({
 
             <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-amber-400 tracking-wider uppercase mb-1">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>ĐẢO VÀNG QUANT RADAR</span>
+              <span>ĐẢO VÀNG AI RADAR</span>
             </div>
 
             <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
@@ -238,7 +238,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({
 
         {/* Footer info */}
         <div className="text-center mt-4 text-[11px] text-slate-500">
-          Đảo Vàng Signal Command Center © 2026 • AI Quant System
+          Đảo Vàng AI Radar © 2026 • Hệ thống phân tích định lượng
         </div>
       </div>
     </div>

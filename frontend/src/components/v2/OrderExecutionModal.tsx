@@ -144,6 +144,9 @@ export const OrderExecutionModal: React.FC<OrderExecutionModalProps> = ({
           </div>
 
           <button
+            type="button"
+            aria-label="Close"
+            data-testid="order-modal-close"
             onClick={onClose}
             className="p-1.5 rounded-xl bg-slate-800 hover:bg-red-950 text-slate-400 hover:text-red-400 transition"
           >

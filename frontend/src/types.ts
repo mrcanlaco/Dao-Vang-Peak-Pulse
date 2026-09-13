@@ -223,6 +223,14 @@ export interface CandidateCoin extends MarketCapFields {
   volume_24h: string;
   age: string;
   is_stale?: boolean;
+  recommendation?: string | null;
+  model_probability?: number | null;
+  calibrated_probability?: number | null;
+  data_quality_score?: number | null;
+  quality_status?: string | null;
+  max_feature_age_minutes?: number | null;
+  horizon_hours?: number | null;
+  alertable?: boolean;
   stage?: string;
   filter_version?: string;
   pump_pct?: number;
@@ -231,99 +239,6 @@ export interface CandidateCoin extends MarketCapFields {
   anomaly_count?: number;
   anomaly_categories?: string[];
   anomalies?: MarketAnomaly[];
-}
-
-export type CandidateFilterSegment = 'ALL' | 'V2_CHAMPION' | 'V1_CHALLENGER' | 'OVERLAP' | 'V2_UNIQUE' | 'V3_PREVIEW';
-
-export interface CandidateFilterArmMetrics {
-  anchors: number;
-  resolved: number;
-  excluded: number;
-  selected_resolved: number;
-  positive_anchors: number;
-  positive_events: number;
-  anchor_precision: number | null;
-  anchor_recall: number | null;
-  event_recall: number | null;
-  precision_at_10: number | null;
-  episodes_resolved: number;
-  episode_precision: number | null;
-  median_lead_time_minutes: number | null;
-  false_candidates_per_day: number;
-}
-
-export interface CandidateFilterPromotion {
-  ready: boolean;
-  passed: boolean;
-  requires_human_approval: boolean;
-  positive_anchors: number;
-  positive_events: number;
-  min_resolved: number;
-  min_positive_events: number;
-  min_evaluation_days: number;
-  min_challenger_event_recall: number;
-  reasons: string[];
-}
-
-export interface CandidateFilterDecisionSummary {
-  symbol: string;
-  rank?: number | null;
-  rank_score?: number | null;
-  stage?: string;
-  reason_codes?: string[];
-}
-
-export interface CandidateFilterDelta {
-  point: number | null;
-  ci_lower: number | null;
-  ci_upper: number | null;
-  n?: number;
-  n_blocks?: number;
-}
-
-export interface CandidateFilterComparison {
-  available: boolean;
-  enabled: boolean;
-  status: string;
-  generated_at: string | null;
-  stale: boolean;
-  cycle?: number;
-  champion_version?: string;
-  challenger_version?: string;
-  future_versions?: Array<{
-    version: string;
-    name: string;
-    status: string;
-    description: string;
-  }>;
-  universe_count?: number;
-  champion_selected?: number;
-  challenger_selected?: number;
-  overlap?: number;
-  champion_only?: number;
-  challenger_only?: number;
-  neither?: number;
-  selected?: {
-    champion?: CandidateFilterDecisionSummary[];
-    challenger?: CandidateFilterDecisionSummary[];
-    overlap?: CandidateFilterDecisionSummary[];
-    champion_only?: CandidateFilterDecisionSummary[];
-    challenger_only?: CandidateFilterDecisionSummary[];
-  };
-  comparison?: {
-    window_days: number;
-    evaluation_days?: number;
-    champion_version: string;
-    challenger_version: string;
-    metrics: Record<string, CandidateFilterArmMetrics>;
-    paired_deltas?: {
-      precision_at_10: CandidateFilterDelta;
-      event_recall: CandidateFilterDelta;
-      confidence_level: number;
-      bootstrap_samples: number;
-    };
-    promotion: CandidateFilterPromotion;
-  };
 }
 
 export interface CandlePoint {
@@ -865,6 +780,8 @@ export interface ForwardTestResult {
     calibrator_sha256?: string | null;
   };
 }
+
+export type CandidateRefreshStatus = 'idle' | 'queued' | 'updated' | 'timeout' | 'error';
 
 // ===== System History tab =====
 

@@ -413,11 +413,11 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
   const handleCopyAlertText = (sig: SignalItem) => {
     let text = '';
     if (language === 'en') {
-      text = `🚨 [DAO VANG AI ALERT]\n🪙 Coin: ${sig.symbol}\n📊 Probability: ${(sig.probability * 100).toFixed(1)}% (${sig.risk_level})\n🎯 Target Drawdown: ${sig.target_drawdown}% ($${sig.target_price})\n📈 OI Delta 24h: ${sig.oi_change_24h}\n💸 Funding Rate: ${sig.funding_rate}\n⏱️ Validity Left: ${sig.validity_hours_left} hours\n⚡ Key Drivers: ${sig.drivers.map(d => d.name).join(', ')}`;
+      text = `🚨 [ĐẢO VÀNG AI RADAR ALERT]\n🪙 Coin: ${sig.symbol}\n📊 Probability: ${(sig.probability * 100).toFixed(1)}% (${sig.risk_level})\n🎯 Target Drawdown: ${sig.target_drawdown}% ($${sig.target_price})\n📈 OI Delta 24h: ${sig.oi_change_24h}\n💸 Funding Rate: ${sig.funding_rate}\n⏱️ Validity Left: ${sig.validity_hours_left} hours\n⚡ Key Drivers: ${sig.drivers.map(d => d.name).join(', ')}`;
     } else if (language === 'zh') {
-      text = `🚨 [DAO VANG (刀锋) 见顶警报]\n🪙 交易对: ${sig.symbol}\n📊 派发概率: ${(sig.probability * 100).toFixed(1)}% (${sig.risk_level})\n🎯 回撤目标: ${sig.target_drawdown}% ($${sig.target_price})\n📈 24h OI变动: ${sig.oi_change_24h}\n💸 资金费率: ${sig.funding_rate}\n⏱️ 剩余有效时间: ${sig.validity_hours_left} 小时\n⚡ 核心预警因子: ${sig.drivers.map(d => d.name).join(', ')}`;
+      text = `🚨 [ĐẢO VÀNG AI RADAR 见顶警报]\n🪙 交易对: ${sig.symbol}\n📊 派发概率: ${(sig.probability * 100).toFixed(1)}% (${sig.risk_level})\n🎯 回撤目标: ${sig.target_drawdown}% ($${sig.target_price})\n📈 24h OI变动: ${sig.oi_change_24h}\n💸 资金费率: ${sig.funding_rate}\n⏱️ 剩余有效时间: ${sig.validity_hours_left} 小时\n⚡ 核心预警因子: ${sig.drivers.map(d => d.name).join(', ')}`;
     } else if (language === 'ko') {
-      text = `🚨 [DAO VANG (다오방) 피크 경보]\n🪙 페어: ${sig.symbol}\n📊 분산 확률: ${(sig.probability * 100).toFixed(1)}% (${sig.risk_level})\n🎯 하락 목표: ${sig.target_drawdown}% ($${sig.target_price})\n📈 24h OI 변화: ${sig.oi_change_24h}\n💸 펀딩비: ${sig.funding_rate}\n⏱️ 유효 잔여시간: ${sig.validity_hours_left} 시간\n⚡ 핵심 유발 요인: ${sig.drivers.map(d => d.name).join(', ')}`;
+      text = `🚨 [ĐẢO VÀNG AI RADAR 피크 경보]\n🪙 페어: ${sig.symbol}\n📊 분산 확률: ${(sig.probability * 100).toFixed(1)}% (${sig.risk_level})\n🎯 하락 목표: ${sig.target_drawdown}% ($${sig.target_price})\n📈 24h OI 변화: ${sig.oi_change_24h}\n💸 펀딩비: ${sig.funding_rate}\n⏱️ 유효 잔여시간: ${sig.validity_hours_left} 시간\n⚡ 핵심 유발 요인: ${sig.drivers.map(d => d.name).join(', ')}`;
     } else {
       text = `🚨 [CẢNH BÁO ĐẢO VÀNG AI]\n🪙 Coin: ${sig.symbol}\n📊 Điểm rủi ro: ${(sig.probability * 100).toFixed(1)}% (${sig.risk_level})\n🎯 Mục tiêu giảm: ${sig.target_drawdown}% ($${sig.target_price})\n📈 Thay đổi OI 24 giờ: ${sig.oi_change_24h}\n💸 Tỷ lệ funding: ${sig.funding_rate}\n⏱️ Hiệu lực còn: ${sig.validity_hours_left} giờ\n⚡ Lý do AI: ${sig.drivers.map(d => d.name).join(', ')}`;
     }
@@ -787,11 +787,11 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                                   )}
                                   {getSignalTwoTierState(sig) === 'FIRED' ? (
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-red-950 text-amber-300 border border-red-600 animate-pulse">
-                                      FIRED
+                                      {t('feed_tag_fired')}
                                     </span>
                                   ) : getSignalTwoTierState(sig) === 'ARMED' ? (
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/80">
-                                      ARMED
+                                      {t('feed_tag_armed')}
                                     </span>
                                   ) : null}
 
@@ -1031,11 +1031,11 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                                 </h3>
                                 {getSignalTwoTierState(activeInspectedSignal) === 'FIRED' ? (
                                   <span className="px-2 py-0.5 rounded text-[10px] font-black bg-red-950 text-amber-300 border border-red-600 animate-pulse">
-                                    ⚡ FIRED CLIMAX
+                                    ⚡ {t('feed_tag_fired')}
                                   </span>
                                 ) : getSignalTwoTierState(activeInspectedSignal) === 'ARMED' ? (
                                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/80">
-                                    🧭 ARMED SETUP
+                                    🧭 {t('feed_tag_armed')}
                                   </span>
                                 ) : null}
 
@@ -1348,12 +1348,12 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                               {getSignalTwoTierState(sig) === 'FIRED' ? (
                                 <span className="px-2 py-0.5 rounded text-[10px] font-black font-mono bg-red-950 text-amber-300 border border-red-600 animate-pulse flex items-center gap-1 shadow-sm shadow-red-900/50">
                                   <Zap className="w-3 h-3 text-amber-400 fill-amber-400" />
-                                  FIRED
+                                  {t('feed_tag_fired')}
                                 </span>
                               ) : getSignalTwoTierState(sig) === 'ARMED' ? (
                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-amber-950/80 text-amber-300 border border-amber-600/80 flex items-center gap-1">
                                   <Compass className="w-3 h-3 text-amber-400" />
-                                  ARMED
+                                  {t('feed_tag_armed')}
                                 </span>
                               ) : null}
                               {getRiskBadge(sig.risk_level)}

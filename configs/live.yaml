@@ -98,10 +98,10 @@ self_learning:
   state_path: artifacts/self_learning/live_state.json
   report_dir: artifacts/self_learning/live_runs
 
-# Candidate Filter v1 remains the production/Telegram lane.  V2 runs in
-# shadow so its recall and precision can be measured before manual promotion.
+# Single candidate-filter policy: keep the validated V1 production lane.
+# V2 did not pass the promotion gate and is no longer run in shadow.
 candidate_comparison:
-  enabled: true
+  enabled: false
   champion_version: pump_filter_v1
   challenger_version: candidate_filter_v2
   universe_size: 150
