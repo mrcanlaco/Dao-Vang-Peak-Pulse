@@ -480,10 +480,11 @@ class AiConfig(BaseModel):
     base_url: str = Field(default="https://proxy-ai.comaygiauco.com/v1", description="Default OpenAI-compatible base URL")
     enabled: bool = Field(default=True, description="Enable AI analyst by default")
 
-
 class AppSettings(BaseSettings):
     research_v3_enabled: bool = False
     research_v3_telegram_enabled: bool = False
+    research_v3_bot_token: str | None = Field(default=None, exclude=True)
+    research_v3_chat_id: str | None = Field(default=None, exclude=True)
     research_v3_model_path: Path = Path("artifacts/forward48_timing_20260913/forward48_timing_research_model.joblib")
     web: WebConfig = WebConfig()
     ai: AiConfig = AiConfig()

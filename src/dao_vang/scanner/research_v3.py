@@ -276,7 +276,23 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                 if settings and getattr(settings, "research_v3_telegram_enabled", False) and selected:
                     try:
                         from dao_vang.alerts.telegram import TelegramNotifier
-                        notifier = TelegramNotifier(settings.telegram, web_base_url=getattr(settings.web, "public_url", None))
+                        from dao_vang.config.settings import TelegramConfig
+
+                        v3_bot_token = getattr(settings, "research_v3_bot_token", None) or settings.telegram.bot_token
+                        v3_chat_id = (
+                            getattr(settings, "research_v3_chat_id", None)
+                            or getattr(settings.telegram, "shadow_chat_id", None)
+                            or settings.telegram.chat_id
+                        )
+                        tel_cfg = TelegramConfig(
+                            bot_token=v3_bot_token,
+                            chat_id=v3_chat_id,
+                            shadow_chat_id=v3_chat_id,
+                            api_base=settings.telegram.api_base,
+                            timeout_seconds=settings.telegram.timeout_seconds,
+                            language=settings.telegram.language,
+                        )
+                        notifier = TelegramNotifier(tel_cfg, web_base_url=getattr(settings.web, "public_url", None))
                         notifier.send_v3_alert(
                             symbol=symbol,
                             entry_price=price,
@@ -289,7 +305,7 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                             is_scout=bool(item.get("scout")),
                             web_url=getattr(settings.web, "public_url", None),
                             operating_mode=getattr(settings.scanner, "operating_mode", "research"),
-                            shadow_chat_id=getattr(settings.telegram, "shadow_chat_id", None),
+                            shadow_chat_id=v3_chat_id,
                         )
                     except Exception:
                         pass
