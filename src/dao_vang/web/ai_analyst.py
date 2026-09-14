@@ -115,6 +115,8 @@ def build_context_summary(symbol: str, context: dict[str, Any]) -> str:
     sl = trade_setup.get("invalidation_price") or trade_setup.get("sl_price") or trade_setup.get("stop_loss") or "N/A"
     tp1 = trade_setup.get("tp1_price") or trade_setup.get("tp1") or "N/A"
     tp2 = trade_setup.get("tp2_price") or trade_setup.get("tp2") or "N/A"
+    tp1_pct = trade_setup.get("tp1_pct") or "N/A"
+    tp2_pct = trade_setup.get("tp2_pct") or "N/A"
     rr = trade_setup.get("risk_reward_ratio") or trade_setup.get("rr_ratio") or "N/A"
 
     lines = [
@@ -132,8 +134,8 @@ def build_context_summary(symbol: str, context: dict[str, Any]) -> str:
         f"- Khối lượng Vol 24h: {metrics.get('volume_delta_24h', 'N/A')}",
         f"- Vùng vào lệnh (Entry Zone): ${entry}",
         f"- Mức cắt lỗ vi phạm (SL/Invalidation): ${sl}",
-        f"- Chốt lời 1 (TP1 -4%): ${tp1}",
-        f"- Chốt lời 2 (TP2 -8%): ${tp2}",
+        f"- Chốt lời 1 (TP1 -{tp1_pct}%): ${tp1}",
+        f"- Mục tiêu chính (TP2 -{tp2_pct}%): ${tp2}",
         f"- Tỷ lệ Lời/Lỗ (R:R Ratio): {rr}",
         f"- Thành phần đóng góp điểm lớn nhất: {drivers_text}",
         "- Phương pháp diễn giải: trọng số thành phần; không phải SHAP hay quy kết nhân quả",

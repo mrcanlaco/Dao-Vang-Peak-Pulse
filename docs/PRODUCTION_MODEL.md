@@ -22,6 +22,17 @@ CI chạy tests/qa/test_live_release_contract.py để bảo đảm config live 
 đúng bundle, model/calibrator tồn tại, checksum khớp và estimator có thể nạp.
 Serving path cũng kiểm tra checksum và fail closed trước khi phát xác suất.
 
+## Migration mục tiêu 20%/24h
+
+Mục tiêu phát triển hiện tại là `distribution_short_v2`: positive khi giá
+chạm drawdown 20% trong 24 giờ trước khi vi phạm MAE +4%. Contract v1 không bị
+sửa ngược để bảo toàn khả năng tái tạo lịch sử. Model đang phục vụ ở trên vẫn
+là v1/8%; vì chưa có bundle v2 được calibration và kiểm định, production chưa
+được phép trình bày xác suất v1 như xác suất đạt mục tiêu 20%.
+
+Promotion v2 yêu cầu: tạo bundle mới với metadata v2, sinh protocol mới khóa
+checksum, đạt sample/event gates và sau đó mới đổi `scanner.frozen_model_id`.
+
 ## Protocol forward-test độc lập
 
 Hợp đồng đánh giá live được khóa tại

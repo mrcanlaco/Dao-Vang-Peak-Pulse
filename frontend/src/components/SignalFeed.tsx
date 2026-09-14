@@ -161,7 +161,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
       const hasOiAnomaly = sig.anomalies?.some(a => a.category === 'open_interest' || a.category === 'volume');
       if (!hasOiAnomaly && (isNaN(oiVal) || oiVal < 5.0)) return false;
     } else if (f.preset === 'HIGH_RR') {
-      const rr = sig.trade_setup?.rr_ratio ?? (Math.abs(sig.target_drawdown || 8) / (sig.trade_setup?.stop_loss_pct || 3.8));
+      const rr = sig.trade_setup?.rr_ratio ?? (Math.abs(sig.target_drawdown || 20) / (sig.trade_setup?.stop_loss_pct || 3.8));
       if (rr < 2.3) return false;
     } else if (f.preset === 'AI_MEME') {
       const sector = getCoinSector(sig.symbol);
@@ -211,7 +211,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
 
     // 8. Min R:R Ratio
     if (f.minRrRatio !== null && f.minRrRatio !== undefined) {
-      const rr = sig.trade_setup?.rr_ratio ?? (Math.abs(sig.target_drawdown || 8) / (sig.trade_setup?.stop_loss_pct || 3.8));
+      const rr = sig.trade_setup?.rr_ratio ?? (Math.abs(sig.target_drawdown || 20) / (sig.trade_setup?.stop_loss_pct || 3.8));
       if (rr < f.minRrRatio) return false;
     }
 
@@ -1164,14 +1164,14 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                         </div>
 
                         <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
-                          <span className="text-[9px] text-emerald-400 block uppercase">TP1 (-4%)</span>
+                          <span className="text-[9px] text-emerald-400 block uppercase">TP1 (-{activeInspectedSignal.trade_setup?.tp1_pct ?? 4}%)</span>
                           <span className="text-xs sm:text-sm font-bold text-emerald-400 truncate block">
                             ${activeInspectedSignal.trade_setup?.tp1 ?? ((activeInspectedSignal.signal_price || activeInspectedSignal.target_price) * 0.96).toFixed(6)}
                           </span>
                         </div>
 
                         <div className="bg-slate-950 p-2 rounded-lg border border-slate-800/80">
-                          <span className="text-[9px] text-emerald-400 block uppercase">TP2 (-8%)</span>
+                          <span className="text-[9px] text-emerald-400 block uppercase">TP2 (-{activeInspectedSignal.trade_setup?.tp2_pct ?? Math.abs(activeInspectedSignal.target_drawdown)}%)</span>
                           <span className="text-xs sm:text-sm font-bold text-emerald-400 truncate block">
                             ${activeInspectedSignal.trade_setup?.tp2 ?? activeInspectedSignal.target_price}
                           </span>
@@ -1407,11 +1407,11 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                           <span className="font-bold text-red-300 truncate block">${sig.trade_setup?.stop_loss ?? (sig.signal_price ? (sig.signal_price * 1.038).toFixed(4) : 0)}</span>
                         </div>
                         <div className="text-left">
-                          <span className="text-[9px] text-emerald-400 block uppercase">TP1 (-4%)</span>
+                          <span className="text-[9px] text-emerald-400 block uppercase">TP1 (-{sig.trade_setup?.tp1_pct ?? 4}%)</span>
                           <span className="font-bold text-emerald-300 truncate block">${sig.trade_setup?.tp1 ?? (sig.signal_price ? (sig.signal_price * 0.96).toFixed(4) : 0)}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-[9px] text-emerald-400 block uppercase">TP2 (-8%)</span>
+                          <span className="text-[9px] text-emerald-400 block uppercase">TP2 (-{sig.trade_setup?.tp2_pct ?? Math.abs(sig.target_drawdown)}%)</span>
                           <span className="font-bold text-emerald-300 truncate block">${sig.trade_setup?.tp2 ?? sig.target_price}</span>
                         </div>
                       </div>

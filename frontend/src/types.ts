@@ -57,6 +57,33 @@ export interface SignalDriver {
   score: string;
 }
 
+export interface ScaleInEntryLeg {
+  index: number;
+  offset_pct: number;
+  allocation_pct: number;
+  price: number;
+}
+
+export interface ExecutionPolicyAudit {
+  router_version: string;
+  feature_schema_version: string;
+  selector_name: string;
+  selector_version: string;
+  policy_id: string;
+  policy_version: string;
+  scores: Record<string, number | null>;
+  eligible: boolean;
+  advisory_only: boolean;
+  reason_codes: string[];
+  challenger_policy_id?: string | null;
+  challenger_selector?: string | null;
+  decision_checksum: string;
+  entry_legs: ScaleInEntryLeg[];
+  projected_average_entry: number;
+  projected_target_price: number;
+  projected_stop_risk_pct: number;
+}
+
 export interface SignalTradeSetup {
   entry_price?: number;
   entry_zone?: string;
@@ -69,6 +96,11 @@ export interface SignalTradeSetup {
   tp3?: number;
   tp3_pct?: number;
   rr_ratio?: number;
+  target_basis?: string;
+  entry_legs?: ScaleInEntryLeg[];
+  projected_average_entry?: number;
+  projected_stop_risk_pct?: number;
+  execution_policy?: ExecutionPolicyAudit;
 }
 
 export type MarketCapTier = 'LARGE' | 'MID' | 'SMALL' | 'MICRO' | 'UNKNOWN' | string;

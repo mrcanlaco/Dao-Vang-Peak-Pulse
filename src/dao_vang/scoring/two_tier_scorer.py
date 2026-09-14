@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from dao_vang.config.settings import ScoringConfig
+from dao_vang.execution.policy_router import PolicyContext, build_trade_setup
 from dao_vang.logging import get_logger
 from dao_vang.scoring.btc_context import BtcContext
 from dao_vang.scoring.distribution_scorer import (
@@ -232,7 +233,13 @@ def compute_two_tier_distribution_score(
 
     # Calculate trade setup if close price is provided
     close_price = float(features.get("close") or features.get("close_price") or 0.0)
-    trade_setup = calculate_trade_setup(close_price, dist_high=dist_high, features=features)
+    trade_setup = calculate_trade_setup(
+        close_price,
+        dist_high=dist_high,
+        features=features,
+        signal_probability=calibrated_probability,
+        signal_score=total_score,
+    )
 
     logger.info(
         "two_tier_distribution_scored",
@@ -322,38 +329,21 @@ def calculate_trade_setup(
     close_price: float,
     dist_high: float = 0.0,
     features: dict[str, Any] | None = None,
+    signal_probability: float | None = None,
+    signal_score: float | None = None,
 ) -> dict[str, Any]:
-    """Calculate concrete actionable Entry, SL, TP1, TP2, TP3 and Risk/Reward."""
+    """Build the versioned scale-in plan used by research and serving."""
+
+    del dist_high  # Retained for API compatibility with older callers.
     if close_price <= 0:
         return {}
-
-    # Adaptive Stop Loss: above recent sweep high or default +3.5% to +4.0%
-    sl_pct_raw = max(3.2, min(4.5, (dist_high + 0.006) * 100 if dist_high > 0 else 3.8))
-    sl_price = round(close_price * (1.0 + sl_pct_raw / 100.0), 8)
-    sl_pct = round(sl_pct_raw, 1)
-
-    # Multi TP targets
-    tp1_pct = 4.0   # Scalp partial close & move SL to BE
-    tp2_pct = 8.0   # Standard target drawdown
-    tp3_pct = 15.0  # Runner target for full distribution dump
-
-    tp1_price = round(close_price * (1.0 - tp1_pct / 100.0), 8)
-    tp2_price = round(close_price * (1.0 - tp2_pct / 100.0), 8)
-    tp3_price = round(close_price * (1.0 - tp3_pct / 100.0), 8)
-
-    rr_ratio = round(tp2_pct / (sl_pct if sl_pct > 0 else 3.8), 2)
-
-    return {
-        "entry_price": close_price,
-        "entry_zone": f"{close_price * 0.998:.6g} - {close_price * 1.002:.6g}",
-        "stop_loss": sl_price,
-        "stop_loss_pct": sl_pct,
-        "tp1": tp1_price,
-        "tp1_pct": tp1_pct,
-        "tp2": tp2_price,
-        "tp2_pct": tp2_pct,
-        "tp3": tp3_price,
-        "tp3_pct": tp3_pct,
-        "rr_ratio": rr_ratio,
-    }
-
+    feature_values = features or {}
+    return build_trade_setup(
+        signal_price=close_price,
+        context=PolicyContext(
+            signal_probability=signal_probability,
+            signal_score=signal_score,
+            features=feature_values,
+            volume_24h_usd=feature_values.get("volume_24h_usd"),
+        ),
+    )

@@ -131,7 +131,7 @@ export const ModelComparisonModal: React.FC<ModelComparisonModalProps> = ({
                   <span className="font-bold text-emerald-400">{v1.tp1_hit_rate}%</span>
                 </div>
                 <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded">
-                  <span className="text-slate-400">{t('metric_tp2_hit_rate') || 'Đạt Mục Tiêu TP2 (-8%)'}:</span>
+                  <span className="text-slate-400">{t('metric_tp2_hit_rate') || 'Đạt mục tiêu chính'}:</span>
                   <span className="font-bold text-emerald-400">{v1.tp2_hit_rate}%</span>
                 </div>
                 <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded">
@@ -177,7 +177,7 @@ export const ModelComparisonModal: React.FC<ModelComparisonModalProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between items-center bg-violet-950/30 border border-violet-800/30 p-2 rounded">
-                  <span className="text-slate-300">{t('metric_tp2_hit_rate') || 'Đạt Mục Tiêu TP2 (-8%)'}:</span>
+                  <span className="text-slate-300">{t('metric_tp2_hit_rate') || 'Đạt mục tiêu chính'}:</span>
                   <span className="font-bold text-emerald-400 flex items-center gap-1">
                     {v2.tp2_hit_rate}%
                     <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />

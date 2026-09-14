@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from queue import Full, Queue
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 from zoneinfo import ZoneInfo
@@ -42,6 +43,7 @@ from dao_vang.domain.time import (
     system_iso,
     system_now,
 )
+from dao_vang.execution.policy_router import PolicyContext, build_trade_setup
 from dao_vang.scanner.anomalies import detect_market_anomalies
 from dao_vang.scanner.healthcheck import inspect_heartbeat
 from dao_vang.scanner.instance_lock import ScannerAlreadyRunning, ScannerInstanceLock
@@ -78,12 +80,39 @@ logger = logging.getLogger("dao_vang_api")
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DIST_DIR = (REPO_ROOT / "frontend" / "dist").resolve()
 FORWARD_TEST_PROTOCOL_PATH = REPO_ROOT / "configs" / "forward_test_live_v1.json"
+ACTIVE_TARGET_DRAWDOWN = 0.20
+ACTIVE_LABEL_VERSION = "distribution_short_v2"
 
 _settings = load_runtime_settings()
 _AUTH_FAILURES: dict[str, list[float]] = {}
 _AUTH_FAILURE_WINDOW_SECONDS = 300.0
 _AUTH_FAILURE_LIMIT = 5
 WATCHLIST_PATH = _settings.scanner.watchlist_path
+
+
+def _current_model_target_drawdown() -> float:
+    """Return the active bundle's target, falling back to the new v2 goal.
+
+    Existing v1 predictions must remain visibly tied to their original 8%
+    contract until a calibrated v2 bundle is explicitly promoted.
+    """
+
+    model_id = _settings.scanner.frozen_model_id
+    if model_id:
+        metadata_path = (
+            REPO_ROOT / "artifacts" / "frozen_models" / model_id / "metadata.json"
+        )
+        try:
+            payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+            raw_target = (payload.get("label_spec") or {}).get("target_drawdown")
+            if raw_target is None:
+                return ACTIVE_TARGET_DRAWDOWN
+            value = float(raw_target)
+            if 0.0 < value < 1.0:
+                return value
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            pass
+    return ACTIVE_TARGET_DRAWDOWN
 
 data_dir_path = _settings.paths.data_dir
 HEARTBEAT_PATH = data_dir_path / "scanner_heartbeat.json"
@@ -123,6 +152,11 @@ _SIGNALS_RESP_TIME: float = 0.0
 _MARKET_CAP_CACHE_LOCK = threading.Lock()
 _MARKET_CAP_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
 _MARKET_CAP_FAILURE_TTL_SECONDS = 60.0
+_MARKET_CAP_LOOKUP_QUEUE: Queue[tuple[str, float | None]] = Queue(maxsize=200)
+_MARKET_CAP_LOOKUP_PENDING: set[str] = set()
+_MARKET_CAP_LOOKUP_WORKERS_STARTED = False
+_MARKET_CAP_LOOKUP_WORKER_COUNT = 4
+_MARKET_CAP_CANDIDATE_PREFETCH_LIMIT = 30
 _DISK_CRITICAL_USED_PERCENT = 90.0
 _DISK_MIN_FREE_BYTES = 5 * 1024**3
 
@@ -386,12 +420,12 @@ def _resolve_market_cap_info(
     *,
     fetch_remote: bool = False,
 ) -> dict[str, Any]:
-    """Return cached provider data or a labelled local fallback.
+    """Return cached Binance Agent OS data or an unavailable payload.
 
-    The signals endpoint calls this with ``fetch_remote=False`` so a 150-coin
-    Radar refresh never fans out into 150 external requests.  The selected
-    coin detail endpoint opts in to one Binance Agent OS token search and
-    shares the result with later Radar responses.
+    List endpoints call this with ``fetch_remote=False`` and enqueue bounded
+    background lookups separately, so rendering never waits on provider I/O.
+    The selected coin detail endpoint opts in to one immediate lookup and
+    shares the result with later list responses.
     """
     fallback = _build_market_cap_info(symbol, volume_24h_usd)
     cache_key = str(symbol or "").upper().replace("USDT", "").replace("BUSD", "").replace("USDC", "").replace("PERP", "").strip()
@@ -401,24 +435,27 @@ def _resolve_market_cap_info(
         if cached and cached[0] > now_monotonic:
             return dict(cached[1])
 
-    if not fetch_remote or not _settings.coingecko.market_cap_lookup_enabled:
+    if not fetch_remote or not _settings.binance_agent_os.enabled:
         return fallback
 
     info = fallback
     ttl_seconds = _MARKET_CAP_FAILURE_TTL_SECONDS
     try:
-        from dao_vang.data.collectors.coingecko import fetch_market_data
+        from dao_vang.data.collectors.binance_agent_os import fetch_market_cap
 
-        cg_data = fetch_market_data(symbol, _settings.coingecko)
-        if cg_data is not None and cg_data.market_cap_usd > 0:
+        market_cap_usd = fetch_market_cap(symbol, _settings.binance_agent_os)
+        if market_cap_usd is not None and market_cap_usd > 0:
             info = _build_market_cap_info(
                 symbol,
                 volume_24h_usd,
-                market_cap_usd=cg_data.market_cap_usd,
-                source="coingecko",
+                market_cap_usd=market_cap_usd,
+                source="binance_agent_os",
                 updated_at=_system_history_timestamp(datetime.now(timezone.utc)),
             )
-            ttl_seconds = 3600.0
+            ttl_seconds = max(
+                60.0,
+                float(_settings.binance_agent_os.cache_minutes) * 60.0,
+            )
     except Exception as exc:
         logger.warning("market_cap_lookup_failed symbol=%s error=%s", symbol, exc)
 
@@ -427,42 +464,164 @@ def _resolve_market_cap_info(
     return info
 
 
+def _market_cap_lookup_worker() -> None:
+    """Resolve queued market caps without delaying candidate responses."""
+    while True:
+        symbol, volume_24h_usd = _MARKET_CAP_LOOKUP_QUEUE.get()
+        cache_key = str(symbol or "").upper().replace("USDT", "").replace("BUSD", "").replace("USDC", "").replace("PERP", "").strip()
+        try:
+            _resolve_market_cap_info(
+                symbol,
+                volume_24h_usd,
+                fetch_remote=True,
+            )
+        except Exception as exc:
+            logger.warning("market_cap_background_lookup_failed symbol=%s error=%s", symbol, exc)
+        finally:
+            with _MARKET_CAP_CACHE_LOCK:
+                _MARKET_CAP_LOOKUP_PENDING.discard(cache_key)
+            _MARKET_CAP_LOOKUP_QUEUE.task_done()
+
+
+def _schedule_market_cap_lookup(
+    symbol: str,
+    volume_24h_usd: float | None = None,
+) -> bool:
+    """Queue one deduplicated lookup; return whether it was newly queued."""
+    global _MARKET_CAP_LOOKUP_WORKERS_STARTED
+
+    if not _settings.binance_agent_os.enabled:
+        return False
+
+    cache_key = str(symbol or "").upper().replace("USDT", "").replace("BUSD", "").replace("USDC", "").replace("PERP", "").strip()
+    if not cache_key:
+        return False
+
+    now_monotonic = time.monotonic()
+    start_workers = False
+    with _MARKET_CAP_CACHE_LOCK:
+        cached = _MARKET_CAP_CACHE.get(cache_key)
+        if cached and cached[0] > now_monotonic:
+            return False
+        if cache_key in _MARKET_CAP_LOOKUP_PENDING:
+            return False
+        _MARKET_CAP_LOOKUP_PENDING.add(cache_key)
+        if not _MARKET_CAP_LOOKUP_WORKERS_STARTED:
+            _MARKET_CAP_LOOKUP_WORKERS_STARTED = True
+            start_workers = True
+
+    if start_workers:
+        for worker_index in range(_MARKET_CAP_LOOKUP_WORKER_COUNT):
+            threading.Thread(
+                target=_market_cap_lookup_worker,
+                name=f"market-cap-{worker_index + 1}",
+                daemon=True,
+            ).start()
+
+    try:
+        _MARKET_CAP_LOOKUP_QUEUE.put_nowait((symbol, volume_24h_usd))
+    except Full:
+        with _MARKET_CAP_CACHE_LOCK:
+            _MARKET_CAP_LOOKUP_PENDING.discard(cache_key)
+        return False
+    return True
+
+
 def _build_signal_trade_setup(
     close_price: float,
     prob: float = 0.0,
     components: list[dict[str, Any]] | None = None,
+    target_drawdown: float = ACTIVE_TARGET_DRAWDOWN,
+    features: dict[str, Any] | None = None,
+    anomalies: list[dict[str, Any]] | None = None,
+    quality_score: float | None = None,
+    signal_score: float | None = None,
+    volume_24h_usd: float | None = None,
+    label_version: str | None = None,
 ) -> dict[str, Any]:
     if not close_price or close_price <= 0:
         return {
             "entry_price": 0.0,
             "entry_zone": "$0.00",
             "stop_loss": 0.0,
-            "stop_loss_pct": 3.8,
+            "stop_loss_pct": 0.0,
             "tp1": 0.0,
-            "tp1_pct": 4.0,
+            "tp1_pct": 8.0,
             "tp2": 0.0,
-            "tp2_pct": 8.0,
+            "tp2_pct": 20.0,
             "tp3": 0.0,
-            "tp3_pct": 12.0,
-            "rr_ratio": 2.1,
+            "tp3_pct": 30.0,
+            "rr_ratio": 0.0,
         }
-    sl_pct = 3.8 if prob < 0.70 else 3.2
-    tp1_pct = 4.0
-    tp2_pct = 8.0
-    tp3_pct = 12.0
-    rr = round(tp2_pct / sl_pct, 2) if sl_pct > 0 else 2.1
+    target_fraction = abs(float(target_drawdown))
+    if target_fraction > 1.0:
+        target_fraction /= 100.0
+    feature_values = dict(features or {})
+    if components:
+        feature_values["component_count"] = len(components)
+    return build_trade_setup(
+        signal_price=float(close_price),
+        context=PolicyContext(
+            signal_probability=prob,
+            label_version=label_version,
+            signal_score=signal_score,
+            quality_score=quality_score,
+            volume_24h_usd=volume_24h_usd,
+            features=feature_values,
+            anomalies=tuple(anomalies or ()),
+        ),
+        config=_settings.execution_policy,
+        target_drawdown=target_fraction,
+    )
+
+
+def _apply_stored_execution_policy(
+    trade_setup: dict[str, Any],
+    raw_policy: Any,
+) -> dict[str, Any]:
+    """Prefer the immutable signal-time policy over a config-time recomputation."""
+
+    if not raw_policy:
+        return trade_setup
+    try:
+        policy = (
+            json.loads(raw_policy)
+            if isinstance(raw_policy, str)
+            else dict(raw_policy)
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return trade_setup
+    legs = policy.get("entry_legs")
+    if not isinstance(legs, list) or not legs:
+        return trade_setup
+    try:
+        average = float(policy["projected_average_entry"])
+        target = float(policy["projected_target_price"])
+        stop = float(policy["hard_stop_price"])
+        target_pct = float(policy["target_drawdown_pct"])
+        stop_pct = float(policy["hard_stop_pct"])
+    except (KeyError, TypeError, ValueError):
+        return trade_setup
     return {
-        "entry_price": close_price,
-        "entry_zone": f"${close_price * 0.998:.4f} - ${close_price * 1.005:.4f}",
-        "stop_loss": round(close_price * (1 + sl_pct / 100.0), 6),
-        "stop_loss_pct": sl_pct,
-        "tp1": round(close_price * (1 - tp1_pct / 100.0), 6),
-        "tp1_pct": tp1_pct,
-        "tp2": round(close_price * (1 - tp2_pct / 100.0), 6),
-        "tp2_pct": tp2_pct,
-        "tp3": round(close_price * (1 - tp3_pct / 100.0), 6),
-        "tp3_pct": tp3_pct,
-        "rr_ratio": rr,
+        **trade_setup,
+        "entry_price": float(legs[0]["price"]),
+        "entry_zone": " / ".join(
+            f"${float(leg['price']):.6g}" for leg in legs
+        ),
+        "stop_loss": stop,
+        "stop_loss_pct": stop_pct,
+        "tp1": round(average * 0.92, 8),
+        "tp1_pct": 8.0,
+        "tp2": target,
+        "tp2_pct": target_pct,
+        "tp3": round(average * 0.70, 8),
+        "tp3_pct": 30.0,
+        "rr_ratio": policy.get("projected_rr_ratio"),
+        "target_basis": "weighted_average_after_each_fill",
+        "entry_legs": legs,
+        "projected_average_entry": average,
+        "projected_stop_risk_pct": policy.get("projected_stop_risk_pct"),
+        "execution_policy": policy,
     }
 
 
@@ -1200,6 +1359,21 @@ class APIHandler(BaseHTTPRequestHandler):
                 return
         self._set_headers(200)
 
+    def get_research_v3(self):
+        snapshot = _settings.paths.data_dir / "research_v3" / "snapshot.json"
+        result: dict[str, Any] = {"status": "waiting" if _settings.research_v3_enabled else "disabled",
+                                  "items": [], "orders_enabled": False, "promotion_eligible": False}
+        if _settings.research_v3_enabled and snapshot.exists():
+            try:
+                result = json.loads(snapshot.read_text(encoding="utf-8"))
+                updated = datetime.fromisoformat(result["updated_at"])
+                result["stale"] = (datetime.now(timezone.utc) - updated).total_seconds() > 900
+            except (OSError, ValueError, TypeError, KeyError):
+                result = {"status": "error", "items": [], "orders_enabled": False}
+        body = json.dumps(result).encode("utf-8")
+        self._set_headers(200, content_length=len(body))
+        self.wfile.write(body)
+
     def do_GET(self):
         """Serve GET requests without dropping the TCP connection on errors."""
         try:
@@ -1244,6 +1418,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
             if path == '/api/status':
                 self.get_status()
+            elif path == '/api/research/v3':
+                self.get_research_v3()
             elif path == '/api/signals':
                 self.get_signals()
             elif path == '/api/candidates':
@@ -1865,7 +2041,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 source_probability = alert.get("probability")
                 source_risk_level = _risk_bucket(float(source_probability or 0.0) * 100.0)
                 invalidation_time = _system_history_timestamp(alert.get("invalidation_time"))
-                target_price = round(float(source_price) * 0.92, 8) if source_price else target_price
+                target_price = (
+                    round(float(source_price) * (1.0 - _current_model_target_drawdown()), 8)
+                    if source_price
+                    else target_price
+                )
                 hit = alert.get("hit")
                 hit_time = _system_history_timestamp(alert.get("hit_time"))
 
@@ -2053,7 +2233,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 from dao_vang.experiments.forward_test import load_frozen_model
                 _fi = load_frozen_model(current_model_id, Path("./artifacts"))
                 _spec = _fi.label_spec or {}
-                _td = _spec.get("target_drawdown", 0.08)
+                _td = _spec.get("target_drawdown", ACTIVE_TARGET_DRAWDOWN)
                 _mae = _spec.get("max_ae", 0.04)
                 _hz = _spec.get("horizon_minutes", 1440)
                 _lv = _fi.config.get("label_version", "v1")
@@ -2333,14 +2513,25 @@ class APIHandler(BaseHTTPRequestHandler):
                 for c in components
             )
 
-            target_drawdown = -8.0
+            label_target = float(r.get("target_drawdown") or _current_model_target_drawdown())
+            target_drawdown = -abs(label_target * 100.0 if label_target <= 1.0 else label_target)
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
 
             prob_val = float(r.get("probability") or 0.0)
             is_fired = prob_val >= 0.70
             two_tier_state = "FIRED" if is_fired else "ARMED" if prob_val >= 0.35 else "NORMAL"
 
-            trade_setup = _build_signal_trade_setup(close_price or 0.0, prob=prob_val, components=components)
+            trade_setup = _build_signal_trade_setup(
+                close_price or 0.0,
+                prob=prob_val,
+                components=components,
+                target_drawdown=abs(target_drawdown),
+                features=scan or {},
+                anomalies=anomaly_fields.get("anomalies"),
+                quality_score=r.get("data_quality_score"),
+                signal_score=r.get("heuristic_score"),
+                volume_24h_usd=(scan or {}).get("volume_24h_usd"),
+            )
             pat_en, pat_vi = _build_signal_trigger_pattern(components, anomaly_fields.get("anomalies"))
             outcome_stat, mfe_val, mae_val = _build_signal_outcomes(r.get("hit"), validity_hours_left)
 
@@ -2451,13 +2642,23 @@ class APIHandler(BaseHTTPRequestHandler):
             funding = sr.get("funding_rate")
             taker_sell = sr.get("taker_sell_ratio")
             anomaly_fields = _anomaly_fields(sr)
-            target_drawdown = -8.0
+            label_target = float(sr.get("target_drawdown") or _current_model_target_drawdown())
+            target_drawdown = -abs(label_target * 100.0 if label_target <= 1.0 else label_target)
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
             tier = str(sr.get("recommendation", "WAIT"))
             risk_level = _scan_risk_level(tier, prob)
             is_scan_fired = prob >= 0.70
             two_tier_state = "FIRED" if is_scan_fired else "ARMED" if prob >= 0.35 else "NORMAL"
-            scan_setup = _build_signal_trade_setup(close_price or 0.0, prob=prob)
+            scan_setup = _build_signal_trade_setup(
+                close_price or 0.0,
+                prob=prob,
+                target_drawdown=abs(target_drawdown),
+                features=sr,
+                anomalies=anomaly_fields.get("anomalies"),
+                quality_score=sr.get("data_quality_score"),
+                signal_score=sr.get("heuristic_score") or sr.get("score"),
+                volume_24h_usd=sr.get("volume_24h_usd"),
+            )
             scan_pat_en, scan_pat_vi = _build_signal_trigger_pattern([], anomaly_fields.get("anomalies"))
             scan_v_left = max(0.0, (scan_invalidation_dt - datetime.now(timezone.utc)).total_seconds() / 3600.0) if scan_invalidation_dt else 24.0
             scan_outcome_stat = "UNTRACKED"
@@ -2569,7 +2770,8 @@ class APIHandler(BaseHTTPRequestHandler):
             funding = scan.get("funding_rate")
             taker_sell = scan.get("taker_sell_ratio")
             anomaly_fields = _anomaly_fields(scan)
-            target_drawdown = -8.0
+            label_target = float(pr.get("target_drawdown") or ACTIVE_TARGET_DRAWDOWN)
+            target_drawdown = -abs(label_target * 100.0 if label_target <= 1.0 else label_target)
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
             tier = str(pr.get("tier") or "WAIT")
             risk_level = {
@@ -2585,7 +2787,21 @@ class APIHandler(BaseHTTPRequestHandler):
                 0.0,
                 (invalidation_dt - datetime.now(timezone.utc)).total_seconds() / 3600.0,
             ) if invalidation_dt is not None else 24.0
-            pred_setup = _build_signal_trade_setup(close_price or 0.0, prob=prob)
+            pred_setup = _build_signal_trade_setup(
+                close_price or 0.0,
+                prob=prob,
+                target_drawdown=abs(target_drawdown),
+                features=scan,
+                anomalies=anomaly_fields.get("anomalies"),
+                quality_score=pr.get("data_quality_score"),
+                signal_score=pr.get("heuristic_score"),
+                volume_24h_usd=scan.get("volume_24h_usd"),
+                label_version=pr.get("label_version"),
+            )
+            pred_setup = _apply_stored_execution_policy(
+                pred_setup,
+                pr.get("execution_policy_json"),
+            )
             pred_pat_en, pred_pat_vi = _build_signal_trigger_pattern([], anomaly_fields.get("anomalies"))
             
             pred_two_tier = "FIRED" if prob >= 0.70 else "ARMED" if prob >= 0.35 else "NORMAL"
@@ -2728,9 +2944,10 @@ class APIHandler(BaseHTTPRequestHandler):
             # Asia/Saigon. They are only used as an explicitly stale fallback.
             timestamp_timezone = "Asia/Ho_Chi_Minh"
 
+        rows.sort(key=lambda row: float(row.get("score") or 0.0), reverse=True)
         now = datetime.now(timezone.utc)
         candidates = []
-        for r in rows:
+        for row_index, r in enumerate(rows):
             scan_time = r.get("scan_time")
             age_str = "N/A"
             scan_dt: datetime | None = None
@@ -2775,6 +2992,19 @@ class APIHandler(BaseHTTPRequestHandler):
                 if recommendation
                 else _risk_bucket(r["score"])
             )
+            market_cap_info = _resolve_market_cap_info(
+                r["symbol"],
+                r.get("volume_24h_usd"),
+            )
+            if (
+                row_index < _MARKET_CAP_CANDIDATE_PREFETCH_LIMIT
+                and market_cap_info["market_cap_usd"] is None
+            ):
+                _schedule_market_cap_lookup(
+                    r["symbol"],
+                    r.get("volume_24h_usd"),
+                )
+
             candidates.append({
                 "symbol": r["symbol"],
                 "scan_time": _system_history_timestamp(scan_dt) if scan_dt is not None else scan_time,
@@ -2795,7 +3025,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "volume_24h": f"${r['volume_24h_usd'] / 1e6:.1f}M" if r.get("volume_24h_usd") else "N/A",
                 "age": age_str,
                 "is_stale": row_is_stale,
-                **_resolve_market_cap_info(r["symbol"], r.get("volume_24h_usd")),
+                **market_cap_info,
                 **_anomaly_fields(r),
             })
         candidates.sort(key=lambda c: c["score"], reverse=True)
@@ -3126,7 +3356,7 @@ class APIHandler(BaseHTTPRequestHandler):
             sig_time = None
 
         signal_display_time = _system_display_datetime(sig_time)
-        target_drawdown = -8.0
+        target_drawdown = -(_current_model_target_drawdown() * 100.0)
         detail = {
             "symbol": symbol,
             "name": symbol.replace("USDT", ""),
@@ -4056,7 +4286,7 @@ class APIHandler(BaseHTTPRequestHandler):
     def _frozen_model_dict(m) -> dict:
         """Serialize a FrozenModelInfo with friendly name + label spec."""
         spec = m.label_spec or {}
-        target = spec.get("target_drawdown", 0.08)
+        target = spec.get("target_drawdown", ACTIVE_TARGET_DRAWDOWN)
         mae = spec.get("max_ae", 0.04)
         horizon_min = spec.get("horizon_minutes", 1440)
         target_pct = f"{target * 100:.0f}%" if isinstance(target, (int, float)) else str(target)
@@ -4111,11 +4341,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 "model_type": "two_tier",
                 "frozen_model_id": None,
                 "label_spec": {
-                    "target_drawdown": 0.08,
-                    "max_ae": 0.04,
+                    "target_drawdown": ACTIVE_TARGET_DRAWDOWN,
+                    "max_ae": 0.16,
                     "horizon_minutes": 1440,
-                    "target_pct": "8%",
-                    "mae_pct": "4%",
+                    "target_pct": "20%",
+                    "mae_pct": "16%",
                     "horizon_h": "24h",
                 },
             },
@@ -4131,11 +4361,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 "model_type": "heuristic",
                 "frozen_model_id": None,
                 "label_spec": {
-                    "target_drawdown": 0.08,
-                    "max_ae": 0.04,
+                    "target_drawdown": ACTIVE_TARGET_DRAWDOWN,
+                    "max_ae": 0.16,
                     "horizon_minutes": 1440,
-                    "target_pct": "8%",
-                    "mae_pct": "4%",
+                    "target_pct": "20%",
+                    "mae_pct": "16%",
                     "horizon_h": "24h",
                 },
             },
@@ -4150,11 +4380,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 "model_type": "walkforward",
                 "frozen_model_id": None,
                 "label_spec": {
-                    "target_drawdown": 0.08,
-                    "max_ae": 0.04,
+                    "target_drawdown": ACTIVE_TARGET_DRAWDOWN,
+                    "max_ae": 0.16,
                     "horizon_minutes": 1440,
-                    "target_pct": "8%",
-                    "mae_pct": "4%",
+                    "target_pct": "20%",
+                    "mae_pct": "16%",
                     "horizon_h": "24h",
                 },
             },

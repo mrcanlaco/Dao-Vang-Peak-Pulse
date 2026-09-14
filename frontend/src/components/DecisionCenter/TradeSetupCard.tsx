@@ -110,7 +110,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
           </div>
         </div>
 
-        {/* Take Profit 1 (-4%) */}
+        {/* Take Profit 1 — percentage comes from the active label contract. */}
         <div className="bg-slate-900/90 border border-emerald-500/30 rounded-lg p-2.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[10px] text-emerald-400 font-semibold mb-1">
             <span className="flex items-center gap-1">
@@ -127,7 +127,7 @@ export const TradeSetupCard: React.FC<TradeSetupCardProps> = ({
           </div>
         </div>
 
-        {/* Take Profit 2 (-8%) */}
+        {/* Core target — v2 is -20%/24h. */}
         <div className="bg-slate-900/90 border border-emerald-600/50 rounded-lg p-2.5 flex flex-col justify-between shadow-inner">
           <div className="flex items-center justify-between text-[10px] text-emerald-300 font-bold mb-1">
             <span className="flex items-center gap-1">

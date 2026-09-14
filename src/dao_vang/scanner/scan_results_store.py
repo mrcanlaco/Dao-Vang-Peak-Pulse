@@ -91,7 +91,8 @@ CREATE TABLE IF NOT EXISTS predictions (
     event_id                     VARCHAR,
     alert_episode_id             VARCHAR,
     episode_role                 VARCHAR,
-    episode_transition           VARCHAR
+    episode_transition           VARCHAR,
+    execution_policy_json         VARCHAR
 );
 CREATE INDEX IF NOT EXISTS idx_predictions_pending
     ON predictions(invalidation_time, telegram_sent);
@@ -127,6 +128,7 @@ _MIGRATIONS: list[str] = [
     "ALTER TABLE predictions ADD COLUMN alert_episode_id VARCHAR",
     "ALTER TABLE predictions ADD COLUMN episode_role VARCHAR",
     "ALTER TABLE predictions ADD COLUMN episode_transition VARCHAR",
+    "ALTER TABLE predictions ADD COLUMN execution_policy_json VARCHAR",
     # DuckDB 1.5 can leave these legacy indexes stale after a fatal writer
     # interruption, causing MAX/ORDER BY scan_time to return old rows while
     # newer rows exist. scan_results is small enough for reliable table scans.
@@ -225,6 +227,7 @@ class PredictionRecord:
     alert_episode_id: str | None = None
     episode_role: str | None = None
     episode_transition: str | None = None
+    execution_policy: dict[str, Any] | None = None
 
     @classmethod
     def stable_id(cls, symbol: str, signal_time: datetime, model_id: str, horizon_hours: int) -> str:
@@ -297,9 +300,10 @@ class ScanResultStore:
                     candidate_passed, state, tier, threshold, reason_codes_json,
                     evidence_groups_json, shadow_mode, telegram_sent, cooldown_key,
                     invalidation_time, snapshot_id, bundle_checksum, latency_ms, event_id,
-                    alert_episode_id, episode_role, episode_transition
+                    alert_episode_id, episode_role, episode_transition,
+                    execution_policy_json
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT (prediction_id) DO NOTHING
                 """,
                 [
@@ -340,6 +344,11 @@ class ScanResultStore:
                     record.alert_episode_id,
                     record.episode_role,
                     record.episode_transition,
+                    (
+                        json.dumps(record.execution_policy, sort_keys=True)
+                        if record.execution_policy is not None
+                        else None
+                    ),
                 ],
             )
             # DuckDB does not expose rowcount consistently across versions;
@@ -843,11 +852,11 @@ class ScanResultStore:
             rows = conn.execute(
                 """
                 SELECT p.prediction_id, p.symbol, p.signal_time, p.created_at,
-                       p.horizon_hours, p.target_drawdown, p.calibrated_probability,
+                       p.horizon_hours, p.target_drawdown, p.heuristic_score, p.calibrated_probability,
                        p.model_probability, p.data_quality_score, p.quality_status,
                        p.tier, p.threshold, p.shadow_mode, p.telegram_sent,
                        p.invalidation_time, p.alert_episode_id, p.episode_role, p.episode_transition,
-                       o.label_value, o.mfe, o.mae, o.outcome_status, o.exclusion_reason
+                       p.execution_policy_json, o.label_value, o.mfe, o.mae, o.outcome_status, o.exclusion_reason
                 FROM predictions p
                 INNER JOIN prediction_outcomes o ON p.prediction_id = o.prediction_id
                 WHERE o.materialized_at >= ?
@@ -858,11 +867,11 @@ class ScanResultStore:
             ).fetchall()
             cols = [
                 "prediction_id", "symbol", "signal_time", "created_at",
-                "horizon_hours", "target_drawdown", "calibrated_probability",
+                "horizon_hours", "target_drawdown", "heuristic_score", "calibrated_probability",
                 "model_probability", "data_quality_score", "quality_status",
                 "tier", "threshold", "shadow_mode", "telegram_sent",
                 "invalidation_time", "alert_episode_id", "episode_role", "episode_transition",
-                "label_value", "mfe", "mae", "outcome_status", "exclusion_reason"
+                "execution_policy_json", "label_value", "mfe", "mae", "outcome_status", "exclusion_reason"
             ]
         return [dict(zip(cols, r)) for r in rows]
 
@@ -880,11 +889,11 @@ class ScanResultStore:
             rows = conn.execute(
                 """
                 SELECT prediction_id, symbol, signal_time, created_at,
-                       horizon_hours, target_drawdown, calibrated_probability,
+                       horizon_hours, target_drawdown, heuristic_score, calibrated_probability,
                        model_probability, data_quality_score, quality_status,
                        tier, threshold, shadow_mode, telegram_sent,
                        invalidation_time, alert_episode_id, episode_role, episode_transition,
-                       NULL as label_value, NULL as mfe, NULL as mae, NULL as outcome_status, NULL as exclusion_reason
+                       execution_policy_json, NULL as label_value, NULL as mfe, NULL as mae, NULL as outcome_status, NULL as exclusion_reason
                 FROM predictions
                 WHERE created_at >= ?
                 ORDER BY created_at DESC
@@ -894,11 +903,11 @@ class ScanResultStore:
             ).fetchall()
             cols = [
                 "prediction_id", "symbol", "signal_time", "created_at",
-                "horizon_hours", "target_drawdown", "calibrated_probability",
+                "horizon_hours", "target_drawdown", "heuristic_score", "calibrated_probability",
                 "model_probability", "data_quality_score", "quality_status",
                 "tier", "threshold", "shadow_mode", "telegram_sent",
                 "invalidation_time", "alert_episode_id", "episode_role", "episode_transition",
-                "label_value", "mfe", "mae", "outcome_status", "exclusion_reason"
+                "execution_policy_json", "label_value", "mfe", "mae", "outcome_status", "exclusion_reason"
             ]
         return [dict(zip(cols, r)) for r in rows]
 
@@ -926,10 +935,11 @@ class ScanResultStore:
             rows = conn.execute(
                 f"""
                 SELECT prediction_id, symbol, signal_time, created_at,
-                       horizon_hours, target_drawdown, calibrated_probability,
+                       horizon_hours, target_drawdown, heuristic_score, calibrated_probability,
                        model_probability, data_quality_score, quality_status,
                        tier, threshold, shadow_mode, telegram_sent,
-                       invalidation_time, alert_episode_id, episode_role, episode_transition
+                       invalidation_time, alert_episode_id, episode_role, episode_transition,
+                       execution_policy_json
                 FROM (
                     SELECT *,
                         ROW_NUMBER() OVER (
@@ -952,6 +962,7 @@ class ScanResultStore:
                 "created_at",
                 "horizon_hours",
                 "target_drawdown",
+                "heuristic_score",
                 "calibrated_probability",
                 "model_probability",
                 "data_quality_score",
@@ -964,6 +975,7 @@ class ScanResultStore:
                 "alert_episode_id",
                 "episode_role",
                 "episode_transition",
+                "execution_policy_json",
             ]
         return [dict(zip(cols, r)) for r in rows]
 

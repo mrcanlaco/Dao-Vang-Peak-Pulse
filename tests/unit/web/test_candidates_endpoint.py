@@ -10,7 +10,11 @@ import pytest
 from dao_vang.web import api_server
 
 
-def _serve_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_path, generated_at: str) -> list[dict]:
+def _serve_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+    generated_at: str,
+) -> tuple[list[dict], MagicMock]:
     snapshot_path = tmp_path / "candidate_snapshot.json"
     snapshot_path.write_text(
         json.dumps(
@@ -41,18 +45,24 @@ def _serve_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_path, generated_at: str
         encoding="utf-8",
     )
     monkeypatch.setattr(api_server, "CANDIDATE_SNAPSHOT_PATH", snapshot_path)
+    schedule_lookup = MagicMock(return_value=True)
+    monkeypatch.setattr(
+        api_server,
+        "_schedule_market_cap_lookup",
+        schedule_lookup,
+    )
     handler = object.__new__(api_server.APIHandler)
     handler.wfile = io.BytesIO()
     handler._set_headers = MagicMock()
     handler.get_candidates()
-    return json.loads(handler.wfile.getvalue())
+    return json.loads(handler.wfile.getvalue()), schedule_lookup
 
 
 def test_candidates_expose_decision_fields_and_fresh_alertable_state(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     generated_at = datetime.now(timezone.utc).isoformat()
-    rows = _serve_snapshot(monkeypatch, tmp_path, generated_at)
+    rows, schedule_lookup = _serve_snapshot(monkeypatch, tmp_path, generated_at)
 
     assert len(rows) == 1
     assert rows[0]["recommendation"] == "HIGH_CONFIDENCE"
@@ -60,13 +70,14 @@ def test_candidates_expose_decision_fields_and_fresh_alertable_state(
     assert rows[0]["quality_status"] == "valid"
     assert rows[0]["is_stale"] is False
     assert rows[0]["alertable"] is True
+    schedule_lookup.assert_called_once_with("TESTUSDT", 2_000_000)
 
 
 def test_candidates_fail_closed_when_snapshot_is_stale(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     generated_at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
-    rows = _serve_snapshot(monkeypatch, tmp_path, generated_at)
+    rows, _ = _serve_snapshot(monkeypatch, tmp_path, generated_at)
 
     assert rows[0]["is_stale"] is True
     assert rows[0]["alertable"] is False

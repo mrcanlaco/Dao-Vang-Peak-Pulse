@@ -40,8 +40,9 @@ FROZEN_DIR_NAME = "frozen_models"
 
 _DEFAULT_LABEL_SPEC: Dict[str, Any] = {
     "horizon_minutes": 1440,
-    "target_drawdown": 0.08,
+    "target_drawdown": 0.20,
     "max_ae": 0.04,
+    "version": "distribution_short_v2",
 }
 
 
@@ -185,11 +186,12 @@ def freeze_model(
 
     label_spec = label_spec or {
         "horizon_minutes": 1440,
-        "target_drawdown": 0.08,
+        "target_drawdown": 0.20,
         "max_ae": 0.04,
+        "version": "distribution_short_v2",
     }
     resolved_label_spec = dict(label_spec)
-    resolved_label_spec.setdefault("version", "distribution_short_v1")
+    resolved_label_spec.setdefault("version", "distribution_short_v2")
     resolved_label_spec.setdefault(
         "horizon_hours", int(resolved_label_spec.get("horizon_minutes", 1440)) // 60
     )

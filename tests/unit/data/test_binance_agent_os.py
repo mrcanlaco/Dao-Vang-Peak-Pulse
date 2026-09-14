@@ -75,3 +75,37 @@ def test_fetch_market_cap_prefers_exact_symbol_match(monkeypatch):
 
     monkeypatch.setattr("httpx.Client", MockClient)
     assert fetch_market_cap("BTCUSDT", BinanceAgentOSConfig()) == 123456789
+
+
+def test_fetch_market_cap_uses_largest_exact_match(monkeypatch):
+    class MockResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "code": "000000",
+                "data": [
+                    {"symbol": "IOST", "marketCap": "6286"},
+                    {"symbol": "IOST", "marketCap": "83323736.8"},
+                    {"symbol": "IOST", "marketCap": "20681"},
+                ],
+            }
+
+    class MockClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def get(self, *args, **kwargs):
+            return MockResponse()
+
+    monkeypatch.setattr("httpx.Client", MockClient)
+    assert fetch_market_cap("IOSTUSDT", BinanceAgentOSConfig()) == 83_323_736.8

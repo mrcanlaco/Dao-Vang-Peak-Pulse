@@ -50,6 +50,12 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
   const maxLoss = totalPos * (slPct / 100);
   const maxProfitTp2 = totalPos * (tp2Pct / 100);
   const maxProfitTp3 = totalPos * ((tp3Pct ?? 0) / 100);
+  const entryLegs = tradeSetup.entry_legs ?? tradeSetup.execution_policy?.entry_legs ?? [];
+  const policy = tradeSetup.execution_policy;
+  const policyLabel = policy?.policy_id
+    ?.replace('scale_in_', '')
+    .replaceAll('_', ' ')
+    .toUpperCase();
 
   const formatPrice = (p: number) => {
     if (p < 0.001) return p.toFixed(6);
@@ -105,15 +111,57 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
         </div>
       )}
 
+      {policy && (
+        <div className="rounded-lg border border-sky-500/25 bg-sky-950/20 p-2.5 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
+            <span className="font-bold tracking-wide text-sky-300">
+              POLICY {policyLabel} · {policy.policy_version.split(':').at(-1)}
+            </span>
+            <span className={`rounded border px-2 py-0.5 font-bold ${
+              policy.eligible
+                ? 'border-emerald-600/50 bg-emerald-950/50 text-emerald-300'
+                : 'border-amber-600/50 bg-amber-950/50 text-amber-300'
+            }`}>
+              {policy.eligible ? 'ĐỦ ĐIỀU KIỆN' : 'CHỈ THEO DÕI'}
+            </span>
+          </div>
+          {entryLegs.length > 0 && (
+            <div className="grid grid-cols-3 gap-1.5">
+              {entryLegs.map((leg) => (
+                <div key={leg.index} className="rounded border border-slate-700 bg-slate-900/80 px-2 py-1.5">
+                  <div className="text-[9px] text-slate-400">
+                    ENTRY {leg.index} · {leg.allocation_pct.toFixed(0)}%
+                  </div>
+                  <div className="font-mono text-[11px] font-bold text-slate-100">
+                    ${formatPrice(leg.price)}
+                  </div>
+                  <div className="text-[9px] font-mono text-sky-400">
+                    +{leg.offset_pct.toFixed(0)}%
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {tradeSetup.projected_average_entry && (
+            <div className="flex justify-between text-[10px] text-slate-400">
+              <span>Giá vốn dự kiến nếu khớp đủ</span>
+              <span className="font-mono font-bold text-amber-300">
+                ${formatPrice(tradeSetup.projected_average_entry)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {isExpanded && <>
         {/* Levels Grid (Entry, SL, TP1, TP2, TP3) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {/* Invalidation / Stop Loss Level (Adaptive) */}
+        {/* Fixed hard stop from signal price. */}
         <div className="bg-slate-900/90 border border-red-500/30 rounded-lg p-2.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[10px] text-red-400 font-semibold mb-1">
             <span className="flex items-center gap-1">
               <ShieldAlert className="w-3 h-3 text-red-400" />
-              <span>{t('trade_stop_loss')} (Adaptive)</span>
+              <span>{t('trade_stop_loss')} (Hard Stop)</span>
             </span>
             <span className="font-mono text-[9px] text-red-400 font-bold">+{slPct.toFixed(1)}%</span>
           </div>
@@ -121,11 +169,11 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
             ${formatPrice(sl)}
           </div>
           <div className="text-[9px] text-slate-400 mt-1 font-mono">
-            Đỉnh râu nến 5m + buffer
+            Cố định từ giá tín hiệu; không tự nới
           </div>
         </div>
 
-        {/* Take Profit 1 (-4% - Chốt 50% + SL Hòa vốn) */}
+        {/* Take Profit 1 — percentage comes from the active contract. */}
         <div className="bg-slate-900/90 border border-emerald-500/30 rounded-lg p-2.5 flex flex-col justify-between">
           <div className="flex items-center justify-between text-[10px] text-emerald-400 font-semibold mb-1">
             <span className="flex items-center gap-1">
@@ -142,7 +190,7 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
           </div>
         </div>
 
-        {/* Take Profit 2 (-8% - Chốt 30%) */}
+        {/* Core v2 target (-20% - Chốt 30%). */}
         <div className="bg-slate-900/90 border border-emerald-600/50 rounded-lg p-2.5 flex flex-col justify-between shadow-inner">
           <div className="flex items-center justify-between text-[10px] text-emerald-300 font-bold mb-1">
             <span className="flex items-center gap-1">
@@ -159,7 +207,7 @@ export const TradeSetupCardV2: React.FC<TradeSetupCardV2Props> = ({
           </div>
         </div>
 
-        {/* Take Profit 3 (-14% - Trailing 20%) */}
+        {/* Runner target — percentage is supplied by the API. */}
         {tp3 != null && tp3Pct != null && (
         <div className="bg-gradient-to-br from-violet-950/40 to-slate-900/90 border border-violet-500/40 rounded-lg p-2.5 flex flex-col justify-between shadow-inner">
           <div className="flex items-center justify-between text-[10px] text-violet-300 font-bold mb-1">

@@ -9,6 +9,9 @@
 - Dữ liệu và mật khẩu lấy từ môi trường/.env. Không mặc định bật scanner khi khởi động web.
 
 ## GCP
+- Đây là môi trường thử nghiệm theo xác nhận của người dùng. Gate triển khai
+  kiểm tra khả năng vận hành; không yêu cầu đủ bằng chứng giao dịch tiền thật.
+  V3 có nhãn thử nghiệm rõ ràng; xem `V3_EXPERIMENTAL_GCP_RELEASE.md`.
 - Host: 136.110.29.208; tài khoản SSH: ubuntu.
 - Khóa: ~/.ssh/gcp_dao_vang.
 - Thư mục: /home/ubuntu/dao_vang.

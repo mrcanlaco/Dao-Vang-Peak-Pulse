@@ -1,0 +1,67 @@
+schema_version: distribution_research_policy_v1
+version: distribution_v2_3_research_48h_timing_compact
+status: frozen_future_forward_challenger
+live_eligible: false
+
+selection_notice:
+  post_hoc_composition: true
+  august_2026_is_not_promotion_evidence: true
+  first_eligible_forward_time_exclusive: "2026-08-26T01:54:59.999+07:00"
+
+label_contract:
+  version: distribution_short_v2_48h_research
+  horizon_hours: 48
+  target_drawdown_from_weighted_average: 0.20
+  hard_stop_from_weighted_average: 0.16
+  same_bar_policy: stop_first
+  round_trip_fee_and_slippage: 0.002
+  include_realized_funding: true
+
+candidate_universe:
+  price_return_24h_min: 0.15
+  point_in_time_only: true
+
+signal_model:
+  family: lightgbm_existing_25_feature_spec_isotonic
+  probability_threshold: 0.39
+  serving_feature_count: 25
+
+timing_policy:
+  min_peak_pump_24h: 0.30
+  consecutive_confirmations: 2
+  min_episode_age_hours: 4
+  probability_tolerance: 0.10
+  require_probability_pullback: false
+  require_price_reversal: false
+  episode_gap_hours: 6
+  symbol_cooldown_hours: 24
+  max_entry1_per_episode: 1
+  source_lock_sha256: ba8ccac68fb824a952b60c998d5b0ff86977119d85692626adde7fb9f7371305
+
+execution_policy:
+  template: compact
+  entry_offsets_from_entry1: [0.00, 0.03, 0.06]
+  allocation_weights: [0.20, 0.30, 0.50]
+  scale_in_window_hours: 6
+  target_and_stop_rebase_after_each_fill: true
+
+forward_protocol:
+  no_retuning_until_gate_decision: true
+  minimum_resolved_independent_episodes: 100
+  minimum_temporally_distributed_windows: 3
+  compare_against_single_entry: true
+  report_incomplete_and_coverage_denominators: true
+
+promotion_gates:
+  minimum_precision: 0.50
+  minimum_episode_recall: 0.10
+  wilson_95_lower_must_exceed_break_even: 0.45
+  net_actual_path_ev_must_be_positive: true
+  minimum_positive_chronological_windows: 3
+  no_live_change_without_separate_approval: true
+
+evidence:
+  timing_report: docs/forward48_timing_20260913.md
+  timing_result: artifacts/forward48_timing_20260913/forward48_timing_locked_forward_report.json
+  compatibility_report: artifacts/forward48_scalein_timing_compatibility_report_20260913.md
+  compatibility_result: artifacts/forward48_scalein_timing_compatibility_20260913.json

@@ -74,8 +74,8 @@ candidate_comparison:
   decision_interval_minutes: 60
   outcome_check_interval_cycles: 12
   horizon_hours: 24
-  target_drawdown: 0.08
-  max_adverse_excursion: 0.04
+  target_drawdown: 0.20
+  max_adverse_excursion: 0.16
   gap_tolerance_minutes: 15
   metrics_window_days: 30
   min_resolved: 200
@@ -113,6 +113,54 @@ threshold:
 
 scoring:
   alert_score_threshold: 40.0
+
+# Router chon cach vao lenh, tach biet voi model phat hien tin hieu.
+# "rules" la champion; doi sang "shadow_model" de ghi challenger ma khong tac dong quyet dinh.
+execution_policy:
+  enabled: true
+  advisory_only: true
+  router_version: scale_in_router_v1
+  feature_schema_version: execution_profile_features_v1
+  required_label_version: distribution_short_v2
+  require_matching_label: true
+  selector_mode: rules
+  fallback_policy_id: scale_in_balanced
+  compact_policy_id: scale_in_compact
+  deep_policy_id: scale_in_deep_squeeze
+  min_signal_score: 55.0
+  min_quality_score: 80.0
+  min_liquidity_score: 35.0
+  compact_volatility_max: 60.0
+  deep_volatility_min: 90.0
+  deep_squeeze_min: 75.0
+  deep_signal_min: 75.0
+  skip_volatility_min: 97.0
+  target_drawdown: 0.20
+  templates:
+    - policy_id: scale_in_compact
+      version: "1.0"
+      entry_offsets: [0.0, 0.03, 0.06]
+      allocations: [0.20, 0.30, 0.50]
+      hard_stop_pct: 0.12
+      scale_in_hours: 6
+      horizon_hours: 24
+      risk_multiplier: 1.0
+    - policy_id: scale_in_balanced
+      version: "1.0"
+      entry_offsets: [0.0, 0.05, 0.10]
+      allocations: [0.20, 0.30, 0.50]
+      hard_stop_pct: 0.16
+      scale_in_hours: 6
+      horizon_hours: 24
+      risk_multiplier: 0.75
+    - policy_id: scale_in_deep_squeeze
+      version: "1.0"
+      entry_offsets: [0.0, 0.08, 0.14]
+      allocations: [0.10, 0.30, 0.60]
+      hard_stop_pct: 0.16
+      scale_in_hours: 12
+      horizon_hours: 24
+      risk_multiplier: 0.50
 
 updater:
   enabled: true

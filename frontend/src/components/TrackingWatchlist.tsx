@@ -126,7 +126,7 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
   const getSignalStatusLabel = (status: string, lang: Language): string => {
     const map: Record<string, Record<string, string>> = {
       ACTIVE: { vi: 'Radar còn hiệu lực', en: t('track_status_radar_active'), zh: '雷达有效', ko: '레이더 유효' },
-      HIT: { vi: 'Radar đã trúng mục tiêu', en: t('track_status_target_hit'), zh: '已达回撤目标(-8%)', ko: '목표 도달 (-8%)' },
+      HIT: { vi: 'Radar đã trúng mục tiêu', en: t('track_status_target_hit'), zh: '已达回撤目标', ko: '목표 도달' },
       EXPIRED: { vi: 'Radar hết hạn', en: t('track_status_radar_expired'), zh: '雷达已过期', ko: '레이더 만료' },
       NO_SIGNAL: { vi: 'Theo dõi thủ công', en: 'Manual Track', zh: '手动跟踪', ko: '수동 추적' },
     };

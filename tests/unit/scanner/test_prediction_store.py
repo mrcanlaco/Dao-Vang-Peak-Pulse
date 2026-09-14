@@ -215,3 +215,36 @@ def test_is_prediction_telegram_in_cooldown(tmp_path):
     assert not store.is_prediction_telegram_in_cooldown("BTCUSDT", 6, 120)
     assert store.get_prediction_telegram_count(hours=24) == 1
     assert store.get_prediction_telegram_counts_by_symbol(hours=24) == {"BTCUSDT": 1}
+
+def test_prediction_persists_versioned_execution_policy(tmp_path):
+    store = ScanResultStore(str(tmp_path / "policy-audit.duckdb"))
+    now = datetime.now(timezone.utc)
+    policy = {
+        "router_version": "scale_in_router_v1",
+        "policy_id": "scale_in_balanced",
+        "policy_version": "scale_in_balanced:1.0",
+        "decision_checksum": "abcdef0123456789",
+    }
+    record = PredictionRecord(
+        prediction_id="prediction-policy",
+        symbol="SOLUSDT",
+        signal_time=now,
+        horizon_hours=24,
+        model_id="bundle-1",
+        quality_status="valid",
+        candidate_passed=True,
+        state="confirmed_distribution",
+        tier="HIGH_CONFIDENCE",
+        execution_policy=policy,
+    )
+
+    assert store.save_prediction(record)
+    with store._conn() as conn:  # noqa: SLF001 - verify immutable audit payload
+        raw = conn.execute(
+            "SELECT execution_policy_json FROM predictions WHERE prediction_id = ?",
+            [record.prediction_id],
+        ).fetchone()[0]
+
+    import json
+
+    assert json.loads(raw) == policy

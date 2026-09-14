@@ -36,6 +36,13 @@ marketing hoặc số liệu từ một báo cáo lịch sử.
 | **Model SHA-256** | **27961bc6c9a24e52136d00f208258343e8d5b75980fe156dbfba699264f51a12** |
 | **Calibrator SHA-256** | **0e425413f24a3a96ece91d1e201f0be4dd3709526733d19a19d649871b3c72db** |
 
+> **Mục tiêu mới:** pipeline huấn luyện/materialize mặc định dùng
+> `distribution_short_v2`: bắt cú giảm **tối thiểu 20% trong 24 giờ**, với
+> MAE tối đa **+4%**. Bundle production ghi ở bảng trên vẫn là model v1 cho
+> mục tiêu 8%; nó chỉ được giữ làm bằng chứng lịch sử và không được mô tả hay
+> promote như model 20%. Cần huấn luyện, hiệu chỉnh và khóa protocol v2 mới
+> trước khi đổi `scanner.frozen_model_id`.
+
 Bundle hiện lưu training precision **0.3896**, Brier **0.1859** và ECE
 **0.0261**. Đây là số liệu đi kèm quá trình tạo bundle, chưa phải một
 forward-test độc lập sau cutoff và không chứng minh ROI hay win rate.
@@ -48,8 +55,9 @@ count và kết quả theo regime. Xem
 
 ### 🔍 Điểm nổi bật về mặt kỹ nghệ
 
-- **Ground-truth có phiên bản:** label phân phối dùng drawdown mục tiêu 8%,
-  MAE tối đa 4% và horizon được đóng băng trong metadata.
+- **Ground-truth có phiên bản:** v1 lịch sử dùng mục tiêu 8%; contract v2 mới
+  dùng drawdown 20%/24h, MAE tối đa 4%. Mỗi bundle đóng băng contract trong
+  metadata nên hai tập bằng chứng không bị trộn.
 - **Xác suất được kiểm soát:** live serving yêu cầu calibrator hợp lệ, feature
   đầy đủ, dữ liệu đủ mới và checksum khớp; nếu không hệ thống fail closed.
 - **Human-in-the-loop:** scanner phát cảnh báo và ghi nhận outcome; không tự

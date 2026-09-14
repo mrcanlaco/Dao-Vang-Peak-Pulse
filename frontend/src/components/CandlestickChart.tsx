@@ -384,7 +384,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           lineWidth: 1,
           lineStyle: 2,
           axisLabelVisible: true,
-          title: `${t('trade_target_1')} (-4%)`,
+          title: `${t('trade_target_1')} (-${tradeSetup.tp1Pct.toFixed(1)}%)`,
         });
       }
       // TP2 Line
@@ -395,7 +395,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           lineWidth: 2,
           lineStyle: 0,
           axisLabelVisible: true,
-          title: `${t('trade_target_2')} (-8%)`,
+          title: `${t('trade_target_2')} (-${tradeSetup.tp2Pct.toFixed(1)}%)`,
         });
       }
     }

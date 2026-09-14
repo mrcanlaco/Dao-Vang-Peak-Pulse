@@ -60,6 +60,7 @@ def main() -> int:
 
     for path in (
         "/api/status", "/api/signals", "/api/candidates", "/api/candidates/compare",
+        "/api/research/v3",
         "/api/audit", "/api/market", "/api/watchlist", "/api/tracking-watchlist",
         "/api/scanner/telemetry", "/api/models", "/api/experiments",
         "/api/forward-test/models", "/api/system-history", "/api/research/reports",

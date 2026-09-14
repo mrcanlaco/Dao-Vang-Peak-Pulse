@@ -25,7 +25,9 @@ from dao_vang.data.storage.duckdb import DuckDBQueryLayer
 from dao_vang.domain.time import system_now
 from dao_vang.labels.engine import DistributionLabelEngine
 from dao_vang.labels.engine_v1 import DistributionLabelEngineV1
-from dao_vang.labels.specs.distribution_short_v1 import specs as label_specs
+from dao_vang.labels.engine_v2 import DistributionLabelEngineV2
+from dao_vang.labels.specs.distribution_short_v1 import specs as v1_label_specs
+from dao_vang.labels.specs.distribution_short_v2 import specs as v2_label_specs
 from dao_vang.logging import get_logger
 from dao_vang.scanner.scan_results_store import ScanResultStore
 
@@ -38,6 +40,17 @@ def _normalize_ts(ts: datetime) -> datetime:
     if ts.tzinfo is not None:
         return ts.astimezone(timezone.utc).replace(tzinfo=None)
     return ts
+
+
+def _label_contract_key(value: object, fallback: str) -> str:
+    """Normalize known aliases while leaving unknown versions fail-closed."""
+
+    normalized = str(value or fallback).strip().lower()
+    if normalized in {"v1", "distribution_short_v1"}:
+        return "distribution_short_v1"
+    if normalized in {"v2", "distribution_short_v2"}:
+        return "distribution_short_v2"
+    return normalized
 
 
 def resolve_pending_outcomes(
@@ -112,7 +125,9 @@ def materialize_prediction_outcomes(
 ) -> int:
     """Materialize outcomes for immutable shadow/canary predictions.
 
-    The label engine is run from the same point-in-time timeline used by
+    The engine is selected from each prediction's immutable label_version,
+    so legacy v1 (8%) and active v2 (20%/24h) rows can coexist safely. The
+    label engine is run from the same point-in-time timeline used by
     training.  Rows with invalid quality, gaps or ambiguous intrabar data are
     recorded as ``excluded`` with ``label_value = NULL``; they are never
     silently converted to negatives.  Re-running this function is idempotent
@@ -127,20 +142,55 @@ def materialize_prediction_outcomes(
     if not pending:
         return 0
     requested = tuple(dict.fromkeys(int(h) for h in horizons))
-    invalid = [h for h in requested if h not in label_specs]
+    supported_horizons = set(v1_label_specs) | set(v2_label_specs)
+    invalid = [h for h in requested if h not in supported_horizons]
     if not requested or invalid:
         raise ValueError(f"horizons must be a subset of 6/12/24; invalid={invalid}")
 
-    labels_table = "_prediction_outcomes_labels_v1"
+    label_tables: dict[str, str] = {}
     try:
-        DistributionLabelEngineV1(label_specs[requested[0]]).compute_all_horizons_to_table(
-            db.conn, timeline_table, labels_table, requested
-        )
+        pending_versions = {
+            _label_contract_key(prediction.get("label_version"), engine_version)
+            for prediction in pending
+        }
+        if "distribution_short_v1" in pending_versions:
+            v1_horizons = tuple(h for h in requested if h in v1_label_specs)
+            if v1_horizons:
+                table = "_prediction_outcomes_labels_v1"
+                DistributionLabelEngineV1(v1_label_specs[v1_horizons[0]]).compute_all_horizons_to_table(
+                    db.conn, timeline_table, table, v1_horizons
+                )
+                label_tables["distribution_short_v1"] = table
+        if "distribution_short_v2" in pending_versions:
+            v2_horizons = tuple(h for h in requested if h in v2_label_specs)
+            if not v2_horizons:
+                raise ValueError("distribution_short_v2 predictions require the 24h horizon")
+            table = "_prediction_outcomes_labels_v2"
+            DistributionLabelEngineV2(v2_label_specs[24]).compute_all_horizons_to_table(
+                db.conn, timeline_table, table, v2_horizons
+            )
+            label_tables["distribution_short_v2"] = table
+
         resolved = 0
         for prediction in pending:
             horizon = int(prediction.get("horizon_hours") or 24)
             if horizon not in requested:
                 continue
+            version = _label_contract_key(
+                prediction.get("label_version"), engine_version
+            )
+            labels_table = label_tables.get(version)
+            if labels_table is None:
+                logger.warning(
+                    "prediction_outcome_unknown_label_contract",
+                    prediction_id=prediction.get("prediction_id"),
+                    label_version=version,
+                )
+                continue
+            target_drawdown = float(
+                prediction.get("target_drawdown")
+                or (0.20 if version == "distribution_short_v2" else 0.08)
+            )
             signal_time = prediction.get("signal_time")
             # DuckDB stores timestamps without tzinfo; compare UTC-naive values
             # explicitly so a Windows local timezone never shifts a label.
@@ -170,7 +220,7 @@ def materialize_prediction_outcomes(
                         MAX(CASE WHEN hours_since <= 12 THEN drawdown ELSE NULL END) AS max_drawdown_12h,
                         MAX(CASE WHEN hours_since <= 24 THEN drawdown ELSE NULL END) AS max_drawdown_24h,
                         MIN(CASE WHEN drawdown >= 0.04 THEN close_time ELSE NULL END) AS first_tp1_hit_time,
-                        MIN(CASE WHEN drawdown >= 0.08 THEN close_time ELSE NULL END) AS first_tp2_hit_time
+                        MIN(CASE WHEN drawdown >= ? THEN close_time ELSE NULL END) AS first_tp2_hit_time
                     FROM signal_klines
                 ), before_tp AS (
                     SELECT MAX(adverse_excursion) AS max_adverse_excursion_before_tp
@@ -188,7 +238,8 @@ def materialize_prediction_outcomes(
                     prediction.get("signal_price"), prediction.get("signal_price"),
                     prediction.get("signal_price"), prediction.get("signal_price"),
                     signal_time,
-                    prediction["symbol"], signal_time, signal_time
+                    prediction["symbol"], signal_time, signal_time,
+                    target_drawdown,
                 ],
             ).fetchone()
             if row is None:
@@ -230,7 +281,8 @@ def materialize_prediction_outcomes(
         return resolved
     finally:
         try:
-            db.conn.execute(f"DROP TABLE IF EXISTS {labels_table}")
+            for labels_table in set(label_tables.values()):
+                db.conn.execute(f"DROP TABLE IF EXISTS {labels_table}")
         except Exception:
             pass
 

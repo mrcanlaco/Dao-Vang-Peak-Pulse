@@ -95,7 +95,7 @@ def test_resolve_outcome_target_before_adverse_is_positive() -> None:
     observations = []
     for index in range(1, 289):
         stamp = start + timedelta(minutes=5 * index)
-        low = 91.5 if index == 12 else 99.0
+        low = 79.5 if index == 12 else 99.0
         observations.append(
             FilterMarketObservation("TESTUSDT", stamp, 101.0, low, 99.0)
         )

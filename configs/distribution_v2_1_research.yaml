@@ -1,0 +1,50 @@
+schema_version: distribution_research_policy_v1
+version: distribution_v2_1_research_pump30
+status: research_only
+live_eligible: false
+
+label_contract:
+  version: distribution_short_v2
+  horizon_hours: 24
+  target_drawdown: 0.20
+  max_adverse_excursion: 0.16
+  same_bar_policy: exclude_ambiguous
+
+candidate_universe:
+  price_return_24h_min: 0.30
+  liquidity_gate: none
+  point_in_time_only: true
+
+episode_policy:
+  gap_hours: 6
+  cooldown_hours: 24
+  max_entry1_per_episode: 1
+
+model:
+  family: lightgbm
+  feature_contract: serving_features_v1_25
+  calibration: isotonic
+  threshold_selection: conservative_ev_on_chronological_policy_partition
+  round_trip_cost: 0.002
+
+sealed_holdout_result:
+  signals: 24
+  true_positives: 10
+  precision: 0.4166666667
+  recall: 0.0342465753
+  conservative_ev: -0.012
+  break_even_precision: 0.45
+
+promotion_gates:
+  minimum_independent_episodes: 100
+  minimum_precision: 0.50
+  minimum_episode_recall: 0.10
+  wilson_95_lower_above_break_even: true
+  minimum_positive_chronological_windows: 3
+  brier_must_beat_prevalence: true
+
+evidence:
+  consolidated_report: docs/DISTRIBUTION_V2_VERSION_SEARCH_20260913.md
+  universe_backtest: artifacts/universe_policy_sensitivity_20260913.json
+  model_grid: artifacts/model_variants_20260913_151329.json
+  entry_timing_grid: artifacts/entry_timing_20260913/entry_timing_report.json

@@ -60,6 +60,8 @@ test-results/
 data_live/
 artifacts/*
 !artifacts/frozen_models/
+# New models are runtime outputs; tracked release bundles remain tracked.
+/artifacts/frozen_models/frozen_*/
 *.duckdb
 *.duckdb.wal
 *.sqlite

@@ -131,8 +131,9 @@ def fetch_market_cap(symbol: str, config: BinanceAgentOSConfig) -> float | None:
             exact_matches.append(market_cap)
 
     # Never assign a similarly named token's market cap to the requested
-    # symbol. If Binance Agent OS has no exact result, the API layer produces
-    # a clearly labelled local estimate instead.
+    # symbol. The search can contain many same-symbol contracts, including
+    # tiny impersonators. The largest exact match is the safest proxy for the
+    # Binance-listed asset; no exact match remains explicitly unavailable.
     if exact_matches:
-        return exact_matches[0]
+        return max(exact_matches)
     return None

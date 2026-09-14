@@ -17,7 +17,7 @@ const GLOSSARY_ENTRIES_VI = [
   { term: "Khối lượng hợp đồng mở (Open Interest - OI)", desc: "Tổng số lượng hợp đồng phái sinh đang mở. OI tăng vọt nhưng giá đi ngang/suy yếu là dấu hiệu phân phối điển hình." },
   { term: "Tỷ lệ phí Funding (Funding Rate)", desc: "Khoản phí giữa phe Long và Short trên sàn Futures. Funding dương quá cao cho thấy số đông đang FOMO mua đuổi, dễ bị bẫy xả ngược." },
   { term: "Tỷ lệ Taker Sell / Buy", desc: "Tỷ lệ khối lượng bán/mua chủ động từ lệnh thị trường. Taker Sell chiếm ưu thế cho thấy phe bán tổ chức đang xả hàng quyết liệt." },
-  { term: "Mức giảm mục tiêu (Target -8%)", desc: "Tiêu chuẩn xác định cú xả: Giá sụt giảm ít nhất 8% trong khung 24h kể từ khi xuất hiện tín hiệu phân phối." }
+  { term: "Mức giảm mục tiêu v2 (Target -20%)", desc: "Tiêu chuẩn xác định cú xả v2: Giá sụt giảm ít nhất 20% trong 24 giờ kể từ khi xuất hiện tín hiệu phân phối; MAE tối đa vẫn là +4%." }
 ];
 
 const GLOSSARY_ENTRIES_EN = [
@@ -30,7 +30,7 @@ const GLOSSARY_ENTRIES_EN = [
   { term: "Open Interest (OI)", desc: "Total outstanding derivatives contracts. Surging OI accompanied by stalled or decelerating price action is a hallmark of institutional distribution." },
   { term: "Funding Rate", desc: "Periodic payment exchanged between Longs and Shorts on perpetual futures. Excessively high positive funding indicates crowded FOMO longs prone to liquidation cascades." },
   { term: "Taker Sell / Buy Ratio", desc: "Ratio of market orders initiated by aggressive sellers vs buyers. Dominant Taker Sell volume reflects aggressive distribution." },
-  { term: "Target Drawdown (-8%)", desc: "Standard ground-truth benchmark: Price decreases by at least 8% within 24 hours of signal issuance while adverse upside drift stays ≤ 4%." }
+  { term: "V2 Target Drawdown (-20%)", desc: "V2 ground truth: price decreases by at least 20% within 24 hours of signal issuance while adverse upside drift stays ≤ 4%." }
 ];
 
 const GLOSSARY_ENTRIES_ZH = [
@@ -43,7 +43,7 @@ const GLOSSARY_ENTRIES_ZH = [
   { term: "未平仓合约量 (Open Interest - OI)", desc: "衍生品未平仓总头寸。持仓量剧烈增加但价格停滞或滞涨，是机构派发抛售的典型特征。" },
   { term: "资金费率 (Funding Rate)", desc: "永续合约多空双方定期交换的资金费率。费率异常高说明多头情绪过度拥挤，极易引发踩踏连环爆仓。" },
   { term: "主动卖出/买入比率 (Taker Sell/Buy)", desc: "市场主动吃单方向的成交比。主动卖单占主导地位反映机构正在坚决出货。" },
-  { term: "目标回撤 (Target -8%)", desc: "判定暴跌的标准基准：自信号发出起 24 小时内价格回撤至少 8%，且最大逆向波动 ≤ 4%。" }
+  { term: "v2 目标回撤 (-20%)", desc: "v2 标准：自信号发出起 24 小时内价格回撤至少 20%，且最大逆向波动 ≤ 4%。" }
 ];
 
 const GLOSSARY_ENTRIES_KO = [
@@ -56,7 +56,7 @@ const GLOSSARY_ENTRIES_KO = [
   { term: "미결제약정 (Open Interest - OI)", desc: "미결제 파생상품 계약 총량. OI가 급증하는 반면 가격 상승이 둔화되는 것은 전형적인 세력 분산(털기) 징후입니다." },
   { term: "펀딩비 (Funding Rate)", desc: "무기한 선물 롱/숏 간 지불 비용. 지나치게 높은 양수 펀딩비는 롱 포지션 과열 및 롱스퀴즈 취약성을 나타냅니다." },
   { term: "테이커 매도 비율 (Taker Sell Ratio)", desc: "시장가 주문 중 매도 주문이 차지하는 비율. 테이커 매도 우위는 기관의 공격적인 물량 출회를 의미합니다." },
-  { term: "목표 하락폭 (Target -8%)", desc: "급락 판정 표준 기준: 신호 발생 후 24시간 이내에 가격이 최소 8% 하락하고, 역방향 상승 오차(MAE)는 4% 이하로 제한." }
+  { term: "v2 목표 하락폭 (-20%)", desc: "v2 기준: 신호 발생 후 24시간 이내에 가격이 최소 20% 하락하고, 역방향 상승 오차(MAE)는 4% 이하로 제한." }
 ];
 
 export const GlossaryModal: React.FC<GlossaryModalProps> = ({ isOpen, onClose }) => {
@@ -149,8 +149,8 @@ export const GlossaryModal: React.FC<GlossaryModalProps> = ({ isOpen, onClose })
                 {language === 'en' ? 'Higher score indicates stronger confluence of distribution footprints.' : language === 'zh' ? '得分越高，发生剧烈回撤的概率越大。' : language === 'ko' ? '점수가 높을수록 분산 패턴의 합치도가 높습니다.' : 'Điểm càng cao, xác suất xảy ra pha phân phối càng lớn.'}
               </li>
               <li>
-                <strong>{language === 'en' ? 'Target Drawdown -8%:' : language === 'zh' ? '目标回撤 8%:' : language === 'ko' ? '목표 하락 8%:' : 'Mức giảm mục tiêu 8%:'}</strong>{' '}
-                {language === 'en' ? 'Expected price drop of ≥8% within a 24h horizon.' : language === 'zh' ? '自信号发出起 24 小时内价格预期下跌 ≥8%。' : language === 'ko' ? '신호 발생 후 24시간 이내 최소 8% 하락 예상.' : 'Giá giảm ít nhất 8% trong vòng 24 giờ kể từ tín hiệu.'}
+                <strong>{language === 'en' ? 'V2 Target Drawdown -20%:' : language === 'zh' ? 'v2 目标回撤 20%:' : language === 'ko' ? 'v2 목표 하락 20%:' : 'Mức giảm mục tiêu v2 20%:'}</strong>{' '}
+                {language === 'en' ? 'V2 expects a price drop of ≥20% within 24h.' : language === 'zh' ? 'v2 预期价格在 24 小时内下跌 ≥20%。' : language === 'ko' ? 'v2는 24시간 이내 최소 20% 하락을 목표로 합니다.' : 'Contract v2 xác định giá giảm ít nhất 20% trong vòng 24 giờ kể từ tín hiệu.'}
               </li>
               <li>
                 <strong>{language === 'en' ? 'Smart Automation:' : language === 'zh' ? '智能自动化:' : language === 'ko' ? '스마트 자동화:' : 'Tự động thông minh:'}</strong>{' '}

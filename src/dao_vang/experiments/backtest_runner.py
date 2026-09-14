@@ -13,8 +13,8 @@ from dao_vang.data.historical_adapter import (
     HistoricalDataAdapter,
 )
 from dao_vang.features.builder import build_features
-from dao_vang.labels.engine_v1 import DistributionLabelEngineV1
-from dao_vang.labels.specs.distribution_short_v1 import specs as default_label_specs
+from dao_vang.labels.engine_v2 import DistributionLabelEngineV2
+from dao_vang.labels.specs.distribution_short_v2 import specs as default_label_specs
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class BacktestRunConfig:
     output_db_path: Path | str = Path("artifacts/backtest_results.duckdb")
     data_lake_root: Path | str = DEFAULT_DATA_LAKE_PATH
     master_duckdb_path: Path | str = DEFAULT_MASTER_DUCKDB
-    horizon_hours: int = 12
+    horizon_hours: int = 24
 
 
 class FullBacktestRunner:
@@ -146,7 +146,7 @@ class FullBacktestRunner:
             # 4. Materialize Labels
             logger.info("Materializing labels...")
             spec = default_label_specs[self.config.horizon_hours]
-            label_engine = DistributionLabelEngineV1(spec)
+            label_engine = DistributionLabelEngineV2(spec)
             label_engine.compute_all_to_table(conn, "bt_source_timeline", "bt_labels")
 
             # 5. Summary Evaluation

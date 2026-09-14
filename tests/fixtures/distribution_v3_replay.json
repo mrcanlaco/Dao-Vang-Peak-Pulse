@@ -1,0 +1,30 @@
+{
+  "schema_version": "distribution_v3_replay_v1",
+  "provenance": {
+    "dataset_id": "synthetic-golden-path-v1",
+    "model_id": "synthetic-no-trained-model",
+    "model_checksum": "0000000000000000000000000000000000000000000000000000000000000000",
+    "feature_schema": "synthetic-minimal-v1",
+    "score_label_version": "synthetic-reference-score-not-calibrated",
+    "data_source": "hand-authored-unit-test-not-market-data",
+    "evidence_kind": "synthetic"
+  },
+  "snapshots": [
+    {"symbol": "TESTUSDT", "feature_time": "2026-09-01T00:00:00+00:00", "features_available_at": "2026-09-01T00:00:00+00:00", "signal_price": 100, "price_ret_24h": 0.35, "score": 0.5, "is_stablecoin": false},
+    {"symbol": "TESTUSDT", "feature_time": "2026-09-01T01:00:00+00:00", "features_available_at": "2026-09-01T01:00:00+00:00", "signal_price": 100, "price_ret_24h": 0.32, "score": 0.5, "is_stablecoin": false},
+    {"symbol": "TESTUSDT", "feature_time": "2026-09-01T02:00:00+00:00", "features_available_at": "2026-09-01T02:00:00+00:00", "signal_price": 100, "price_ret_24h": 0.28, "score": 0.5, "is_stablecoin": false},
+    {"symbol": "TESTUSDT", "feature_time": "2026-09-01T03:00:00+00:00", "features_available_at": "2026-09-01T03:00:00+00:00", "signal_price": 100, "price_ret_24h": 0.25, "score": 0.5, "is_stablecoin": false},
+    {
+      "symbol": "TESTUSDT", "feature_time": "2026-09-01T04:00:00+00:00", "features_available_at": "2026-09-01T04:00:00+00:00", "signal_price": 100, "price_ret_24h": 0.2, "score": 0.5, "is_stablecoin": false,
+      "funding_percentile_30d": 0.85, "funding_persistence_7d": 0.1, "funding_change_8h": 0.001,
+      "path": {
+        "bars": [
+          {"close_time": "2026-09-01T04:05:00+00:00", "open": 100, "high": 106, "low": 90, "close": 100},
+          {"close_time": "2026-09-01T04:10:00+00:00", "open": 100, "high": 103, "low": 82, "close": 83}
+        ],
+        "funding": [{"timestamp": "2026-09-01T04:05:00+00:00", "rate": 0.001, "mark_price": 100}],
+        "funding_coverage_through": "2026-09-03T04:00:00+00:00"
+      }
+    }
+  ]
+}

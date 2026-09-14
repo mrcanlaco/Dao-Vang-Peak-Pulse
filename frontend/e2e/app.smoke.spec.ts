@@ -154,6 +154,27 @@ async function mockApi(page: Page, state: ApiState) {
   });
 }
 
+test('v3 research panel opens on mobile without replacing existing dashboard', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockApi(page, { authenticated: true, scannerTriggers: 0 });
+  await page.route('**/api/research/v3', route => route.fulfill({ json: {
+    status: 'running', candidate_count: 5, entry_count: 1, items: [{
+      id: 'test', symbol: 'TESTUSDT', feature_time: '2026-09-14T04:05:00Z', selected: true,
+      scout: true, score: 0.5, price: 100, reason: 'selected',
+      entry_plan: [{ leg: 1, price: 100, notional_weight: 0.2 }, { leg: 2, price: 103, notional_weight: 0.3 }, { leg: 3, price: 106, notional_weight: 0.5 }],
+      outcome: { status: 'open', fills: [{ leg: 1, price: 100, average_entry: 100, target_price: 80, stop_price: 116 }] },
+    }],
+  } }));
+  await page.goto('/');
+  await page.getByTestId('open-v3-research').click();
+  await expect(page.getByTestId('v3-research')).toBeVisible();
+  await expect(page.getByTestId('v3-research').getByText('TESTUSDT', { exact: false })).toBeVisible();
+  await expect(page.getByText(/Entry3: 106/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await page.getByRole('button', { name: /Về ứng dụng|Back to app/ }).click();
+  await expect(page.getByTestId('main-workspace')).toBeVisible();
+});
+
 test('login unlocks the dashboard without storing the password', async ({ page }) => {
   const state: ApiState = { authenticated: false, scannerTriggers: 0 };
   await mockApi(page, state);
@@ -235,7 +256,18 @@ test('V1 candidate actions, stale analysis, and refresh feedback remain operable
     scannerTriggers: 0,
     candidateRefreshes: 0,
     candidates: [
-      { ...candidateBase, symbol: 'TESTUSDT', scan_time: '2026-09-13T01:30:37+07:00', alertable: true, is_stale: false },
+      {
+        ...candidateBase,
+        symbol: 'TESTUSDT',
+        scan_time: '2026-09-13T01:30:37+07:00',
+        alertable: true,
+        is_stale: false,
+        market_cap_usd: 2_250_000_000,
+        market_cap_str: '$2.3B',
+        market_cap_tier: 'MID',
+        market_cap_source: 'binance_agent_os',
+        market_cap_is_estimate: false,
+      },
       { ...candidateBase, symbol: 'OLDUSDT', scan_time: '2026-09-12T01:30:37+07:00', alertable: false, is_stale: true },
     ],
     signals: [{
@@ -267,6 +299,8 @@ test('V1 candidate actions, stale analysis, and refresh feedback remain operable
   await expect(page.getByTestId('candidate-ranking')).toBeVisible();
   await expect(page.getByText('V1 · Bản chính duy nhất')).toBeVisible();
   await expect(page.getByText('Dữ liệu 96% · 2m ago').first()).toBeVisible();
+  await expect(page.getByTestId('candidate-market-cap-TESTUSDT')).toHaveText('⚡$2.3B');
+  await expect(page.getByTestId('candidate-market-cap-OLDUSDT')).toHaveCount(0);
   expect(requestedPaths).not.toContain('/api/candidates/compare');
 
   await page.getByTestId('candidate-action-TESTUSDT').click();

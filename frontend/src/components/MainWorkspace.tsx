@@ -50,6 +50,7 @@ const VersionHistoryTab = lazy(() =>
   import('./VersionHistoryTab').then(({ VersionHistoryTab: component }) => ({ default: component }))
 );
 const ModelsDocTab = lazy(() => import('./ModelsDocTab'));
+const V3ResearchPanel = lazy(() => import('./V3ResearchPanel').then(m => ({ default: m.V3ResearchPanel })));
 const TrackingWatchlist = lazy(() =>
   import('./TrackingWatchlist').then(({ TrackingWatchlist: component }) => ({ default: component }))
 );
@@ -538,6 +539,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   };
 
 
+  const [showV3, setShowV3] = useState(false);
+  if (showV3) return <div className="bg-slate-900/80 border border-slate-800 rounded-xl lg:h-full overflow-hidden">
+    <ErrorBoundary fallbackTitle="V3 research unavailable"><Suspense fallback={<p className="p-4 text-slate-400">Loading v3…</p>}>
+      <V3ResearchPanel onClose={() => setShowV3(false)} />
+    </Suspense></ErrorBoundary>
+  </div>;
+
   return (
     <div
       data-testid="main-workspace"
@@ -558,6 +566,10 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       )}
 
       {/* Workspace Tab Bar (Grouped & Responsive for Desktop + Mobile) */}
+      <button onClick={() => setShowV3(true)} data-testid="open-v3-research"
+        className="self-start mb-2 px-3 py-2 border border-amber-500/40 rounded-lg text-xs font-semibold text-amber-300 hover:bg-amber-500/10">
+        {language === 'vi' ? 'Thử nghiệm v3 · 20% / 48h' : 'V3 research · 20% / 48h'}
+      </button>
       <WorkspaceTabBar
         isDevMode={isDevMode}
         activeTab={activeTab}
@@ -1068,6 +1080,8 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       language,
                       candidateCapInfo.market_cap_is_estimate,
                     );
+                    const hasCandidateMarketCap = candidateCapInfo.market_cap_usd > 0
+                      && candidateCapInfo.market_cap_tier !== 'UNKNOWN';
                     const stageName = c.stage || 'PUMP_CANDIDATE';
                     const hasLiveSignal = signals.some(
                       (signal) => signal.symbol === c.symbol && signal.validity_hours_left > 0,
@@ -1083,13 +1097,16 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                             onClick={() => onSelectCandidate(c.symbol)}
                             className="text-xs group-hover:text-amber-300 font-bold"
                           />
-                          <span
-                            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold ${candidateCapBadge.className}`}
-                            title={`${t('metric_market_cap', 'Market Cap')}: ${candidateCapInfo.market_cap_str} · ${getMarketCapSourceLabel(candidateCapInfo.market_cap_source, language)}`}
-                          >
-                            <span>{candidateCapBadge.icon}</span>
-                            <span>{candidateCapBadge.label}</span>
-                          </span>
+                          {hasCandidateMarketCap && (
+                            <span
+                              data-testid={`candidate-market-cap-${c.symbol}`}
+                              className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold ${candidateCapBadge.className}`}
+                              title={`${t('metric_market_cap', 'Market Cap')}: ${candidateCapInfo.market_cap_str} · ${getMarketCapSourceLabel(candidateCapInfo.market_cap_source, language)}`}
+                            >
+                              <span>{candidateCapBadge.icon}</span>
+                              <span>{candidateCapBadge.label}</span>
+                            </span>
+                          )}
                         </td>
                         <td className="p-2.5">
                           <span className="inline-flex items-center gap-1 rounded border border-violet-800 bg-violet-950 px-1.5 py-0.5 text-[9px] font-bold text-violet-300">

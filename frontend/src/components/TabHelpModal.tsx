@@ -82,13 +82,13 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           purpose: 'Real-time quantitative dashboard showing reference trade setups (Entry, SL, TP1-3, R:R), 15m/5m derivatives charts, and weighted score components.',
           mechanism: [
             'Two-Tier Climax Scoring: Combines macro pump amplitude (Tier 1 HTF) with micro order-flow exhaustion (Tier 2 LTF).',
-            'Dynamic Trade Setup: Automatically calculates Stop Loss based on recent 5m/15m swing highs and Multi-tier Take Profit targets (-4% TP1, -8% TP2, -12% TP3).',
+            'Dynamic Trade Setup: automatically calculates Stop Loss and versioned targets (v2: -8% TP1, -20% core target, -30% runner).',
             'Live Binance Integration: Zero-lag order book ticker, live Funding APR, and Open Interest change rates.',
             'Interactive AI Assistant: Built-in LLM analyst for deep coin breakdown and risk diagnosis.'
           ],
           metrics: [
             { label: 'Distribution Score', desc: 'Quantitative composite score (0-100) indicating top climax exhaustion level.' },
-            { label: 'Probability (%)', desc: 'Calibrated empirical probability of reaching the -8% drawdown target within 24h.' },
+            { label: 'Probability (%)', desc: 'Calibrated empirical probability for the selected model contract; v2 means a 20% drawdown within 24h.' },
             { label: 'Funding APR', desc: 'Annualized funding cost. Highly positive or inverted negative rates highlight liquidation traps.' },
             { label: 'Taker Sell Ratio', desc: 'Percentage of aggressive market sell orders. Values > 55% show institutional dumping.' },
             { label: 'R:R Ratio', desc: 'Reward-to-Risk ratio calculated as (TP1 potential / SL risk).' }
@@ -165,7 +165,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
           metrics: [
             { label: 'Position PnL ($)', desc: 'Real-time dollar profit/loss based on live Binance market price.' },
             { label: 'Position ROI (%)', desc: 'Percentage return on margin considering leverage.' },
-            { label: 'Signal Progress (%)', desc: 'Progress bar measuring distance from Entry to Target TP (-8%).' }
+            { label: 'Signal Progress (%)', desc: 'Progress from Entry to the target stored on the selected model signal.' }
           ],
           playbook: [
             'Add coins from Radar or Ranking directly to Tracking Watchlist with one click.',
@@ -396,13 +396,13 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         purpose: 'Buồng lái ra quyết định giao dịch theo thời gian thực — cung cấp kế hoạch vào lệnh chuẩn xác (Entry, Stop Loss, TP1-3, R:R), biểu đồ nến 15m/5m live phái sinh và trợ lý AI phân tích chuyên sâu.',
         mechanism: [
           'Chấm điểm Phân phối 2 Tầng (2-Tier Climax Scoring): Kết hợp biên độ bơm vĩ mô khung 1h/4h/24h (Tầng 1) với dấu hiệu xả vi mô dòng lệnh 5m/15m (Tầng 2).',
-          'Kế hoạch Trade Setup Động: Tự động tính điểm Stop Loss ngay trên đỉnh nến gần nhất (tránh quét râu) và 3 mức Take Profit (-4% TP1, -8% TP2, -12% TP3).',
+          'Kế hoạch Trade Setup Động: tự tính Stop Loss và các nấc mục tiêu theo contract (v2: -8% TP1, -20% mục tiêu chính, -30% runner).',
           'Tích hợp Trực tiếp Binance Live: Cập nhật giá, funding rate APR, biến động OI và tỷ lệ Taker Sell theo từng giây.',
           'Trợ lý AI Đàm Thoại: Chat với AI để tóm tắt bằng chứng rủi ro, thành phần điểm có trọng số và dữ liệu cần cho quản trị vốn.'
         ],
         metrics: [
           { label: 'Điểm Phân Phối (Distribution Score)', desc: 'Điểm số định lượng (0-100) đánh giá mức độ kiệt sức và tạo đỉnh phân phối.' },
-          { label: 'Xác Suất Xả (AI) (%)', desc: 'Xác suất thực nghiệm đã hiệu chuẩn về khả năng giá sụt giảm >= 8% trong 24h.' },
+          { label: 'Xác Suất Xả (AI) (%)', desc: 'Xác suất thực nghiệm theo contract của model; với v2 là khả năng giá giảm ít nhất 20% trong 24h.' },
           { label: 'Funding Rate & APR', desc: 'Tỷ lệ phí funding quy đổi ra %/năm. Giúp nhận diện bẫy ép lệnh Long/Short.' },
           { label: 'Taker Sell Ratio', desc: 'Tỷ lệ lệnh bán chủ động cắn qua giá bid. Vượt > 55% cho thấy phe bán tổ chức đang xả mạnh.' },
           { label: 'Tỷ Lệ R:R (Risk/Reward)', desc: 'Tỷ lệ lợi nhuận / rủi ro tính theo (Biên độ TP1 / Biên độ SL).' }
@@ -479,7 +479,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
         metrics: [
           { label: 'PnL Vị Thế ($)', desc: 'Lợi nhuận/thua lỗ danh nghĩa dựa theo giá thị trường Binance hiện tại.' },
           { label: 'ROI Vị Thế (%)', desc: 'Tỷ suất sinh lời trên vốn ký quỹ có tính đòn bẩy.' },
-          { label: 'Tiến Độ Tín Hiệu (%)', desc: 'Thanh tiến trình đo khoảng cách từ điểm Entry đến Target TP (-8%).' }
+          { label: 'Tiến Độ Tín Hiệu (%)', desc: 'Thanh tiến trình từ Entry đến mục tiêu được lưu trên tín hiệu của model.' }
         ],
         playbook: [
           'Thêm coin trực tiếp từ Radar hoặc Top coin xả vào Vị thế chỉ với 1 click.',
@@ -861,7 +861,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       <span>Kích Hoạt Dòng Lệnh 5m</span>
                     </div>
                     <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Soi dòng lệnh 5m/15m (OI sụt, Taker Sell vọt) để bắt trúng thời điểm xả thật, thiết lập <strong>Stop Loss siêu ngắn (2.2%)</strong> và 3 mức TP (-4%, -8%, -12%).
+                      Soi dòng lệnh 5m/15m để bắt thời điểm xả thật; với v2, kế hoạch tham chiếu dùng TP1 -8%, mục tiêu chính -20% và runner -30%.
                     </p>
                     <div className="text-[10px] font-mono text-slate-500 border-t border-slate-800/80 pt-1.5">
                       ⚙️ Mô hình: 2-Tier Climax Engine
@@ -1306,7 +1306,7 @@ export const TabHelpModal: React.FC<TabHelpModalProps> = ({
                       <span className="font-bold text-slate-200 text-xs uppercase">Bước 4: Quản Trị Vị Thế & Chốt Lời (Tab Vị thế)</span>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed pl-7">
-                      Bấm &ldquo;Thêm vào Vị thế&rdquo; để theo dõi PnL trực tiếp. Khi giá chạm <strong>TP1 (-4%)</strong>: Chốt ngay 50% khối lượng và <strong>dời SL về điểm hòa vốn (Breakeven)</strong>. Gồng tiếp 30% tới TP2 (-8%) và 20% tới TP3 (-12%).
+                      Bấm &ldquo;Thêm vào Vị thế&rdquo; để theo dõi PnL trực tiếp. Với contract v2, khi giá chạm <strong>TP1 (-8%)</strong>: chốt 50% và <strong>dời SL về điểm hòa vốn</strong>; giữ 30% tới mục tiêu chính -20% và 20% runner tới -30%.
                     </p>
                   </div>
                 </div>

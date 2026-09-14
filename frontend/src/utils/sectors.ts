@@ -347,9 +347,9 @@ export const getMarketCapBadgeConfig = (
   }
   if (normTier === 'UNKNOWN') {
     return {
-      label: valueLabel || (language === 'vi' ? 'Chưa xác định' : 'Unknown Cap'),
+      label: language === 'vi' ? 'Chưa xác định' : 'Unknown Cap',
       icon: '❓',
-      className: 'bg-slate-900/40 text-slate-500 border-slate-800 hidden',
+      className: 'bg-slate-900/40 text-slate-500 border-slate-800 !hidden',
     };
   }
   return {

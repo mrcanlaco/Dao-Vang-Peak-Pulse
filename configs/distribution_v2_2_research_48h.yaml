@@ -1,0 +1,45 @@
+schema_version: distribution_research_policy_v1
+version: distribution_v2_2_research_48h
+status: research_only
+live_eligible: false
+
+label_contract:
+  version: distribution_short_v2_48h_research
+  horizon_hours: 48
+  target_drawdown: 0.20
+  max_adverse_excursion: 0.16
+  same_bar_policy: exclude_ambiguous
+
+candidate_universe:
+  price_return_24h_min: 0.15
+  liquidity_gate: none
+  point_in_time_only: true
+
+episode_policy:
+  gap_hours: 6
+  cooldown_hours: 24
+  max_entry1_per_episode: 1
+
+validation:
+  embargo_hours: 48
+  development_folds: 3
+  sealed_holdout_signals: 64
+  sealed_holdout_true_positives: 36
+  sealed_holdout_precision: 0.5625
+  sealed_holdout_precision_wilson95_lower: 0.4409
+  sealed_holdout_recall: 0.0415704388
+  sealed_holdout_conservative_ev: 0.0405
+  break_even_precision: 0.45
+  development_positive_ev_folds: 0
+
+promotion_gates:
+  minimum_new_independent_episodes: 100
+  minimum_precision: 0.50
+  minimum_episode_recall: 0.10
+  wilson_95_lower_above_break_even: true
+  minimum_positive_chronological_windows: 3
+  brier_must_beat_prevalence: true
+
+evidence:
+  report: docs/HORIZON_SENSITIVITY_20260913.md
+  result: artifacts/universe_policy_sensitivity_48h_20260913.json

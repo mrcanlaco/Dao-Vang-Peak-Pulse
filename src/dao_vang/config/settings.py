@@ -215,8 +215,8 @@ class CandidateComparisonConfig(BaseModel):
     decision_interval_minutes: int = Field(default=60, ge=5, le=24 * 60)
     outcome_check_interval_cycles: int = Field(default=12, ge=1)
     horizon_hours: int = Field(default=24, ge=1, le=168)
-    target_drawdown: float = Field(default=0.08, gt=0.0, lt=1.0)
-    max_adverse_excursion: float = Field(default=0.04, gt=0.0, lt=1.0)
+    target_drawdown: float = Field(default=0.20, gt=0.0, lt=1.0)
+    max_adverse_excursion: float = Field(default=0.16, gt=0.0, lt=1.0)
     gap_tolerance_minutes: int = Field(default=15, ge=5, le=120)
     metrics_window_days: int = Field(default=30, ge=1, le=365)
     min_resolved: int = Field(default=200, ge=1)
@@ -358,6 +358,110 @@ class ExecutionConfig(BaseModel):
     take_profit_pct: float = Field(default=0.10, ge=0.01, le=1.0, description="10% default take profit")
 
 
+class ScaleInTemplateConfig(BaseModel):
+    """One frozen execution template selected by the policy router."""
+
+    policy_id: str
+    version: str = "1.0"
+    entry_offsets: list[float] = Field(min_length=3, max_length=3)
+    allocations: list[float] = Field(min_length=3, max_length=3)
+    hard_stop_pct: float = Field(gt=0.0, lt=1.0)
+    scale_in_hours: int = Field(default=6, ge=1, le=23)
+    horizon_hours: int = Field(default=24, ge=1, le=168)
+    risk_multiplier: float = Field(default=1.0, gt=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def validate_template(self) -> "ScaleInTemplateConfig":
+        if self.entry_offsets[0] != 0.0:
+            raise ValueError("the first entry offset must be 0")
+        if any(value < 0.0 for value in self.entry_offsets):
+            raise ValueError("entry offsets must be non-negative")
+        if self.entry_offsets != sorted(self.entry_offsets):
+            raise ValueError("entry offsets must be sorted")
+        if self.entry_offsets[-1] >= self.hard_stop_pct:
+            raise ValueError("the last entry must be below the hard stop")
+        if any(value <= 0.0 for value in self.allocations):
+            raise ValueError("allocations must be positive")
+        if abs(sum(self.allocations) - 1.0) > 1e-6:
+            raise ValueError("allocations must sum to 1.0")
+        if self.scale_in_hours >= self.horizon_hours:
+            raise ValueError("scale_in_hours must be shorter than horizon_hours")
+        return self
+
+
+def _default_scale_in_templates() -> list[ScaleInTemplateConfig]:
+    return [
+        ScaleInTemplateConfig(
+            policy_id="scale_in_compact",
+            entry_offsets=[0.0, 0.03, 0.06],
+            allocations=[0.20, 0.30, 0.50],
+            hard_stop_pct=0.12,
+            risk_multiplier=1.0,
+        ),
+        ScaleInTemplateConfig(
+            policy_id="scale_in_balanced",
+            entry_offsets=[0.0, 0.05, 0.10],
+            allocations=[0.20, 0.30, 0.50],
+            hard_stop_pct=0.16,
+            risk_multiplier=0.75,
+        ),
+        ScaleInTemplateConfig(
+            policy_id="scale_in_deep_squeeze",
+            entry_offsets=[0.0, 0.08, 0.14],
+            allocations=[0.10, 0.30, 0.60],
+            hard_stop_pct=0.16,
+            scale_in_hours=12,
+            risk_multiplier=0.50,
+        ),
+    ]
+
+
+class ExecutionPolicyRouterConfig(BaseModel):
+    """Versioned policy selection, with a safe shadow-model upgrade path."""
+
+    enabled: bool = True
+    advisory_only: bool = True
+    router_version: str = "scale_in_router_v1"
+    feature_schema_version: str = "execution_profile_features_v1"
+    required_label_version: str = "distribution_short_v2"
+    require_matching_label: bool = True
+    selector_mode: Literal["rules", "shadow_model", "model"] = "rules"
+    fallback_policy_id: str = "scale_in_balanced"
+    compact_policy_id: str = "scale_in_compact"
+    deep_policy_id: str = "scale_in_deep_squeeze"
+    min_signal_score: float = Field(default=55.0, ge=0.0, le=100.0)
+    min_quality_score: float = Field(default=80.0, ge=0.0, le=100.0)
+    min_liquidity_score: float = Field(default=35.0, ge=0.0, le=100.0)
+    compact_volatility_max: float = Field(default=60.0, ge=0.0, le=100.0)
+    deep_volatility_min: float = Field(default=90.0, ge=0.0, le=100.0)
+    deep_squeeze_min: float = Field(default=75.0, ge=0.0, le=100.0)
+    deep_signal_min: float = Field(default=75.0, ge=0.0, le=100.0)
+    skip_volatility_min: float = Field(default=97.0, ge=0.0, le=100.0)
+    target_drawdown: float = Field(default=0.20, gt=0.0, lt=1.0)
+    templates: list[ScaleInTemplateConfig] = Field(
+        default_factory=_default_scale_in_templates
+    )
+
+    @model_validator(mode="after")
+    def validate_router(self) -> "ExecutionPolicyRouterConfig":
+        ids = [template.policy_id for template in self.templates]
+        if len(ids) != len(set(ids)):
+            raise ValueError("execution policy ids must be unique")
+        references = {
+            "fallback_policy_id": self.fallback_policy_id,
+            "compact_policy_id": self.compact_policy_id,
+            "deep_policy_id": self.deep_policy_id,
+        }
+        for field_name, policy_id in references.items():
+            if policy_id not in ids:
+                raise ValueError(f"{field_name} must reference a configured template")
+        if self.compact_volatility_max >= self.deep_volatility_min:
+            raise ValueError("compact volatility cutoff must be below deep cutoff")
+        if self.deep_volatility_min >= self.skip_volatility_min:
+            raise ValueError("deep volatility cutoff must be below skip cutoff")
+        return self
+
+
 class AiConfig(BaseModel):
 
     provider: str = Field(default="openai", description="Default LLM provider (openai, gemini, claude, deepseek, ollama)")
@@ -368,6 +472,8 @@ class AiConfig(BaseModel):
 
 
 class AppSettings(BaseSettings):
+    research_v3_enabled: bool = False
+    research_v3_model_path: Path = Path("artifacts/forward48_timing_20260913/forward48_timing_research_model.joblib")
     web: WebConfig = WebConfig()
     ai: AiConfig = AiConfig()
     updater: UpdaterConfig = UpdaterConfig()
@@ -384,6 +490,7 @@ class AppSettings(BaseSettings):
     threshold: ThresholdPolicy = ThresholdPolicy()
     binance_agent_os: BinanceAgentOSConfig = BinanceAgentOSConfig()
     execution: ExecutionConfig = ExecutionConfig()
+    execution_policy: ExecutionPolicyRouterConfig = ExecutionPolicyRouterConfig()
     coingecko: CoinGeckoConfig = CoinGeckoConfig()
     api_key: str | None = Field(default=None, exclude=True)
     api_secret: str | None = Field(default=None, exclude=True)

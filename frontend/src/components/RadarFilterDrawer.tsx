@@ -73,7 +73,7 @@ export const RadarFilterDrawer: React.FC<RadarFilterDrawerProps> = ({
       const hasOiAnomaly = sig.anomalies?.some(a => a.category === 'open_interest' || a.category === 'volume');
       if (!hasOiAnomaly && (isNaN(oiVal) || oiVal < 5.0)) return false;
     } else if (f.preset === 'HIGH_RR') {
-      const rr = sig.trade_setup?.rr_ratio ?? (Math.abs(sig.target_drawdown || 8) / (sig.trade_setup?.stop_loss_pct || 3.8));
+      const rr = sig.trade_setup?.rr_ratio ?? (Math.abs(sig.target_drawdown || 20) / (sig.trade_setup?.stop_loss_pct || 3.8));
       if (rr < 2.3) return false;
     } else if (f.preset === 'AI_MEME') {
       const sector = getCoinSector(sig.symbol);
@@ -123,7 +123,7 @@ export const RadarFilterDrawer: React.FC<RadarFilterDrawerProps> = ({
 
     // 8. Min R:R Ratio
     if (f.minRrRatio !== null && f.minRrRatio !== undefined) {
-      const rr = sig.trade_setup?.rr_ratio ?? (Math.abs(sig.target_drawdown || 8) / (sig.trade_setup?.stop_loss_pct || 3.8));
+      const rr = sig.trade_setup?.rr_ratio ?? (Math.abs(sig.target_drawdown || 20) / (sig.trade_setup?.stop_loss_pct || 3.8));
       if (rr < f.minRrRatio) return false;
     }
 

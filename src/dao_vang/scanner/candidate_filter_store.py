@@ -259,7 +259,7 @@ class CandidateFilterStore:
         run_id: str,
         cycle: int,
         horizon_hours: int = 24,
-        target_drawdown: float = 0.08,
+        target_drawdown: float = 0.20,
         max_adverse_excursion: float = 0.04,
         decision_interval_minutes: int = 60,
     ) -> dict[str, int]:

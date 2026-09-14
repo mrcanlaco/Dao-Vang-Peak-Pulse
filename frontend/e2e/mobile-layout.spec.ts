@@ -8,8 +8,8 @@ const coinDetail = {
   current_price: 0.21456,
   probability: 0.78,
   risk_level: 'HIGH',
-  target_drawdown: 0.08,
-  target_price: 0.19739,
+  target_drawdown: 0.20,
+  target_price: 0.17165,
   signal_timestamp: '2026-09-13T01:30:37+07:00',
   chart_source: 'api',
   chart_data: Array.from({ length: 24 }, (_, index) => ({

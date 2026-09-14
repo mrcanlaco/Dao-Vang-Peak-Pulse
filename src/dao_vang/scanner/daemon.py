@@ -69,6 +69,7 @@ from dao_vang.domain.time import (
     system_iso,
     system_now,
 )
+from dao_vang.execution.policy_router import ExecutionPolicyRouter, PolicyContext
 from dao_vang.experiments.forward_test import load_frozen_model
 from dao_vang.experiments.self_learning import run_self_learning
 from dao_vang.features.builder import build_features
@@ -779,6 +780,15 @@ class ScannerDaemon:
         db.conn.commit()
         self._publish_system_stats(db)
         self._publish_candidate_snapshot(db)
+
+        if self._settings.research_v3_enabled:
+            try:
+                from dao_vang.scanner.research_v3 import run_cycle
+
+                run_cycle(db.conn, data_dir=self._settings.paths.data_dir,
+                          model_path=self._settings.research_v3_model_path)
+            except Exception as exc:
+                logger.warning("research_v3_cycle_failed", error=str(exc))
 
         # The challenger is observational only. Running it after the champion
         # serving artifacts are published. This ordering isolates the champion
@@ -1814,6 +1824,29 @@ class ScannerDaemon:
                     sort_keys=True,
                 ).encode("utf-8")
             ).hexdigest()[:32]
+            execution_policy = None
+            if close_price is not None and close_price > 0:
+                policy_context = PolicyContext(
+                    signal_probability=result.calibrated_probability,
+                    label_version=str(
+                        label_spec.get("version", "distribution_short_v1")
+                    ),
+                    signal_score=score.total_score,
+                    quality_score=result.quality.score,
+                    volume_24h_usd=volume_24h_usd,
+                    features=feature_dict,
+                    anomalies=tuple(
+                        anomaly.to_dict() for anomaly in anomaly_report.anomalies
+                    ),
+                )
+                policy_decision = ExecutionPolicyRouter(
+                    self._settings.execution_policy
+                ).route(policy_context)
+                execution_policy = policy_decision.to_dict(
+                    signal_price=close_price,
+                    target_drawdown=self._settings.execution_policy.target_drawdown,
+                )
+
             # Use the same independent evidence grouping as frozen inference;
             # correlated indicators must never inflate the audit count.
             groups = tuple(result.evidence_groups)
@@ -1855,6 +1888,7 @@ class ScannerDaemon:
                     alert_episode_id=ep_result.episode_id if ep_result else None,
                     episode_role=ep_result.role if ep_result else None,
                     episode_transition=ep_result.transition if ep_result else None,
+                    execution_policy=execution_policy,
                     cooldown_key=f"{symbol}:{horizon_hours}h",
                     invalidation_time=invalidation_time,
                     snapshot_id=snapshot_id,

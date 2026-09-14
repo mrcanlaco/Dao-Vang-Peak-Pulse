@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dao_vang.web.api_server import (
+    _apply_stored_execution_policy,
     _build_market_cap_info,
     _build_signal_outcomes,
     _build_signal_trade_setup,
@@ -112,4 +113,29 @@ def test_build_signal_outcomes() -> None:
     status_exp, _, _ = _build_signal_outcomes(None, 0.0)
     assert status_exp == "EXPIRED"
 
+def test_stored_execution_policy_overrides_current_config_plan() -> None:
+    current = _build_signal_trade_setup(120.0, 0.82)
+    stored = {
+        "entry_legs": [
+            {"index": 1, "price": 100.0, "offset_pct": 0.0, "allocation_pct": 20.0},
+            {"index": 2, "price": 105.0, "offset_pct": 5.0, "allocation_pct": 30.0},
+            {"index": 3, "price": 110.0, "offset_pct": 10.0, "allocation_pct": 50.0},
+        ],
+        "projected_average_entry": 106.5,
+        "projected_target_price": 85.2,
+        "hard_stop_price": 116.0,
+        "hard_stop_pct": 16.0,
+        "target_drawdown_pct": 20.0,
+        "projected_stop_risk_pct": 8.9202,
+        "projected_rr_ratio": 2.2421,
+        "policy_id": "scale_in_balanced",
+        "policy_version": "scale_in_balanced:1.0",
+    }
+
+    setup = _apply_stored_execution_policy(current, stored)
+
+    assert setup["entry_price"] == 100.0
+    assert setup["projected_average_entry"] == 106.5
+    assert setup["tp2"] == 85.2
+    assert setup["execution_policy"]["policy_version"] == "scale_in_balanced:1.0"
 

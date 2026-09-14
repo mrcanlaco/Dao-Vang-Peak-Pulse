@@ -26,8 +26,8 @@ from dao_vang.experiments.forward_test import (
 )
 from dao_vang.experiments.self_learning import run_self_learning
 from dao_vang.features.builder import build_features
-from dao_vang.labels.engine_v1 import DistributionLabelEngineV1
-from dao_vang.labels.specs.distribution_short_v1 import specs as label_specs
+from dao_vang.labels.engine_v2 import DistributionLabelEngineV2
+from dao_vang.labels.specs.distribution_short_v2 import specs as label_specs
 from dao_vang.reports.generator import generate_markdown_report
 from dao_vang.scanner.instance_lock import ScannerAlreadyRunning, ScannerInstanceLock
 
@@ -56,6 +56,48 @@ app.add_typer(report_app, name="report")
 app.add_typer(scanner_app, name="scanner")
 app.add_typer(alpha_lab_app, name="alpha-lab")
 app.add_typer(system_app, name="system")
+
+
+@experiment_app.command("replay-v3")
+def experiment_replay_v3(
+    input_path: Path = typer.Argument(..., exists=True, dir_okay=False),
+    ledger_path: Path = typer.Option(Path("data/research/distribution_v3.sqlite")),
+) -> None:
+    """Replay the frozen v3 research contract; no live configuration changes."""
+    from dao_vang.experiments.distribution_v3 import (
+        EvidenceLedger,
+        canonical,
+        replay,
+    )
+
+    try:
+        result = replay(json.loads(input_path.read_text(encoding="utf-8")))
+        inserted = EvidenceLedger(ledger_path).save(result)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(canonical({
+        "run_id": result["run_id"], "inserted": inserted,
+        "live_eligible": False, "promotion_eligible": False,
+        "evidence_kind": result["provenance"]["evidence_kind"],
+        "summary": result["summary"],
+    }))
+
+
+@experiment_app.command("audit-v3-market")
+def experiment_audit_v3_market(
+    live_db: Path = typer.Option(Path("data_live/live.duckdb"), exists=True),
+    lock_dir: Path = typer.Option(Path("artifacts/forward48_timing_20260913"), exists=True),
+    old_events: Path = typer.Option(Path("artifacts/forward48_scalein_timing_compatibility_events_20260913.csv"), exists=True),
+    output_dir: Path = typer.Option(Path("artifacts/distribution_v3_market_audit")),
+) -> None:
+    """Audit v3 on identical locked market entries; does not certify funding/PIT."""
+    from dao_vang.experiments.distribution_v3 import canonical
+    from dao_vang.experiments.distribution_v3_market import audit_locked_market
+
+    result = audit_locked_market(live_db=live_db, lock_dir=lock_dir,
+                                 old_events=old_events, output_dir=output_dir)
+    typer.echo(canonical({"run_id": result["run_id"], "summary": result["summary"],
+                         "coverage": result["coverage"], "promotion_eligible": False}))
 
 
 @data_app.command("collect")
@@ -193,11 +235,11 @@ def label_generate(
     horizon_hours: int = typer.Option(24, "--horizon-hours", min=6, max=24),
     output_table: str = typer.Option("labels", "--output"),
 ) -> None:
-    """Generate one deterministic distribution_short_v1 label horizon."""
+    """Generate deterministic distribution_short_v2 labels (20%/24h)."""
     conn = duckdb.connect(db_path)
     if horizon_hours not in label_specs:
-        raise typer.BadParameter("horizon-hours must be one of 6, 12 or 24")
-    DistributionLabelEngineV1(label_specs[horizon_hours]).compute_all_to_table(
+        raise typer.BadParameter("distribution_short_v2 supports only 24h")
+    DistributionLabelEngineV2(label_specs[horizon_hours]).compute_all_to_table(
         conn, source_table, output_table
     )
     count = conn.execute(f"SELECT count(*) FROM {output_table}").fetchone()[0]
@@ -217,12 +259,12 @@ def label_materialize(
         "labels", "--output", help="Output table name"
     ),
     horizons: str = typer.Option(
-        "6,12,24",
+        "24",
         "--horizons",
-        help="Comma-separated label horizons; supported values: 6,12,24",
+        help="Active v2 label horizon; supported value: 24",
     ),
 ) -> None:
-    """Materialize versioned 6h/12h/24h labels into DuckDB.
+    """Materialize versioned 20%/24h labels into DuckDB.
 
     Recomputes ALL labels from the source table by dropping and recreating
     the output table. Designed to run periodically (cron / Task Scheduler)
@@ -276,10 +318,10 @@ def label_materialize(
             sorted({int(value.strip()) for value in horizons.split(",") if value.strip()})
         )
     except ValueError as exc:
-        raise typer.BadParameter("horizons must be a comma-separated list of 6, 12, 24") from exc
+        raise typer.BadParameter("horizons must be 24 for distribution_short_v2") from exc
     if not selected_horizons or any(value not in label_specs for value in selected_horizons):
-        raise typer.BadParameter("horizons must be a non-empty subset of 6, 12, 24")
-    DistributionLabelEngineV1(label_specs[selected_horizons[0]]).compute_all_horizons_to_table(
+        raise typer.BadParameter("distribution_short_v2 supports only the 24h horizon")
+    DistributionLabelEngineV2(label_specs[selected_horizons[0]]).compute_all_horizons_to_table(
         conn, source_table, output_table, horizons=selected_horizons
     )
     elapsed = _time.time() - t0

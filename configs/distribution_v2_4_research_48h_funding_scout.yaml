@@ -1,0 +1,92 @@
+schema_version: distribution_research_policy_v1
+version: distribution_v2_4_research_48h_funding_scout
+parent: distribution_v2_3_research_48h_timing_compact
+status: frozen_future_shadow_scout
+live_eligible: false
+
+selection_notice:
+  selected_from_opened_research: true
+  historical_and_august_results_are_not_promotion_evidence: true
+  first_eligible_forward_time_exclusive: "2026-08-26T01:54:59.999+07:00"
+  no_retuning_on_future_data: true
+
+label_contract:
+  horizon_hours: 48
+  target_drawdown_from_weighted_average: 0.20
+  hard_stop_from_weighted_average: 0.16
+  same_bar_policy: stop_first
+  round_trip_fee_and_slippage: 0.002
+  include_realized_funding: true
+
+base_challenger:
+  candidate_price_return_24h_min: 0.15
+  model_probability_threshold: 0.39
+  min_peak_pump_24h: 0.30
+  consecutive_confirmations: 2
+  min_episode_age_hours: 4
+  episode_gap_hours: 6
+  symbol_cooldown_hours: 24
+
+scout_gate:
+  id: funding_exhaustion_rising
+  evaluate_at: entry1_point_in_time_snapshot
+  all_conditions:
+    funding_percentile_30d_gte: 0.80
+    funding_persistence_7d_gt: 0.0
+    funding_change_8h_gt: 0.0
+  interpretation: persistent_extreme_long_crowding_still_accelerating
+
+execution_policy:
+  template: compact
+  entry_offsets_from_entry1: [0.00, 0.03, 0.06]
+  allocation_weights: [0.20, 0.30, 0.50]
+  scale_in_window_hours: 6
+  target_and_stop_rebase_after_each_fill: true
+
+opened_evidence_only:
+  development:
+    signals: 25
+    baseline_coverage: 0.2294
+    target_rate: 0.44
+    actual_ev: 0.02202
+  recycled_fold4:
+    signals: 7
+    target_rate: 0.7143
+    actual_ev: 0.05516
+  recycled_august:
+    signals: 10
+    target_rate: 0.80
+    actual_ev: 0.06969
+  disqualifiers:
+    - below_predeclared_coverage_floor
+    - one_development_fold_negative
+    - multiple_testing_gate_failed
+    - samples_already_opened
+
+future_evaluation:
+  minimum_resolved_scout_signals: 100
+  minimum_chronological_windows: 3
+  compare_with_parent_on_identical_eligible_rows: true
+  required_metrics:
+    - target_rate_and_wilson_interval
+    - episode_recall
+    - actual_path_ev
+    - conservative_ev
+    - capital_deployed
+    - chronological_window_stability
+  promotion_requires:
+    precision_gte: 0.50
+    episode_recall_gte: 0.10
+    wilson_95_lower_gt: 0.45
+    actual_path_ev_positive: true
+    conservative_ev_positive: true
+    paired_ev_lower_confidence_bound_positive: true
+    positive_windows_gte: 3
+    separate_live_approval: true
+
+evidence:
+  hypothesis_map: docs/RESEARCH_LIBRARY_HYPOTHESIS_MAP_20260914.md
+  regime_report: docs/forward48_regime_context_20260914.md
+  regime_result: artifacts/forward48_regime_context_20260914.json
+  compatibility_report: artifacts/forward48_funding_execution_compatibility_20260914/report.md
+  transition_report: artifacts/forward48_true_funding_transition_20260914/report.md

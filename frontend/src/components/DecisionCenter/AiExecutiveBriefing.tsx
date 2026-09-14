@@ -49,6 +49,8 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
   const sl = tradeSetup?.stopLossPrice ?? null;
   const tp1 = tradeSetup?.tp1Price ?? null;
   const tp2 = tradeSetup?.tp2Price ?? null;
+  const tp1Pct = tradeSetup?.tp1Pct ?? null;
+  const tp2Pct = tradeSetup?.tp2Pct ?? null;
   const rr = tradeSetup?.riskRewardRatio ? tradeSetup.riskRewardRatio.toFixed(2) : null;
 
   // 1. Tính toán Trade Readiness Status
@@ -165,16 +167,16 @@ export const AiExecutiveBriefing: React.FC<AiExecutiveBriefingProps> = ({
   const gameplan = useMemo(() => {
     if (!tradeSetup || entry == null || sl == null || tp1 == null || tp2 == null || rr == null) return null;
     if (isZh) {
-      return `1. **入场策略**: 建议关注 **$${entry}** 附近区域。${readiness.status === 'READY_TO_ENTER' ? '当前价位极佳，可按计划执行。' : '建议分批建仓，切勿单次重仓市价开单。'}\n2. **止损防护**: 严格在 **$${sl}** 设置止损单。\n3. **止盈阶梯**: 第一止盈位 **$${tp1}** (-4%) 建议平仓 50% 并将止损移至开仓价（保本）；第二目标位 **$${tp2}** (-8%)。综合盈亏比: **${rr}**。`;
+      return `1. **入场策略**: 建议关注 **$${entry}** 附近区域。${readiness.status === 'READY_TO_ENTER' ? '当前价位极佳，可按计划执行。' : '建议分批建仓，切勿单次重仓市价开单。'}\n2. **止损防护**: 严格在 **$${sl}** 设置止损单。\n3. **止盈阶梯**: 第一止盈位 **$${tp1}** (-${tp1Pct}%) 建议平仓 50% 并将止损移至开仓价（保本）；第二目标位 **$${tp2}** (-${tp2Pct}%)。综合盈亏比: **${rr}**。`;
     }
     if (isKo) {
-      return `1. **진입 전략**: **$${entry}** 부근을 주시하세요. ${readiness.status === 'READY_TO_ENTER' ? '현재 완벽한 진입 구간입니다.' : '시장가 몰빵을 피하고 분할로 접근하세요.'}\n2. **손절 방어**: **$${sl}**에 필수 스탑로스를 설정하세요.\n3. **익절 플랜**: 1차 목표가 **$${tp1}** (-4%)에서 50% 분할 익절 후 본절 스탑 설정, 2차 목표가 **$${tp2}** (-8%). 예상 R:R: **${rr}**.`;
+      return `1. **진입 전략**: **$${entry}** 부근을 주시하세요. ${readiness.status === 'READY_TO_ENTER' ? '현재 완벽한 진입 구간입니다.' : '시장가 몰빵을 피하고 분할로 접근하세요.'}\n2. **손절 방어**: **$${sl}**에 필수 스탑로스를 설정하세요.\n3. **익절 플랜**: 1차 목표가 **$${tp1}** (-${tp1Pct}%)에서 50% 분할 익절 후 본절 스탑 설정, 2차 목표가 **$${tp2}** (-${tp2Pct}%). 예상 R:R: **${rr}**.`;
     }
     if (isEn) {
-      return `1. **Execution**: Focus on entry zone around **$${entry}**. ${readiness.status === 'READY_TO_ENTER' ? 'Price is currently optimal inside entry zone.' : 'Scale in with limit orders; avoid market FOMO.'}\n2. **Defense**: Place mandatory Stop Loss at **$${sl}**.\n3. **Profit Ladder**: Take 50% profit at TP1 **$${tp1}** (-4%) and trail SL to Breakeven; ride remaining runners to TP2 **$${tp2}** (-8%). Calculated R:R: **${rr}**.`;
+      return `1. **Execution**: Focus on entry zone around **$${entry}**. ${readiness.status === 'READY_TO_ENTER' ? 'Price is currently optimal inside entry zone.' : 'Scale in with limit orders; avoid market FOMO.'}\n2. **Defense**: Place mandatory Stop Loss at **$${sl}**.\n3. **Profit Ladder**: Take 50% profit at TP1 **$${tp1}** (-${tp1Pct}%) and trail SL to Breakeven; ride remaining runners to TP2 **$${tp2}** (-${tp2Pct}%). Calculated R:R: **${rr}**.`;
     }
-    return `1. **Điểm vào lệnh**: Tập trung quanh vùng **$${entry}**. ${readiness.status === 'READY_TO_ENTER' ? 'Giá hiện tại đang nằm ngay vùng mở vị thế lý tưởng.' : 'Nên chia vốn làm 2-3 phần, tránh vào lệnh vội vã bằng lệnh Market.'}\n2. **Cắt lỗ bắt buộc**: Đặt sẵn lệnh Stop Loss tại **$${sl}**.\n3. **Chốt lời từng nấc**: Đạt TP1 **$${tp1}** (-4%) ➔ đóng 50% vị thế và dời SL về hòa vốn (Breakeven); giữ 50% còn lại về TP2 **$${tp2}** (-8%). Tỷ lệ R:R: **${rr}**.`;
-  }, [entry, sl, tp1, tp2, rr, readiness.status, isEn, isZh, isKo]);
+    return `1. **Điểm vào lệnh**: Tập trung quanh vùng **$${entry}**. ${readiness.status === 'READY_TO_ENTER' ? 'Giá hiện tại đang nằm ngay vùng mở vị thế lý tưởng.' : 'Nên chia vốn làm 2-3 phần, tránh vào lệnh vội vã bằng lệnh Market.'}\n2. **Cắt lỗ bắt buộc**: Đặt sẵn lệnh Stop Loss tại **$${sl}**.\n3. **Chốt lời từng nấc**: Đạt TP1 **$${tp1}** (-${tp1Pct}%) ➔ đóng 50% vị thế và dời SL về hòa vốn (Breakeven); giữ 50% còn lại về TP2 **$${tp2}** (-${tp2Pct}%). Tỷ lệ R:R: **${rr}**.`;
+  }, [entry, sl, tp1, tp2, tp1Pct, tp2Pct, rr, readiness.status, isEn, isZh, isKo]);
 
   const riskAlert = useMemo(() => {
     if (!tradeSetup || sl == null) return null;
