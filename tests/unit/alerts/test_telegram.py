@@ -503,3 +503,61 @@ class TestTelegramAlert:
         assert "https://daovang.comaygiauco.com/#coin=SOLUSDT" in text
         assert "binance.com" not in text.lower()
         assert "okx.com" not in text.lower()
+
+
+class TestV3Alert:
+    def test_send_v3_alert_suppressed_in_research_mode_without_shadow_chat(
+        self, configured_notifier: TelegramNotifier
+    ) -> None:
+        """Research mode must never send V3 alert to production channel."""
+        with patch("dao_vang.alerts.telegram.httpx.Client") as mock_client:
+            result = configured_notifier.send_v3_alert(
+                symbol="BEATUSDT",
+                entry_price=4.42,
+                probability=0.52,
+                pump_pct=0.72,
+                distance_from_high=-0.03,
+                funding_percentile=0.95,
+                feature_time="2026-06-08T12:04:00+00:00",
+                is_champion=True,
+                operating_mode="research",
+            )
+            assert result is False
+            mock_client.assert_not_called()
+
+    def test_send_v3_alert_delivers_to_shadow_chat_when_provided(
+        self, configured_notifier: TelegramNotifier
+    ) -> None:
+        """V3 research alert delivers to shadow chat when provided."""
+        captured: dict = {}
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"ok": True}
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.side_effect = lambda url, json=None, **kw: (
+            captured.update(json or {}) or mock_response
+        )
+
+        with patch("dao_vang.alerts.telegram.httpx.Client", return_value=mock_client):
+            result = configured_notifier.send_v3_alert(
+                symbol="BEATUSDT",
+                entry_price=4.42,
+                probability=0.52,
+                pump_pct=0.725,
+                distance_from_high=-0.03,
+                funding_percentile=0.95,
+                feature_time="2026-06-08T12:04:00+00:00",
+                is_champion=True,
+                operating_mode="research",
+                shadow_chat_id="-100999888777",
+            )
+
+        assert result is True
+        assert captured.get("chat_id") == "-100999888777"
+        text = captured.get("text", "")
+        assert "V3 CHAMPION (+1.8% EV)" in text
+        assert "BEATUSDT" in text
+        assert "Entry 1" in text
+        assert "Mục tiêu Chốt lời (TP):* `-20%`" in text
+        assert "Cắt lỗ Cứng (Stop):* `+16%`" in text

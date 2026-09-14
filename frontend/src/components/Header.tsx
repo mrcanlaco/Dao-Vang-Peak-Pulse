@@ -69,8 +69,8 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   status,
-  searchTerm,
-  setSearchTerm,
+  searchTerm: _searchTerm,
+  setSearchTerm: _setSearchTerm,
   selectedRiskFilter,
   setSelectedRiskFilter,
   threshold,
@@ -172,7 +172,7 @@ export const Header: React.FC<HeaderProps> = ({
       title={t('select_coins_to_scan')}
     >
       <Target className="h-3.5 w-3.5 shrink-0 stroke-[2.5]" />
-      <span className="truncate whitespace-nowrap text-[11px] font-mono font-bold uppercase">
+      <span className="hidden sm:inline truncate whitespace-nowrap text-[11px] font-mono font-bold uppercase">
         {scanLabel}
       </span>
     </button>
@@ -290,64 +290,81 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         ) : (
           /* Mobile Radar View Header (When browsing radar signals) */
-          <div className="flex md:hidden flex-col gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={onGoHome}
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-amber-700 text-sm font-bold text-slate-950 shadow-md shadow-amber-500/20">
-                  🪙
-                </div>
-                <div>
-                  <div className="text-[9px] font-semibold uppercase tracking-wider text-amber-400/80 leading-none">
-                    {t('app_subtitle')}
-                  </div>
-                  <h1 className="text-sm font-black tracking-wide text-amber-300 leading-tight">
-                    RADAR
-                  </h1>
-                </div>
+          <div className="flex md:hidden items-center justify-between gap-2 min-w-0">
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={onGoHome}
+              className="flex items-center gap-2 cursor-pointer shrink-0"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-amber-700 text-sm font-bold text-slate-950 shadow-md shadow-amber-500/20">
+                🪙
               </div>
-
-              <div className="flex items-center gap-1.5">
-                {watchlistButton}
-                <button
-                  type="button"
-                  onClick={onRefresh}
-                  disabled={isRefreshing}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 active:scale-95"
-                  title={t('refresh')}
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
-                </button>
+              <div>
+                <div className="text-[9px] font-semibold uppercase tracking-wider text-amber-400/80 leading-none">
+                  {t('app_subtitle')}
+                </div>
+                <h1 className="text-sm font-black tracking-wide text-amber-300 leading-tight">
+                  RADAR
+                </h1>
               </div>
             </div>
 
-            {/* Mobile Search & Risk Toolbar */}
-            <div className="grid grid-cols-[1fr_auto] gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {watchlistButton}
+              {/* Language Selector */}
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder={t('search_placeholder')}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-2 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono"
-                />
+                <button
+                  type="button"
+                  onClick={() => setLangDropdownOpen((o) => !o)}
+                  className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-amber-500/30 bg-slate-800 px-2 text-xs font-bold text-amber-300 active:scale-95"
+                  title={t('language_toggle')}
+                >
+                  <span className="text-sm leading-none">{currentLangObj.flag}</span>
+                </button>
+                {langDropdownOpen && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Close language dropdown"
+                      className="fixed inset-0 z-40 h-full w-full cursor-default"
+                      onClick={() => setLangDropdownOpen(false)}
+                    />
+                    <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-xl border border-slate-700 bg-slate-900 p-1.5 shadow-2xl backdrop-blur-md">
+                      {LANGUAGES.map((item: LanguageOption) => (
+                        <button
+                          type="button"
+                          key={item.code}
+                          onClick={() => {
+                            setLanguage(item.code);
+                            setLangDropdownOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
+                            language === item.code
+                              ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40'
+                              : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-base leading-none">{item.flag}</span>
+                            <span>{item.nativeLabel}</span>
+                          </div>
+                          {language === item.code && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
-              <select
-                value={selectedRiskFilter}
-                onChange={(e) => setSelectedRiskFilter(e.target.value)}
-                className="bg-slate-900 border border-slate-800 rounded-lg px-2 text-xs font-mono text-slate-300 focus:outline-none focus:border-amber-500 cursor-pointer"
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={isRefreshing}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 active:scale-95"
+                title={t('refresh')}
               >
-                <option value="ALL">{t('risk_all')}</option>
-                <option value="CRITICAL">🔴 {getRiskLabel('CRITICAL', language)}</option>
-                <option value="HIGH">🟠 {getRiskLabel('HIGH', language)}</option>
-                <option value="MEDIUM">🟡 {getRiskLabel('MEDIUM', language)}</option>
-                <option value="SAFE">🟢 {getRiskLabel('SAFE', language)}</option>
-              </select>
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
+              </button>
             </div>
           </div>
         )}

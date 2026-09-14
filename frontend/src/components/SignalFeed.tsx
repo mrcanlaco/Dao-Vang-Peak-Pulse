@@ -534,31 +534,9 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
       {!isCollapsed && (
         <div className="rounded-xl border border-slate-800/90 bg-slate-950/80 p-2 sm:p-2.5 space-y-2">
           {/* Streamlined Main Action Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* Left: Search Bar & Core Tabs */}
-            <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
-              {/* Search Box */}
-              <div className="relative w-full sm:w-56 shrink-0">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                <input
-                  type="text"
-                  value={localSearch}
-                  onChange={(e) => setLocalSearch(e.target.value)}
-                  placeholder={t('feed_search_placeholder')}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/40 font-mono transition"
-                />
-                {localSearch && (
-                  <button
-                    onClick={() => setLocalSearch('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-0.5"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-
-              {/* 4 Core Focus Tabs */}
-              <div className="inline-flex items-center gap-1 p-0.5 rounded-lg bg-slate-900 border border-slate-800 overflow-x-auto max-w-full [&::-webkit-scrollbar]:hidden">
+          {(() => {
+            const filterTabs = (
+              <div className="inline-flex items-center gap-1 p-0.5 rounded-lg bg-slate-900 border border-slate-800 min-w-max">
                 {/* ALL */}
                 <button
                   type="button"
@@ -634,17 +612,15 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   <span className="ml-0.5 text-[10px] font-mono font-bold">({(kpiStats as any).resolved ?? 0})</span>
                 </button>
               </div>
-            </div>
+            );
 
-            {/* Right: Sort Dropdown + Advanced Filter Drawer Trigger */}
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Sort Dropdown */}
-              <label className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2 py-1 text-[11px] text-slate-400">
+            const sortDropdown = (
+              <label className="flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900 px-2.5 py-1.5 text-[11px] text-slate-400">
                 <span className="shrink-0 text-slate-500 hidden sm:inline">{t('feed_filter_sort')}</span>
                 <select
                   value={signalSort}
                   onChange={event => setSignalSort(event.target.value as SignalSort)}
-                  className="min-w-0 rounded bg-slate-900 px-1 text-[11px] font-semibold text-slate-200 outline-none [color-scheme:dark]"
+                  className="min-w-0 rounded bg-slate-900 px-0.5 text-[11px] font-semibold text-slate-200 outline-none [color-scheme:dark] cursor-pointer"
                   aria-label="Sort alerts"
                 >
                   <option className="bg-slate-900 text-slate-200" value="NEWEST">{getSortLabel('NEWEST')}</option>
@@ -654,12 +630,13 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   <option className="bg-slate-900 text-slate-200" value="EXPIRING_SOON">{getSortLabel('EXPIRING_SOON')}</option>
                 </select>
               </label>
+            );
 
-              {/* Advanced Filter Trigger Button */}
+            const filterButton = (
               <button
                 type="button"
                 onClick={() => setIsFilterDrawerOpen(true)}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold transition shadow-sm ${
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition shadow-sm ${
                   activeAdvancedFilterCount > 0
                     ? 'border-amber-500 bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40'
                     : 'border-slate-700 bg-slate-900 text-slate-300 hover:border-amber-500/60 hover:text-amber-300'
@@ -674,8 +651,79 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   </span>
                 )}
               </button>
-            </div>
-          </div>
+            );
+
+            return (
+              <div className="space-y-2">
+                {/* Desktop: 1 clean unified row */}
+                <div className="hidden sm:flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="relative w-56 shrink-0">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={localSearch}
+                        onChange={(e) => setLocalSearch(e.target.value)}
+                        placeholder={t('feed_search_placeholder')}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/40 font-mono transition"
+                      />
+                      {localSearch && (
+                        <button
+                          onClick={() => setLocalSearch('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                    {filterTabs}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {sortDropdown}
+                    {filterButton}
+                  </div>
+                </div>
+
+                {/* Mobile: 3 dedicated well-spaced rows */}
+                <div className="sm:hidden space-y-2">
+                  {/* Row 1: Full-width search bar */}
+                  <div className="relative w-full">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={localSearch}
+                      onChange={(e) => setLocalSearch(e.target.value)}
+                      placeholder={t('feed_search_placeholder')}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-7 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/40 font-mono transition"
+                    />
+                    {localSearch && (
+                      <button
+                        onClick={() => setLocalSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Row 2: Full-width horizontal scrollable tabs */}
+                  <div className="w-full overflow-x-auto pb-0.5 [&::-webkit-scrollbar]:hidden">
+                    {filterTabs}
+                  </div>
+
+                  {/* Row 3: Sort & Filter Toolbar */}
+                  <div className="flex items-center justify-between gap-2 pt-0.5">
+                    <div className="flex-1 min-w-0">
+                      {sortDropdown}
+                    </div>
+                    <div className="shrink-0">
+                      {filterButton}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Active Filter Tags Bar (Only appears when secondary filters are applied) */}
           {(activeAdvancedFilterCount > 0 || (activeFilterTag !== 'ALL' && activeFilterTag !== 'FIRED' && activeFilterTag !== 'ARMED' && activeFilterTag !== 'HOT_RISK')) && (
@@ -738,8 +786,161 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
             /* =========================================================================
              * VIEW MODE 2: TABLE VIEW (Dense scanning for power traders)
              * ========================================================================= */
-            <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/70">
-              <table className="w-full text-left text-xs border-collapse">
+            <>
+              {/* Mobile Card Feed View (sm:hidden) */}
+              <div className="sm:hidden space-y-2.5">
+                {groupedSignals.map(({ signal: sig, count }) => {
+                  const isSelected = sig.id === selectedSignalId;
+                  const probPct = (sig.probability * 100).toFixed(1);
+                  const timing = getSignalTiming(sig);
+                  const isTracked = Boolean(isSignalTracked?.(sig));
+                  const sector = getCoinSector(sig.symbol);
+                  const sectorCfg = getSectorBadgeConfig(sector, language);
+                  const capInfo = getCoinMarketCapInfo(sig.symbol, sig);
+                  const capCfg = getMarketCapBadgeConfig(capInfo.market_cap_tier, capInfo.market_cap_str, language, capInfo.market_cap_is_estimate);
+                  const twoTier = getSignalTwoTierState(sig);
+
+                  return (
+                    <div
+                      key={sig.id}
+                      onClick={() => {
+                        onSelectSignal(sig);
+                        if (onGoToDecision) onGoToDecision(sig);
+                      }}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer bg-slate-950/80 border-slate-800 active:border-amber-500/60 active:bg-slate-900/90 ${
+                        isSelected ? 'border-amber-500 ring-1 ring-amber-500/40 shadow-lg shadow-amber-500/10' : 'hover:border-slate-700'
+                      }`}
+                    >
+                      {/* Top Row: Symbol, Badges & Risk */}
+                      <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <CoinLink
+                            symbol={sig.symbol}
+                            onClick={() => {
+                              onSelectSignal(sig);
+                              if (onGoToDecision) onGoToDecision(sig);
+                            }}
+                            className="font-black text-sm text-slate-100 hover:text-amber-300 tracking-tight"
+                          />
+                          {count > 1 && (
+                            <span className="px-1 py-0.2 bg-slate-800 text-amber-400 text-[9px] rounded font-bold border border-amber-500/30 font-mono">
+                              x{count}
+                            </span>
+                          )}
+                          {twoTier === 'FIRED' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-red-950 text-amber-300 border border-red-600 animate-pulse font-mono">
+                              {t('feed_tag_fired')}
+                            </span>
+                          ) : twoTier === 'ARMED' ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-950/80 text-amber-300 border border-amber-600/80 font-mono">
+                              {t('feed_tag_armed')}
+                            </span>
+                          ) : null}
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border flex items-center gap-0.5 ${sectorCfg.className}`}>
+                            <span>{sectorCfg.icon}</span>
+                            <span>{sectorCfg.label}</span>
+                          </span>
+                          <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border flex items-center gap-0.5 ${capCfg.className}`}>
+                            <span>{capCfg.icon}</span>
+                            <span>{capCfg.label}</span>
+                          </span>
+                        </div>
+                        <div className="shrink-0">
+                          {getRiskBadge(sig.risk_level)}
+                        </div>
+                      </div>
+
+                      {/* Pattern Row */}
+                      {(sig.trigger_pattern || sig.trigger_pattern_vi) && (
+                        <div className="text-[10px] text-amber-400 font-normal truncate flex items-center gap-1 mb-2">
+                          <Sparkles className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                          <span className="truncate">{language === 'vi' ? (sig.trigger_pattern_vi || sig.trigger_pattern) : (sig.trigger_pattern || sig.trigger_pattern_vi)}</span>
+                        </div>
+                      )}
+
+                      {/* Key Metrics Strip (Probability, Target Drawdown, OI / FR) */}
+                      <div className="grid grid-cols-3 gap-1.5 p-2 rounded-lg bg-slate-900/90 border border-slate-800/80 font-mono text-[11px] mb-2">
+                        <div>
+                          <span className="text-[9px] text-slate-500 uppercase block leading-none mb-0.5">{language === 'vi' ? 'Xác suất' : 'Prob'}</span>
+                          <span className="font-extrabold text-amber-400">{probPct}%</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-slate-500 uppercase block leading-none mb-0.5">{language === 'vi' ? 'Mục tiêu' : 'Target'}</span>
+                          <span className="font-bold text-red-400 flex items-center gap-0.5">
+                            <TrendingDown className="w-2.5 h-2.5 shrink-0" />
+                            {sig.target_drawdown <= 1 ? (sig.target_drawdown * 100).toFixed(0) : sig.target_drawdown}%
+                          </span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] text-slate-500 uppercase block leading-none mb-0.5">OI / FR</span>
+                          <span className="font-bold text-sky-400 text-[10px]">
+                            {sig.oi_change_24h || '—'} <span className="text-amber-400">{sig.funding_rate || ''}</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Action Bar */}
+                      <div className="flex items-center justify-between gap-1.5 pt-0.5" onClick={e => e.stopPropagation()}>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          {timing.elapsedLabel}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          {onGoToDecision && (
+                            <button
+                              type="button"
+                              onClick={() => onGoToDecision(sig)}
+                              className="px-2.5 py-1 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] transition flex items-center gap-1 shadow-sm"
+                            >
+                              <BarChart2 className="w-3 h-3" />
+                              <span>{t('feed_btn_analyze')}</span>
+                            </button>
+                          )}
+                          {onOpenOrderModal && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onSelectSignal(sig);
+                                onOpenOrderModal(sig);
+                              }}
+                              className="px-2.5 py-1 rounded bg-red-950 hover:bg-red-900 border border-red-700 text-red-300 font-bold text-[10px] transition flex items-center gap-1"
+                            >
+                              <Target className="w-3 h-3 text-red-400" />
+                              <span>{t('feed_btn_short')}</span>
+                            </button>
+                          )}
+                          {onTrackSignal && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isTracked && onUntrackSignal) onUntrackSignal(sig);
+                                else onTrackSignal(sig);
+                              }}
+                              className={`p-1.5 rounded border transition text-[10px] ${
+                                isTracked
+                                  ? 'border-amber-500/50 bg-amber-500/10 text-amber-300'
+                                  : 'border-slate-800 bg-slate-900 text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              {isTracked ? <Eye className="w-3 h-3 text-amber-400" /> : <EyeOff className="w-3 h-3" />}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleCopyAlertText(sig)}
+                            className="p-1.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-400 transition"
+                          >
+                            {copiedId === sig.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Table View (hidden sm:block) */}
+              <div className="hidden sm:block overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/70">
+                <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-800 bg-slate-900/80 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     <th className="py-2.5 px-3">{t('feed_col_coin')}</th>
@@ -949,6 +1150,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 </tbody>
               </table>
             </div>
+            </>
           ) : viewMode === 'SPLIT' ? (
             /* =========================================================================
              * VIEW MODE 3: SPLIT INSPECTOR VIEW (Feed on Left + Live Inspector on Right)

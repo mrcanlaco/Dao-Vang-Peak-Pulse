@@ -45,6 +45,6 @@ class ReferenceTimingSpec:
     scout_percentile_min: float = 0.80
     scout_persistence_min_exclusive: float = 0.0
     scout_change_min_exclusive: float = 0.0
-
+    scout_max_distance_from_high: float = -0.02
 
 TIMING = ReferenceTimingSpec()

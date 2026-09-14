@@ -14,6 +14,7 @@ from dao_vang.experiments.distribution_v3 import (
     Episode,
     Timing,
     canonical,
+    champion_gate,
     digest,
     scout_gate,
     time_value,
@@ -93,7 +94,7 @@ def atomic_snapshot(path: Path, payload: dict) -> None:
 
 
 def observe(database, *, storage: Path, model_path: Path, now: datetime,
-            discovery: dict | None = None) -> dict:
+            discovery: dict | None = None, settings=None) -> dict:
     """One bounded cycle: persist timing and inputs atomically; no fake backfill."""
     import joblib
     import pandas as pd
@@ -242,6 +243,8 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                     "reason": reason,
                     "scout": selected and scout_gate(snapshot) == "selected",
                     "scout_reason": scout_gate(snapshot),
+                    "champion": selected and champion_gate(snapshot) == "selected",
+                    "champion_reason": champion_gate(snapshot),
                     "model_checksum": MODEL_SHA,
                     "runtime_version": RUNTIME_VERSION,
                     "contract": SPEC.version,
@@ -270,6 +273,26 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                     "INSERT INTO observations VALUES (?, ?, ?, ?, ?)",
                     [identity, symbol, when.isoformat(), selected, canonical(item)],
                 )
+                if settings and getattr(settings, "research_v3_telegram_enabled", False) and selected:
+                    try:
+                        from dao_vang.alerts.telegram import TelegramNotifier
+                        notifier = TelegramNotifier(settings.telegram, web_base_url=getattr(settings.web, "public_url", None))
+                        notifier.send_v3_alert(
+                            symbol=symbol,
+                            entry_price=price,
+                            probability=float(score),
+                            pump_pct=float(snapshot.get("price_ret_24h", 0.0)),
+                            distance_from_high=float(snapshot.get("distance_from_high_24h", 0.0)),
+                            funding_percentile=float(snapshot.get("funding_percentile_30d", 0.0) or 0.0),
+                            feature_time=when.isoformat(),
+                            is_champion=bool(item.get("champion")),
+                            is_scout=bool(item.get("scout")),
+                            web_url=getattr(settings.web, "public_url", None),
+                            operating_mode=getattr(settings.scanner, "operating_mode", "research"),
+                            shadow_chat_id=getattr(settings.telegram, "shadow_chat_id", None),
+                        )
+                    except Exception:
+                        pass
                 state["last_seen"][symbol] = when.isoformat()
         pending = ledger.execute("""
             SELECT o.id, o.payload FROM observations o WHERE o.selected=1 ORDER BY o.timestamp DESC
@@ -372,7 +395,7 @@ def run_cycle(database, *, data_dir: Path, model_path: Path,
             discovery = enrich(database, discovery, now=now)
             atomic_snapshot(storage / "discovery.json", discovery)
         result = observe(database, storage=storage, model_path=model_path,
-                         now=datetime.now(timezone.utc), discovery=discovery)
+                         now=datetime.now(timezone.utc), discovery=discovery, settings=settings)
         if discovery is not None and discovery.get("backfill_version"):
             from dao_vang.scanner.research_v3_backfill import publish_stages
 

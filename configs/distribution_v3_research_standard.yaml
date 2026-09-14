@@ -74,6 +74,7 @@ strategy_lanes:
       funding_percentile_30d_gte: 0.80
       funding_persistence_7d_gt: 0.0
       funding_change_8h_gt: 0.0
+      distance_from_high_24h_lte: -0.02
 
 evidence_protocol:
   event_key: symbol_feature_time_policy_version

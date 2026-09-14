@@ -26,6 +26,7 @@ export interface CandlestickSignalMarker {
 }
 
 interface CandlestickChartProps {
+  symbol?: string;
   data: Array<{
     time: number | string;
     open: number;
@@ -45,6 +46,7 @@ interface CandlestickChartProps {
   onIntervalChange?: (interval: string) => void;
 }
 export const CandlestickChart: React.FC<CandlestickChartProps> = ({
+  symbol,
   data,
   targetPrice,
   height = 400,
@@ -62,6 +64,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   const alertMenuRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const logicalRangeRef = useRef<any>(null);
+  const lastKeyRef = useRef<string>('');
   const [crosshairMode, setCrosshairMode] = useState<'magnet' | 'normal' | 'hidden'>('magnet');
   const [gridVisible, setGridVisible] = useState(true);
   const [priceAutoScale, setPriceAutoScale] = useState(true);
@@ -169,7 +172,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   const handleResetView = () => {
     const chart = chartRef.current;
     if (!chart) return;
-    chart.timeScale().fitContent();
+    chart.timeScale().scrollToPosition(0, false);
     applyPriceScaleMode(true);
   };
 
@@ -460,17 +463,24 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         signalMarkersApi = createSeriesMarkers(candleSeries, resolvedMarkers as any, { zOrder: 'top' });
       }
     }
-    if (logicalRangeRef.current && candleData.length > 0) {
+    const currentKey = `${symbol || ''}:${interval || ''}`;
+    const isNewContext = lastKeyRef.current !== currentKey;
+    if (isNewContext) {
+      lastKeyRef.current = currentKey;
+      logicalRangeRef.current = null;
+    }
+
+    if (logicalRangeRef.current && candleData.length > 0 && !isNewContext) {
       const maxIdx = candleData.length - 1;
       const { from } = logicalRangeRef.current;
       // Nếu range đã lưu nằm ngoài giới hạn data mới (ví dụ chuyển sang coin có ít nến hơn)
       if (from > maxIdx + 10) {
-        chart.timeScale().fitContent();
+        chart.timeScale().scrollToPosition(0, false);
       } else {
         chart.timeScale().setVisibleLogicalRange(logicalRangeRef.current);
       }
     } else {
-      chart.timeScale().fitContent();
+      chart.timeScale().scrollToPosition(0, false);
     }
 
     const handleResize = () => {
@@ -489,7 +499,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         chartRef.current = null;
       }
     };
-  }, [data, targetPrice, visibleSignalMarkers, chartHeight, language, showTradeSetup, showEMA, showVolume]);
+  }, [data, symbol, interval, targetPrice, visibleSignalMarkers, chartHeight, language, showTradeSetup, showEMA, showVolume]);
 
   return (
     <div
@@ -501,16 +511,23 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       <div className="pointer-events-auto absolute left-2 right-2 top-2 z-20 flex max-w-[calc(100%-1rem)] items-center gap-1 overflow-x-auto rounded-md border border-slate-700/80 bg-slate-950/95 p-1 shadow-xl shadow-black/20 [&::-webkit-scrollbar]:hidden sm:left-auto sm:right-2 sm:max-w-none sm:overflow-visible">
         {interval && onIntervalChange && (
           <>
-            {['1m', '5m', '15m', '1h', '4h', '1d'].map(int => (
-              <button
-                key={int}
-                type="button"
-                onClick={() => onIntervalChange(int)}
-                className={`${toolButtonClass} ${interval === int ? 'border-amber-500/80 text-amber-300 bg-amber-500/10' : ''}`}
-              >
-                {int}
-              </button>
-            ))}
+            {['1m', '5m', '15m', '1h', '4h', '1d'].map(int => {
+              const active = interval === int;
+              return (
+                <button
+                  key={int}
+                  type="button"
+                  onClick={() => onIntervalChange(int)}
+                  className={`inline-flex h-7 shrink-0 items-center justify-center whitespace-nowrap rounded px-2.5 text-[10px] font-bold transition ${
+                    active
+                      ? 'border border-amber-400 bg-amber-400 text-slate-950 shadow-sm shadow-amber-400/30'
+                      : 'border border-slate-700/80 bg-slate-900/90 text-slate-400 hover:border-amber-500/60 hover:bg-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  {int}
+                </button>
+              );
+            })}
             <div className="w-px h-4 bg-slate-700 mx-0.5 shrink-0"></div>
           </>
         )}

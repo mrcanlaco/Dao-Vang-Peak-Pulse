@@ -100,6 +100,76 @@ def experiment_audit_v3_market(
                          "coverage": result["coverage"], "promotion_eligible": False}))
 
 
+@experiment_app.command("train-v3")
+def experiment_train_v3(
+    dataset_db: Path = typer.Option(Path("artifacts/distribution_v3_training.duckdb")),
+    rebuild_dataset: bool = typer.Option(False, "--rebuild-dataset", help="Rebuild materialized 48h candidates"),
+    n_folds: int = typer.Option(4, "--n-folds", help="Number of OOS folds"),
+    pump_threshold: float = typer.Option(0.15, "--pump-threshold", help="Pre-pump threshold (e.g. 0.15, 0.25)"),
+    calibration_method: str = typer.Option("isotonic", "--calibration", help="Calibration method: isotonic | sigmoid"),
+) -> None:
+    """Train and evaluate the distribution_short_v3_policy_48h model."""
+    from dao_vang.experiments.distribution_v3 import canonical
+    from dao_vang.experiments.train_distribution_v3 import (
+        V3TrainingConfig,
+        evaluate_oos,
+        load_v3_dataset,
+        materialize_v3_dataset,
+        promotion_gate,
+    )
+
+    config = V3TrainingConfig(
+        dataset_db=dataset_db,
+        rebuild_dataset=rebuild_dataset,
+        n_folds=n_folds,
+        pump_threshold_24h=pump_threshold,
+        calibration_method=calibration_method,
+    )
+    materialized = materialize_v3_dataset(config)
+    frame = load_v3_dataset(config)
+    evaluation = evaluate_oos(config, frame)
+    gate = promotion_gate(evaluation)
+    typer.echo(canonical({
+        "contract": config.label_version,
+        "materialized": materialized,
+        "summary": evaluation["summary"],
+        "promotion_gate": gate,
+        "promotion_eligible": False,
+    }))
+
+@experiment_app.command("alert-v3")
+def experiment_alert_v3(
+    symbol: str = typer.Option("BEATUSDT", "--symbol", help="Coin symbol"),
+    price: float = typer.Option(4.42, "--price", help="Entry price"),
+    probability: float = typer.Option(0.522, "--probability", help="Model probability"),
+    pump_pct: float = typer.Option(0.725, "--pump-pct", help="24h pump percentage"),
+    distance_from_high: float = typer.Option(-0.03, "--distance-from-high", help="Reversal from peak"),
+    funding_percentile: float = typer.Option(0.95, "--funding-percentile", help="30d funding percentile"),
+    is_champion: bool = typer.Option(True, "--champion/--no-champion", help="Is champion setup"),
+    shadow_chat_id: str | None = typer.Option(None, "--shadow-chat-id", help="Shadow chat ID override"),
+) -> None:
+    """Send a preview V3 research alert to a shadow channel."""
+    from dao_vang.alerts.telegram import TelegramNotifier
+    from dao_vang.config.settings import AppSettings
+
+    settings = AppSettings()
+    notifier = TelegramNotifier(settings.telegram, web_base_url=settings.web.public_url)
+    chat = shadow_chat_id or getattr(settings.telegram, "shadow_chat_id", None) or settings.telegram.chat_id
+    ok = notifier.send_v3_alert(
+        symbol=symbol,
+        entry_price=price,
+        probability=probability,
+        pump_pct=pump_pct,
+        distance_from_high=distance_from_high,
+        funding_percentile=funding_percentile,
+        feature_time=datetime.now(timezone.utc).isoformat(),
+        is_champion=is_champion,
+        web_url=settings.web.public_url,
+        operating_mode="research",
+        shadow_chat_id=chat,
+    )
+    typer.echo(f"Sent V3 alert to {chat}: {ok}")
+
 @data_app.command("collect")
 def data_collect(
     start_timestamp: float,

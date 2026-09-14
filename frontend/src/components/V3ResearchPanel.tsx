@@ -4,7 +4,7 @@ import { formatSystemTime } from '../utils/time';
 
 type Fill = { leg: number; price: number; average_entry: number; target_price: number; stop_price: number };
 type Item = {
-  id: string; symbol: string; feature_time: string; selected: boolean; scout: boolean;
+  id: string; symbol: string; feature_time: string; selected: boolean; scout: boolean; champion?: boolean;
   score: number; reason: string; price: number;
   entry_plan: { leg: number; price: number; notional_weight: number }[];
   outcome?: { status: string; fills: Fill[]; exit_price: number | null; exclusion_reason: string | null } | null;
@@ -21,7 +21,7 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
   const vi = language === 'vi';
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState(false);
-  const [scope, setScope] = useState<'all' | 'parent' | 'scout'>('all');
+  const [scope, setScope] = useState<'all' | 'parent' | 'scout' | 'champion'>('all');
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
@@ -37,7 +37,7 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
     const timer = window.setInterval(() => void refresh(), 30000);
     return () => { active = false; controller.abort(); window.clearInterval(timer); };
   }, []);
-  const items = (snapshot?.items || []).filter(item => scope === 'all' || (scope === 'parent' ? item.selected : item.scout));
+  const items = (snapshot?.items || []).filter(item => scope === 'all' || (scope === 'parent' ? item.selected : scope === 'scout' ? item.scout : item.champion));
   const price = (value: number) => new Intl.NumberFormat(vi ? 'vi-VN' : 'en-US', { maximumSignificantDigits: 7 }).format(value);
   const stateLabel: Record<string, string> = vi ? {
     DETECTED: 'Đã phát hiện', BACKFILLING: 'Đang bổ sung lịch sử', DATA_READY: 'Dữ liệu sẵn sàng',
@@ -52,13 +52,17 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
     confirmation_pending: 'Chờ đủ xác nhận', episode_too_young: 'Episode chưa đủ 4h', peak_below_30pct: 'Đỉnh tăng chưa đạt 30%',
     episode_already_consumed: 'Episode đã có quyết định', symbol_cooldown: 'Đang trong thời gian nghỉ',
     score_below_reference_threshold: 'Điểm dưới ngưỡng tham chiếu', stablecoin: 'Loại stablecoin',
+    reversal_not_confirmed: 'Chờ đảo chiều từ đỉnh ≥2%', funding_gate_failed: 'Chưa đạt điều kiện cước Funding Scout', funding_features_missing: 'Thiếu chỉ số Funding',
+    pump_below_25pct: 'Đỉnh tăng 24h chưa đạt 25%',
   } : { DETECTED: 'Detected', BACKFILLING: 'Backfilling history', DATA_READY: 'Data ready', SCORING: 'Ready for hourly scoring',
     CONFIRMATION: 'Awaiting confirmation', ENTRY: 'Simulated Entry', REJECT: 'Entry conditions rejected',
     collecting: 'Collecting data', features_pending: 'Waiting for features', history_24h_pending: 'Insufficient valid 24h history',
     features_stale: 'Stale features', closed_return_below_15pct: 'Closed-candle return below 15%', waiting_hourly_confirmation: 'Waiting for hourly assessment',
     ticker_stale: 'Stale market price', below_volume: 'Volume below $1M/24h', capacity_deferred: 'Collection capacity reached',
     running: 'Collecting', waiting: 'Waiting for scanner', disabled: 'Not enabled on server', error: 'Research lane error',
-    target: 'Price target hit', stop: 'Stop hit', stop_ambiguous: 'Ambiguous stop', timeout: '48h timeout', open: 'Tracking', incomplete_final: 'Incomplete final data' };
+    target: 'Price target hit', stop: 'Stop hit', stop_ambiguous: 'Ambiguous stop', timeout: '48h timeout', open: 'Tracking', incomplete_final: 'Incomplete final data',
+    reversal_not_confirmed: 'Awaiting ≥2% reversal from peak', funding_gate_failed: 'Funding Scout gate not met', funding_features_missing: 'Funding features missing',
+    pump_below_25pct: '24h pump below 25%' };
   return <section data-testid="v3-research" className="flex flex-col gap-4 min-h-[400px] lg:h-full overflow-auto p-2 sm:p-4 text-slate-200">
     <div className="flex flex-wrap justify-between items-start gap-3">
       <div><h2 className="text-lg font-bold text-amber-400">{vi ? 'Thử nghiệm v3 · 20% / 48h' : 'V3 research · 20% / 48h'}</h2>
@@ -94,16 +98,16 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
       </div>)}</div>
     </div>}
     <div className="flex flex-wrap gap-2" aria-label={vi ? 'Chọn nhánh' : 'Select lane'}>
-      {(['all', 'parent', 'scout'] as const).map(key => <button key={key} onClick={() => setScope(key)} aria-pressed={scope === key}
+      {(['all', 'parent', 'scout', 'champion'] as const).map(key => <button key={key} onClick={() => setScope(key)} aria-pressed={scope === key}
         className={`rounded-lg px-3 py-2 text-xs border ${scope === key ? 'border-amber-400 text-amber-300' : 'border-slate-700'}`}>
-        {key === 'all' ? (vi ? 'Tất cả quan sát' : 'All observations') : key === 'parent' ? 'Challenger' : 'Funding Scout'}
+        {key === 'all' ? (vi ? 'Tất cả quan sát' : 'All observations') : key === 'parent' ? 'Challenger' : key === 'scout' ? 'Funding Scout' : (vi ? '★ Champion (+1.8% EV)' : '★ Champion (+1.8% EV)')}
       </button>)}
     </div>
     {!items.length && <p className="p-6 text-sm text-slate-400">{vi ? 'Chưa có quan sát phù hợp. Nhánh v3 chỉ ghi dữ liệu từ lúc bật; cần đủ episode 4h và xác nhận để có Entry1, không lấy backtest cũ làm tín hiệu mới.' : 'No matching observations. V3 starts at activation and needs a 4h episode plus confirmations. Old backtests are not shown as new signals.'}</p>}
     {items.map(item => {
       const last = item.outcome?.fills.at(-1);
       return <article key={item.id} className="rounded-xl border border-slate-700 bg-slate-900 p-3 sm:p-4">
-        <div className="flex flex-wrap gap-2 justify-between"><h3 className="font-bold">{item.symbol} <span className="text-xs font-normal text-amber-300">{item.scout ? 'Challenger + Scout' : item.selected ? 'Challenger' : (vi ? 'Quan sát' : 'Observation')}</span></h3>
+        <div className="flex flex-wrap gap-2 justify-between"><h3 className="font-bold">{item.symbol} <span className="text-xs font-normal text-amber-300">{item.champion ? '★ Champion (+1.8% EV)' : item.scout ? 'Challenger + Scout' : item.selected ? 'Challenger' : (vi ? 'Quan sát' : 'Observation')}</span></h3>
           <span className="text-xs text-slate-400">{formatSystemTime(item.feature_time)}</span></div>
         <p className="text-sm my-2">{stateLabel[item.outcome?.status || item.reason] || item.outcome?.status || item.reason} · {vi ? 'Điểm tham chiếu' : 'Reference score'} {item.score.toFixed(3)}</p>
         {item.selected && <>

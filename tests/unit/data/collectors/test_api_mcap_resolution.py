@@ -1,7 +1,7 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
-from dao_vang.web.api_server import _resolve_market_cap_info, _settings
 from dao_vang.data.collectors.coinmarketcap import CoinMarketCapData
+from dao_vang.web.api_server import _resolve_market_cap_info, _settings
 
 
 @patch("dao_vang.data.collectors.coinmarketcap.fetch_market_data")

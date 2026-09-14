@@ -150,11 +150,17 @@ def evaluate(
         positive(event.mark_price)
         if not isfinite(event.rate):
             raise ValueError("funding rate must be finite")
-        if event.timestamp in funding_by_time:
-            raise ValueError("duplicate funding settlement")
-        if (event.timestamp - signal_time) % step:
+        step_seconds = step.total_seconds()
+        rem = (event.timestamp - signal_time).total_seconds() % step_seconds
+        jitter = min(rem, step_seconds - rem)
+        if jitter > 0.05:
             raise ValueError("funding must be aligned to bar boundaries")
-        funding_by_time[event.timestamp] = event
+        nominal = event.timestamp - timedelta(
+            seconds=rem if rem <= step_seconds / 2 else rem - step_seconds
+        )
+        if nominal in funding_by_time:
+            raise ValueError("duplicate funding settlement")
+        funding_by_time[nominal] = event
 
     fills: list[Fill] = []
     payments: list[FundingPayment] = []
@@ -184,7 +190,7 @@ def evaluate(
         if timestamp > signal_time and event is not None:
             payments.append(
                 FundingPayment(
-                    timestamp,
+                    event.timestamp,
                     event.rate,
                     event.mark_price,
                     quantity,

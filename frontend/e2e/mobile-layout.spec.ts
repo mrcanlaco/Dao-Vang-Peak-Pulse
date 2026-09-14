@@ -105,7 +105,7 @@ test('mobile decision and CTA stay above the fixed navigation without overlap', 
   expect(geometry.actions.bottom).toBeLessThanOrEqual(geometry.nav.top + 1);
   expect(geometry.assistant.bottom).toBeLessThanOrEqual(geometry.actions.top - 8);
   expect(geometry.mainPaddingBottom).toBeGreaterThanOrEqual(128);
-  expect(geometry.decision.top).toBeLessThan(geometry.chart.top);
+  expect(geometry.chart.top).toBeLessThan(geometry.decision.top);
   expect((await primaryCta.boundingBox())!.y).toBeLessThan(geometry.viewportHeight);
 
   const artifactDir = path.resolve(process.cwd(), '..', 'artifacts', 'mobile-ux-brand-fix-20260913');

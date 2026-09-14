@@ -34,14 +34,6 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (saved && (saved === 'en' || saved === 'vi' || saved === 'zh' || saved === 'ko')) {
       return saved;
     }
-    // Auto-detect browser language if available
-    if (typeof navigator !== 'undefined' && navigator.language) {
-      const browserLang = navigator.language.toLowerCase();
-      if (browserLang.startsWith('zh')) return 'zh';
-      if (browserLang.startsWith('ko')) return 'ko';
-      if (browserLang.startsWith('vi')) return 'vi';
-      return 'en';
-    }
     return 'vi';
   });
 
@@ -65,6 +57,10 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     const langDict = (translations[language] || translations.vi) as Record<string, string>;
     if (key in langDict) {
       return langDict[key];
+    }
+    const viDict = translations.vi as Record<string, string>;
+    if (key in viDict) {
+      return viDict[key];
     }
     const enDict = translations.en as Record<string, string>;
     if (key in enDict) {

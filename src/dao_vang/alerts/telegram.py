@@ -259,6 +259,7 @@ class TelegramNotifier:
         text: str,
         parse_mode: str = "Markdown",
         disable_web_page_preview: bool = True,
+        chat_id: str | None = None,
     ) -> bool:
         """Send a plain text message.
 
@@ -267,8 +268,12 @@ class TelegramNotifier:
         if not self.is_configured:
             logger.warning("telegram_not_configured_skip")
             return False
+        target_chat_id = chat_id or self._config.chat_id
+        if not target_chat_id:
+            logger.warning("telegram_no_chat_id_skip")
+            return False
         payload: dict[str, Any] = {
-            "chat_id": self._config.chat_id,
+            "chat_id": target_chat_id,
             "text": text,
             "parse_mode": parse_mode,
             "disable_web_page_preview": disable_web_page_preview,
@@ -420,6 +425,82 @@ class TelegramNotifier:
             lines.extend(["", "_Báo cáo phân tích xác suất phân phối từ Đảo Vàng AI._"])
         text = "\n".join(lines)
         return self.send_message(text)
+
+    def send_v3_alert(
+        self,
+        symbol: str,
+        entry_price: float,
+        probability: float,
+        pump_pct: float,
+        distance_from_high: float,
+        funding_percentile: float,
+        feature_time: str,
+        is_champion: bool = False,
+        is_scout: bool = False,
+        web_url: str | None = None,
+        operating_mode: str = "research",
+        shadow_chat_id: str | None = None,
+    ) -> bool:
+        """Send a dedicated V3 research signal alert for the 20% / 48h compact policy.
+
+        Enforces shadow/research constraints: research mode NEVER sends to the main channel.
+        """
+        target_chat = shadow_chat_id or getattr(self._config, "shadow_chat_id", None)
+        if operating_mode in {"research", "shadow"}:
+            if not target_chat:
+                logger.info("v3_telegram_suppressed_research_mode_no_shadow_chat", symbol=symbol)
+                return False
+        else:
+            target_chat = target_chat or self._config.chat_id
+
+        if not target_chat:
+            return False
+
+        price_str = f"${entry_price:,.4f}" if entry_price < 10 else f"${entry_price:,.2f}"
+        e2 = entry_price * 1.03
+        e3 = entry_price * 1.06
+        e2_str = f"${e2:,.4f}" if e2 < 10 else f"${e2:,.2f}"
+        e3_str = f"${e3:,.4f}" if e3 < 10 else f"${e3:,.2f}"
+        tp_price = entry_price * 0.80
+        sl_price = entry_price * 1.16
+        tp_str = f"${tp_price:,.4f}" if tp_price < 10 else f"${tp_price:,.2f}"
+        sl_str = f"${sl_price:,.4f}" if sl_price < 10 else f"${sl_price:,.2f}"
+
+        lane_badge = "🏆 *[V3 CHAMPION (+1.8% EV)]*" if is_champion else (
+            "🎯 *[V3 FUNDING SCOUT]*" if is_scout else "🔬 *[V3 CHALLENGER]*"
+        )
+        detail_url = web_url or _coin_url(self._web_base_url, symbol)
+        formatted_time = _display_time(feature_time, self._lang)
+
+        mode_label = _mode_label(operating_mode, self._lang)
+        mode_prefix = f" `[{mode_label}]`" if operating_mode != "production" else ""
+
+        lines = [
+            f"{lane_badge} 🚨 *TÍN HIỆU PHÂN PHỐI V3 — `{symbol}`*{mode_prefix}",
+            f"• *Thời điểm:* {formatted_time}",
+            f"• *Xác suất phân phối:* `{probability:.1%}`",
+            "",
+            "📊 *Điều Kiện Kích Hoạt Thị Trường:*",
+            f"  ▫️ Pump 24h: `+{pump_pct * 100:.1f}%`",
+            f"  ▫️ Rơi từ đỉnh 24h: `{distance_from_high * 100:.1f}%` (xác nhận vỡ đỉnh)",
+            f"  ▫️ Cước Funding 30d: `{funding_percentile * 100:.0f}%` (đang dốc đứng 8h)",
+            "",
+            "🎯 *Kế Hoạch Khớp Lệnh Compact (0, +3%, +6% | 20/30/50):*",
+            f"  ▫️ *Entry 1 (20%):* `{price_str}` (Khớp tại tín hiệu)",
+            f"  ▫️ *Entry 2 (30%):* `{e2_str}` (+3% từ E1)",
+            f"  ▫️ *Entry 3 (50%):* `{e3_str}` (+6% từ E1)",
+            f"  ▫️ *Mục tiêu Chốt lời (TP):* `-20%` (~`{tp_str}` từ giá TB)",
+            f"  ▫️ *Cắt lỗ Cứng (Stop):* `+16%` (~`{sl_str}` từ giá TB)",
+            "  ▫️ *Hạn đóng lệnh:* `48 giờ` (Mark-to-market)",
+        ]
+        if detail_url:
+            lines.extend(["", f"[🔗 Mở Phân Tích {symbol} Trên Hệ Thống]({detail_url})"])
+        lines.extend([
+            "",
+            "⚠️ _Thử nghiệm nghiên cứu V3 độc lập. Không phải lời khuyên tài chính._"
+        ])
+        text = "\n".join(lines)
+        return self.send_message(text, chat_id=target_chat)
 
     def send_cycle_digest(
         self,

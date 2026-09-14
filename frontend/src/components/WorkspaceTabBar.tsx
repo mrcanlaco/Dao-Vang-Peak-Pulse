@@ -75,7 +75,7 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
   signalCount = 0,
   isTelemetryActive = true,
   guiVersion = 'v2',
-  mobileTab = 'RADAR',
+  mobileTab: _mobileTab = 'RADAR',
   isDevMode = false,
   onOpenTabHelp,
 }) => {
@@ -251,10 +251,10 @@ export const WorkspaceTabBar: React.FC<WorkspaceTabBarProps> = ({
   };
 
   const currentMobileTabs = mobileCategory === 'TRADING' ? tradingTabs : mobileCategory === 'LAB' ? labTabs : systemTabs;
-  const isMobileAnalysis = guiVersion === 'v2' && (activeTab === 'DECISION' || mobileTab === 'ANALYSIS');
+  const isMobileV2 = guiVersion === 'v2';
 
   return (
-    <div className={`border-b border-slate-800 pb-2 mb-3 min-w-0 ${isMobileAnalysis ? 'hidden md:block' : ''}`} ref={dropdownRef}>
+    <div className={`border-b border-slate-800 pb-2 mb-3 min-w-0 ${isMobileV2 ? 'hidden md:block' : ''}`} ref={dropdownRef}>
       {/* ─────────────────────────────────────────────────────────────
           1. DESKTOP & TABLET VIEW (md and up)
       ───────────────────────────────────────────────────────────── */}

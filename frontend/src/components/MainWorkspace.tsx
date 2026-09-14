@@ -20,7 +20,6 @@ import { AiExecutiveBriefing } from './DecisionCenter/AiExecutiveBriefing';
 import { CoinLink } from './CoinLink';
 import { formatSystemTime, parseSystemDate } from '../utils/time';
 import { getCoinMarketCapInfo, getMarketCapBadgeConfig, getMarketCapSourceLabel } from '../utils/sectors';
-import { getCoinExternalUrl } from '../utils/cmc';
 import { useTranslation } from '../i18n/LanguageContext';
 import {
   getRiskLabel,
@@ -200,7 +199,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     timeout: language === 'vi' ? 'Scanner chưa hoàn tất trong thời gian chờ. Bảng vẫn tự đồng bộ mỗi 30 giây.' : language === 'zh' ? '扫描器未在等待时间内完成；列表仍会每 30 秒自动同步。' : language === 'ko' ? '대기 시간 내 스캔이 완료되지 않았습니다. 목록은 30초마다 계속 동기화됩니다.' : 'The scan did not finish within the wait window. The table still syncs every 30 seconds.',
     error: language === 'vi' ? 'Không thể gửi yêu cầu làm mới. Vui lòng kiểm tra trạng thái Scanner.' : language === 'zh' ? '无法提交刷新请求，请检查扫描器状态。' : language === 'ko' ? '새로고침 요청을 보낼 수 없습니다. 스캐너 상태를 확인하세요.' : 'The refresh request failed. Check the scanner status.',
   };
-  const [decisionSubTab, setDecisionSubTab] = useState<'TRADE' | 'METRICS' | 'AI'>('TRADE');
+  const [decisionSubTab, setDecisionSubTab] = useState<'TRADE' | 'AI'>('TRADE');
   const [isChartHidden, setIsChartHidden] = useState(false);
   const [localCountdown, setLocalCountdown] = useState<number | null>(telemetryData?.next_scan_in_seconds ?? null);
 
@@ -237,7 +236,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   const [chartData, setChartData] = useState<any[]>([]);
   const [chartLoading, setChartLoading] = useState(false);
   const [listingRefreshing, setListingRefreshing] = useState(false);
-  const [candleInterval, setCandleInterval] = useState('15m');
+  const [candleInterval, setCandleInterval] = useState('4h');
   const [candleDataOverride, setCandleDataOverride] = useState<CandlePoint[] | null>(null);
   useEffect(() => {
     if (!isDevMode) {
@@ -254,9 +253,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
   const candleCacheRef = useRef<Map<string, CandlePoint[]>>(new Map());
 
-  // Reset interval to default 15m when coin changes.
+  // Reset interval to default 4h when coin changes.
   useEffect(() => {
-    setCandleInterval('15m');
+    setCandleInterval('4h');
     setCandleDataOverride(null);
   }, [coinDetail?.symbol]);
 
@@ -312,7 +311,9 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     return () => controller.abort();
   }, [coinDetail?.symbol, candleInterval]);
 
-  const candleData = candleDataOverride || coinDetail?.chart_data || [];
+  const candleData = candleInterval === '5m'
+    ? (candleDataOverride || coinDetail?.chart_data || [])
+    : (candleDataOverride || []);
 
   // When a signal from RADAR is selected, keep its decision fields in sync
   // while preserving live market metrics from coinDetail (especially funding).
@@ -400,11 +401,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       },
     };
   }, [coinDetail, selectedSignal, candidates]);
-
-  const displayMarketCap = useMemo(
-    () => (displayDetail ? getCoinMarketCapInfo(displayDetail.symbol, displayDetail) : null),
-    [displayDetail],
-  );
 
   const decisionContainerRef = useRef<HTMLDivElement>(null);
 
@@ -567,9 +563,14 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       )}
 
       {/* Workspace Tab Bar (Grouped & Responsive for Desktop + Mobile) */}
-      <button onClick={() => setShowV3(true)} data-testid="open-v3-research"
-        className="self-start mb-2 px-3 py-2 border border-amber-500/40 rounded-lg text-xs font-semibold text-amber-300 hover:bg-amber-500/10">
-        {language === 'vi' ? 'Thử nghiệm v3 · 20% / 48h' : 'V3 research · 20% / 48h'}
+      <button
+        type="button"
+        onClick={() => setShowV3(true)}
+        data-testid="open-v3-research"
+        className="self-start mb-2 px-2.5 py-1 border border-amber-500/40 bg-amber-500/10 rounded-lg text-[11px] font-semibold text-amber-300 hover:bg-amber-500/20 flex items-center gap-1.5 transition"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+        <span>{language === 'vi' ? 'Thử nghiệm v3 · 20% / 48h' : 'V3 research · 20% / 48h'}</span>
       </button>
       <WorkspaceTabBar
         isDevMode={isDevMode}
@@ -664,9 +665,14 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                 displayDetail={displayDetail}
                 high24h={candleData.length > 0 ? Math.max(...candleData.map(c => c.high || c.price)) : undefined}
                 low24h={candleData.length > 0 ? Math.min(...candleData.map(c => c.low || c.price)) : undefined}
+                change24h={
+                  candleData.length >= 2 && candleData[0].close > 0
+                    ? ((candleData[candleData.length - 1].close / candleData[0].close - 1) * 100)
+                    : undefined
+                }
               />
-              {/* 2. Sub-Tabs Header */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+              {/* 2. Sub-Tabs Header (Desktop) */}
+              <div className="hidden lg:flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
                 <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -676,15 +682,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                   }`}
                 >
                   {language === 'en' ? 'Order Setup' : 'Kế Hoạch Lệnh'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDecisionSubTab('METRICS')}
-                  className={`px-4 py-1.5 rounded-t-lg text-xs font-bold transition-colors ${
-                    decisionSubTab === 'METRICS' ? 'bg-slate-800 text-amber-400 border-b-2 border-amber-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
-                  }`}
-                >
-                  {language === 'en' ? 'Market Metrics' : 'Chỉ Số Thị Trường'}
                 </button>
                 <button
                   type="button"
@@ -712,12 +709,13 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
               <div className={`grid grid-cols-1 ${isChartHidden ? '' : 'lg:grid-cols-12'} gap-3 items-start min-w-0`}>
                 {/* LEFT COLUMN (65% width on LG): Candlestick Chart ALWAYS visible */}
                 {!isChartHidden && (
-                  <div data-testid="decision-chart-column" className="order-2 lg:order-1 lg:col-span-8 space-y-3 min-w-0">
+                  <div data-testid="decision-chart-column" className="lg:col-span-8 space-y-3 min-w-0">
                     {/* Candlestick Chart Card */}
                     <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 sm:p-3.5 min-w-0 shadow-lg lg:sticky lg:top-0 z-10">
 
                     {/* Candlestick chart (TradingView lightweight-charts) */}
                     <CandlestickChart
+                      symbol={displayDetail?.symbol}
                       data={candleData.map(c => ({
                         time: c.time_iso || c.time,
                         open: c.open || c.price,
@@ -733,12 +731,72 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                       onIntervalChange={setCandleInterval}
                       height={380}
                     />
+
+                    {/* OI + Funding Sub Chart (hiển thị dưới biểu đồ nến khi có dữ liệu) */}
+                    {(() => {
+                      const hasOi = candleData.some(c => (c.oi || 0) !== 0);
+                      const hasFunding = candleData.some(c => (c.funding || 0) !== 0);
+                      return hasOi || hasFunding ? (
+                        <div className="mt-3 bg-slate-950/90 border border-slate-800 rounded-xl p-3 shadow-lg">
+                          <div className="text-[10px] font-bold text-slate-300 mb-2 uppercase">{t('ws_oi_funding_title')}</div>
+                          <div className="h-32 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <ComposedChart data={candleData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                <XAxis dataKey="time" stroke="#64748b" fontSize={9} interval={Math.max(0, Math.floor(candleData.length / 8))} />
+                                <YAxis yAxisId="oi" stroke="#06b6d4" fontSize={9} domain={['auto', 'auto']} />
+                                <YAxis yAxisId="funding" orientation="right" stroke="#f59e0b" fontSize={9} domain={['auto', 'auto']} />
+                                <Tooltip
+                                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }}
+                                />
+                                <ReferenceLine yAxisId="funding" y={0} stroke="#334155" strokeDasharray="2 2" />
+                                <Line yAxisId="oi" type="monotone" dataKey="oi" stroke="#06b6d4" strokeWidth={1.5} dot={false} name={t('metric_oi_24h')} />
+                                <Line yAxisId="funding" type="monotone" dataKey="funding" stroke="#f59e0b" strokeWidth={1} dot={false} name={t('metric_funding')} />
+                              </ComposedChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
                     </div>
                   </div>
                 )}
 
                 {/* RIGHT COLUMN (35% width on LG): Dynamic Content based on Active Sub-Tab */}
-                <div data-testid="decision-summary-column" className={`order-1 lg:order-2 ${isChartHidden ? '' : 'lg:col-span-4'} space-y-3 min-w-0`}>
+                <div data-testid="decision-summary-column" className={`${isChartHidden ? '' : 'lg:col-span-4'} space-y-3 min-w-0`}>
+                  {/* Sub-Tabs Header (Mobile) */}
+                  <div className="lg:hidden flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setDecisionSubTab('TRADE')}
+                        className={`px-4 py-1.5 rounded-t-lg text-xs font-bold transition-colors ${
+                          decisionSubTab === 'TRADE' ? 'bg-slate-800 text-amber-400 border-b-2 border-amber-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+                        }`}
+                      >
+                        {language === 'en' ? 'Order Setup' : 'Kế Hoạch Lệnh'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDecisionSubTab('AI')}
+                        className={`px-4 py-1.5 rounded-t-lg text-xs font-bold transition-colors ${
+                          decisionSubTab === 'AI' ? 'bg-slate-800 text-amber-400 border-b-2 border-amber-400' : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
+                        }`}
+                      >
+                        {language === 'en' ? 'AI Deep Analysis' : 'Phân Tích AI'}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsChartHidden(!isChartHidden)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border flex items-center gap-1.5 ${
+                        isChartHidden ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm shadow-amber-500/20' : 'bg-slate-900 text-slate-400 hover:text-slate-200 hover:bg-slate-800 border-slate-700'
+                      }`}
+                    >
+                      {isChartHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                      {isChartHidden ? (language === 'en' ? 'Show Chart' : 'Hiện Biểu Đồ') : (language === 'en' ? 'Hide Chart' : 'Ẩn Biểu Đồ')}
+                    </button>
+                  </div>
                   {decisionSubTab === 'TRADE' && (
                     <>
 
@@ -781,144 +839,6 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                         onAddTracking={onAddTracking ? ((s: string) => onAddTracking(s)) : undefined}
                         onRemoveTracking={onRemoveTrackingSymbol ? ((s: string) => onRemoveTrackingSymbol(s)) : undefined}
                       />
-                    </>
-                  )}
-
-                  {decisionSubTab === 'METRICS' && (
-                    <>
-                      {/* Market-cap context: show both size and data provenance. */}
-                      {displayMarketCap && (
-                        (() => {
-                          const marketCapBadge = getMarketCapBadgeConfig(
-                            displayMarketCap.market_cap_tier,
-                            displayMarketCap.market_cap_str,
-                            language,
-                            displayMarketCap.market_cap_is_estimate,
-                          );
-                          const marketCapSourceLabel = getMarketCapSourceLabel(displayMarketCap.market_cap_source, language);
-                          return (
-                            <a
-                              href={getCoinExternalUrl(displayDetail.symbol, displayDetail)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-800/50 bg-gradient-to-r from-blue-950/40 via-slate-950/80 to-slate-950 p-3 hover:border-blue-500/80 hover:shadow-lg hover:shadow-blue-900/20 cursor-pointer transition-all group"
-                              title={`${t('metric_market_cap', 'Market Cap')}: ${displayMarketCap.market_cap_str} · ${marketCapSourceLabel} (${t('view_on_coinmarketcap', 'Xem trên CoinMarketCap')})`}
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-700/50 bg-blue-900/40 text-lg">
-                                  📊
-                                </span>
-                                <div className="min-w-0">
-                                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                    {t('metric_market_cap', 'Market Cap')}
-                                  </div>
-                                  <div className="font-mono text-lg font-black text-blue-300">
-                                    {displayMarketCap.market_cap_is_estimate ? '≈' : ''}{displayMarketCap.market_cap_str}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2.5 text-right">
-                                <div>
-                                  <div className="text-[9px] uppercase tracking-wider text-slate-500">
-                                    {t('market_cap_size', 'Size')}
-                                  </div>
-                                  <div className="flex items-center justify-end gap-1 text-xs font-black text-slate-200">
-                                    <span>{marketCapBadge.icon}</span>
-                                    <span>{displayMarketCap.market_cap_tier}</span>
-                                  </div>
-                                </div>
-                                <div className="border-l border-slate-800 pl-2.5">
-                                  <div className="text-[9px] uppercase tracking-wider text-slate-500">
-                                    {displayMarketCap.market_cap_is_estimate
-                                      ? t('market_cap_estimated', 'Estimated')
-                                      : t('market_cap_source', 'Source')}
-                                  </div>
-                                  <div className="text-[10px] font-mono text-slate-400">
-                                    {marketCapSourceLabel}
-                                  </div>
-                                </div>
-                              </div>
-                            </a>
-                          );
-                        })()
-                      )}
-
-                      {/* Metrics grid — 4 cols for right panel fit */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 [&>div]:min-w-0">
-                        <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                          <div className="text-[9px] text-slate-400 uppercase">{t('metric_oi_24h')}</div>
-                          <div className="font-mono font-bold text-xs sm:text-sm text-red-400 truncate" title={displayDetail.metrics?.oi_change_24h ?? 'N/A'}>{displayDetail.metrics?.oi_change_24h ?? 'N/A'}</div>
-                        </div>
-                        <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                          <div className="text-[9px] text-slate-400 uppercase">{t('metric_funding')}</div>
-                          <div className="font-mono font-bold text-xs sm:text-sm text-amber-400 truncate" title={displayDetail.metrics?.funding_rate ?? 'N/A'}>{displayDetail.metrics?.funding_rate ?? 'N/A'}</div>
-                        </div>
-                        <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                          <div className="text-[9px] text-slate-400 uppercase">{t('metric_taker_sell')}</div>
-                          <div className="font-mono font-bold text-xs sm:text-sm text-slate-200 truncate">{displayDetail.metrics?.taker_sell_ratio != null ? `${(displayDetail.metrics.taker_sell_ratio * 100).toFixed(1)}%` : 'N/A'}</div>
-                        </div>
-                        <div className="bg-slate-900/80 p-2 rounded-lg border border-slate-800 overflow-hidden">
-                          <div className="text-[9px] text-slate-400 uppercase">{t('metric_rsi_15m')}</div>
-                          <div className={`font-mono font-bold text-xs sm:text-sm truncate ${
-                            displayDetail.metrics?.rsi_15m == null ? 'text-slate-500' :
-                            displayDetail.metrics.rsi_15m > 70 ? 'text-red-400' :
-                            displayDetail.metrics.rsi_15m < 30 ? 'text-emerald-400' : 'text-amber-300'
-                          }`}>
-                            {displayDetail.metrics?.rsi_15m != null ? displayDetail.metrics.rsi_15m.toFixed(1) : (t('metric_insufficient_data'))}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Chart stats footer */}
-                      {candleData.length > 0 && (
-                        <div className="mt-2 grid grid-cols-4 gap-2 text-[10px] font-mono">
-                          <div className="bg-slate-900 p-1.5 rounded text-center">
-                            <div className="text-slate-500">{t('ws_stat_high')}</div>
-                            <div className="text-emerald-400">${Math.max(...candleData.map(c => c.high || c.price)).toFixed(6)}</div>
-                          </div>
-                          <div className="bg-slate-900 p-1.5 rounded text-center">
-                            <div className="text-slate-500">{t('ws_stat_low')}</div>
-                            <div className="text-red-400">${Math.min(...candleData.map(c => c.low || c.price)).toFixed(6)}</div>
-                          </div>
-                          <div className="bg-slate-900 p-1.5 rounded text-center">
-                            <div className="text-slate-500">{t('ws_stat_change')}</div>
-                            <div className={candleData[candleData.length - 1].close >= candleData[0].close ? 'text-emerald-400' : 'text-red-400'}>
-                              {((candleData[candleData.length - 1].close / candleData[0].close - 1) * 100).toFixed(2)}%
-                            </div>
-                          </div>
-                          <div className="bg-slate-900 p-1.5 rounded text-center">
-                            <div className="text-slate-500">{t('ws_stat_candles')}</div>
-                            <div className="text-slate-300">{candleData.length}</div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* OI + Funding Sub Chart */}
-                      {(() => {
-                        const hasOi = candleData.some(c => (c.oi || 0) !== 0);
-                        const hasFunding = candleData.some(c => (c.funding || 0) !== 0);
-                        return hasOi || hasFunding ? (
-                          <div className="mt-3 bg-slate-950/90 border border-slate-800 rounded-xl p-3 shadow-lg">
-                            <div className="text-[10px] font-bold text-slate-300 mb-2 uppercase">{t('ws_oi_funding_title')}</div>
-                            <div className="h-32 w-full">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart data={candleData}>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                                  <XAxis dataKey="time" stroke="#64748b" fontSize={9} interval={Math.max(0, Math.floor(candleData.length / 8))} />
-                                  <YAxis yAxisId="oi" stroke="#06b6d4" fontSize={9} domain={['auto', 'auto']} />
-                                  <YAxis yAxisId="funding" orientation="right" stroke="#f59e0b" fontSize={9} domain={['auto', 'auto']} />
-                                  <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px', fontSize: '11px' }}
-                                  />
-                                  <ReferenceLine yAxisId="funding" y={0} stroke="#334155" strokeDasharray="2 2" />
-                                  <Line yAxisId="oi" type="monotone" dataKey="oi" stroke="#06b6d4" strokeWidth={1.5} dot={false} name={t('metric_oi_24h')} />
-                                  <Line yAxisId="funding" type="monotone" dataKey="funding" stroke="#f59e0b" strokeWidth={1} dot={false} name={t('metric_funding')} />
-                                </ComposedChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </div>
-                        ) : null;
-                      })()}
                     </>
                   )}
 

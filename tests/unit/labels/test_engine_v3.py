@@ -177,6 +177,17 @@ def test_reject_duplicate_or_unaligned_funding():
         run([bar()], funding=[Funding(START + timedelta(seconds=1), 0.01, 100)])
 
 
+def test_funding_tolerates_exchange_millisecond_jitter_and_retains_timestamp():
+    jitter_time = START + STEP + timedelta(milliseconds=11)
+    event = Funding(jitter_time, 0.001, 100)
+    result = run([bar(), bar(2, low=70)], funding=[event])
+    assert len(result.funding_payments) == 1
+    assert result.funding_payments[0].timestamp == jitter_time
+    assert result.funding_payments[0].rate == 0.001
+
+    with pytest.raises(ValueError, match="aligned"):
+        run([bar()], funding=[Funding(START + STEP + timedelta(milliseconds=60), 0.001, 100)])
+
 def test_contract_is_frozen_and_versioned():
     assert len(SPEC.checksum) == 64
     assert SPEC.horizon_hours == 48

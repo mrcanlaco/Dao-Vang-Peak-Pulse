@@ -135,7 +135,13 @@ export function App() {
   const [scanTriggeredSuccess, setScanTriggeredSuccess] = useState<string | null>(null);
   const [isGlossaryOpen, setIsGlossaryOpen] = useState(false);
   const [telegramSentSuccess, setTelegramSentSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('DECISION');
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.hash.includes('coin=')) return 'DECISION';
+      if (window.innerWidth < 768) return 'RADAR';
+    }
+    return 'DECISION';
+  });
 
   // GUI Version: 'v1' (Classic 3-column) | 'v2' (Pro Mobile / Binance-OKX Style)
   const [guiVersion, setGuiVersion] = useState<'v1' | 'v2'>(() => {
@@ -158,7 +164,24 @@ export function App() {
     }
   };
 
-  const [mobileTab, setMobileTab] = useState<MobileTabType>('RADAR');
+  const [mobileTab, setMobileTab] = useState<MobileTabType>(() => {
+    if (typeof window !== 'undefined' && window.location.hash.includes('coin=')) {
+      return 'ANALYSIS';
+    }
+    return 'RADAR';
+  });
+
+  useEffect(() => {
+    if (activeTab === 'RADAR') {
+      setMobileTab('RADAR');
+    } else if (activeTab === 'DECISION') {
+      setMobileTab('ANALYSIS');
+    } else if (activeTab === 'WATCHLIST') {
+      setMobileTab('TRACKING');
+    } else {
+      setMobileTab('TOOLS');
+    }
+  }, [activeTab]);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isModelComparisonOpen, setIsModelComparisonOpen] = useState(false);
   const [isTabHelpModalOpen, setIsTabHelpModalOpen] = useState(false);

@@ -30,6 +30,7 @@ class PathsConfig(BaseModel):
 class TelegramConfig(BaseModel):
     bot_token: str | None = Field(default=None, exclude=True)
     chat_id: str | None = Field(default=None, exclude=True)
+    shadow_chat_id: str | None = Field(default=None, exclude=True)
     api_base: str = "https://api.telegram.org"
     timeout_seconds: int = Field(default=10, gt=0)
     max_retries: int = Field(default=3, ge=0)
@@ -482,6 +483,7 @@ class AiConfig(BaseModel):
 
 class AppSettings(BaseSettings):
     research_v3_enabled: bool = False
+    research_v3_telegram_enabled: bool = False
     research_v3_model_path: Path = Path("artifacts/forward48_timing_20260913/forward48_timing_research_model.joblib")
     web: WebConfig = WebConfig()
     ai: AiConfig = AiConfig()

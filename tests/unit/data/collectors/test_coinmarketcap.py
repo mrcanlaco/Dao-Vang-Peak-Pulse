@@ -1,11 +1,10 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from dao_vang.data.collectors.coinmarketcap import (
-    clean_symbol,
-    resolve_token_meta,
-    fetch_market_data,
     batch_fetch_market_data,
-    fetch_market_cap,
-    CoinMarketCapData,
+    clean_symbol,
+    fetch_market_data,
+    resolve_token_meta,
 )
 
 

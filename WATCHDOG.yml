@@ -1,3 +1,0 @@
-advisors:
-  - name: default
-    model: openai-codex/gpt-6-astra:low

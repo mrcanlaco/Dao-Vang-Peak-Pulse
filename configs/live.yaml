@@ -1,10 +1,10 @@
 # Single source of truth for the live scanner service.
 # Telegram credentials remain in .env and are loaded by AppSettings.
 
-# Experimental GCP lane: independent observations, no orders or Telegram.
+# Experimental GCP lane: independent observations.
 research_v3_enabled: true
+research_v3_telegram_enabled: true
 research_v3_model_path: artifacts/forward48_timing_20260913/forward48_timing_research_model.joblib
-
 paths:
   data_dir: data_live
   raw_dir: data_live/raw

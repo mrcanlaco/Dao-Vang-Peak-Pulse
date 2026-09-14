@@ -132,6 +132,25 @@ def scout_gate(snapshot: dict) -> str:
     )
 
 
+def reversal_gate(snapshot: dict, threshold: float = -0.02) -> bool:
+    """Check if price has confirmed a roll-over of at least abs(threshold) from 24h high."""
+    dist = snapshot.get("distance_from_high_24h")
+    return dist is not None and dist <= threshold
+
+
+def champion_gate(snapshot: dict) -> str:
+    """Optimal V3 Formula: Climax Pump >= 25% + Reversal Confirmation <= -2% + Funding Scout."""
+    pump = snapshot.get("price_ret_24h", 0.0)
+    if pump < 0.25:
+        return "pump_below_25pct"
+    if not reversal_gate(snapshot, -0.02):
+        return "reversal_not_confirmed"
+    scout_status = scout_gate(snapshot)
+    if scout_status != "selected":
+        return scout_status
+    return "selected"
+
+
 def normalize_input(payload: dict) -> dict:
     """Validate provenance before any persistent write; no forward feature use."""
     if payload.get("schema_version") != "distribution_v3_replay_v1":
