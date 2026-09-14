@@ -1,5 +1,37 @@
 # Bản thử nghiệm v3 trên GCP
 
+## Phát hiện thị trường độc lập (runtime v2)
+
+V3 nhận trực tiếp ticker USD-M USDT tăng từ 15%/24h mỗi chu kỳ, độc lập với
+`pump_filter_v1` và lựa chọn chế độ quét của nhánh cũ. Coin dưới 1 triệu USD
+volume/24h, ticker cũ hoặc vượt sức chứa 150 coin được hiển thị lý do, không
+bị nhầm thành đã chấm điểm và bị loại. Chu kỳ đặt mục tiêu 5 phút nhưng có
+thể chậm theo thời gian thu thập/xử lý; giao diện hiển thị thời điểm thực tế.
+
+Danh sách thu thập là hợp của nhánh cũ và v3. Coin rời top gainers được giữ
+6 giờ để theo dõi episode; vị thế mô phỏng đang mở được giữ tới 49 giờ để
+hoàn thiện đường giá. SQLite `discovery.sqlite` lưu first-seen và từng lần
+phát hiện; `discovery.json` cập nhật ngay trước thu thập và bổ sung trạng thái
+feature sau thu thập. API trả riêng thời gian ticker và thời gian feature.
+
+Phát hiện mới kiểm tra feature nến đóng 5 phút. **Timing/Entry vẫn lấy mốc
+hàng giờ**, giữ score .39 x 2, khoảng cách tối đa 90 phút, đỉnh từ armed ≥30%,
+episode ≥4h, score sau xác nhận ≥.29. Không diễn giải hai nến 5 phút thành hai
+lần xác nhận của chiến lược đã backtest.
+
+Chẩn đoán GCP ngày 14/9: tại 06:04:59.999 UTC, `price_ret_24h` của BR, AIN,
+BTW, CVC là NULL. Timeline hợp lệ của các coin này chưa đủ 288 nến trước đó;
+ARK/KOMA đã đủ. Đây là lý do cụ thể chúng bị câu SQL cũ loại, không chứng minh
+rằng mức tăng thật dưới 15%. Lịch sử tải về muộn còn chịu điều kiện availability
+của timeline. UI mới hiện rõ thiếu lịch sử; không lấy ticker thay vào feature
+model hoặc tạo xác nhận lịch sử giả.
+
+Runtime v1 → v2 có migration duy nhất: giữ các quan sát, Entry và outcome cũ,
+ghi lại thời điểm kích hoạt cũ, bắt đầu lại episode/last-seen tại thời điểm đổi
+phạm vi. Không dùng feature trước lúc first-seen để phát lại quyết định cho
+coin mới. Kết quả từ phạm vi rộng mới phải được đánh giá riêng; không nhận tỷ
+lệ thắng backtest cũ là tỷ lệ đã xác minh của tập mới.
+
 ## Phạm vi
 
 Ứng dụng hiện có giữ bộ quét, lịch sử, watchlist và cảnh báo cũ. Nút

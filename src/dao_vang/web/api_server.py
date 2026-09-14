@@ -1370,6 +1370,15 @@ class APIHandler(BaseHTTPRequestHandler):
                 result["stale"] = (datetime.now(timezone.utc) - updated).total_seconds() > 900
             except (OSError, ValueError, TypeError, KeyError):
                 result = {"status": "error", "items": [], "orders_enabled": False}
+        discovery_path = snapshot.with_name("discovery.json")
+        if _settings.research_v3_enabled and discovery_path.exists():
+            try:
+                discovery = json.loads(discovery_path.read_text(encoding="utf-8"))
+                updated = datetime.fromisoformat(discovery["updated_at"])
+                discovery["stale"] = (datetime.now(timezone.utc) - updated).total_seconds() > 900
+                result["discovery"] = discovery
+            except (OSError, ValueError, TypeError, KeyError):
+                result["discovery"] = {"status": "error", "items": []}
         body = json.dumps(result).encode("utf-8")
         self._set_headers(200, content_length=len(body))
         self.wfile.write(body)

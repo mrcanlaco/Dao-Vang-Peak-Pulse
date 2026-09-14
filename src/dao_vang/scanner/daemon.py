@@ -518,7 +518,7 @@ class ScannerDaemon:
 
         # 1. Build scan list (watchlist + auto market scan by mode)
         symbols = build_scan_list(self._scanner_cfg)
-        if not symbols:
+        if not symbols and not self._settings.research_v3_enabled:
             logger.warning("scanner_no_symbols", scan_mode=self._scanner_cfg.scan_mode)
             return
 
@@ -648,6 +648,33 @@ class ScannerDaemon:
         start_dt = now - timedelta(days=self._scanner_cfg.history_days)
         closed_candle_end = _last_closed_5m_end(now)
         symbols_to_collect = _collection_symbols(score_symbols)
+        v3_discovery: dict[str, Any] | None = None
+        if self._settings.research_v3_enabled:
+            from dao_vang.scanner.research_v3 import atomic_snapshot
+            from dao_vang.scanner.research_v3_discovery import (
+                discover,
+                fetch_tickers,
+                retained_entries,
+            )
+
+            storage = self._settings.paths.data_dir / "research_v3"
+            try:
+                v3_discovery = discover(
+                    fetch_tickers(str(self._settings.binance.base_url)),
+                    storage=storage, now=datetime.now(timezone.utc),
+                )
+                symbols_to_collect = _collection_symbols(symbols_to_collect + v3_discovery["collection_symbols"])
+                atomic_snapshot(storage / "discovery.json", v3_discovery)
+            except Exception as exc:
+                logger.warning("research_v3_discovery_failed", error=str(exc))
+                v3_discovery = {"status": "error", "updated_at": datetime.now(timezone.utc),
+                                "error_type": type(exc).__name__, "items": [], "collection_symbols": []}
+                atomic_snapshot(storage / "discovery.json", v3_discovery)
+                # Existing simulated positions still require their future paths.
+                try:
+                    symbols_to_collect = _collection_symbols(symbols_to_collect + retained_entries(storage, now))
+                except Exception as retention_exc:
+                    logger.warning("research_v3_retention_failed", error=str(retention_exc))
         self._collect_all(symbols_to_collect, start_dt, closed_candle_end)
         pipeline_changed = self._normalize_and_timeline()
 
@@ -778,7 +805,6 @@ class ScannerDaemon:
         # connection. Commit before publishing the JSON snapshot so the web
         # process and a future scanner restart see the same completed cycle.
         db.conn.commit()
-        self._publish_system_stats(db)
         self._publish_candidate_snapshot(db)
 
         if self._settings.research_v3_enabled:
@@ -786,9 +812,12 @@ class ScannerDaemon:
                 from dao_vang.scanner.research_v3 import run_cycle
 
                 run_cycle(db.conn, data_dir=self._settings.paths.data_dir,
-                          model_path=self._settings.research_v3_model_path)
+                          model_path=self._settings.research_v3_model_path,
+                          discovery=v3_discovery)
             except Exception as exc:
                 logger.warning("research_v3_cycle_failed", error=str(exc))
+
+        self._publish_system_stats(db)
 
         # The challenger is observational only. Running it after the champion
         # serving artifacts are published. This ordering isolates the champion

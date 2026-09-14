@@ -24,7 +24,7 @@ from dao_vang.labels.specs.distribution_short_v3 import SPEC, TIMING
 from dao_vang.scanner.watchlist import _is_stablecoin
 
 MODEL_SHA = "1410707d5fc658278cc294d98cf9fccfbae52ffb1d3d9983b9aa7b773b437459"
-RUNTIME_VERSION = "v3_shadow_runtime_v1"
+RUNTIME_VERSION = "v3_shadow_runtime_v2"
 
 
 def prepare_price_source(database, data_dir: Path) -> str:
@@ -82,7 +82,8 @@ def atomic_snapshot(path: Path, payload: dict) -> None:
     os.replace(temporary, path)
 
 
-def observe(database, *, storage: Path, model_path: Path, now: datetime) -> dict:
+def observe(database, *, storage: Path, model_path: Path, now: datetime,
+            discovery: dict | None = None) -> dict:
     """One bounded cycle: persist timing and inputs atomically; no fake backfill."""
     import joblib
     import pandas as pd
@@ -121,6 +122,13 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime) -> dict
                 "contract_checksum": SPEC.checksum,
             }
         )
+        # One explicit coverage migration. Historical decisions/outcomes remain
+        # immutable, but broader discovery starts a fresh timing episode cohort.
+        if (state.get("runtime_version") == "v3_shadow_runtime_v1"
+                and state.get("model_checksum") == MODEL_SHA
+                and state.get("contract_checksum") == SPEC.checksum):
+            state.update(previous_activated_at=state["activated_at"], activated_at=now.isoformat(),
+                         timing={}, last_seen={}, runtime_version=RUNTIME_VERSION)
         if (
             state.get("model_checksum") != MODEL_SHA
             or state.get("contract_checksum") != SPEC.checksum
@@ -140,10 +148,10 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime) -> dict
              AND k.interval='5m' AND k.market='USD-M Futures'
             WHERE f.feature_time>=? AND f.feature_time<?
               AND EXTRACT(MINUTE FROM f.feature_time)=4
-              AND f.price_ret_24h>=0.15 AND k.quality_status='valid'
+              AND f.price_ret_24h>=? AND k.quality_status='valid'
             ORDER BY f.feature_time, f.symbol
         """,
-            [start, now],
+            [start, now, TIMING.min_return_24h],
         ).fetchdf()
         if frame.duplicated(["symbol", "feature_time"]).any():
             raise ValueError("ambiguous v3 feature/entry join")
@@ -155,6 +163,11 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime) -> dict
                 symbol = str(row["symbol"])
                 source_time = row["feature_time"].to_pydatetime()
                 when = boundary(source_time)
+                if discovery is not None:
+                    first_seen = discovery.get("first_seen", {}).get(symbol)
+                    if (symbol not in discovery.get("collection_symbols", [])
+                            or first_seen is None or source_time < time_value(first_seen)):
+                        continue
                 if symbol in state["last_seen"] and when <= time_value(
                     state["last_seen"][symbol]
                 ):
@@ -193,6 +206,7 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime) -> dict
                     "scout": selected and scout_gate(snapshot) == "selected",
                     "scout_reason": scout_gate(snapshot),
                     "model_checksum": MODEL_SHA,
+                    "runtime_version": RUNTIME_VERSION,
                     "contract": SPEC.version,
                     "simulated": True,
                     "evidence_kind": "forward_observed_not_pit_certified",
@@ -279,6 +293,7 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime) -> dict
         payload = {
             "status": "running",
             "runtime_version": RUNTIME_VERSION,
+            "previous_activated_at": state.get("previous_activated_at"),
             "updated_at": now,
             "activated_at": state["activated_at"],
             "contract": asdict(SPEC),
@@ -304,11 +319,17 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime) -> dict
     return payload
 
 
-def run_cycle(database, *, data_dir: Path, model_path: Path) -> None:
+def run_cycle(database, *, data_dir: Path, model_path: Path,
+              discovery: dict | None = None) -> None:
     """Publish failures rather than leaving an apparently healthy old snapshot."""
     now, storage = datetime.now(timezone.utc), data_dir / "research_v3"
     try:
-        observe(database, storage=storage, model_path=model_path, now=now)
+        if discovery is not None:
+            from dao_vang.scanner.research_v3_discovery import enrich
+
+            discovery = enrich(database, discovery, now=now)
+            atomic_snapshot(storage / "discovery.json", discovery)
+        observe(database, storage=storage, model_path=model_path, now=now, discovery=discovery)
     except Exception as exc:
         atomic_snapshot(
             storage / "snapshot.json",

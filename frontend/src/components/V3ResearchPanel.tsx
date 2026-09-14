@@ -9,7 +9,10 @@ type Item = {
   entry_plan: { leg: number; price: number; notional_weight: number }[];
   outcome?: { status: string; fills: Fill[]; exit_price: number | null; exclusion_reason: string | null } | null;
 };
-type Snapshot = { status: string; stale?: boolean; updated_at?: string; activated_at?: string; candidate_count?: number; entry_count?: number; items?: Item[] };
+type DiscoveryItem = { symbol: string; ticker_return_24h: number; feature_return_24h: number | null;
+  ticker_time: string; feature_time?: string | null; first_seen: string; discovery_reason: string };
+type Snapshot = { status: string; stale?: boolean; updated_at?: string; activated_at?: string; candidate_count?: number; entry_count?: number; items?: Item[];
+  discovery?: { status: string; stale?: boolean; updated_at?: string; market_count?: number; deferred_count?: number; items: DiscoveryItem[] } };
 
 export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
   const { language } = useTranslation();
@@ -35,13 +38,20 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
   const items = (snapshot?.items || []).filter(item => scope === 'all' || (scope === 'parent' ? item.selected : item.scout));
   const price = (value: number) => new Intl.NumberFormat(vi ? 'vi-VN' : 'en-US', { maximumSignificantDigits: 7 }).format(value);
   const stateLabel: Record<string, string> = vi ? {
+    collecting: 'Đang thu thập dữ liệu', features_pending: 'Chờ dữ liệu phân tích',
+    history_24h_pending: 'Chưa đủ lịch sử hợp lệ để tính 24h', features_stale: 'Dữ liệu phân tích đã cũ',
+    closed_return_below_15pct: 'Mức tăng theo nến đóng chưa đạt 15%', waiting_hourly_confirmation: 'Chờ đánh giá tại mốc hàng giờ',
+    ticker_stale: 'Giá thị trường đã cũ', below_volume: 'Khối lượng dưới 1 triệu USD/24h', capacity_deferred: 'Chờ lượt thu thập: đã đạt giới hạn',
     running: 'Đang thu thập', waiting: 'Chờ chu kỳ quét', disabled: 'Chưa bật trên máy chủ',
     error: 'Nhánh thử nghiệm đang lỗi', target: 'Đạt TP theo giá', stop: 'Chạm stop', stop_ambiguous: 'Stop — nến không rõ thứ tự',
     timeout: 'Hết 48h', open: 'Đang theo dõi', incomplete_final: 'Thiếu dữ liệu kết thúc',
     confirmation_pending: 'Chờ đủ xác nhận', episode_too_young: 'Episode chưa đủ 4h', peak_below_30pct: 'Đỉnh tăng chưa đạt 30%',
     episode_already_consumed: 'Episode đã có quyết định', symbol_cooldown: 'Đang trong thời gian nghỉ',
     score_below_reference_threshold: 'Điểm dưới ngưỡng tham chiếu', stablecoin: 'Loại stablecoin',
-  } : { running: 'Collecting', waiting: 'Waiting for scanner', disabled: 'Not enabled on server', error: 'Research lane error',
+  } : { collecting: 'Collecting data', features_pending: 'Waiting for features', history_24h_pending: 'Insufficient valid 24h history',
+    features_stale: 'Stale features', closed_return_below_15pct: 'Closed-candle return below 15%', waiting_hourly_confirmation: 'Waiting for hourly assessment',
+    ticker_stale: 'Stale market price', below_volume: 'Volume below $1M/24h', capacity_deferred: 'Collection capacity reached',
+    running: 'Collecting', waiting: 'Waiting for scanner', disabled: 'Not enabled on server', error: 'Research lane error',
     target: 'Price target hit', stop: 'Stop hit', stop_ambiguous: 'Ambiguous stop', timeout: '48h timeout', open: 'Tracking', incomplete_final: 'Incomplete final data' };
   return <section data-testid="v3-research" className="flex flex-col gap-4 min-h-[400px] lg:h-full overflow-auto p-2 sm:p-4 text-slate-200">
     <div className="flex flex-wrap justify-between items-start gap-3">
@@ -58,6 +68,19 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
       <div className="rounded-lg bg-slate-800 p-3">{vi ? 'Snapshot đã quan sát: ' : 'Observed snapshots: '}{snapshot?.candidate_count ?? '—'}</div>
       <div className="rounded-lg bg-slate-800 p-3">{vi ? 'Entry1 mô phỏng: ' : 'Simulated Entry1: '}{snapshot?.entry_count ?? '—'}</div>
     </div>
+    {snapshot?.discovery && <div data-testid="v3-discovery" className="rounded-xl border border-slate-700 p-3">
+      <h3 className="font-bold">{vi ? 'Phát hiện thị trường ≥15% / 24h' : 'Market discovery ≥15% / 24h'} · {snapshot.discovery.market_count ?? '—'}</h3>
+      <p className="text-xs text-slate-400 mt-1">{vi ? 'Cập nhật mỗi lượt quét; kiểm tra nến đóng 5 phút. Xác nhận Entry vẫn theo mốc hàng giờ, đỉnh ≥30% và episode đủ 4h. Coin thiếu dữ liệu vẫn được hiển thị.' : 'Updated each scan using closed 5m candles. Entry confirmation remains hourly with a ≥30% peak and 4h episode. Coins with missing data remain visible.'}</p>
+      <p className="text-xs text-slate-400 mt-1">{snapshot.discovery.updated_at && formatSystemTime(snapshot.discovery.updated_at)}
+        {(snapshot.discovery.status === 'error' || snapshot.discovery.stale) && <span className="text-rose-300"> · {vi ? 'Phát hiện thị trường đang lỗi hoặc dữ liệu cũ' : 'Discovery error or stale data'}</span>}</p>
+      {!!snapshot.discovery.deferred_count && <p className="text-xs text-amber-300">{vi ? 'Chờ lượt thu thập: ' : 'Deferred collection: '}{snapshot.discovery.deferred_count}</p>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">{snapshot.discovery.items.map(coin => <div key={coin.symbol} data-testid={`v3-discovery-${coin.symbol}`} className="rounded-lg bg-slate-800 p-3 text-sm min-w-0">
+        <div className="flex flex-wrap justify-between gap-2"><strong>{coin.symbol}</strong><span className="text-emerald-300">+{(coin.ticker_return_24h * 100).toFixed(1)}%</span></div>
+        <p className="text-xs mt-1">{stateLabel[coin.discovery_reason] || coin.discovery_reason}</p>
+        <p className="text-xs text-slate-400 mt-1">{vi ? '24h theo dữ liệu phân tích: ' : 'Feature 24h return: '}{coin.feature_return_24h == null ? '—' : `${(coin.feature_return_24h * 100).toFixed(1)}%`}
+          {coin.feature_time && <> · {formatSystemTime(coin.feature_time)}</>}</p>
+      </div>)}</div>
+    </div>}
     <div className="flex flex-wrap gap-2" aria-label={vi ? 'Chọn nhánh' : 'Select lane'}>
       {(['all', 'parent', 'scout'] as const).map(key => <button key={key} onClick={() => setScope(key)} aria-pressed={scope === key}
         className={`rounded-lg px-3 py-2 text-xs border ${scope === key ? 'border-amber-400 text-amber-300' : 'border-slate-700'}`}>

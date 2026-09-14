@@ -95,6 +95,48 @@ def test_model_checksum_mismatch_does_not_unpickle(setup, monkeypatch):
     load.assert_not_called()
 
 
+def test_discovery_does_not_replay_features_from_before_first_seen(setup):
+    conn, args = setup
+    research_v3.observe(conn, **args, now=START)
+    now = START + timedelta(minutes=10)
+    discovery = {"collection_symbols": ["TESTUSDT"], "first_seen": {"TESTUSDT": now.isoformat()}}
+    result = research_v3.observe(conn, **args, now=now, discovery=discovery)
+    assert result["candidate_count"] == 0
+    result = research_v3.observe(conn, **args, now=START + timedelta(hours=1, minutes=5), discovery=discovery)
+    assert result["candidate_count"] == 1
+
+
+def test_five_minute_discovery_does_not_accelerate_hourly_confirmations(setup):
+    conn, args = setup
+    research_v3.observe(conn, **args, now=START)
+    conn.execute("INSERT INTO feature_results SELECT * REPLACE (feature_time + INTERVAL '5 minutes' AS feature_time) FROM feature_results WHERE feature_time < ?", [START + timedelta(minutes=5)])
+    conn.execute("INSERT INTO kline SELECT * REPLACE (close_time + INTERVAL '5 minutes' AS close_time) FROM kline WHERE close_time < ?", [START + timedelta(minutes=5)])
+    result = research_v3.observe(conn, **args, now=START + timedelta(minutes=10))
+    assert result["candidate_count"] == 1
+    assert result["items"][0]["reason"] == "confirmation_pending"
+    assert result["entry_count"] == 0
+
+
+def test_coverage_migration_preserves_history_and_resets_timing(setup):
+    import sqlite3
+
+    conn, args = setup
+    research_v3.observe(conn, **args, now=START)
+    research_v3.observe(conn, **args, now=START + timedelta(minutes=5))
+    with sqlite3.connect(args["storage"] / "observations.sqlite") as ledger:
+        state = json.loads(ledger.execute("SELECT payload FROM state").fetchone()[0])
+        state["runtime_version"] = "v3_shadow_runtime_v1"
+        ledger.execute("UPDATE state SET payload=?", [json.dumps(state)])
+    now = START + timedelta(minutes=10)
+    result = research_v3.observe(conn, **args, now=now)
+    assert result["candidate_count"] == 1
+    assert result["activated_at"] == now.isoformat()
+    assert result["previous_activated_at"] == START.isoformat()
+    with sqlite3.connect(args["storage"] / "observations.sqlite") as ledger:
+        state = json.loads(ledger.execute("SELECT payload FROM state").fetchone()[0])
+    assert state["timing"]["episodes"] == {}
+
+
 def test_snapshot_api_disabled_and_stale(tmp_path, monkeypatch):
     monkeypatch.setattr(api_server._settings.paths, "data_dir", tmp_path)
     monkeypatch.setattr(api_server._settings, "research_v3_enabled", True)
