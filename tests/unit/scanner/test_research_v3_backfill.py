@@ -249,3 +249,28 @@ def test_short_funding_history_is_explicit_and_scout_cannot_use_30d_percentile(m
         assert len(client.calls) == calls
 
 
+def test_file_pruning_uses_collection_time_not_partition_start(tmp_path):
+    directory = tmp_path / "normalized/funding/date=2026-07-26"
+    directory.mkdir(parents=True)
+    recent = int((START-timedelta(days=20)).timestamp())
+    old = int((START-timedelta(days=60)).timestamp())
+    names = [f"scan_{recent}_1_TESTUSDT.parquet", f"scan_{recent}_1_OTHERUSDT.parquet",
+             f"scan_{old}_1_TESTUSDT.parquet", "import_unknown.parquet", "v3bf_checkpoint.parquet"]
+    for name in names:
+        (directory / name).touch()
+    selected = bf.source_files(tmp_path, "funding", "TESTUSDT", START)
+    assert {bf.Path(p).name for p in selected} == {names[0], names[3], names[4]}
+
+
+def test_other_symbol_files_are_not_opened_by_parquet_reader(market_env):
+    settings, _ = market_env
+    directory = settings.paths.data_dir / "normalized/klines/date=2026-09-14"
+    directory.mkdir(parents=True)
+    # If the reader glob opens unrelated symbols this deliberately invalid
+    # Parquet footer fails the entire coin, as the original broad scan did.
+    (directory / f"scan_{int(START.timestamp())}_1_OTHERUSDT.parquet").write_text("unrelated")
+    with duckdb.connect() as conn:
+        result = run(conn, market_env, discovery(settings))
+        assert result["items"][0]["pipeline_stage"] == "DATA_READY"
+
+

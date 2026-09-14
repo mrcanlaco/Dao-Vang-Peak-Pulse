@@ -98,24 +98,42 @@ class DeferredClient(BinanceClient):
             raise
 
 
+def source_files(data_dir: Path, kind: str, symbol: str, now: datetime) -> list[str]:
+    """Prune scanner envelopes BEFORE DuckDB opens their Parquet footers.
+
+    Scanner filenames encode collection time and symbol. A file collected
+    before our lookback cannot contain a closed candle inside it. Partition
+    dates alone are unsafe: an initial 30d download is stored on its START date.
+    Unknown/import/backfill filenames remain eligible, preserving reuse.
+    """
+    cutoff = (now - SOURCES[kind][2] - timedelta(days=1)).timestamp()
+    result = []
+    for path in (data_dir / "normalized" / kind).rglob("*.parquet"):
+        parts = path.stem.split("_", 3)
+        if len(parts) == 4 and parts[0] == "scan" and parts[1].isdigit() and parts[2].isdigit():
+            if parts[3] != symbol or int(parts[1]) < cutoff:
+                continue
+        result.append(path.resolve().as_posix())
+    return result
+
+
 def mount_source(conn, data_dir: Path, kind: str, symbol: str, now: datetime) -> bool:
     """Current knowledge, preserving availability and collection provenance."""
-    directory = data_dir / "normalized" / kind
-    if not directory.exists() or not any(directory.rglob("*.parquet")):
+    paths = source_files(data_dir, kind, symbol, now)
+    if not paths:
         return False
-    path = str(directory.resolve() / "**/*.parquet").replace("\\", "/").replace("'", "''")
     _, key, lookback = SOURCES[kind]
     # Values are parameters of a materialized temporary table, never identifiers.
     conn.execute(f"""
         CREATE OR REPLACE TEMP TABLE bf_{kind} AS
-        SELECT DISTINCT * FROM read_parquet('{path}', union_by_name=true, hive_partitioning=false)
+        SELECT DISTINCT * FROM read_parquet(?, union_by_name=true, hive_partitioning=false)
         WHERE symbol=? AND market='USD-M Futures'
           AND {key}>=? AND {key}<=? AND collected_at<=? AND available_time<=?
           AND quality_status IN ('valid', 'warning')
           {"AND interval='5m'" if kind != 'funding' else ''}
         QUALIFY dense_rank() OVER (PARTITION BY symbol,{key}
             ORDER BY available_time DESC NULLS LAST, collected_at DESC NULLS LAST)=1
-    """, [symbol, now - lookback - timedelta(days=1), now, now, now])
+    """, [paths, symbol, now - lookback - timedelta(days=1), now, now, now])
     duplicates = conn.execute(f"SELECT count(*)-count(DISTINCT {key}) FROM bf_{kind}").fetchone()[0]
     if duplicates:
         raise ValueError(f"ambiguous_{kind}")
@@ -308,7 +326,7 @@ def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int 
     symbols = list(discovery.get("first_seen", {}))
     symbols = [s for s in symbols if s in discovery.get("collection_symbols", [])]
     # Least recently attempted first prevents a problematic symbol starving peers.
-    symbols.sort(key=lambda s: jobs.load(s).get("updated_at", ""))
+    symbols.sort(key=lambda s: (bool(jobs.load(s).get("ready_at")), jobs.load(s).get("updated_at", "")))
     for symbol in symbols:
         job = jobs.load(symbol)
         if job.get("detected_at") and time_value(job["detected_at"]) != time_value(discovery["first_seen"][symbol]):
@@ -362,6 +380,7 @@ def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int 
                 jobs.save({"symbol": "__rate_limit__", "next_retry_at": cooldown})
             transition(job, "BACKFILLING", now, error=str(exc)[:240],
                        failures=job.get("failures", 0)+1, next_retry_at=now+timedelta(seconds=delay))
+        job["updated_at"] = max(now, datetime.now(timezone.utc))
         jobs.save(job)
     result = attach(discovery, jobs)
     atomic_snapshot(storage / "discovery.json", result)

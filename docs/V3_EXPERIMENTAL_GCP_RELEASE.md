@@ -16,6 +16,12 @@ giúp resume sau crash trước normalize mà không tải trùng; dữ liệu h
 đuôi `.invalid` ngoài inbox chung. Raw/Parquet hợp lệ được ghi atomic vào kho
 chung. Scanner vẫn chỉ có một writer dưới instance lock hiện hành.
 
+Trước khi DuckDB đọc footer Parquet, file scanner được lọc bằng symbol và mốc
+collection trong tên file. Không lọc chỉ theo ngày partition (một lần tải dài
+được lưu theo ngày bắt đầu). File import/checkpoint chưa biết cấu trúc tên vẫn
+được đọc để không bỏ mất lịch sử đã tải. Cách này tránh mở file của toàn thị
+trường cho từng coin, giảm RAM và độ trễ trên kho production lớn.
+
 Mỗi chu kỳ giới hạn 24 range requests, ngân sách tải 45 giây (request đang chạy
 có timeout 8 giây), pacing 150ms/request. Lỗi HTTP/network trả về job để retry
 exponential 60s–1h; 429/418 lưu Retry-After theo toàn nhánh, qua cả restart.
