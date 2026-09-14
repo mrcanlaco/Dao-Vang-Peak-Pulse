@@ -27,7 +27,8 @@ MODEL_SHA = "1410707d5fc658278cc294d98cf9fccfbae52ffb1d3d9983b9aa7b773b437459"
 RUNTIME_VERSION = "v3_shadow_runtime_v2"
 
 
-def prepare_price_source(database, data_dir: Path) -> str:
+def prepare_price_source(database, data_dir: Path, *, symbols: list[str] | None = None,
+                         since: datetime | None = None, now: datetime | None = None) -> str:
     """Avoid the old view's nondeterministic available_time-only tie breaker."""
     view = database.execute(
         "SELECT sql FROM duckdb_views() WHERE view_name='kline'"
@@ -39,11 +40,20 @@ def prepare_price_source(database, data_dir: Path) -> str:
     )
     if "normalized/klines/" not in view[0].replace("\\", "/"):
         raise ValueError("unsupported v3 price source")
+    source = f"'{glob}'"
+    if symbols is not None and now is not None:
+        from dao_vang.scanner.research_v3_backfill import source_files
+
+        files = sorted({path for symbol in symbols for path in source_files(
+            data_dir, "klines", symbol, now, collected_since=since)})
+        if not files:
+            raise ValueError("v3 price sources missing")
+        source = "[" + ",".join("'" + path.replace("'", "''") + "'" for path in files) + "]"
     database.execute(f"""
         CREATE OR REPLACE TEMP VIEW v3_runtime_prices AS
         SELECT DISTINCT symbol, market, interval, close_time, open, high, low, close,
             quality_status, available_time, collected_at
-        FROM read_parquet('{glob}', union_by_name=true)
+        FROM read_parquet({source}, union_by_name=true)
         WHERE interval='5m' AND market='USD-M Futures'
         QUALIFY dense_rank() OVER (
             PARTITION BY symbol, close_time
@@ -99,7 +109,6 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
     if list(bundle["feature_columns"]) != list(SERVING_FEATURE_COLS):
         raise ValueError("v3 reference feature schema mismatch")
     storage.mkdir(parents=True, exist_ok=True)
-    prices = prepare_price_source(database, storage.parent)
     with sqlite3.connect(storage / "observations.sqlite") as ledger:
         ledger.executescript("""
             CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY, payload TEXT NOT NULL);
@@ -148,6 +157,21 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
         if no_live_features:
             # No successful warmup yet: still maintain existing outcomes/state.
             feature_source = "feature_results"
+        if live_backfill:
+            # Retain every unresolved entry's full path, even after a long
+            # restart, while avoiding the entire market's Parquet metadata.
+            open_paths = [json.loads(item) for item, outcome in ledger.execute("""
+                SELECT o.payload,r.payload FROM observations o LEFT JOIN outcomes r ON o.id=r.id
+                WHERE o.selected=1
+            """).fetchall() if outcome is None or json.loads(outcome)["status"] == "open"]
+            needed_symbols = set((discovery or {}).get("collection_symbols", [])) if not no_live_features else set()
+            needed_symbols.update(item["symbol"] for item in open_paths)
+            prices = prepare_price_source(
+                database, storage.parent, symbols=sorted(needed_symbols), now=now,
+                since=min([start, *[time_value(item["source_time"]) for item in open_paths]]) - timedelta(minutes=5),
+            ) if needed_symbols else "kline"
+        else:
+            prices = prepare_price_source(database, storage.parent)
         frame = database.execute(
             f"""
             SELECT f.symbol, f.feature_time, {columns}, CAST(k.close AS DOUBLE) AS price

@@ -3,6 +3,7 @@
 Reuses collector envelopes, normalizers and feature builders. Only the current
 closed-bar feature is published, with its real materialization time. The shared
 PIT timeline and the hourly Timing state machine are deliberately untouched.
+Late hourly samples are allowed only after the first successful warmup.
 """
 
 from __future__ import annotations
@@ -44,9 +45,9 @@ VERSION = "discovery_backfill_v1"
 SOURCES = {
     "klines": (KlinesCollector, "open_time", timedelta(hours=25)),
     "open_interest": (OpenInterestCollector, "period_start", timedelta(hours=25)),
-    "taker_ratio": (TakerRatioCollector, "period_start", timedelta(hours=25)),
-    "global_ratio": (GlobalRatioCollector, "period_start", timedelta(hours=25)),
-    "top_ratio": (TopRatioCollector, "period_start", timedelta(hours=25)),
+    "taker_ratio": (TakerRatioCollector, "period_start", timedelta(hours=1)),
+    "global_ratio": (GlobalRatioCollector, "period_start", timedelta(hours=5)),
+    "top_ratio": (TopRatioCollector, "period_start", timedelta(hours=5)),
     "funding": (FundingCollector, "event_time", timedelta(days=31)),
 }
 ASSESS = {"klines": assess_kline, "funding": assess_funding,
@@ -98,7 +99,8 @@ class DeferredClient(BinanceClient):
             raise
 
 
-def source_files(data_dir: Path, kind: str, symbol: str, now: datetime) -> list[str]:
+def source_files(data_dir: Path, kind: str, symbol: str, now: datetime,
+                 collected_since: datetime | None = None) -> list[str]:
     """Prune scanner envelopes BEFORE DuckDB opens their Parquet footers.
 
     Scanner filenames encode collection time and symbol. A file collected
@@ -106,7 +108,7 @@ def source_files(data_dir: Path, kind: str, symbol: str, now: datetime) -> list[
     dates alone are unsafe: an initial 30d download is stored on its START date.
     Unknown/import/backfill filenames remain eligible, preserving reuse.
     """
-    cutoff = (now - SOURCES[kind][2] - timedelta(days=1)).timestamp()
+    cutoff = (collected_since or now - SOURCES[kind][2] - timedelta(days=1)).timestamp()
     result = []
     for path in (data_dir / "normalized" / kind).rglob("*.parquet"):
         parts = path.stem.split("_", 3)
@@ -160,6 +162,21 @@ def source_gaps(conn, kind: str, exists: bool, end: datetime) -> list[tuple[date
     _, key, lookback = SOURCES[kind]
     start = end + MS - lookback
     points = [r[0] for r in conn.execute(f"SELECT {key} FROM bf_{kind} ORDER BY {key}").fetchall()] if exists else []
+    if kind == "taker_ratio":
+        # The frozen serving schema uses only the contemporaneous taker ratio,
+        # not the research-only taker trend windows. Require current + latest
+        # hourly sample, never block on irrelevant provider holes yesterday.
+        hourly = end.replace(minute=4, second=59, microsecond=999000)
+        if hourly > end:
+            hourly -= timedelta(hours=1)
+        required = sorted({end - STEP + MS, hourly - STEP + MS} - set(points))
+        ranges = []
+        for stamp in required:
+            if ranges and ranges[-1][1] + MS == stamp:
+                ranges[-1] = (ranges[-1][0], stamp + STEP - MS)
+            else:
+                ranges.append((stamp, stamp + STEP - MS))
+        return ranges
     if kind != "funding":
         # Exclude the currently open candle/derivative period.
         return gaps(points, start, end - STEP + MS)
@@ -179,8 +196,17 @@ def source_gaps(conn, kind: str, exists: bool, end: datetime) -> list[tuple[date
 
 def collect_range(settings, client, kind: str, symbol: str, start: datetime, end: datetime) -> int:
     """Atomic raw file is the checkpoint even if the process dies before SQLite."""
-    run_id = "v3bf_" + digest({"symbol": symbol, "kind": kind, "start": start, "end": end})[:24]
-    partition = f"date={start.date().isoformat()}"
+    identity = {"symbol": symbol, "kind": kind, "start": start, "end": end}
+    request_start, request_end = start, end
+    if kind == "taker_ratio":
+        # Binance filters this endpoint by period END but returns period START.
+        # Verified with adjacent single-period production requests: requesting
+        # 08:25..08:29:59 returns timestamp 08:20; 08:30..08:34:59 returns 08:25.
+        # Shift request bounds only. Never shift or fabricate response timestamps.
+        request_start, request_end = start + STEP, end + STEP
+        identity["request_contract"] = "taker_period_end_v1"
+    run_id = "v3bf_" + digest(identity)[:24]
+    partition = f"date={request_start.date().isoformat()}"
     # Failed schema/quality data must never enter the shared normalizer's inbox.
     cache = settings.paths.data_dir / "research_v3" / "backfill_cache"
     raw = cache / "raw" / kind / partition / f"{run_id}.jsonl"
@@ -190,7 +216,7 @@ def collect_range(settings, client, kind: str, symbol: str, start: datetime, end
         config = settings.model_copy(deep=True)
         config.paths.data_dir = cache
         config.binance.symbol, config.binance.interval = symbol, "5m"
-        manifest = SOURCES[kind][0](client, config).collect(start, end, run_id)
+        manifest = SOURCES[kind][0](client, config).collect(request_start, request_end, run_id)
         if manifest.error_count:
             raise client.error or RuntimeError(f"{kind}_collection_failed")
         if not raw.exists():
@@ -221,7 +247,7 @@ def collect_range(settings, client, kind: str, symbol: str, start: datetime, end
 
 
 def materialize(conn, *, symbol: str, end: datetime, now: datetime, first_seen: datetime) -> dict:
-    """Reuse builders on regular current-as-of inputs, publish ONE closed bar.
+    """Reuse builders on regular current-as-of inputs, publish one closed bar.
 
     No derived history is inserted into feature_results or the observations
     ledger. Missing derivatives remain visible as a quality failure instead of
@@ -254,12 +280,12 @@ def materialize(conn, *, symbol: str, end: datetime, now: datetime, first_seen: 
     """)
     missing = conn.execute("""
         SELECT count(*) FILTER (WHERE open_interest_value IS NULL OR open_interest_value<=0),
-          count(*) FILTER (WHERE buy_volume IS NULL OR sell_volume IS NULL OR buy_volume<0 OR sell_volume<0),
+          count(*) FILTER (WHERE feature_time=? AND (buy_volume IS NULL OR sell_volume IS NULL OR buy_volume<0 OR sell_volume<0)),
           count(*) FILTER (WHERE feature_time>? AND
             (global_long_short_ratio IS NULL OR top_long_short_ratio IS NULL
              OR global_long_short_ratio<=0 OR top_long_short_ratio<=0))
         FROM bf_timeline
-    """, [end - timedelta(hours=4)]).fetchone()
+    """, [end, end - timedelta(hours=4)]).fetchone()
     if any(missing):
         raise ValueError(f"derivative_history_incomplete:oi={missing[0]},taker={missing[1]},ratios={missing[2]}")
     # A regular funding-only grid supplies the full 30d windows without
@@ -310,9 +336,14 @@ def materialize(conn, *, symbol: str, end: datetime, now: datetime, first_seen: 
 
 
 def attach(discovery: dict, jobs: Jobs) -> dict:
+    items = []
+    for item in discovery.get("items", []):
+        job = jobs.load(item["symbol"])
+        if job.get("detected_at") and time_value(job["detected_at"]) != time_value(item["first_seen"]):
+            job = {"symbol": item["symbol"], "version": VERSION, "stage": "DETECTED"}
+        items.append({**item, "pipeline_stage": job.get("stage", "DETECTED"), "backfill": job})
     return {**discovery, "backfill_version": VERSION, "feature_source": "v3_live_features",
-            "items": [{**item, "pipeline_stage": jobs.load(item["symbol"]).get("stage", "DETECTED"),
-                       "backfill": jobs.load(item["symbol"])} for item in discovery.get("items", [])]}
+            "items": items}
 
 
 def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int = 24,
@@ -367,8 +398,25 @@ def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int 
                     raise ValueError(f"{kind}_missing")
             quality = materialize(conn, symbol=symbol, end=end, now=max(now, datetime.now(timezone.utc)),
                                   first_seen=time_value(discovery["first_seen"][symbol]))
+            # Preserve the existing hourly sampling when a live scan runs late.
+            # Only a source close AFTER warmup completed can be caught up; never
+            # manufacture confirmations from the history that warmed this coin.
+            hourly = end.replace(minute=4, second=59, microsecond=999000)
+            if hourly > end:
+                hourly -= timedelta(hours=1)
+            if job.get("ready_at") and time_value(job["ready_at"]) <= hourly < end:
+                try:
+                    materialize(conn, symbol=symbol, end=hourly,
+                                now=max(now, datetime.now(timezone.utc)),
+                                first_seen=time_value(discovery["first_seen"][symbol]))
+                    job["hourly_feature_time"] = hourly
+                    job["hourly_quality_error"] = None
+                except ValueError as exc:
+                    # Current data can be ready while an earlier closed window
+                    # still has a hole. Do not score that incomplete hour.
+                    job["hourly_quality_error"] = str(exc)[:240]
             transition(job, "DATA_READY", now, quality=quality, error=None,
-                       ready_at=job.get("ready_at") or now, feature_time=end,
+                       ready_at=job.get("ready_at") or quality["checked_at"], feature_time=end,
                        failures=0, deferred_reason=None)
         except InterruptedError:
             job["deferred_reason"] = "cycle_budget_or_rate_limit"

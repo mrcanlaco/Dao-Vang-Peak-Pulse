@@ -663,6 +663,9 @@ class ScannerDaemon:
                     fetch_tickers(str(self._settings.binance.base_url)),
                     storage=storage, now=datetime.now(timezone.utc),
                 )
+                from dao_vang.scanner.research_v3_backfill import Jobs, attach
+
+                v3_discovery = attach(v3_discovery, Jobs(storage))
                 symbols_to_collect = _collection_symbols(symbols_to_collect + v3_discovery["collection_symbols"])
                 atomic_snapshot(storage / "discovery.json", v3_discovery)
             except Exception as exc:

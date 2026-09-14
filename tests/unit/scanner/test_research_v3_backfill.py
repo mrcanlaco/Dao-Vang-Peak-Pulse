@@ -1,7 +1,7 @@
 """Real collectors -> raw -> parquet -> features -> hourly observer integration."""
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import duckdb
 import pytest
@@ -29,9 +29,11 @@ class Market:
             self.error = RateLimitError("429", 600) if self.rate_limit else ValueError("source_unavailable")
             raise self.error
         step = 8*3600*1000 if "fundingRate" in endpoint else 300000
-        first = ((params["startTime"]+step-1)//step)*step
+        # Match the actual taker endpoint: bounds use period end, payload uses start.
+        offset = step if "taker" in endpoint else 0
+        first = ((params["startTime"]-offset+step-1)//step)*step
         result = []
-        for ts in range(first, params["endTime"]+1, step):
+        for ts in range(first, params["endTime"]-offset+1, step):
             if ts == self.hole:
                 continue
             symbol = params["symbol"]
@@ -145,8 +147,9 @@ def test_internal_hole_is_not_misreported_as_24h_return(market_env):
         client.hole = None
         result = run(conn, market_env, data, now=START+timedelta(minutes=12))
         assert result["items"][0]["pipeline_stage"] == "DATA_READY", result["items"][0]["backfill"].get("error")
-        # Six initial source requests + five single-bar repairs (funding unaffected).
-        assert len(client.calls) == 11
+        # Six initial source requests + four single-bar repairs. Serving uses
+        # contemporaneous taker only, so an old taker hole is irrelevant.
+        assert len(client.calls) == 10
 
 
 def test_late_collected_history_is_usable_now_but_cannot_replay_confirmations(market_env, setup):  # noqa: F811
@@ -260,6 +263,8 @@ def test_file_pruning_uses_collection_time_not_partition_start(tmp_path):
         (directory / name).touch()
     selected = bf.source_files(tmp_path, "funding", "TESTUSDT", START)
     assert {bf.Path(p).name for p in selected} == {names[0], names[3], names[4]}
+    retained = bf.source_files(tmp_path, "funding", "TESTUSDT", START, collected_since=START-timedelta(days=90))
+    assert {bf.Path(p).name for p in retained} == {names[0], names[2], names[3], names[4]}
 
 
 def test_other_symbol_files_are_not_opened_by_parquet_reader(market_env):
@@ -272,5 +277,70 @@ def test_other_symbol_files_are_not_opened_by_parquet_reader(market_env):
     with duckdb.connect() as conn:
         result = run(conn, market_env, discovery(settings))
         assert result["items"][0]["pipeline_stage"] == "DATA_READY"
+        valid = next(directory.parent.rglob("v3bf_*.parquet"))
+        conn.execute(f"CREATE VIEW kline AS SELECT * FROM read_parquet('{valid.as_posix()}')")
+        price_source = research_v3.prepare_price_source(conn, settings.paths.data_dir,
+            symbols=["TESTUSDT"], since=START-timedelta(hours=26), now=START+timedelta(minutes=11))
+        assert conn.execute(f"SELECT count(*) FROM {price_source}").fetchone()[0] == 300
+
+
+def test_late_live_scans_keep_hourly_confirmation_after_readiness(market_env, setup, monkeypatch):  # noqa: F811
+    conn, args = setup
+    settings, _ = market_env
+    clock = [START+timedelta(minutes=11)]
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return clock[0]
+
+    monkeypatch.setattr(bf, "datetime", Clock)
+    conn.execute("INSERT INTO kline VALUES ('TESTUSDT','USD-M Futures','5m',?,100,101,99,100,'valid')",
+                 [START+timedelta(hours=5, minutes=5)-bf.MS])
+    research_v3.observe(conn, **args, now=START)
+    discovery(settings, now=START+timedelta(minutes=1))
+    data = run(conn, market_env, discovery(settings, now=clock[0]), now=clock[0])
+    result = research_v3.observe(conn, **args, now=clock[0], discovery=data)
+    assert result["candidate_count"] == 0  # 00:04 preceded actual readiness.
+    for hour in range(1, 6):
+        clock[0] = START+timedelta(hours=hour, minutes=16)
+        data = run(conn, market_env, discovery(settings, now=clock[0]), now=clock[0])
+        assert data["items"][0]["pipeline_stage"] == "DATA_READY", data
+        result = research_v3.observe(conn, **args, now=clock[0], discovery=data)
+        assert result["candidate_count"] == hour
+        assert result["entry_count"] == int(hour == 5)
+        repeated = research_v3.observe(conn, **args, now=clock[0]+timedelta(minutes=2), discovery=data)
+        assert repeated["candidate_count"] == hour
+
+
+def test_discovery_refresh_preserves_progress_but_new_episode_starts_detected(market_env):
+    settings, _ = market_env
+    with duckdb.connect() as conn:
+        run(conn, market_env, discovery(settings))
+    jobs = bf.Jobs(settings.paths.data_dir / "research_v3")
+    result = bf.attach(discovery(settings, now=START+timedelta(minutes=16)), jobs)
+    assert result["items"][0]["pipeline_stage"] == "DATA_READY"
+    result = bf.attach(discovery(settings, now=START+timedelta(hours=7)), jobs)
+    assert result["items"][0]["pipeline_stage"] == "DETECTED"
+
+
+def test_taker_request_end_boundary_keeps_original_payload_timestamp(market_env):
+    settings, client = market_env
+    start = START-timedelta(minutes=5)
+    end = START-bf.MS
+    bf.collect_range(settings, client, "taker_ratio", "TESTUSDT", start, end)
+    request = client.calls[0][1]
+    assert request["startTime"] == int(START.timestamp()*1000)
+    assert request["endTime"] == int((end+bf.STEP).timestamp()*1000)
+    with duckdb.connect() as conn:
+        assert bf.mount_source(conn, settings.paths.data_dir, "taker_ratio", "TESTUSDT", START+timedelta(minutes=11))
+        assert conn.execute("SELECT period_start FROM bf_taker_ratio").fetchall() == [(start,)]
+
+
+def test_no_features_or_entries_does_not_open_whole_price_lake(setup, monkeypatch):  # noqa: F811
+    conn, args = setup
+    monkeypatch.setattr(research_v3, "prepare_price_source", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("unneeded lake scan")))
+    result = research_v3.observe(conn, **args, now=START, discovery={"feature_source": "v3_live_features"})
+    assert result["candidate_count"] == result["entry_count"] == 0
 
 

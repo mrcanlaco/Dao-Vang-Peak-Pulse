@@ -5,7 +5,8 @@
 Sau thu thập tăng dần, V3 kiểm tra các khoảng thiếu trong kho normalized cho
 coin radar ≥15% đang được theo dõi. Tái sử dụng Klines/OI/Taker/Global/Top/Funding
 collectors, raw envelopes, normalizers, kiểm tra chất lượng và feature builders.
-Giá/OI/taker/ratio tải cửa sổ 25h (kiểm tra 289 nến liên tục cho return 24h);
+Giá/OI tải cửa sổ 25h (kiểm tra 289 nến liên tục cho return 24h), ratio 5h;
+taker chỉ cần các kỳ hiện tại/mốc giờ mà serving schema sử dụng;
 funding tải 31 ngày và được align lên grid 5m riêng để tính cửa sổ tối đa 30 ngày.
 Không phải tải lại 30 ngày nến giá để tính funding. Kho normalized đã có được
 tái sử dụng, kể cả dữ liệu từng tải muộn; planner sửa cả prefix và lỗ hổng nội bộ.
@@ -22,16 +23,24 @@ collection trong tên file. Không lọc chỉ theo ngày partition (một lần
 được đọc để không bỏ mất lịch sử đã tải. Cách này tránh mở file của toàn thị
 trường cho từng coin, giảm RAM và độ trễ trên kho production lớn.
 
+Taker backfill dịch cửa sổ request thêm một kỳ 5m: endpoint thực tế lọc theo
+cuối kỳ nhưng response ghi đầu kỳ. Giữ nguyên timestamp response; test adapter
+mô phỏng đúng hành vi này, bao gồm request một kỳ và qua ngày. Snapshot discovery
+giữ trạng thái job qua lượt quét/restart, không tạm mất tiến độ trong lúc ingest.
+
 Mỗi chu kỳ giới hạn 24 range requests, ngân sách tải 45 giây (request đang chạy
 có timeout 8 giây), pacing 150ms/request. Lỗi HTTP/network trả về job để retry
 exponential 60s–1h; 429/418 lưu Retry-After theo toàn nhánh, qua cả restart.
 Một coin lỗi không dừng coin khác hoặc scanner. Job chưa xong tiếp tục lượt sau;
 coin đang theo dõi được xử lý theo thứ tự lần thử cũ nhất.
 
-V3 materialize vào `v3_live_features` **chỉ một nến đóng hiện tại mỗi lượt**,
+V3 materialize vào `v3_live_features` nến đóng hiện tại mỗi lượt,
 lưu `materialized_at` thật và `discovery_first_seen`, unique theo symbol/time.
 Không sửa `feature_results`, không ghi lại feature cũ đã materialize và không
-replay các mốc giờ bị lỡ trong lúc backfill. Bộ quyết định Timing và runtime v2
+replay các mốc giờ bị lỡ trong lúc backfill. Sau khi đã DATA_READY, lượt quét
+chậm được materialize thêm mốc giờ gần nhất, chỉ khi mốc nguồn nằm sau thời
+điểm hoàn tất warmup thật; không bỏ mất nhịp giờ vì chu kỳ quét dài hơn 5 phút.
+Bộ quyết định Timing và runtime v2
 giữ nguyên; mốc nguồn minute=4, first-seen, activation, last-seen, 90 phút,
 armed peak ≥30%, hai xác nhận hàng giờ và episode ≥4h vẫn được áp dụng.
 Lịch sử warmup không tạo episode/armed peak/xác nhận. Restart tiếp tục state cũ.
@@ -42,7 +51,8 @@ SCORING biểu thị đã sẵn sàng cho mốc giờ; điểm và lý do quyế
 quan sát thật. CONFIRMATION tiếp tục tới khi đủ điều kiện, REJECT không xóa coin
 khỏi radar. UI hiển thị tiến độ, chất lượng, lỗi và thời điểm thử lại.
 
-OHLCV phải hợp lệ và đủ 289 nến; OI/taker đủ 24h, ratio đủ 4h, funding hiện tại
+OHLCV phải hợp lệ và đủ 289 nến; OI đủ 24h, ratio đủ 4h, taker có đúng kỳ
+đang đánh giá (model khóa chỉ dùng taker_buy_ratio), funding hiện tại
 không quá 12h. Coin mới niêm yết chưa đủ funding 30 ngày được báo
 `funding_history_short`; percentile/z-score 30d và feature 7d thiếu coverage giữ
 NULL, không dùng lịch sử ngắn giả làm lịch sử đầy đủ. Model giữ missing policy
