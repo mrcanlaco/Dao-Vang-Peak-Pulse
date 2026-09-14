@@ -46,6 +46,9 @@ alpha_lab_app = typer.Typer(
 system_app = typer.Typer(
     help="System management, update, and auto-updater commands"
 )
+execution_app = typer.Typer(
+    help="Execution Engine commands (Binance Testnet paper-trading)"
+)
 
 app.add_typer(data_app, name="data")
 app.add_typer(labels_app, name="labels")
@@ -56,6 +59,7 @@ app.add_typer(report_app, name="report")
 app.add_typer(scanner_app, name="scanner")
 app.add_typer(alpha_lab_app, name="alpha-lab")
 app.add_typer(system_app, name="system")
+app.add_typer(execution_app, name="execution")
 
 
 @experiment_app.command("replay-v3")
@@ -1699,6 +1703,56 @@ def system_auto_updater(
     from dao_vang.updater.auto_updater import run_auto_updater
 
     run_auto_updater(interval_minutes=interval)
+
+
+# ==============================================================================
+# EXECUTION ENGINE COMMANDS (ISOLATED AUTO-TRADING)
+# ==============================================================================
+
+
+@execution_app.command("start")
+def execution_start(
+    config: str = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Path to YAML config file (default: configs/dev.yaml or env vars)",
+    ),
+) -> None:
+    """Start the isolated ExecutionEngine daemon for Testnet paper-trading."""
+    from dao_vang.execution.engine import ExecutionEngine
+
+    settings = AppSettings.from_yaml(Path(config)) if config else AppSettings()
+    db_path = Path(settings.scanner.db_path)
+    engine = ExecutionEngine(settings, db_path)
+    typer.echo(f"Starting ExecutionEngine (db: {db_path}, paper_trading={engine.settings.paper_trading})...")
+    engine.run_loop()
+
+
+@execution_app.command("poll")
+def execution_poll(
+    config: str = typer.Option(
+        None,
+        "--config",
+        "-c",
+        help="Path to YAML config file (default: configs/dev.yaml or env vars)",
+    ),
+) -> None:
+    """Perform a one-shot poll of actionable signals and execute bracket orders."""
+    from dao_vang.execution.engine import ExecutionEngine
+
+    settings = AppSettings.from_yaml(Path(config)) if config else AppSettings()
+    db_path = Path(settings.scanner.db_path)
+    engine = ExecutionEngine(settings, db_path)
+    engine.connect()
+    try:
+        engine.poll_signals()
+        typer.echo("ExecutionEngine one-shot poll complete.")
+    finally:
+        if getattr(engine, "_db_conn", None):
+            engine._db_conn.close()
+        if getattr(engine, "_exec_conn", None):
+            engine._exec_conn.close()
 
 
 if __name__ == "__main__":

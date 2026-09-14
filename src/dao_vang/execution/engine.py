@@ -115,20 +115,13 @@ class ExecutionEngine:
     def has_open_position(self, symbol: str) -> bool:
         """Check if there is already an open position for this symbol on Binance."""
         if not self._api_client:
-            return True # Fail-closed
+            return False  # Dry mode allows simulated checks
         try:
             positions = self._api_client.get_open_positions()
             return any(getattr(p, 'symbol', p.get('symbol', '')) == symbol for p in positions)
         except Exception as e:
             logger.error(f"Failed to check positions for {symbol}: {e}")
-            return True # Fail-closed
-        try:
-            positions = self._api_client.get_open_positions()
-            return any(getattr(p, 'symbol', p.get('symbol', '')) == symbol for p in positions)
-        except Exception as e:
-            logger.error(f"Failed to check positions for {symbol}: {e}")
-            return True # Fail-closed
-
+            return True  # Fail-closed on API error
     def get_open_positions_count(self) -> int:
         """Get current open positions count from Binance."""
         if not self._api_client:
@@ -141,28 +134,35 @@ class ExecutionEngine:
             return 999  # Fail-closed: return a high number to prevent new trades
 
     def execute_trade(self, symbol: str, entry_price: float) -> bool:
-        """Execute the trade on Binance."""
+        """Execute the trade on Binance using a bracket order (Entry + SL + TP)."""
         if not self.settings.paper_trading:
             logger.error("Live execution blocked by safety rules.")
             return False
-            
+
         size_usd = self.settings.max_position_usd
         stop_loss = entry_price * (1 + self.settings.stop_loss_pct)  # Short: SL is higher
         take_profit = entry_price * (1 - self.settings.take_profit_pct)
-        
-        # Basic quantity calculation (Note: does not handle Binance stepSize/precision rules yet)
-        quantity = round(size_usd / entry_price, 3)
-        
+        raw_quantity = size_usd / entry_price
+
         logger.warning(
-            f"[PAPER TRADING] Executing SHORT on {symbol} | "
-            f"Entry: {entry_price} | SL: {stop_loss:.4f} | TP: {take_profit:.4f} | Size: ${size_usd} | Qty: {quantity}"
+            f"[PAPER TRADING] Executing SHORT bracket on {symbol} | "
+            f"Entry: {entry_price} | SL: {stop_loss:.4f} | TP: {take_profit:.4f} | Size: ${size_usd}"
         )
-        
+
         if self._api_client:
             try:
-                res = self._api_client.place_market_order(symbol, "SELL", quantity)
-                logger.info(f"Order placed successfully: {res.get('orderId')}")
+                res = self._api_client.place_bracket_short(
+                    symbol=symbol,
+                    quantity=raw_quantity,
+                    entry_price=entry_price,
+                    stop_loss_price=stop_loss,
+                    take_profit_price=take_profit,
+                )
+                logger.info(f"Bracket order placed successfully for {symbol}: {res}")
                 return True
             except Exception as e:
-                logger.error(f"Failed to place order for {symbol}: {e}")
+                logger.error(f"Failed to place bracket order for {symbol}: {e}")
                 return False
+        else:
+            logger.info(f"[DRY RUN] Simulated SHORT bracket on {symbol} (Qty: {raw_quantity:.4f})")
+            return True
