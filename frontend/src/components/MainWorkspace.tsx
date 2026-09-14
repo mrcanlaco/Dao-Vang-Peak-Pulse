@@ -570,7 +570,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
         className="self-start mb-2 px-2.5 py-1 border border-amber-500/40 bg-amber-500/10 rounded-lg text-[11px] font-semibold text-amber-300 hover:bg-amber-500/20 flex items-center gap-1.5 transition"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-        <span>{language === 'vi' ? 'Thử nghiệm v3 · 20% / 48h' : 'V3 research · 20% / 48h'}</span>
+        <span>{language === 'vi' ? 'Thử nghiệm V3 · Champion (Pump ≥25% + Đảo chiều)' : 'V3 Champion · (Pump ≥25% + Reversal)'}</span>
       </button>
       <WorkspaceTabBar
         isDevMode={isDevMode}

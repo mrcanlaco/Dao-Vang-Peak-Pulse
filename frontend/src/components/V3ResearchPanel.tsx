@@ -65,12 +65,12 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
     pump_below_25pct: '24h pump below 25%' };
   return <section data-testid="v3-research" className="flex flex-col gap-4 min-h-[400px] lg:h-full overflow-auto p-2 sm:p-4 text-slate-200">
     <div className="flex flex-wrap justify-between items-start gap-3">
-      <div><h2 className="text-lg font-bold text-amber-400">{vi ? 'Thử nghiệm v3 · 20% / 48h' : 'V3 research · 20% / 48h'}</h2>
-        <p className="text-xs text-slate-400 mt-1">Challenger + Compact · Funding Scout + Compact</p></div>
+      <div><h2 className="text-lg font-bold text-amber-400">{vi ? 'Thử nghiệm V3 · Champion (Pump ≥25% + Đảo chiều)' : 'V3 Champion · (Pump ≥25% + Reversal)'}</h2>
+        <p className="text-xs text-slate-400 mt-1">{vi ? 'Công thức tối ưu: Bơm kiệt sức ≥25% · Đảo chiều ≥2% · Cước phí Funding Scout (EV +1.80%)' : 'Optimal formula: Climax pump ≥25% · Reversal ≥2% · Funding Scout (EV +1.80%)'}</p></div>
       <button onClick={onClose} className="px-3 py-2 rounded-lg border border-slate-600 text-sm">{vi ? 'Về ứng dụng' : 'Back to app'}</button>
     </div>
     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm leading-relaxed">
-      {vi ? 'Mô phỏng, không đặt lệnh và không gửi Telegram. TP −20% / stop +16% từ giá trung bình; thêm lệnh trong 6h. Điểm model tham chiếu không phải xác suất thắng v3. Funding chưa xác minh — chưa công bố lợi nhuận ròng.' : 'Simulation only: no orders or Telegram. TP −20% / stop +16% from average entry; scale in within 6h. Reference model scores are not calibrated v3 win probabilities. Funding unverified; net returns withheld.'}
+      {vi ? 'Mô phỏng thử nghiệm V3 Champion: Bơm kiệt sức ≥25% + Rơi từ đỉnh ≥2% + Cước Funding Scout. TP −20% / Stop +16% từ giá trung bình theo Compact Policy (0, +3%, +6% | 20/30/50). Thời hạn 48h.' : 'V3 Champion simulation: Climax pump ≥25% + Reversal from peak ≥2% + Funding Scout. TP −20% / Stop +16% from average entry under Compact Policy (0, +3%, +6% | 20/30/50). Horizon 48h.'}
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
       <div className="rounded-lg bg-slate-800 p-3" role="status">{error ? (vi ? 'Không tải được dữ liệu' : 'Unable to load data') : snapshot?.stale ? (vi ? 'Dữ liệu đã cũ — cần kiểm tra scanner' : 'Stale data — check scanner') : stateLabel[snapshot?.status || 'waiting'] || snapshot?.status}

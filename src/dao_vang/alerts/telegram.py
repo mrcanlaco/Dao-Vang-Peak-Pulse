@@ -475,8 +475,9 @@ class TelegramNotifier:
         mode_label = _mode_label(operating_mode, self._lang)
         mode_prefix = f" `[{mode_label}]`" if operating_mode != "production" else ""
 
+        title_name = "TÍN HIỆU V3 CHAMPION (PUMP ≥25% + ĐẢO CHIỀU)" if is_champion else "TÍN HIỆU PHÂN PHỐI V3"
         lines = [
-            f"{lane_badge} 🚨 *TÍN HIỆU PHÂN PHỐI V3 — `{symbol}`*{mode_prefix}",
+            f"{lane_badge} 🚨 *{title_name} — `{symbol}`*{mode_prefix}",
             f"• *Thời điểm:* {formatted_time}",
             f"• *Xác suất phân phối:* `{probability:.1%}`",
             "",
