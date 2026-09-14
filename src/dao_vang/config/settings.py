@@ -298,6 +298,15 @@ class CoinGeckoConfig(BaseModel):
     price_mismatch_threshold: float = Field(default=0.05, ge=0.0, le=1.0)  # 5%
 
 
+class CoinMarketCapConfig(BaseModel):
+    """CoinMarketCap token & market cap settings via Binance promo CMC API."""
+
+    enabled: bool = Field(default=True)
+    base_url: str = "https://www.binance.com"
+    timeout_seconds: int = Field(default=10, gt=0)
+    cache_minutes: int = Field(default=30, ge=1, le=1440)
+
+
 class BinanceAgentOSConfig(BaseModel):
     """Public Binance Agent OS token-information endpoint settings."""
 
@@ -489,6 +498,7 @@ class AppSettings(BaseSettings):
     candidate_comparison: CandidateComparisonConfig = CandidateComparisonConfig()
     threshold: ThresholdPolicy = ThresholdPolicy()
     binance_agent_os: BinanceAgentOSConfig = BinanceAgentOSConfig()
+    coinmarketcap: CoinMarketCapConfig = CoinMarketCapConfig()
     execution: ExecutionConfig = ExecutionConfig()
     execution_policy: ExecutionPolicyRouterConfig = ExecutionPolicyRouterConfig()
     coingecko: CoinGeckoConfig = CoinGeckoConfig()

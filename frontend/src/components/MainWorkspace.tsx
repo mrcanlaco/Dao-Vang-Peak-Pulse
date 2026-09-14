@@ -20,6 +20,7 @@ import { AiExecutiveBriefing } from './DecisionCenter/AiExecutiveBriefing';
 import { CoinLink } from './CoinLink';
 import { formatSystemTime, parseSystemDate } from '../utils/time';
 import { getCoinMarketCapInfo, getMarketCapBadgeConfig, getMarketCapSourceLabel } from '../utils/sectors';
+import { getCoinExternalUrl } from '../utils/cmc';
 import { useTranslation } from '../i18n/LanguageContext';
 import {
   getRiskLabel,
@@ -797,11 +798,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                           const marketCapSourceLabel = getMarketCapSourceLabel(displayMarketCap.market_cap_source, language);
                           return (
                             <a
-                              href={`https://www.coingecko.com/en/coins/${displayDetail.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`}
+                              href={getCoinExternalUrl(displayDetail.symbol, displayDetail)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-800/50 bg-gradient-to-r from-blue-950/40 via-slate-950/80 to-slate-950 p-3 hover:border-blue-500/80 hover:shadow-lg hover:shadow-blue-900/20 cursor-pointer transition-all group"
-                              title={`${t('metric_market_cap', 'Market Cap')}: ${displayMarketCap.market_cap_str} · ${marketCapSourceLabel} (View on CoinGecko)`}
+                              title={`${t('metric_market_cap', 'Market Cap')}: ${displayMarketCap.market_cap_str} · ${marketCapSourceLabel} (${t('view_on_coinmarketcap', 'Xem trên CoinMarketCap')})`}
                             >
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-blue-700/50 bg-blue-900/40 text-lg">

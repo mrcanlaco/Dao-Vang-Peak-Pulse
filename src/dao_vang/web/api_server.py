@@ -362,16 +362,21 @@ def _build_market_cap_info(
     market_cap_usd: float | None = None,
     source: str | None = None,
     updated_at: str | None = None,
+    slug: str | None = None,
+    name: str | None = None,
+    cmc_url: str | None = None,
 ) -> dict[str, Any]:
-    """Build a market-cap payload with NO fallback fabrication.
-
-    Binance Agent OS (or CoinGecko) is the authoritative source. If no value
-    is provided, it returns None/N/A.
-    """
+    """Build a market-cap payload with CoinMarketCap metadata and NO fabrication."""
     try:
         supplied_mcap = float(market_cap_usd) if market_cap_usd is not None else None
     except (TypeError, ValueError):
         supplied_mcap = None
+
+    from dao_vang.data.collectors.coinmarketcap import resolve_token_meta
+    meta = resolve_token_meta(symbol)
+    resolved_slug = slug or meta.get("slug")
+    resolved_name = name or meta.get("name")
+    resolved_url = cmc_url or meta.get("cmc_url")
         
     if supplied_mcap is None or not math.isfinite(supplied_mcap) or supplied_mcap <= 0:
         return {
@@ -381,10 +386,13 @@ def _build_market_cap_info(
             "market_cap_source": "unavailable",
             "market_cap_is_estimate": False,
             "market_cap_updated_at": updated_at,
+            "cmc_slug": resolved_slug,
+            "cmc_name": resolved_name,
+            "cmc_url": resolved_url,
         }
 
     mcap = supplied_mcap
-    resolved_source = source or "binance_agent_os"
+    resolved_source = source or "coinmarketcap"
 
     if mcap >= 5_000_000_000:
         tier = "LARGE"
@@ -411,6 +419,9 @@ def _build_market_cap_info(
         "market_cap_source": resolved_source,
         "market_cap_is_estimate": False,
         "market_cap_updated_at": updated_at,
+        "cmc_slug": resolved_slug,
+        "cmc_name": resolved_name,
+        "cmc_url": resolved_url,
     }
 
 
@@ -420,13 +431,7 @@ def _resolve_market_cap_info(
     *,
     fetch_remote: bool = False,
 ) -> dict[str, Any]:
-    """Return cached Binance Agent OS data or an unavailable payload.
-
-    List endpoints call this with ``fetch_remote=False`` and enqueue bounded
-    background lookups separately, so rendering never waits on provider I/O.
-    The selected coin detail endpoint opts in to one immediate lookup and
-    shares the result with later list responses.
-    """
+    """Return cached CoinMarketCap data or an unavailable payload."""
     fallback = _build_market_cap_info(symbol, volume_24h_usd)
     cache_key = str(symbol or "").upper().replace("USDT", "").replace("BUSD", "").replace("USDC", "").replace("PERP", "").strip()
     now_monotonic = time.monotonic()
@@ -435,29 +440,69 @@ def _resolve_market_cap_info(
         if cached and cached[0] > now_monotonic:
             return dict(cached[1])
 
-    if not fetch_remote or not _settings.binance_agent_os.enabled:
+    cmc_cfg = getattr(_settings, "coinmarketcap", None)
+    cmc_enabled = cmc_cfg.enabled if cmc_cfg else False
+    agent_os_cfg = getattr(_settings, "binance_agent_os", None)
+    agent_os_enabled = agent_os_cfg.enabled if agent_os_cfg else False
+
+    if not fetch_remote or (not cmc_enabled and not agent_os_enabled):
         return fallback
 
     info = fallback
     ttl_seconds = _MARKET_CAP_FAILURE_TTL_SECONDS
-    try:
-        from dao_vang.data.collectors.binance_agent_os import fetch_market_cap
+    fetched = False
 
-        market_cap_usd = fetch_market_cap(symbol, _settings.binance_agent_os)
-        if market_cap_usd is not None and market_cap_usd > 0:
-            info = _build_market_cap_info(
-                symbol,
-                volume_24h_usd,
-                market_cap_usd=market_cap_usd,
-                source="binance_agent_os",
-                updated_at=_system_history_timestamp(datetime.now(timezone.utc)),
-            )
-            ttl_seconds = max(
-                60.0,
-                float(_settings.binance_agent_os.cache_minutes) * 60.0,
-            )
-    except Exception as exc:
-        logger.warning("market_cap_lookup_failed symbol=%s error=%s", symbol, exc)
+    if cmc_enabled:
+        try:
+            from dao_vang.data.collectors.coinmarketcap import fetch_market_data
+
+            cmc_data = fetch_market_data(symbol, cmc_cfg)
+            if cmc_data and cmc_data.market_cap_usd and cmc_data.market_cap_usd > 0:
+                info = _build_market_cap_info(
+                    symbol,
+                    volume_24h_usd,
+                    market_cap_usd=cmc_data.market_cap_usd,
+                    source="coinmarketcap",
+                    updated_at=_system_history_timestamp(datetime.now(timezone.utc)),
+                    slug=cmc_data.slug,
+                    name=cmc_data.name,
+                    cmc_url=cmc_data.cmc_url,
+                )
+                ttl_seconds = max(
+                    60.0,
+                    float(cmc_cfg.cache_minutes) * 60.0,
+                )
+                fetched = True
+            elif cmc_data:
+                info = _build_market_cap_info(
+                    symbol,
+                    volume_24h_usd,
+                    slug=cmc_data.slug,
+                    name=cmc_data.name,
+                    cmc_url=cmc_data.cmc_url,
+                )
+        except Exception as exc:
+            logger.warning("cmc_market_cap_lookup_failed symbol=%s error=%s", symbol, exc)
+
+    if not fetched and agent_os_enabled:
+        try:
+            from dao_vang.data.collectors.binance_agent_os import fetch_market_cap
+
+            market_cap_usd = fetch_market_cap(symbol, agent_os_cfg)
+            if market_cap_usd is not None and market_cap_usd > 0:
+                info = _build_market_cap_info(
+                    symbol,
+                    volume_24h_usd,
+                    market_cap_usd=market_cap_usd,
+                    source="binance_agent_os",
+                    updated_at=_system_history_timestamp(datetime.now(timezone.utc)),
+                )
+                ttl_seconds = max(
+                    60.0,
+                    float(agent_os_cfg.cache_minutes) * 60.0,
+                )
+        except Exception as exc:
+            logger.warning("market_cap_lookup_failed symbol=%s error=%s", symbol, exc)
 
     with _MARKET_CAP_CACHE_LOCK:
         _MARKET_CAP_CACHE[cache_key] = (now_monotonic + ttl_seconds, dict(info))
@@ -490,7 +535,11 @@ def _schedule_market_cap_lookup(
     """Queue one deduplicated lookup; return whether it was newly queued."""
     global _MARKET_CAP_LOOKUP_WORKERS_STARTED
 
-    if not _settings.binance_agent_os.enabled:
+    cmc_cfg = getattr(_settings, "coinmarketcap", None)
+    cmc_enabled = cmc_cfg.enabled if cmc_cfg else False
+    agent_os_cfg = getattr(_settings, "binance_agent_os", None)
+    agent_os_enabled = agent_os_cfg.enabled if agent_os_cfg else False
+    if not cmc_enabled and not agent_os_enabled:
         return False
 
     cache_key = str(symbol or "").upper().replace("USDT", "").replace("BUSD", "").replace("USDC", "").replace("PERP", "").strip()
@@ -3368,7 +3417,7 @@ class APIHandler(BaseHTTPRequestHandler):
         target_drawdown = -(_current_model_target_drawdown() * 100.0)
         detail = {
             "symbol": symbol,
-            "name": symbol.replace("USDT", ""),
+            "name": market_cap_info.get("cmc_name") or symbol.replace("USDT", ""),
             **market_cap_info,
             "current_price": current_price,
             "chart_source": chart_source,

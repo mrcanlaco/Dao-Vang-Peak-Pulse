@@ -232,7 +232,14 @@ export const getCoinMarketCapInfo = (
   market_cap_tier: 'LARGE' | 'MID' | 'SMALL' | 'MICRO' | 'UNKNOWN';
   market_cap_source: string;
   market_cap_is_estimate: boolean;
+  cmc_slug?: string | null;
+  cmc_name?: string | null;
+  cmc_url?: string | null;
 } => {
+  const cmcSlug = existingSignal?.cmc_slug || null;
+  const cmcName = existingSignal?.cmc_name || null;
+  const cmcUrl = existingSignal?.cmc_url || (cmcSlug ? `https://coinmarketcap.com/currencies/${cmcSlug}/` : null);
+
   const existingValue = Number(existingSignal?.market_cap_usd);
   if (Number.isFinite(existingValue) && existingValue > 0) {
     const rawTier = String(existingSignal?.market_cap_tier || '').toUpperCase();
@@ -247,13 +254,16 @@ export const getCoinMarketCapInfo = (
       : existingValue >= 10_000_000
       ? 'SMALL'
       : 'MICRO';
-    const source = existingSignal?.market_cap_source || 'fallback_estimate';
+    const source = existingSignal?.market_cap_source || 'coinmarketcap';
     return {
       market_cap_usd: existingValue,
       market_cap_str: existingSignal?.market_cap_str || formatMarketCap(existingValue),
       market_cap_tier: tier,
       market_cap_source: source,
-      market_cap_is_estimate: existingSignal?.market_cap_is_estimate ?? source !== 'binance_agent_os',
+      market_cap_is_estimate: existingSignal?.market_cap_is_estimate ?? (source !== 'coinmarketcap' && source !== 'binance_agent_os'),
+      cmc_slug: cmcSlug,
+      cmc_name: cmcName,
+      cmc_url: cmcUrl,
     };
   }
 
@@ -263,6 +273,9 @@ export const getCoinMarketCapInfo = (
     market_cap_tier: 'UNKNOWN',
     market_cap_source: 'unavailable',
     market_cap_is_estimate: false,
+    cmc_slug: cmcSlug,
+    cmc_name: cmcName,
+    cmc_url: cmcUrl,
   };
 };
 
@@ -361,6 +374,7 @@ export const getMarketCapBadgeConfig = (
 
 export const getMarketCapSourceLabel = (source?: string | null, language: string = 'vi'): string => {
   const normalized = (source || '').toLowerCase();
+  if (normalized === 'coinmarketcap' || normalized === 'cmc' || normalized === 'binance_cmc') return 'CoinMarketCap';
   if (normalized === 'binance_agent_os' || normalized === 'binance-agent-os') return 'Binance Agent OS';
   if (normalized === 'symbol_lookup') {
     return language === 'vi' ? 'Bảng tra cứu nội bộ' : language === 'zh' ? '内部映射表' : language === 'ko' ? '내부 매핑' : 'Local lookup';

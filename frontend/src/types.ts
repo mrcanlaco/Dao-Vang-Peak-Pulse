@@ -118,6 +118,12 @@ export interface MarketCapFields {
   market_cap_is_estimate?: boolean;
   /** Provider observation time, when available. */
   market_cap_updated_at?: string | null;
+  /** CoinMarketCap slug, e.g. `civic`, `pepe`, `bonk1`. */
+  cmc_slug?: string | null;
+  /** CoinMarketCap canonical token name, e.g. `Civic`. */
+  cmc_name?: string | null;
+  /** CoinMarketCap canonical URL. */
+  cmc_url?: string | null;
 }
 
 export interface SignalItem extends MarketCapFields {

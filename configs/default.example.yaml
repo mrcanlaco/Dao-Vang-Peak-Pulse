@@ -22,6 +22,12 @@ coingecko:
   # Optional Binance-vs-CoinGecko price cross-reference only.
   enabled: false
 
+coinmarketcap:
+  # Standard CoinMarketCap metadata and market cap synced with Binance.
+  enabled: true
+  timeout_seconds: 10
+  cache_minutes: 30
+
 binance_agent_os:
   # Standard market-cap source for token size classification.
   enabled: true

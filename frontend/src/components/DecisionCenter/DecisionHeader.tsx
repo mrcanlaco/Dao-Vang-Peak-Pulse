@@ -1,9 +1,10 @@
 import React from 'react';
-import { Flame, ChevronDown, CheckCircle2, XCircle, Clock, Send, Activity } from 'lucide-react';
+import { Flame, ChevronDown, CheckCircle2, XCircle, Clock, Send, Activity, ExternalLink } from 'lucide-react';
 import { useTranslation } from '../../i18n/LanguageContext';
 import type { CandidateCoin, SignalItem, SignalTradeSetup, RiskLevel } from '../../types';
 import { normalizeProbability } from '../../types';
 import { getRiskLabel } from '../../i18n/translations';
+import { getCoinExternalUrl } from '../../utils/cmc';
 
 interface DecisionHeaderProps {
   symbol: string;
@@ -84,6 +85,16 @@ export const DecisionHeader: React.FC<DecisionHeaderProps> = ({
                 <ChevronDown className="w-4 h-4 text-amber-400 group-hover:translate-y-0.5 transition" />
               </button>
               <span className="text-xs font-normal text-slate-400">({name})</span>
+              <a
+                href={getCoinExternalUrl(symbol, displayDetail)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold text-blue-400 hover:text-blue-200 bg-blue-950/60 hover:bg-blue-900/60 border border-blue-800/50 rounded-md transition shadow-sm group cursor-pointer"
+                title={language === 'vi' ? 'Xem trên CoinMarketCap' : 'View on CoinMarketCap'}
+              >
+                <span>CMC</span>
+                <ExternalLink className="w-2.5 h-2.5 opacity-70 group-hover:opacity-100" />
+              </a>
 
               {/* Status Badges */}
               {selectedSignal?.outcome_status === 'TARGET_HIT' && (
