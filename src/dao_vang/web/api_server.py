@@ -452,7 +452,7 @@ def _resolve_market_cap_info(
     ttl_seconds = _MARKET_CAP_FAILURE_TTL_SECONDS
     fetched = False
 
-    if cmc_enabled:
+    if cmc_enabled and cmc_cfg is not None:
         try:
             from dao_vang.data.collectors.coinmarketcap import fetch_market_data
 
@@ -484,7 +484,7 @@ def _resolve_market_cap_info(
         except Exception as exc:
             logger.warning("cmc_market_cap_lookup_failed symbol=%s error=%s", symbol, exc)
 
-    if not fetched and agent_os_enabled:
+    if not fetched and agent_os_enabled and agent_os_cfg is not None:
         try:
             from dao_vang.data.collectors.binance_agent_os import fetch_market_cap
 
