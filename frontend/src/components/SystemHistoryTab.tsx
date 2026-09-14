@@ -339,7 +339,7 @@ export const SystemHistoryTab: React.FC = () => {
       (spec.fallbackTable ? data?.freshness?.[spec.fallbackTable] || dataStatsMap.get(spec.fallbackTable) : undefined);
     const maxTime = tableData?.max_time;
     const rowCount = 'row_count' in (tableData || {}) ? (tableData as any).row_count : (tableData as any)?.rows;
-    const ageMin = computeAgeMin(maxTime, data?.generated_at || '');
+    const ageMin = computeAgeMin(maxTime, data?.stats_snapshot_generated_at || data?.generated_at || '');
     const status = getStatus(ageMin, spec.expectedMin, spec.onDemand);
     return {
       ...spec,

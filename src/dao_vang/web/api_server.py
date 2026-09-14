@@ -4801,8 +4801,10 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             logger.warning(f"system_history_experiments_failed error={exc}")
 
+        stats_snapshot_generated_at = stats_snapshot.get("generated_at")
         res = {
             "generated_at": system_now().isoformat(),
+            "stats_snapshot_generated_at": stats_snapshot_generated_at,
             "db_path": str(_settings.scanner.db_path),
             "data_stats": data_stats,
             "scanner": {
