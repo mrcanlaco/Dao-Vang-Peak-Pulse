@@ -2504,11 +2504,33 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def get_signals(self):
         global _SIGNALS_RESP_TIME, _SIGNALS_RESP_CACHE
+        raw_path = getattr(self, "path", "/api/signals")
+        if not isinstance(raw_path, str):
+            raw_path = "/api/signals"
+        parsed_url = urlparse(raw_path)
+        qs = parse_qs(parsed_url.query)
+        status_filter = qs.get("status", [None])[0]
+        if status_filter:
+            status_filter = status_filter.lower()
+        dedup_mode = qs.get("dedup", [None])[0]
+
         now_monotonic = time.monotonic()
         with _STATUS_CACHE_LOCK:
             if _SIGNALS_RESP_CACHE and (now_monotonic - _SIGNALS_RESP_TIME) < 3.0:
+                cached_res = _SIGNALS_RESP_CACHE
+                if status_filter == "active":
+                    cached_res = [s for s in cached_res if s.get("validity_hours_left", 0) > 0]
+                elif status_filter == "expired":
+                    cached_res = [s for s in cached_res if s.get("validity_hours_left", 0) <= 0]
+                if dedup_mode in ("true", "symbol", "1"):
+                    deduped: dict[str, Any] = {}
+                    for s in cached_res:
+                        sym = s.get("symbol")
+                        if sym and sym not in deduped:
+                            deduped[sym] = s
+                    cached_res = list(deduped.values())
                 self._set_headers(200)
-                self.wfile.write(json.dumps(_dismissals.filter(_SIGNALS_RESP_CACHE), default=str).encode('utf-8'))
+                self.wfile.write(json.dumps(_dismissals.filter(cached_res), default=str).encode('utf-8'))
                 return
 
         now = datetime.now(timezone.utc)
@@ -2952,8 +2974,20 @@ class APIHandler(BaseHTTPRequestHandler):
         with _STATUS_CACHE_LOCK:
             _SIGNALS_RESP_CACHE = signals
             _SIGNALS_RESP_TIME = now_monotonic
+        res = signals
+        if status_filter == "active":
+            res = [s for s in res if s.get("validity_hours_left", 0) > 0]
+        elif status_filter == "expired":
+            res = [s for s in res if s.get("validity_hours_left", 0) <= 0]
+        if dedup_mode in ("true", "symbol", "1"):
+            deduped = {}
+            for s in res:
+                sym = s.get("symbol")
+                if sym and sym not in deduped:
+                    deduped[sym] = s
+            res = list(deduped.values())
         self._set_headers(200)
-        self.wfile.write(json.dumps(_dismissals.filter(signals), default=str).encode('utf-8'))
+        self.wfile.write(json.dumps(_dismissals.filter(res), default=str).encode('utf-8'))
 
     def get_candidates(self):
         rows: list[dict[str, Any]] = []

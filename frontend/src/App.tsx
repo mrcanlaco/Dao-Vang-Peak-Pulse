@@ -115,7 +115,7 @@ export function App() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRiskFilter, setSelectedRiskFilter] = useState('ALL');
-  const [activeFilterTag, setActiveFilterTag] = useState<FilterTag>('ALL');
+  const [activeFilterTag, setActiveFilterTag] = useState<FilterTag>('ACTIVE');
   const [signalSort, setSignalSort] = useState<SignalSort>('NEWEST');
   const [telegramFilter, setTelegramFilter] = useState<TelegramFilter>('ALL');
   const [threshold, setThreshold] = useState(0.25);
@@ -203,7 +203,7 @@ export function App() {
 
   const loadSignals = async (): Promise<SignalItem[] | null> => {
     try {
-      const res = await fetch('/api/signals', { cache: 'no-store' });
+      const res = await fetch('/api/signals?status=all&dedup=1', { cache: 'no-store' });
       if (!res.ok) return null;
       const payload = await res.json() as unknown;
       return Array.isArray(payload) ? payload as SignalItem[] : null;
@@ -780,11 +780,11 @@ export function App() {
 
     let matchesTag = true;
     if (activeFilterTag === 'FIRED') {
-      matchesTag = isSignalFired(sig);
+      matchesTag = isSignalFired(sig) && sig.validity_hours_left > 0;
     } else if (activeFilterTag === 'ARMED') {
-      matchesTag = isSignalArmed(sig);
+      matchesTag = isSignalArmed(sig) && sig.validity_hours_left > 0;
     } else if (activeFilterTag === 'HOT_RISK') {
-      matchesTag = sig.probability >= 0.75;
+      matchesTag = sig.probability >= 0.75 && sig.validity_hours_left > 0;
     } else if (activeFilterTag === 'EXPIRING') {
       matchesTag = sig.validity_hours_left > 0 && sig.validity_hours_left <= 2.0;
     } else if (activeFilterTag === 'VOLUME_SPIKE') {

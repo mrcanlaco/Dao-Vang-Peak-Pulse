@@ -278,14 +278,16 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
   // KPI Metrics Calculation across original base signals
   const kpiStats = useMemo(() => {
     const total = baseSignalPool.length;
-    const fired = baseSignalPool.filter(isSignalFired).length;
-    const armed = baseSignalPool.filter(isSignalArmed).length;
-    const hotRisk = baseSignalPool.filter(s => s.probability >= 0.75).length;
+    const active = baseSignalPool.filter(s => s.validity_hours_left > 0).length;
+    const expired = baseSignalPool.filter(s => s.validity_hours_left <= 0).length;
+    const fired = baseSignalPool.filter(s => isSignalFired(s) && s.validity_hours_left > 0).length;
+    const armed = baseSignalPool.filter(s => isSignalArmed(s) && s.validity_hours_left > 0).length;
+    const hotRisk = baseSignalPool.filter(s => s.probability >= 0.75 && s.validity_hours_left > 0).length;
     const expiring = baseSignalPool.filter(s => s.validity_hours_left > 0 && s.validity_hours_left <= 2.0).length;
     const resolved = baseSignalPool.filter(s => s.hit != null).length;
     const avgProb = total > 0 ? (baseSignalPool.reduce((acc, s) => acc + s.probability, 0) / total * 100).toFixed(1) : '0.0';
 
-    return { total, fired, armed, hotRisk, expiring, resolved, avgProb };
+    return { total, active, expired, fired, armed, hotRisk, expiring, resolved, avgProb };
   }, [baseSignalPool]);
 
   // Keyboard navigation shortcuts: ↑ / ↓ to switch signal, Space to push Telegram
@@ -453,7 +455,9 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
             {t('feed_live_title')}
           </h2>
           <span className="px-2 py-0.5 bg-slate-800 text-amber-400 text-[10px] sm:text-xs rounded-full font-mono font-bold border border-amber-500/30">
-            {activeFilterTag === 'ALL'
+            {activeFilterTag === 'ACTIVE'
+              ? `${kpiStats.active} ${t('unit_signals')}`
+              : activeFilterTag === 'ALL'
               ? `${kpiStats.total} ${t('unit_signals')}`
               : `${signals.length} / ${kpiStats.total} ${t('unit_signals')}`}
           </span>
@@ -537,24 +541,24 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
           {(() => {
             const filterTabs = (
               <div className="inline-flex items-center gap-1 p-0.5 rounded-lg bg-slate-900 border border-slate-800 min-w-max">
-                {/* ALL */}
+                {/* ACTIVE */}
                 <button
                   type="button"
-                  onClick={() => setActiveFilterTag('ALL')}
+                  onClick={() => setActiveFilterTag('ACTIVE')}
                   className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
-                    activeFilterTag === 'ALL'
-                      ? 'bg-slate-700 text-white shadow-sm font-bold'
+                    activeFilterTag === 'ACTIVE'
+                      ? 'bg-amber-500 text-slate-950 shadow-sm font-bold'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                   }`}
                 >
-                  <span>{t('feed_tag_all')}</span>
-                  <span className="ml-1 text-[10px] opacity-80 font-mono">({kpiStats.total})</span>
+                  <span>{t('feed_tag_active')}</span>
+                  <span className="ml-1 text-[10px] font-mono font-bold">({kpiStats.active})</span>
                 </button>
 
                 {/* FIRED */}
                 <button
                   type="button"
-                  onClick={() => setActiveFilterTag(activeFilterTag === 'FIRED' ? 'ALL' : 'FIRED')}
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'FIRED' ? 'ACTIVE' : 'FIRED')}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
                     activeFilterTag === 'FIRED'
                       ? 'bg-red-950 border border-red-600 text-red-200 shadow-sm font-bold'
@@ -570,7 +574,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 {/* ARMED */}
                 <button
                   type="button"
-                  onClick={() => setActiveFilterTag(activeFilterTag === 'ARMED' ? 'ALL' : 'ARMED')}
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'ARMED' ? 'ACTIVE' : 'ARMED')}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
                     activeFilterTag === 'ARMED'
                       ? 'bg-amber-950 border border-amber-600 text-amber-200 shadow-sm font-bold'
@@ -585,7 +589,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 {/* HOT RISK */}
                 <button
                   type="button"
-                  onClick={() => setActiveFilterTag(activeFilterTag === 'HOT_RISK' ? 'ALL' : 'HOT_RISK')}
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'HOT_RISK' ? 'ACTIVE' : 'HOT_RISK')}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
                     activeFilterTag === 'HOT_RISK'
                       ? 'bg-orange-950 border border-orange-600 text-orange-200 shadow-sm font-bold'
@@ -597,10 +601,25 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                   <span className="ml-0.5 text-[10px] font-mono font-bold">({kpiStats.hotRisk})</span>
                 </button>
 
+                {/* EXPIRED */}
+                <button
+                  type="button"
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'EXPIRED' ? 'ACTIVE' : 'EXPIRED')}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
+                    activeFilterTag === 'EXPIRED'
+                      ? 'bg-slate-700 text-slate-200 shadow-sm font-bold'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <Clock className="w-3 h-3" />
+                  <span>{t('feed_tag_expired')}</span>
+                  <span className="ml-0.5 text-[10px] font-mono font-bold">({kpiStats.expired})</span>
+                </button>
+
                 {/* RESOLVED */}
                 <button
                   type="button"
-                  onClick={() => setActiveFilterTag(activeFilterTag === 'RESOLVED' ? 'ALL' : 'RESOLVED')}
+                  onClick={() => setActiveFilterTag(activeFilterTag === 'RESOLVED' ? 'ACTIVE' : 'RESOLVED')}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
                     activeFilterTag === 'RESOLVED'
                       ? 'bg-emerald-950 border border-emerald-600 text-emerald-200 shadow-sm font-bold'
@@ -609,7 +628,21 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 >
                   <CheckCircle2 className="w-3 h-3" />
                   <span>{language === 'en' ? 'RESOLVED' : language === 'zh' ? '已结算' : language === 'ko' ? '결과 도출' : 'CÓ KẾT QUẢ'}</span>
-                  <span className="ml-0.5 text-[10px] font-mono font-bold">({(kpiStats as any).resolved ?? 0})</span>
+                  <span className="ml-0.5 text-[10px] font-mono font-bold">({kpiStats.resolved})</span>
+                </button>
+
+                {/* ALL */}
+                <button
+                  type="button"
+                  onClick={() => setActiveFilterTag('ALL')}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition shrink-0 ${
+                    activeFilterTag === 'ALL'
+                      ? 'bg-slate-700 text-white shadow-sm font-bold'
+                      : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <span>{t('feed_tag_all')}</span>
+                  <span className="ml-1 text-[10px] opacity-80 font-mono">({kpiStats.total})</span>
                 </button>
               </div>
             );
@@ -726,7 +759,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
           })()}
 
           {/* Active Filter Tags Bar (Only appears when secondary filters are applied) */}
-          {(activeAdvancedFilterCount > 0 || (activeFilterTag !== 'ALL' && activeFilterTag !== 'FIRED' && activeFilterTag !== 'ARMED' && activeFilterTag !== 'HOT_RISK')) && (
+          {(activeAdvancedFilterCount > 0 || (activeFilterTag !== 'ALL' && activeFilterTag !== 'ACTIVE' && activeFilterTag !== 'FIRED' && activeFilterTag !== 'ARMED' && activeFilterTag !== 'HOT_RISK' && activeFilterTag !== 'EXPIRED' && activeFilterTag !== 'RESOLVED')) && (
             <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-slate-800/80 text-[10px]">
               <span className="text-slate-400 font-semibold uppercase">{language === 'en' ? 'Active Filters:' : language === 'zh' ? '当前生效筛选:' : language === 'ko' ? '적용된 필터:' : 'Đang lọc:'}</span>
 
@@ -755,7 +788,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                 type="button"
                 onClick={() => {
                   handleResetAdvancedFilters();
-                  setActiveFilterTag('ALL');
+                  setActiveFilterTag('ACTIVE');
                 }}
                 className="text-[10px] text-red-400 hover:text-red-300 font-bold ml-1 transition underline"
               >
