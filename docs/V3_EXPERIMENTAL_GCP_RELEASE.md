@@ -1,5 +1,53 @@
 # Bản thử nghiệm v3 trên GCP
 
+## Backfill-on-discovery (discovery_backfill_v1)
+
+Sau thu thập tăng dần, V3 kiểm tra các khoảng thiếu trong kho normalized cho
+coin radar ≥15% đang được theo dõi. Tái sử dụng Klines/OI/Taker/Global/Top/Funding
+collectors, raw envelopes, normalizers, kiểm tra chất lượng và feature builders.
+Giá/OI/taker/ratio tải cửa sổ 25h (kiểm tra 289 nến liên tục cho return 24h);
+funding tải 31 ngày và được align lên grid 5m riêng để tính cửa sổ tối đa 30 ngày.
+Không phải tải lại 30 ngày nến giá để tính funding. Kho normalized đã có được
+tái sử dụng, kể cả dữ liệu từng tải muộn; planner sửa cả prefix và lỗ hổng nội bộ.
+
+`research_v3/backfill.sqlite` lưu trạng thái, tiến độ, lần thử, lỗi, retry time,
+quality và transition history theo coin. Raw checkpoints trong `backfill_cache`
+giúp resume sau crash trước normalize mà không tải trùng; dữ liệu hỏng được giữ
+đuôi `.invalid` ngoài inbox chung. Raw/Parquet hợp lệ được ghi atomic vào kho
+chung. Scanner vẫn chỉ có một writer dưới instance lock hiện hành.
+
+Mỗi chu kỳ giới hạn 24 range requests, ngân sách tải 45 giây (request đang chạy
+có timeout 8 giây), pacing 150ms/request. Lỗi HTTP/network trả về job để retry
+exponential 60s–1h; 429/418 lưu Retry-After theo toàn nhánh, qua cả restart.
+Một coin lỗi không dừng coin khác hoặc scanner. Job chưa xong tiếp tục lượt sau;
+coin đang theo dõi được xử lý theo thứ tự lần thử cũ nhất.
+
+V3 materialize vào `v3_live_features` **chỉ một nến đóng hiện tại mỗi lượt**,
+lưu `materialized_at` thật và `discovery_first_seen`, unique theo symbol/time.
+Không sửa `feature_results`, không ghi lại feature cũ đã materialize và không
+replay các mốc giờ bị lỡ trong lúc backfill. Bộ quyết định Timing và runtime v2
+giữ nguyên; mốc nguồn minute=4, first-seen, activation, last-seen, 90 phút,
+armed peak ≥30%, hai xác nhận hàng giờ và episode ≥4h vẫn được áp dụng.
+Lịch sử warmup không tạo episode/armed peak/xác nhận. Restart tiếp tục state cũ.
+
+API `/api/research/v3` trả `discovery.items[].pipeline_stage` và `backfill`:
+DETECTED → BACKFILLING → DATA_READY → SCORING → CONFIRMATION → ENTRY/REJECT.
+SCORING biểu thị đã sẵn sàng cho mốc giờ; điểm và lý do quyết định được ghi sau
+quan sát thật. CONFIRMATION tiếp tục tới khi đủ điều kiện, REJECT không xóa coin
+khỏi radar. UI hiển thị tiến độ, chất lượng, lỗi và thời điểm thử lại.
+
+OHLCV phải hợp lệ và đủ 289 nến; OI/taker đủ 24h, ratio đủ 4h, funding hiện tại
+không quá 12h. Coin mới niêm yết chưa đủ funding 30 ngày được báo
+`funding_history_short`; percentile/z-score 30d và feature 7d thiếu coverage giữ
+NULL, không dùng lịch sử ngắn giả làm lịch sử đầy đủ. Model giữ missing policy
+hiện có; Funding Scout không vượt cổng khi thiếu feature. Đây vẫn là forward
+observed, không phải chứng nhận PIT hay hiệu quả lợi nhuận.
+
+Kiểm thử bổ sung bao phủ tải mới, reuse, lỗ hổng nội bộ, lỗi theo coin,
+rate-limit/restart, crash giữa raw và normalized, quarantine, funding ngắn và
+pipeline collector→Parquet→feature→observer: chỉ Entry sau đủ 4h, không replay
+giờ bị lỡ, không sửa feature nhánh cũ. Mobile smoke xác nhận trạng thái/retry UI.
+
 ## Phát hiện thị trường độc lập (runtime v2)
 
 V3 nhận trực tiếp ticker USD-M USDT tăng từ 15%/24h mỗi chu kỳ, độc lập với

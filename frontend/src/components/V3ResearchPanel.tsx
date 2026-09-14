@@ -10,7 +10,9 @@ type Item = {
   outcome?: { status: string; fills: Fill[]; exit_price: number | null; exclusion_reason: string | null } | null;
 };
 type DiscoveryItem = { symbol: string; ticker_return_24h: number; feature_return_24h: number | null;
-  ticker_time: string; feature_time?: string | null; first_seen: string; discovery_reason: string };
+  ticker_time: string; feature_time?: string | null; first_seen: string; discovery_reason: string;
+  pipeline_stage?: string; backfill?: { attempts?: number; error?: string | null; next_retry_at?: string | null;
+    decision_reason?: string; quality?: { price_bars: number; required_price_bars: number; warning?: string | null } } };
 type Snapshot = { status: string; stale?: boolean; updated_at?: string; activated_at?: string; candidate_count?: number; entry_count?: number; items?: Item[];
   discovery?: { status: string; stale?: boolean; updated_at?: string; market_count?: number; deferred_count?: number; items: DiscoveryItem[] } };
 
@@ -38,6 +40,8 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
   const items = (snapshot?.items || []).filter(item => scope === 'all' || (scope === 'parent' ? item.selected : item.scout));
   const price = (value: number) => new Intl.NumberFormat(vi ? 'vi-VN' : 'en-US', { maximumSignificantDigits: 7 }).format(value);
   const stateLabel: Record<string, string> = vi ? {
+    DETECTED: 'Đã phát hiện', BACKFILLING: 'Đang bổ sung lịch sử', DATA_READY: 'Dữ liệu sẵn sàng',
+    SCORING: 'Sẵn sàng chấm điểm tại mốc giờ', CONFIRMATION: 'Đang chờ đủ điều kiện xác nhận', ENTRY: 'Đã có Entry mô phỏng', REJECT: 'Không đạt điều kiện Entry',
     collecting: 'Đang thu thập dữ liệu', features_pending: 'Chờ dữ liệu phân tích',
     history_24h_pending: 'Chưa đủ lịch sử hợp lệ để tính 24h', features_stale: 'Dữ liệu phân tích đã cũ',
     closed_return_below_15pct: 'Mức tăng theo nến đóng chưa đạt 15%', waiting_hourly_confirmation: 'Chờ đánh giá tại mốc hàng giờ',
@@ -48,7 +52,9 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
     confirmation_pending: 'Chờ đủ xác nhận', episode_too_young: 'Episode chưa đủ 4h', peak_below_30pct: 'Đỉnh tăng chưa đạt 30%',
     episode_already_consumed: 'Episode đã có quyết định', symbol_cooldown: 'Đang trong thời gian nghỉ',
     score_below_reference_threshold: 'Điểm dưới ngưỡng tham chiếu', stablecoin: 'Loại stablecoin',
-  } : { collecting: 'Collecting data', features_pending: 'Waiting for features', history_24h_pending: 'Insufficient valid 24h history',
+  } : { DETECTED: 'Detected', BACKFILLING: 'Backfilling history', DATA_READY: 'Data ready', SCORING: 'Ready for hourly scoring',
+    CONFIRMATION: 'Awaiting confirmation', ENTRY: 'Simulated Entry', REJECT: 'Entry conditions rejected',
+    collecting: 'Collecting data', features_pending: 'Waiting for features', history_24h_pending: 'Insufficient valid 24h history',
     features_stale: 'Stale features', closed_return_below_15pct: 'Closed-candle return below 15%', waiting_hourly_confirmation: 'Waiting for hourly assessment',
     ticker_stale: 'Stale market price', below_volume: 'Volume below $1M/24h', capacity_deferred: 'Collection capacity reached',
     running: 'Collecting', waiting: 'Waiting for scanner', disabled: 'Not enabled on server', error: 'Research lane error',
@@ -77,6 +83,12 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">{snapshot.discovery.items.map(coin => <div key={coin.symbol} data-testid={`v3-discovery-${coin.symbol}`} className="rounded-lg bg-slate-800 p-3 text-sm min-w-0">
         <div className="flex flex-wrap justify-between gap-2"><strong>{coin.symbol}</strong><span className="text-emerald-300">+{(coin.ticker_return_24h * 100).toFixed(1)}%</span></div>
         <p className="text-xs mt-1">{stateLabel[coin.discovery_reason] || coin.discovery_reason}</p>
+        {coin.pipeline_stage && <p className="text-xs text-amber-300 mt-1">{stateLabel[coin.pipeline_stage] || coin.pipeline_stage}
+          {coin.backfill?.decision_reason && <> · {stateLabel[coin.backfill.decision_reason] || coin.backfill.decision_reason}</>}</p>}
+        {coin.backfill?.quality && <p className="text-xs text-slate-400">{vi ? 'Nến 24h hợp lệ: ' : 'Valid 24h candles: '}{coin.backfill.quality.price_bars}/{coin.backfill.quality.required_price_bars}
+          {coin.backfill.quality.warning && <> · {vi ? 'Lịch sử funding chưa đủ 30 ngày' : 'Funding history shorter than 30 days'}</>}</p>}
+        {coin.backfill?.error && <p className="text-xs text-rose-300" title={coin.backfill.error}>{vi ? 'Bổ sung dữ liệu chưa thành công' : 'Backfill not complete'}
+          {coin.backfill.next_retry_at && <> · {vi ? 'Thử lại: ' : 'Retry: '}{formatSystemTime(coin.backfill.next_retry_at)}</>}</p>}
         <p className="text-xs text-slate-400 mt-1">{vi ? '24h theo dữ liệu phân tích: ' : 'Feature 24h return: '}{coin.feature_return_24h == null ? '—' : `${(coin.feature_return_24h * 100).toFixed(1)}%`}
           {coin.feature_time && <> · {formatSystemTime(coin.feature_time)}</>}</p>
       </div>)}</div>

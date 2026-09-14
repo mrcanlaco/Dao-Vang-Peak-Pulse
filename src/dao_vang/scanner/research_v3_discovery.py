@@ -162,10 +162,15 @@ def enrich(database, discovery: dict, *, now: datetime) -> dict:
     if not discovery.get("items"):
         return discovery
     symbols = [item["symbol"] for item in discovery["items"]]
+    feature_source = "v3_live_features" if discovery.get("feature_source") == "v3_live_features" else "feature_results"
+    if feature_source == "v3_live_features" and not database.execute(
+        "SELECT 1 FROM information_schema.tables WHERE table_name='v3_live_features'"
+    ).fetchone():
+        return discovery
     placeholders = ",".join("?" for _ in symbols)
     rows = database.execute(
         f"""
-        SELECT symbol,feature_time,price_ret_24h FROM feature_results
+        SELECT symbol,feature_time,price_ret_24h FROM {feature_source}
         WHERE symbol IN ({placeholders}) AND feature_time < ?
         QUALIFY row_number() OVER (PARTITION BY symbol ORDER BY feature_time DESC)=1
     """,
@@ -175,7 +180,7 @@ def enrich(database, discovery: dict, *, now: datetime) -> dict:
     hourly = dict(
         database.execute(
             f"""
-        SELECT symbol,max(feature_time) FROM feature_results
+        SELECT symbol,max(feature_time) FROM {feature_source}
         WHERE symbol IN ({placeholders}) AND feature_time < ?
           AND EXTRACT(MINUTE FROM feature_time)=4 AND price_ret_24h >= ?
         GROUP BY symbol

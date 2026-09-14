@@ -159,7 +159,8 @@ test('v3 research panel opens on mobile without replacing existing dashboard', a
   await mockApi(page, { authenticated: true, scannerTriggers: 0 });
   await page.route('**/api/research/v3', route => route.fulfill({ json: {
     discovery: { status: 'running', market_count: 1, items: [{ symbol: 'BRUSDT', ticker_return_24h: 0.565,
-      feature_return_24h: null, ticker_time: '2026-09-14T04:05:00Z', first_seen: '2026-09-14T04:05:00Z', discovery_reason: 'history_24h_pending' }] },
+      feature_return_24h: null, ticker_time: '2026-09-14T04:05:00Z', first_seen: '2026-09-14T04:05:00Z', discovery_reason: 'history_24h_pending',
+      pipeline_stage: 'BACKFILLING', backfill: { error: '429', next_retry_at: '2026-09-14T04:15:00Z' } }] },
     status: 'running', candidate_count: 5, entry_count: 1, items: [{
       id: 'test', symbol: 'TESTUSDT', feature_time: '2026-09-14T04:05:00Z', selected: true,
       scout: true, score: 0.5, price: 100, reason: 'selected',
@@ -172,6 +173,8 @@ test('v3 research panel opens on mobile without replacing existing dashboard', a
   await expect(page.getByTestId('v3-research')).toBeVisible();
   await expect(page.getByTestId('v3-discovery-BRUSDT')).toContainText('+56.5%');
   await expect(page.getByTestId('v3-discovery-BRUSDT')).toContainText(/Chưa đủ lịch sử|Insufficient valid/);
+  await expect(page.getByTestId('v3-discovery-BRUSDT')).toContainText(/Đang bổ sung lịch sử|Backfilling history/);
+  await expect(page.getByTestId('v3-discovery-BRUSDT')).toContainText(/Thử lại:|Retry:/);
   await expect(page.getByTestId('v3-discovery-BRUSDT')).not.toContainText('Entry1');
   await expect(page.getByTestId('v3-research').getByText('TESTUSDT', { exact: false })).toBeVisible();
   await expect(page.getByText(/Entry3: 106/)).toBeVisible();

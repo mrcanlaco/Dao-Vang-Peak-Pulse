@@ -813,7 +813,7 @@ class ScannerDaemon:
 
                 run_cycle(db.conn, data_dir=self._settings.paths.data_dir,
                           model_path=self._settings.research_v3_model_path,
-                          discovery=v3_discovery)
+                          discovery=v3_discovery, settings=self._settings)
             except Exception as exc:
                 logger.warning("research_v3_cycle_failed", error=str(exc))
 

@@ -19,7 +19,9 @@ class SourceAPIError(DaoVangError):
 class RateLimitError(SourceAPIError):
     """Raised when the source API rate limit is exceeded."""
 
-    pass
+    def __init__(self, message: str, retry_after_seconds: float = 60.0):
+        super().__init__(message)
+        self.retry_after_seconds = retry_after_seconds
 
 
 class SchemaError(DaoVangError):

@@ -67,7 +67,7 @@ class BinanceClient:
             except urllib.error.HTTPError as e:
                 duration = time.monotonic() - start_time
                 status = e.code
-                headers = e.headers
+                headers = e.headers or {}
 
                 logger.warning(
                     "binance_request_error",
@@ -80,12 +80,14 @@ class BinanceClient:
 
                 # Rate limit
                 if status in (429, 418):
+                    retry_after = headers.get("Retry-After")
                     if retries >= self.max_retries:
                         raise RateLimitError(
-                            f"Rate limit exceeded after {retries} retries: {status}"
+                            f"Rate limit exceeded after {retries} retries: {status}",
+                            retry_after_seconds=float(retry_after)
+                            if isinstance(retry_after, str) and retry_after.isdigit() else 60.0,
                         )
 
-                    retry_after = headers.get("Retry-After")
                     if (
                         self.respect_retry_after
                         and retry_after

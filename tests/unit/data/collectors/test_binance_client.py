@@ -115,3 +115,12 @@ def test_binance_client_network_error(mock_sleep: MagicMock) -> None:
 
         assert result == {"success": True}
         assert mock_sleep.call_count == 1
+
+
+def test_deferred_rate_limit_preserves_retry_after_without_sleep():
+    error = urllib.error.HTTPError("http://test", 429, "limited", {"Retry-After": "600"}, BytesIO())  # type: ignore
+    with patch("urllib.request.urlopen", side_effect=error), patch("time.sleep") as sleep:
+        with pytest.raises(RateLimitError) as caught:
+            BinanceClient(max_retries=0).get("/test")
+    assert caught.value.retry_after_seconds == 600
+    sleep.assert_not_called()

@@ -1,3 +1,5 @@
+import duckdb
+
 from dao_vang.data.storage.duckdb import DuckDBQueryLayer
 from dao_vang.features.builders.funding import build_funding_features_sql
 from dao_vang.features.builders.open_interest import build_oi_features_sql
@@ -6,7 +8,7 @@ from dao_vang.features.builders.ratios import build_ratio_features_sql
 from dao_vang.features.builders.taker import build_taker_features_sql
 
 
-def build_features(db: DuckDBQueryLayer, source_table: str, target_table: str):
+def build_features(db: DuckDBQueryLayer | duckdb.DuckDBPyConnection, source_table: str, target_table: str):
     """
     Builds the full feature set table from the source timeline table.
     """
@@ -37,4 +39,4 @@ def build_features(db: DuckDBQueryLayer, source_table: str, target_table: str):
     LEFT JOIN taker_features t ON p.feature_time = t.feature_time AND p.symbol = t.symbol
     LEFT JOIN ratios_features r ON p.feature_time = r.feature_time AND p.symbol = r.symbol
     """
-    db.conn.execute(sql)
+    getattr(db, "conn", db).execute(sql)

@@ -140,13 +140,22 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
         timing = _load_timing(state["timing"])
         start = max(time_value(state["activated_at"]), now - timedelta(minutes=90))
         columns = ", ".join(f"f.{column}" for column in SERVING_FEATURE_COLS)
+        live_backfill = discovery is not None and discovery.get("feature_source") == "v3_live_features"
+        feature_source = "v3_live_features" if live_backfill else "feature_results"
+        no_live_features = live_backfill and not database.execute(
+            "SELECT 1 FROM information_schema.tables WHERE table_name='v3_live_features'"
+        ).fetchone()
+        if no_live_features:
+            # No successful warmup yet: still maintain existing outcomes/state.
+            feature_source = "feature_results"
         frame = database.execute(
             f"""
             SELECT f.symbol, f.feature_time, {columns}, CAST(k.close AS DOUBLE) AS price
-            FROM feature_results f JOIN {prices} k
+            FROM {feature_source} f JOIN {prices} k
               ON k.symbol=f.symbol AND k.close_time=f.feature_time
              AND k.interval='5m' AND k.market='USD-M Futures'
             WHERE f.feature_time>=? AND f.feature_time<?
+              AND {"false" if no_live_features else "true"}
               AND EXTRACT(MINUTE FROM f.feature_time)=4
               AND f.price_ret_24h>=? AND k.quality_status='valid'
             ORDER BY f.feature_time, f.symbol
@@ -168,6 +177,10 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                     if (symbol not in discovery.get("collection_symbols", [])
                             or first_seen is None or source_time < time_value(first_seen)):
                         continue
+                    if live_backfill:
+                        readiness = next((item for item in discovery.get("items", []) if item["symbol"] == symbol), None)
+                        if readiness is not None and readiness.get("pipeline_stage") == "BACKFILLING":
+                            continue
                 if symbol in state["last_seen"] and when <= time_value(
                     state["last_seen"][symbol]
                 ):
@@ -320,16 +333,26 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
 
 
 def run_cycle(database, *, data_dir: Path, model_path: Path,
-              discovery: dict | None = None) -> None:
+              discovery: dict | None = None, settings=None) -> None:
     """Publish failures rather than leaving an apparently healthy old snapshot."""
     now, storage = datetime.now(timezone.utc), data_dir / "research_v3"
     try:
         if discovery is not None:
             from dao_vang.scanner.research_v3_discovery import enrich
 
+            if settings is not None and discovery.get("status") == "running":
+                from dao_vang.scanner.research_v3_backfill import publish_stages, warmup
+
+                discovery = warmup(database, settings, discovery, now=now)
+                discovery = publish_stages(discovery, storage, now)
             discovery = enrich(database, discovery, now=now)
             atomic_snapshot(storage / "discovery.json", discovery)
-        observe(database, storage=storage, model_path=model_path, now=now, discovery=discovery)
+        result = observe(database, storage=storage, model_path=model_path,
+                         now=datetime.now(timezone.utc), discovery=discovery)
+        if discovery is not None and discovery.get("backfill_version"):
+            from dao_vang.scanner.research_v3_backfill import publish_stages
+
+            publish_stages(discovery, storage, datetime.now(timezone.utc), result)
     except Exception as exc:
         atomic_snapshot(
             storage / "snapshot.json",
