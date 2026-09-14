@@ -5,8 +5,9 @@
   backward. A shift-by-1 bug leaks the future into training.
 - Walk-forward splitter changes: confirm embargo gap still prevents label leakage between folds.
 - DuckDB join changes: check `as-of` direction. Joins that use `>=` on future timestamps are bugs.
-- Label engine changes (`labels/`): ensure the 8% drop / MAE <= 4% spec is not relaxed without
-  a documented re-calibration.
+- Label engine changes (`labels/`): the active v2 target is a 20% drop in 24h
+  with MAE <= 4%. Never rewrite v1 history; require a newly calibrated frozen
+  bundle before promoting v2 to live scoring.
 
 ## Frozen model serving
 - Any edit to `scoring/frozen_inference.py`: confirm checksum verification code path is intact.

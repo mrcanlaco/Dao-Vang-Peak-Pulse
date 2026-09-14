@@ -91,7 +91,7 @@ scanner:
   meta_model_path: null
   meta_model_min_confidence: 0.5
   # Regime Gate: filter signals to only fire during validated market regimes
-  regime_gate_enabled: true
+  regime_gate_enabled: false
   regime_gate_allowed: ["SIDEWAY_DISTRIBUTION", "TRENDING_BEAR"]
 
 self_learning:
