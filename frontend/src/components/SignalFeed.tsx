@@ -901,7 +901,7 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                           <span className="text-[9px] text-slate-500 uppercase block leading-none mb-0.5">{language === 'vi' ? 'Mục tiêu' : 'Target'}</span>
                           <span className="font-bold text-red-400 flex items-center gap-0.5">
                             <TrendingDown className="w-2.5 h-2.5 shrink-0" />
-                            {sig.target_drawdown <= 1 ? (sig.target_drawdown * 100).toFixed(0) : sig.target_drawdown}%
+                            {sig.target_drawdown}%
                           </span>
                         </div>
                         <div className="text-right">
