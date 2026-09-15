@@ -648,25 +648,25 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         </button>
       </div>
       {visibleSignalMarkers.length > 0 && (
-        <div className="pointer-events-none absolute left-2 top-12 z-10 flex max-w-[calc(100%-1rem)] items-center gap-2 overflow-hidden rounded-md border border-amber-500/40 bg-slate-950/90 px-2 py-1 text-[10px] shadow-lg shadow-black/20 sm:top-2 sm:max-w-[70%]">
-          <span className="font-bold uppercase tracking-wide text-amber-400">
+        <div className="pointer-events-none absolute left-2 top-12 z-10 flex items-center gap-1.5 overflow-hidden rounded-md border border-amber-500/40 bg-slate-950/90 px-2 py-1 text-[10px] shadow-lg shadow-black/20 sm:top-2 sm:max-w-[70%] sm:gap-2">
+          <span className="font-bold uppercase tracking-wide text-amber-400 shrink-0">
             {t('chart_distrib_alert')}
           </span>
+          {visibleSignalMarkers[visibleSignalMarkers.length - 1].probability != null && Number.isFinite(visibleSignalMarkers[visibleSignalMarkers.length - 1].probability) && (
+            <span className="font-mono font-bold text-red-400 shrink-0">
+              {visibleSignalMarkers[visibleSignalMarkers.length - 1].probability?.toFixed(1)}%
+            </span>
+          )}
+          <span className="hidden sm:inline font-mono text-slate-300 truncate">
+            {t('chart_latest_time')} {formatSignalTime(visibleSignalMarkers[visibleSignalMarkers.length - 1].time)}
+          </span>
           {visibleSignalMarkers.length > 1 && (
-            <span className="font-mono font-bold text-slate-300">
+            <span className="hidden sm:inline font-mono font-bold text-slate-300">
               {visibleSignalMarkers.length} {t('feed_signals_count')}
             </span>
           )}
           {allSignalMarkers.length > visibleSignalMarkers.length && (
-            <span className="font-mono text-slate-500">/{allSignalMarkers.length} · {getAlertVisibilityLabel(alertVisibility)}</span>
-          )}
-          <span className="font-mono text-slate-300">
-            {t('chart_latest_time')} {formatSignalTime(visibleSignalMarkers[visibleSignalMarkers.length - 1].time)}
-          </span>
-          {visibleSignalMarkers[visibleSignalMarkers.length - 1].probability != null && Number.isFinite(visibleSignalMarkers[visibleSignalMarkers.length - 1].probability) && (
-            <span className="font-mono font-bold text-red-400">
-              {visibleSignalMarkers[visibleSignalMarkers.length - 1].probability?.toFixed(1)}%
-            </span>
+            <span className="hidden sm:inline font-mono text-slate-500">/{allSignalMarkers.length} · {getAlertVisibilityLabel(alertVisibility)}</span>
           )}
         </div>
       )}
