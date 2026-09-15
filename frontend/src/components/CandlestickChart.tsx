@@ -173,7 +173,8 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const chart = chartRef.current;
     if (!chart) return;
     chart.timeScale().scrollToPosition(0, false);
-    applyPriceScaleMode(false);
+    chart.priceScale('right').applyOptions({ autoScale: true });
+    setTimeout(() => applyPriceScaleMode(false), 50);
   };
 
   const handleScreenshot = () => {
