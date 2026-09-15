@@ -112,7 +112,7 @@ def test_five_minute_discovery_does_not_accelerate_hourly_confirmations(setup):
     conn.execute("INSERT INTO feature_results SELECT * REPLACE (feature_time + INTERVAL '5 minutes' AS feature_time) FROM feature_results WHERE feature_time < ?", [START + timedelta(minutes=5)])
     conn.execute("INSERT INTO kline SELECT * REPLACE (close_time + INTERVAL '5 minutes' AS close_time) FROM kline WHERE close_time < ?", [START + timedelta(minutes=5)])
     result = research_v3.observe(conn, **args, now=START + timedelta(minutes=10))
-    assert result["candidate_count"] == 1
+    assert result["candidate_count"] == 2
     assert result["items"][0]["reason"] == "confirmation_pending"
     assert result["entry_count"] == 0
 

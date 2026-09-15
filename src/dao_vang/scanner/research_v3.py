@@ -181,7 +181,6 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
              AND k.interval='5m' AND k.market='USD-M Futures'
             WHERE f.feature_time>=? AND f.feature_time<?
               AND {"false" if no_live_features else "true"}
-              AND EXTRACT(MINUTE FROM f.feature_time)=4
               AND f.price_ret_24h>=? AND k.quality_status='valid'
             ORDER BY f.feature_time, f.symbol
         """,
@@ -236,6 +235,29 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                 }
                 reason, episode = timing.decide(snapshot)
                 selected = reason == "selected"
+                pump_val = float(snapshot.get("price_ret_24h", 0.0) or 0.0)
+                dist_val = float(snapshot.get("distance_from_high_24h", 0.0) or 0.0)
+                fund_pct = float(snapshot.get("funding_percentile_30d", 0.0) or 0.0)
+                fund_chg = float(snapshot.get("funding_change_8h", 0.0) or 0.0)
+                score_val = float(score)
+                c_pump = pump_val >= 0.25
+                c_rev = dist_val <= -0.02
+                c_fund = fund_pct >= 0.80
+                c_chg = fund_chg > 0.0
+                c_score = score_val >= TIMING.score_threshold
+                met_count = sum([c_pump, c_rev, c_fund, c_chg, c_score])
+                progress_dict = {
+                    "score": round((met_count / 5.0) * 100),
+                    "met_count": met_count,
+                    "total_count": 5,
+                    "criteria": {
+                        "pump": {"current": pump_val, "target": 0.25, "passed": c_pump},
+                        "reversal": {"current": dist_val, "target": -0.02, "passed": c_rev},
+                        "funding": {"current": fund_pct, "target": 0.80, "passed": c_fund},
+                        "funding_change": {"current": fund_chg, "target": 0.0, "passed": c_chg},
+                        "score": {"current": score_val, "target": TIMING.score_threshold, "passed": c_score},
+                    },
+                }
                 item = {
                     **snapshot,
                     "episode_id": episode,
@@ -245,6 +267,7 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                     "scout_reason": scout_gate(snapshot),
                     "champion": selected and champion_gate(snapshot) == "selected",
                     "champion_reason": champion_gate(snapshot),
+                    "progress": progress_dict,
                     "model_checksum": MODEL_SHA,
                     "runtime_version": RUNTIME_VERSION,
                     "contract": SPEC.version,
@@ -360,7 +383,14 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
         state["timing"] = _dump_timing(timing)
         ledger.execute("INSERT OR REPLACE INTO state VALUES (1, ?)", [canonical(state)])
         recent = ledger.execute("""
-            SELECT o.id, o.payload, r.payload FROM observations o LEFT JOIN outcomes r ON o.id=r.id
+            SELECT o.id, o.payload, r.payload
+            FROM (
+                SELECT id, payload, selected, timestamp, symbol,
+                       row_number() OVER (PARTITION BY symbol ORDER BY selected DESC, timestamp DESC) as rn
+                FROM observations
+            ) o
+            LEFT JOIN outcomes r ON o.id=r.id
+            WHERE o.rn=1
             ORDER BY o.selected DESC, o.timestamp DESC LIMIT 100
         """).fetchall()
         counts = ledger.execute(

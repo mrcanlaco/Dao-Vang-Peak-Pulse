@@ -119,9 +119,11 @@ def source_files(data_dir: Path, kind: str, symbol: str, now: datetime,
     return result
 
 
-def mount_source(conn, data_dir: Path, kind: str, symbol: str, now: datetime) -> bool:
+def mount_source(conn, data_dir: Path, kind: str, symbol: str, now: datetime,
+                 asof: datetime | None = None) -> bool:
     """Current knowledge, preserving availability and collection provenance."""
-    paths = source_files(data_dir, kind, symbol, now)
+    receipt_time = asof or now
+    paths = source_files(data_dir, kind, symbol, receipt_time)
     if not paths:
         return False
     _, key, lookback = SOURCES[kind]
@@ -135,7 +137,7 @@ def mount_source(conn, data_dir: Path, kind: str, symbol: str, now: datetime) ->
           {"AND interval='5m'" if kind != 'funding' else ''}
         QUALIFY dense_rank() OVER (PARTITION BY symbol,{key}
             ORDER BY available_time DESC NULLS LAST, collected_at DESC NULLS LAST)=1
-    """, [paths, symbol, now - lookback - timedelta(days=1), now, now, now])
+    """, [paths, symbol, now - lookback - timedelta(days=1), now, receipt_time, receipt_time])
     duplicates = conn.execute(f"SELECT count(*)-count(DISTINCT {key}) FROM bf_{kind}").fetchone()[0]
     if duplicates:
         raise ValueError(f"ambiguous_{kind}")
@@ -394,7 +396,7 @@ def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int 
                     jobs.save(job)
                 # New envelopes have collection timestamps later than cycle start.
                 asof = max(now, datetime.now(timezone.utc))
-                if (downloaded or not exists) and not mount_source(conn, settings.paths.data_dir, kind, symbol, asof):
+                if (downloaded or not exists) and not mount_source(conn, settings.paths.data_dir, kind, symbol, now, asof=asof):
                     raise ValueError(f"{kind}_missing")
             quality = materialize(conn, symbol=symbol, end=end, now=max(now, datetime.now(timezone.utc)),
                                   first_seen=time_value(discovery["first_seen"][symbol]))

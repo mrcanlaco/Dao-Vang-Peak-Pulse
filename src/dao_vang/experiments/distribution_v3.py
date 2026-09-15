@@ -84,17 +84,19 @@ class Timing:
             episode = Episode(when, when)
             self.episodes[symbol] = episode
         above = score >= TIMING.score_threshold
-        contiguous = when - episode.previous <= timedelta(
-            minutes=TIMING.max_confirmation_gap_minutes
-        )
-        episode.consecutive = (
-            episode.consecutive + 1 if above and contiguous else int(above)
-        )
-        episode.confirmed |= episode.consecutive >= TIMING.confirmations
-        episode.armed |= above
+        gap = when - episode.previous
+        contiguous = gap <= timedelta(minutes=TIMING.max_confirmation_gap_minutes)
+        is_first = (when == episode.start and episode.consecutive == 0)
+        is_hourly = gap >= timedelta(minutes=45)
+        if is_first or is_hourly:
+            episode.consecutive = (
+                episode.consecutive + 1 if above and contiguous and not is_first else int(above)
+            )
+            episode.confirmed |= episode.consecutive >= TIMING.confirmations
+            episode.armed |= above
+            episode.previous = when
         if episode.armed:
             episode.peak = max(episode.peak, pump)
-        episode.previous = when
         episode_id = f"{symbol}:{episode.start.isoformat()}"
         if episode.consumed:
             return "episode_already_consumed", episode_id

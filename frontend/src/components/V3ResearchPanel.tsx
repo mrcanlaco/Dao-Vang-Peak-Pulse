@@ -3,9 +3,23 @@ import { useTranslation } from '../i18n/LanguageContext';
 import { formatSystemTime } from '../utils/time';
 
 type Fill = { leg: number; price: number; average_entry: number; target_price: number; stop_price: number };
+type CriteriaProgress = {
+  score: number;
+  met_count: number;
+  total_count: number;
+  criteria: {
+    pump: { current: number; target: number; passed: boolean };
+    reversal: { current: number; target: number; passed: boolean };
+    funding: { current: number; target: number; passed: boolean };
+    funding_change: { current: number; target: number; passed: boolean };
+    score: { current: number; target: number; passed: boolean };
+  };
+};
 type Item = {
   id: string; symbol: string; feature_time: string; selected: boolean; scout: boolean; champion?: boolean;
   score: number; reason: string; price: number;
+  price_ret_24h?: number; distance_from_high_24h?: number; funding_percentile_30d?: number; funding_change_8h?: number;
+  progress?: CriteriaProgress;
   entry_plan: { leg: number; price: number; notional_weight: number }[];
   outcome?: { status: string; fills: Fill[]; exit_price: number | null; exclusion_reason: string | null } | null;
 };
@@ -15,6 +29,33 @@ type DiscoveryItem = { symbol: string; ticker_return_24h: number; feature_return
     decision_reason?: string; quality?: { price_bars: number; required_price_bars: number; warning?: string | null } } };
 type Snapshot = { status: string; stale?: boolean; updated_at?: string; activated_at?: string; candidate_count?: number; entry_count?: number; items?: Item[];
   discovery?: { status: string; stale?: boolean; updated_at?: string; market_count?: number; deferred_count?: number; items: DiscoveryItem[] } };
+
+const getProgress = (item: Item): CriteriaProgress => {
+  if (item.progress && item.progress.criteria) return item.progress;
+  const p = Number(item.price_ret_24h ?? 0);
+  const d = Number(item.distance_from_high_24h ?? 0);
+  const f = Number(item.funding_percentile_30d ?? 0);
+  const fc = Number(item.funding_change_8h ?? 0);
+  const s = Number(item.score ?? 0);
+  const c_pump = p >= 0.25;
+  const c_rev = d <= -0.02;
+  const c_fund = f >= 0.80;
+  const c_chg = fc > 0;
+  const c_score = s >= 0.39;
+  const met = [c_pump, c_rev, c_fund, c_chg, c_score].filter(Boolean).length;
+  return {
+    score: Math.round((met / 5) * 100),
+    met_count: met,
+    total_count: 5,
+    criteria: {
+      pump: { current: p, target: 0.25, passed: c_pump },
+      reversal: { current: d, target: -0.02, passed: c_rev },
+      funding: { current: f, target: 0.80, passed: c_fund },
+      funding_change: { current: fc, target: 0.0, passed: c_chg },
+      score: { current: s, target: 0.39, passed: c_score },
+    },
+  };
+};
 
 export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
   const { language } = useTranslation();
@@ -106,10 +147,80 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
     {!items.length && <p className="p-6 text-sm text-slate-400">{vi ? 'Chưa có quan sát phù hợp. Nhánh v3 chỉ ghi dữ liệu từ lúc bật; cần đủ episode 4h và xác nhận để có Entry1, không lấy backtest cũ làm tín hiệu mới.' : 'No matching observations. V3 starts at activation and needs a 4h episode plus confirmations. Old backtests are not shown as new signals.'}</p>}
     {items.map(item => {
       const last = item.outcome?.fills.at(-1);
+      const prog = getProgress(item);
       return <article key={item.id} className="rounded-xl border border-slate-700 bg-slate-900 p-3 sm:p-4">
-        <div className="flex flex-wrap gap-2 justify-between"><h3 className="font-bold">{item.symbol} <span className="text-xs font-normal text-amber-300">{item.champion ? '★ Champion (+1.8% EV)' : item.scout ? 'Challenger + Scout' : item.selected ? 'Challenger' : (vi ? 'Quan sát' : 'Observation')}</span></h3>
-          <span className="text-xs text-slate-400">{formatSystemTime(item.feature_time)}</span></div>
-        <p className="text-sm my-2">{stateLabel[item.outcome?.status || item.reason] || item.outcome?.status || item.reason} · {vi ? 'Điểm tham chiếu' : 'Reference score'} {item.score.toFixed(3)}</p>
+        <div className="flex flex-wrap gap-2 justify-between items-center">
+          <h3 className="font-bold flex items-center gap-2">
+            <span>{item.symbol}</span>
+            <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+              item.champion ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' :
+              item.scout ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' :
+              item.selected ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' :
+              'bg-slate-800 text-slate-400 border border-slate-700'
+            }`}>
+              {item.champion ? '★ Champion (+1.8% EV)' : item.scout ? 'Challenger + Scout' : item.selected ? 'Challenger' : (vi ? 'Quan sát' : 'Observation')}
+            </span>
+          </h3>
+          <span className="text-xs text-slate-400 font-mono">{formatSystemTime(item.feature_time)}</span>
+        </div>
+        <p className="text-xs text-slate-300 mt-1 mb-2.5">
+          {stateLabel[item.outcome?.status || item.reason] || item.outcome?.status || item.reason} · {vi ? 'Điểm tham chiếu' : 'Reference score'} <span className="font-mono font-bold text-amber-400">{item.score.toFixed(3)}</span>
+        </p>
+
+        {/* Bảng Tiến trình theo Công thức Win V3 Champion */}
+        <div className="my-2 bg-slate-800/80 rounded-lg p-2.5 border border-slate-700/60">
+          <div className="flex justify-between items-center text-xs mb-1.5 font-medium">
+            <span className="text-slate-300 flex items-center gap-1.5">
+              <span>{vi ? 'Tiến trình mốc Champion:' : 'Champion criteria progress:'}</span>
+              <span className={`font-bold ${prog.score >= 80 ? 'text-emerald-400' : prog.score >= 60 ? 'text-amber-400' : 'text-slate-400'}`}>
+                {prog.met_count}/5 {vi ? 'điều kiện' : 'met'} ({prog.score}%)
+              </span>
+            </span>
+            <span className="text-[10px] text-slate-400 font-mono">{vi ? 'TP -20% / 48h' : 'TP -20% / 48h'}</span>
+          </div>
+          <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden flex">
+            <div
+              className={`h-full transition-all duration-500 rounded-full ${
+                prog.score >= 100
+                  ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]'
+                  : prog.score >= 60
+                  ? 'bg-amber-400'
+                  : 'bg-indigo-400'
+              }`}
+              style={{ width: `${Math.max(6, prog.score)}%` }}
+            />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-2.5 text-[11px] font-mono">
+            <div className={`p-1.5 rounded border ${prog.criteria.pump.passed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-slate-900/80 border-slate-700/50 text-slate-300'}`}>
+              <div className="text-[9px] text-slate-400 font-sans">{vi ? 'Bơm 24h (Mốc ≥25%)' : '24h Pump (≥25%)'}</div>
+              <div className="font-bold flex items-center justify-between mt-0.5">
+                <span>+{(prog.criteria.pump.current * 100).toFixed(1)}%</span>
+                <span className="text-[10px]">{prog.criteria.pump.passed ? '✅' : '⏳'}</span>
+              </div>
+            </div>
+            <div className={`p-1.5 rounded border ${prog.criteria.reversal.passed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-slate-900/80 border-slate-700/50 text-slate-300'}`}>
+              <div className="text-[9px] text-slate-400 font-sans">{vi ? 'Rơi đỉnh (Mốc ≤-2%)' : 'Drop peak (≤-2%)'}</div>
+              <div className="font-bold flex items-center justify-between mt-0.5">
+                <span>{(prog.criteria.reversal.current * 100).toFixed(1)}%</span>
+                <span className="text-[10px]">{prog.criteria.reversal.passed ? '✅' : '⏳'}</span>
+              </div>
+            </div>
+            <div className={`p-1.5 rounded border ${prog.criteria.funding.passed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-slate-900/80 border-slate-700/50 text-slate-300'}`}>
+              <div className="text-[9px] text-slate-400 font-sans">{vi ? 'Funding 30d (≥80%)' : 'Funding 30d (≥80%)'}</div>
+              <div className="font-bold flex items-center justify-between mt-0.5">
+                <span>{(prog.criteria.funding.current * 100).toFixed(0)}%</span>
+                <span className="text-[10px]">{prog.criteria.funding.passed ? '✅' : '⏳'}</span>
+              </div>
+            </div>
+            <div className={`p-1.5 rounded border ${prog.criteria.score.passed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-slate-900/80 border-slate-700/50 text-slate-300'}`}>
+              <div className="text-[9px] text-slate-400 font-sans">{vi ? 'Score (Mốc ≥0.39)' : 'Score (≥0.39)'}</div>
+              <div className="font-bold flex items-center justify-between mt-0.5">
+                <span>{item.score.toFixed(3)}</span>
+                <span className="text-[10px]">{prog.criteria.score.passed ? '✅' : '⏳'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
         {item.selected && <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">{item.entry_plan.map(leg => <div key={leg.leg} className="bg-slate-800 rounded p-2">
             Entry{leg.leg}: {price(leg.price)} · {Math.round(leg.notional_weight * 100)}%<br />
