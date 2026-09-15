@@ -308,6 +308,20 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         timeVisible: true,
         secondsVisible: false,
       },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
+      handleScale: {
+        axisPressedMouseMove: {
+          time: true,
+          price: true,
+        },
+        mouseWheel: true,
+        pinch: true,
+      },
     });
 
     chartRef.current = chart;
