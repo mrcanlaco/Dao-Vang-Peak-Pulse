@@ -67,7 +67,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   const lastKeyRef = useRef<string>('');
   const [crosshairMode, setCrosshairMode] = useState<'magnet' | 'normal' | 'hidden'>('magnet');
   const [gridVisible, setGridVisible] = useState(true);
-  const [priceAutoScale, setPriceAutoScale] = useState(true);
+  const [priceAutoScale, setPriceAutoScale] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [alertVisibility, setAlertVisibility] = useState<AlertVisibilityMode>('all');
   const [alertMenuOpen, setAlertMenuOpen] = useState(false);
@@ -173,7 +173,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     const chart = chartRef.current;
     if (!chart) return;
     chart.timeScale().scrollToPosition(0, false);
-    applyPriceScaleMode(true);
+    applyPriceScaleMode(false);
   };
 
   const handleScreenshot = () => {
