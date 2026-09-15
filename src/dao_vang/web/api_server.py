@@ -2594,7 +2594,7 @@ class APIHandler(BaseHTTPRequestHandler):
             )
 
             label_target = float(r.get("target_drawdown") or _current_model_target_drawdown())
-            target_drawdown = -abs(label_target * 100.0 if label_target <= 1.0 else label_target)
+            target_drawdown = -abs(label_target * 100.0 if abs(label_target) <= 1.0 else label_target)
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
 
             prob_val = float(r.get("probability") or 0.0)
@@ -2723,7 +2723,7 @@ class APIHandler(BaseHTTPRequestHandler):
             taker_sell = sr.get("taker_sell_ratio")
             anomaly_fields = _anomaly_fields(sr)
             label_target = float(sr.get("target_drawdown") or _current_model_target_drawdown())
-            target_drawdown = -abs(label_target * 100.0 if label_target <= 1.0 else label_target)
+            target_drawdown = -abs(label_target * 100.0 if abs(label_target) <= 1.0 else label_target)
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
             tier = str(sr.get("recommendation", "WAIT"))
             risk_level = _scan_risk_level(tier, prob)
@@ -2851,7 +2851,7 @@ class APIHandler(BaseHTTPRequestHandler):
             taker_sell = scan.get("taker_sell_ratio")
             anomaly_fields = _anomaly_fields(scan)
             label_target = float(pr.get("target_drawdown") or ACTIVE_TARGET_DRAWDOWN)
-            target_drawdown = -abs(label_target * 100.0 if label_target <= 1.0 else label_target)
+            target_drawdown = -abs(label_target * 100.0 if abs(label_target) <= 1.0 else label_target)
             target_price = round(close_price * (1 + target_drawdown / 100.0), 8) if close_price else 0.0
             tier = str(pr.get("tier") or "WAIT")
             risk_level = {
