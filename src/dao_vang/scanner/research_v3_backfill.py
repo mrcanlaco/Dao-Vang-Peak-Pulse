@@ -36,6 +36,7 @@ from dao_vang.experiments.distribution_v3 import canonical, digest, time_value
 from dao_vang.features.builder import build_features
 from dao_vang.features.builders.funding import build_funding_features_sql
 from dao_vang.scanner.research_v3 import atomic_snapshot
+from dao_vang.scanner.research_v3_sources import SourceCatalog
 
 STEP = timedelta(minutes=5)
 MS = timedelta(milliseconds=1)
@@ -100,7 +101,7 @@ class DeferredClient(BinanceClient):
 
 
 def source_files(data_dir: Path, kind: str, symbol: str, now: datetime,
-                 collected_since: datetime | None = None) -> list[str]:
+                 collected_since: datetime | None = None, *, catalog: SourceCatalog | None = None) -> list[str]:
     """Prune scanner envelopes BEFORE DuckDB opens their Parquet footers.
 
     Scanner filenames encode collection time and symbol. A file collected
@@ -109,21 +110,16 @@ def source_files(data_dir: Path, kind: str, symbol: str, now: datetime,
     Unknown/import/backfill filenames remain eligible, preserving reuse.
     """
     cutoff = (collected_since or now - SOURCES[kind][2] - timedelta(days=1)).timestamp()
-    result = []
-    for path in (data_dir / "normalized" / kind).rglob("*.parquet"):
-        parts = path.stem.split("_", 3)
-        if len(parts) == 4 and parts[0] == "scan" and parts[1].isdigit() and parts[2].isdigit():
-            if parts[3] != symbol or int(parts[1]) < cutoff:
-                continue
-        result.append(path.resolve().as_posix())
-    return result
+    return (catalog or SourceCatalog(data_dir)).paths(kind, symbol, cutoff)
 
 
 def mount_source(conn, data_dir: Path, kind: str, symbol: str, now: datetime,
-                 asof: datetime | None = None) -> bool:
+                 asof: datetime | None = None, *, catalog: SourceCatalog | None = None) -> bool:
     """Current knowledge, preserving availability and collection provenance."""
     receipt_time = asof or now
-    paths = source_files(data_dir, kind, symbol, receipt_time)
+    # Required history is anchored to the evaluated window, not to the later
+    # receipt time of a repair (important for late scans and restart/resume).
+    paths = source_files(data_dir, kind, symbol, now, catalog=catalog)
     if not paths:
         return False
     _, key, lookback = SOURCES[kind]
@@ -196,7 +192,8 @@ def source_gaps(conn, kind: str, exists: bool, end: datetime) -> list[tuple[date
     return result
 
 
-def collect_range(settings, client, kind: str, symbol: str, start: datetime, end: datetime) -> int:
+def collect_range(settings, client, kind: str, symbol: str, start: datetime, end: datetime,
+                  *, catalog: SourceCatalog | None = None) -> int:
     """Atomic raw file is the checkpoint even if the process dies before SQLite."""
     identity = {"symbol": symbol, "kind": kind, "start": start, "end": end}
     request_start, request_end = start, end
@@ -245,6 +242,8 @@ def collect_range(settings, client, kind: str, symbol: str, start: datetime, end
         write_normalized_to_parquet(normalized, items)
     if not shared_raw.exists():
         write_jsonl_atomic(shared_raw, envelopes)
+    if catalog is not None:
+        catalog.add(kind, symbol, normalized)
     return len(items)
 
 
@@ -348,20 +347,27 @@ def attach(discovery: dict, jobs: Jobs) -> dict:
             "items": items}
 
 
-def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int = 24,
-           budget_seconds: float = 45, client=None) -> dict:
+def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int = 64,
+           budget_seconds: float = 90, max_symbol_requests: int = 8, client=None) -> dict:
     storage = settings.paths.data_dir / "research_v3"
     jobs = Jobs(storage)
     client = client or DeferredClient(str(settings.binance.base_url))
     end = closed_end(time_value(discovery["updated_at"]))
     started, requests = time.monotonic(), 0
+    catalog = SourceCatalog(settings.paths.data_dir)
     cooldown = jobs.load("__rate_limit__").get("next_retry_at")
     symbols = list(discovery.get("first_seen", {}))
     symbols = [s for s in symbols if s in discovery.get("collection_symbols", [])]
-    # Least recently attempted first prevents a problematic symbol starving peers.
-    symbols.sort(key=lambda s: (bool(jobs.load(s).get("ready_at")), jobs.load(s).get("updated_at", "")))
+    # Live radar takes precedence over 6h retained coins. Within each cohort,
+    # rotate actual attempts, not display-stage writes; a never-ready coin
+    # cannot monopolize every pass and starve current features for ready peers.
+    radar = {item["symbol"] for item in discovery.get("items", [])}
+    pending = {symbol: jobs.load(symbol) for symbol in symbols}
+    symbols.sort(key=lambda s: (s not in radar,
+        pending[s].get("last_attempt_at", ""), pending[s].get("feature_time", ""), s))
+    attempted, ready, deferred = [], [], {}
     for symbol in symbols:
-        job = jobs.load(symbol)
+        job = pending[symbol]
         if job.get("detected_at") and time_value(job["detected_at"]) != time_value(discovery["first_seen"][symbol]):
             job = {"symbol": symbol, "version": VERSION, "attempts": job["attempts"]}
         if "stage" not in job:
@@ -369,34 +375,51 @@ def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int 
             jobs.save(job)
         retry = job.get("next_retry_at")
         if retry and time_value(retry) > now:
+            deferred[symbol] = "retry_backoff"
             continue
+        blocked = ("rate_limit" if cooldown and time_value(cooldown) > now
+                   else "cycle_time_budget" if time.monotonic()-started >= budget_seconds else None)
+        if blocked:
+            if job.get("stage") == "DETECTED":
+                transition(job, "BACKFILLING", now)
+            job["deferred_reason"] = blocked
+            deferred[symbol] = blocked
+            jobs.save(job)
+            continue
+        attempted.append(symbol)
+        attempted_at = max(now, datetime.now(timezone.utc))
+        symbol_requests = 0
         transition(job, "BACKFILLING", now, error=None, next_retry_at=None)
         jobs.save(job)
         atomic_snapshot(storage / "discovery.json", attach(discovery, jobs))
         try:
             for kind in SOURCES:
-                exists = mount_source(conn, settings.paths.data_dir, kind, symbol, now)
+                exists = mount_source(conn, settings.paths.data_dir, kind, symbol, now, catalog=catalog)
                 downloaded = False
                 for start, stop in source_gaps(conn, kind, exists, end):
                     if (kind == "funding" and job.get("funding_checked_from")
                             and start >= time_value(job["funding_checked_from"])
                             and stop <= time_value(job["funding_checked_through"])):
                         continue
-                    if (requests >= max_requests or time.monotonic()-started >= budget_seconds
-                            or (cooldown and time_value(cooldown) > now)):
-                        raise InterruptedError("cycle_budget_or_rate_limit")
+                    reason = ("rate_limit" if cooldown and time_value(cooldown) > now
+                              else "cycle_request_budget" if requests >= max_requests
+                              else "cycle_time_budget" if time.monotonic()-started >= budget_seconds
+                              else "symbol_request_budget" if symbol_requests >= max_symbol_requests else None)
+                    if reason:
+                        raise InterruptedError(reason)
                     requests += 1
+                    symbol_requests += 1
                     job["attempts"] += 1
                     job["source"] = kind
                     jobs.save(job)
-                    collect_range(settings, client, kind, symbol, start, stop)
+                    collect_range(settings, client, kind, symbol, start, stop, catalog=catalog)
                     downloaded = True
                 if kind == "funding":
                     job.update(funding_checked_from=end+MS-SOURCES[kind][2], funding_checked_through=end)
                     jobs.save(job)
                 # New envelopes have collection timestamps later than cycle start.
                 asof = max(now, datetime.now(timezone.utc))
-                if (downloaded or not exists) and not mount_source(conn, settings.paths.data_dir, kind, symbol, now, asof=asof):
+                if (downloaded or not exists) and not mount_source(conn, settings.paths.data_dir, kind, symbol, now, asof=asof, catalog=catalog):
                     raise ValueError(f"{kind}_missing")
             quality = materialize(conn, symbol=symbol, end=end, now=max(now, datetime.now(timezone.utc)),
                                   first_seen=time_value(discovery["first_seen"][symbol]))
@@ -420,8 +443,10 @@ def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int 
             transition(job, "DATA_READY", now, quality=quality, error=None,
                        ready_at=job.get("ready_at") or quality["checked_at"], feature_time=end,
                        failures=0, deferred_reason=None)
-        except InterruptedError:
-            job["deferred_reason"] = "cycle_budget_or_rate_limit"
+            ready.append(symbol)
+        except InterruptedError as exc:
+            job["deferred_reason"] = str(exc)
+            deferred[symbol] = str(exc)
         except Exception as exc:
             delay = min(3600, 60 * 2 ** min(job.get("failures", 0), 6))
             if isinstance(exc, RateLimitError):
@@ -430,9 +455,16 @@ def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int 
                 jobs.save({"symbol": "__rate_limit__", "next_retry_at": cooldown})
             transition(job, "BACKFILLING", now, error=str(exc)[:240],
                        failures=job.get("failures", 0)+1, next_retry_at=now+timedelta(seconds=delay))
+        # A peer that only discovers the global budget is exhausted has not
+        # received a turn. Keep its priority across stages and process restarts.
+        if symbol_requests or symbol in ready or job.get("error"):
+            job["last_attempt_at"] = attempted_at
         job["updated_at"] = max(now, datetime.now(timezone.utc))
         jobs.save(job)
     result = attach(discovery, jobs)
+    result["backfill_cycle"] = {"duration_seconds": round(time.monotonic()-started, 3),
+        "requests": requests, "max_requests": max_requests, "budget_seconds": budget_seconds,
+        "attempted": attempted, "ready": ready, "deferred": deferred}
     atomic_snapshot(storage / "discovery.json", result)
     return result
 

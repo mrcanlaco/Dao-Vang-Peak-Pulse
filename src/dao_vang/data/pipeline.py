@@ -335,7 +335,7 @@ def _get_recent_parquet_patterns(normalized_dir: Path, subdir: str, days: int = 
     return date_patterns
 
 
-def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
+def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings, *, materialize_sources: bool = False):
     """
     Mounts parquet files into DuckDB views and stitches them into the raw_timeline.
     Restricted to a recent 3-day rolling window to bound query I/O.
@@ -382,8 +382,12 @@ def build_raw_timeline(db: DuckDBQueryLayer, settings: AppSettings):
                 except Exception:
                     pass
 
+            # Scanner queries each source many times (alignment, scoring,
+            # telemetry). Materialize the SAME deduped rows once per cycle
+            # instead of re-reading/re-ranking the Parquet lake each time.
+            relation_kind = "TABLE" if materialize_sources else "VIEW"
             db.conn.execute(f"""
-                CREATE OR REPLACE VIEW {view_name} AS 
+                CREATE OR REPLACE {relation_kind} {view_name} AS
                 SELECT * FROM read_parquet([{patterns_sql}], union_by_name=true)
                 QUALIFY row_number() OVER (PARTITION BY symbol, {time_col} ORDER BY available_time DESC) = 1
             """)

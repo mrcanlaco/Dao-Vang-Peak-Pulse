@@ -44,9 +44,11 @@ def prepare_price_source(database, data_dir: Path, *, symbols: list[str] | None 
     source = f"'{glob}'"
     if symbols is not None and now is not None:
         from dao_vang.scanner.research_v3_backfill import source_files
+        from dao_vang.scanner.research_v3_sources import SourceCatalog
 
+        catalog = SourceCatalog(data_dir)
         files = sorted({path for symbol in symbols for path in source_files(
-            data_dir, "klines", symbol, now, collected_since=since)})
+            data_dir, "klines", symbol, now, collected_since=since, catalog=catalog)})
         if not files:
             raise ValueError("v3 price sources missing")
         source = "[" + ",".join("'" + path.replace("'", "''") + "'" for path in files) + "]"

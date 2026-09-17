@@ -344,3 +344,69 @@ def test_no_features_or_entries_does_not_open_whole_price_lake(setup, monkeypatc
     assert result["candidate_count"] == result["entry_count"] == 0
 
 
+def test_radar_precedes_retained_coins_and_budget_resumes_fairly(market_env):
+    settings, client = market_env
+    data = discovery(settings, symbols=("OLDUSDT", "LIVEAUSDT", "LIVEBUSDT"))
+    data["items"] = [item for item in data["items"] if item["symbol"] != "OLDUSDT"]
+    jobs = bf.Jobs(settings.paths.data_dir / "research_v3")
+    with duckdb.connect() as conn:
+        first = run(conn, market_env, data, max_requests=1)
+        assert client.calls[0][1]["symbol"] == "LIVEAUSDT"
+        assert first["backfill_cycle"]["requests"] == 1
+        assert first["backfill_cycle"]["deferred"]["LIVEBUSDT"] == "cycle_request_budget"
+        assert not jobs.load("LIVEBUSDT").get("last_attempt_at")
+    with duckdb.connect() as conn:
+        # A process restart and a display-stage update cannot steal LIVEB's turn.
+        job = jobs.load("LIVEBUSDT")
+        bf.transition(job, "BACKFILLING", START+timedelta(days=1))
+        jobs.save(job)
+        second = run(conn, market_env, data, max_requests=1)
+        assert client.calls[-1][1]["symbol"] == "LIVEBUSDT"
+        assert second["backfill_cycle"]["attempted"][0] == "LIVEBUSDT"
+        assert all(call[1]["symbol"] != "OLDUSDT" for call in client.calls)
+
+
+def test_time_budget_stops_source_reads_and_preserves_unattempted_priority(market_env, monkeypatch):
+    settings, client = market_env
+    data = discovery(settings, symbols=("AAAUSDT", "BBBUSDT"))
+    monkeypatch.setattr(bf, "mount_source", lambda *a, **kw: (_ for _ in ()).throw(AssertionError("past budget")))
+    with duckdb.connect() as conn:
+        result = run(conn, market_env, data, budget_seconds=0)
+    assert not client.calls
+    assert result["backfill_cycle"]["attempted"] == []
+    assert set(result["backfill_cycle"]["deferred"].values()) == {"cycle_time_budget"}
+    assert all(not item["backfill"].get("last_attempt_at") for item in result["items"])
+
+
+def test_per_coin_budget_leaves_requests_for_other_coins(market_env):
+    settings, client = market_env
+    with duckdb.connect() as conn:
+        result = run(conn, market_env, discovery(settings, symbols=("AAAUSDT", "BBBUSDT")),
+                     max_requests=2, max_symbol_requests=1)
+    assert [call[1]["symbol"] for call in client.calls] == ["AAAUSDT", "BBBUSDT"]
+    assert result["backfill_cycle"]["deferred"]["AAAUSDT"] == "symbol_request_budget"
+
+
+def test_materialized_scanner_sources_preserve_timeline_values(market_env):
+    from types import SimpleNamespace
+
+    from pandas.testing import assert_frame_equal
+
+    from dao_vang.data.pipeline import build_raw_timeline
+
+    settings, _ = market_env
+    with duckdb.connect() as conn:
+        run(conn, market_env, discovery(settings))
+        db = SimpleNamespace(conn=conn)
+        build_raw_timeline(db, settings)
+        expected = conn.execute("SELECT * FROM raw_timeline ORDER BY symbol,feature_time").fetchdf()
+        build_raw_timeline(db, settings, materialize_sources=True)
+        actual = conn.execute("SELECT * FROM raw_timeline ORDER BY symbol,feature_time").fetchdf()
+        assert_frame_equal(actual, expected)
+        assert conn.execute("SELECT table_type FROM information_schema.tables WHERE table_name='kline'").fetchone() == ("BASE TABLE",)
+        before = conn.execute("SELECT count(*) FROM kline").fetchone()
+        for path in (settings.paths.data_dir / "normalized/klines").rglob("*.parquet"):
+            path.unlink()
+        assert conn.execute("SELECT count(*) FROM kline").fetchone() == before
+
+

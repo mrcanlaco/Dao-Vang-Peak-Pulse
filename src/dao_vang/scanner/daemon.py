@@ -679,7 +679,10 @@ class ScannerDaemon:
                 except Exception as retention_exc:
                     logger.warning("research_v3_retention_failed", error=str(retention_exc))
         self._collect_all(symbols_to_collect, start_dt, closed_candle_end)
+        phase_start = time.perf_counter()
         pipeline_changed = self._normalize_and_timeline()
+        logger.info("scanner_phase_done", phase="normalize_timeline", elapsed_s=round(time.perf_counter()-phase_start, 3))
+        self._write_heartbeat("running")
 
         # 2b. Resolve legacy alert hits when possible. Full prediction-outcome
         # materialization is intentionally not part of the hot scan loop: it
@@ -711,7 +714,10 @@ class ScannerDaemon:
         # Rebuilding all rolling windows on every heartbeat was the main RAM
         # and disk-I/O amplifier when a cycle returned no new candles.
         if pipeline_changed:
+            phase_start = time.perf_counter()
             build_features(db, "raw_timeline", "feature_results")
+            logger.info("scanner_phase_done", phase="features", elapsed_s=round(time.perf_counter()-phase_start, 3))
+        self._write_heartbeat("running")
 
         # 3b. Compute BTC context for this cycle
         btc_context = self._compute_btc_context(db)
@@ -811,6 +817,7 @@ class ScannerDaemon:
         self._publish_candidate_snapshot(db)
 
         if self._settings.research_v3_enabled:
+            phase_start = time.perf_counter()
             try:
                 from dao_vang.scanner.research_v3 import run_cycle
 
@@ -819,8 +826,13 @@ class ScannerDaemon:
                           discovery=v3_discovery, settings=self._settings)
             except Exception as exc:
                 logger.warning("research_v3_cycle_failed", error=str(exc))
+            logger.info("scanner_phase_done", phase="research_v3", elapsed_s=round(time.perf_counter()-phase_start, 3))
+            self._write_heartbeat("running")
 
+        phase_start = time.perf_counter()
         self._publish_system_stats(db)
+        logger.info("scanner_phase_done", phase="system_stats", elapsed_s=round(time.perf_counter()-phase_start, 3))
+        self._write_heartbeat("running")
 
         # The challenger is observational only. Running it after the champion
         # serving artifacts are published. This ordering isolates the champion
@@ -1141,7 +1153,9 @@ class ScannerDaemon:
         Windows may therefore reject the web server's read-only snapshot copy
         during an active cycle. Keep the freshness dashboard current by
         querying through the already-open scanner connection and writing a
-        small atomic JSON artifact alongside the candidate snapshot.
+        small atomic JSON artifact alongside the candidate snapshot. Count
+        persistent materialized tables only: telemetry must never execute the
+        Parquet price view or re-run temporary feature/alignment work.
         """
 
         try:
@@ -1149,8 +1163,9 @@ class ScannerDaemon:
             tables = [
                 str(row[0])
                 for row in conn.execute(
-                    "SELECT table_name FROM information_schema.tables "
-                    "WHERE table_schema='main' ORDER BY table_name"
+                    "SELECT table_name FROM duckdb_tables() "
+                    "WHERE schema_name='main' AND NOT temporary "
+                    "AND NOT starts_with(table_name, 'bf_') ORDER BY table_name"
                 ).fetchall()
             ]
             ts_candidates = (
@@ -1254,6 +1269,7 @@ class ScannerDaemon:
                 {
                     "generated_at": system_now().isoformat(),
                     "timestamp_timezone": SYSTEM_TIMEZONE_NAME,
+                    "data_stats_scope": "persistent_tables",
                     "data_stats": stats,
                     "scan_per_day": scan_per_day,
                     "signals_per_day": signals_per_day,
@@ -1406,7 +1422,7 @@ class ScannerDaemon:
                 "feature_results",
             }.issubset(tables):
                 return False
-            build_raw_timeline(db, self._settings)
+            build_raw_timeline(db, self._settings, materialize_sources=True)
             return True
         finally:
             # Explicitly release DuckDB buffers and the writer lock each cycle.
