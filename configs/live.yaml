@@ -42,7 +42,7 @@ scanner:
   # exists in this application; the user makes all decisions manually.
   # Fail closed during the v1 -> v2 target migration. Re-enable shadow/canary
   # only after scanner.frozen_model_id points to a calibrated 20%/24h bundle.
-  operating_mode: research
+  operating_mode: shadow
   poll_interval_minutes: 5
   # Keep the live cycle bounded so DuckDB is not held by a long collector
   # batch. Increase only after measuring a larger watchlist separately.
@@ -63,11 +63,11 @@ scanner:
   max_heartbeat_age_minutes: 15
   history_days: 30
   # Shadow Telegram delivery: respects cooldown, probability threshold, and volume gates.
-  shadow_telegram_enabled: false
+  shadow_telegram_enabled: true
   # The new frozen bundle's calibrated probabilities are in the 0.20–0.30
   # range.  Rank inside this validated threshold; do not present it as a
   # literal 75% win-rate guarantee.
-  telegram_min_probability: 0.41
+  telegram_min_probability: 0.20
   # Minimum 24h volume for Telegram alerts (avoids low liquidity spam).
   telegram_min_volume_usd: 500000
   # Only send high confidence signals to avoid weak signal noise.
