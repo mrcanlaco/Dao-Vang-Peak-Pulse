@@ -36,6 +36,7 @@ from dao_vang.experiments.distribution_v3 import canonical, digest, time_value
 from dao_vang.features.builder import build_features
 from dao_vang.features.builders.funding import build_funding_features_sql
 from dao_vang.scanner.research_v3 import atomic_snapshot
+from dao_vang.scanner.research_v3_discovery import feature_reason
 from dao_vang.scanner.research_v3_sources import SourceCatalog
 
 STEP = timedelta(minutes=5)
@@ -331,6 +332,7 @@ def materialize(conn, *, symbol: str, end: datetime, now: datetime, first_seen: 
         (SELECT 1 FROM v3_live_features f WHERE f.symbol=c.symbol AND f.feature_time=c.feature_time)
     """)
     return {"price_bars": count[0], "required_price_bars": 289,
+            "price_return_24h": conn.execute("SELECT price_ret_24h FROM bf_current").fetchone()[0],
             "funding_grid_bars": funding_rows, "required_funding_grid_bars": 8640,
             "warning": "funding_history_short" if funding_rows < 8640 else None,
             "checked_at": now, "feature_time": end}
@@ -342,9 +344,25 @@ def attach(discovery: dict, jobs: Jobs) -> dict:
         job = jobs.load(item["symbol"])
         if job.get("detected_at") and time_value(job["detected_at"]) != time_value(item["first_seen"]):
             job = {"symbol": item["symbol"], "version": VERSION, "stage": "DETECTED"}
-        items.append({**item, "pipeline_stage": job.get("stage", "DETECTED"), "backfill": job})
-    return {**discovery, "backfill_version": VERSION, "feature_source": "v3_live_features",
-            "items": items}
+        row = {**item, "pipeline_stage": job.get("stage", "DETECTED"), "backfill": job}
+        # A discovery refresh is a new ticker, not an erasure of the previous
+        # validated feature. Keep its real timestamp and still mark it stale
+        # after 15m. A new episode above deliberately discards the old job.
+        if "feature_time" not in row and job.get("feature_time"):
+            row.update(feature_time=job["feature_time"],
+                       feature_return_24h=job.get("quality", {}).get("price_return_24h"),
+                       hourly_feature_time=job.get("hourly_feature_time"))
+            if row.get("discovery_reason") == "collecting":
+                row["discovery_reason"] = feature_reason(time_value(discovery["updated_at"]),
+                    time_value(row["feature_time"]), row["feature_return_24h"])
+        items.append(row)
+    result = {**discovery, "backfill_version": VERSION, "feature_source": "v3_live_features", "items": items}
+    if "backfill_cycle" not in result:
+        try:
+            result["backfill_cycle"] = json.loads((jobs.path.parent / "backfill_cycle.json").read_text())
+        except (OSError, ValueError):
+            pass
+    return result
 
 
 def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int = 64,
@@ -462,9 +480,11 @@ def warmup(conn, settings, discovery: dict, *, now: datetime, max_requests: int 
         job["updated_at"] = max(now, datetime.now(timezone.utc))
         jobs.save(job)
     result = attach(discovery, jobs)
-    result["backfill_cycle"] = {"duration_seconds": round(time.monotonic()-started, 3),
+    result["backfill_cycle"] = {"updated_at": max(now, datetime.now(timezone.utc)),
+        "duration_seconds": round(time.monotonic()-started, 3),
         "requests": requests, "max_requests": max_requests, "budget_seconds": budget_seconds,
         "attempted": attempted, "ready": ready, "deferred": deferred}
+    atomic_snapshot(storage / "backfill_cycle.json", result["backfill_cycle"])
     atomic_snapshot(storage / "discovery.json", result)
     return result
 

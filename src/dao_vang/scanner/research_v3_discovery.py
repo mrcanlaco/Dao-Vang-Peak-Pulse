@@ -157,6 +157,19 @@ def discover(
     return json.loads(canonical(payload))
 
 
+def feature_reason(now: datetime, when: datetime | None, change: float | None) -> str:
+    """Use the source timestamp for freshness, including between scanner passes."""
+    if when is None:
+        return "features_pending"
+    if now - when > timedelta(minutes=15):
+        return "features_stale"
+    if change is None or not math.isfinite(change):
+        return "history_24h_pending"
+    if change < TIMING.min_return_24h:
+        return "closed_return_below_15pct"
+    return "waiting_hourly_confirmation"
+
+
 def enrich(database, discovery: dict, *, now: datetime) -> dict:
     """Explain missing features without dropping the coin or imputing its return."""
     if not discovery.get("items"):
@@ -197,17 +210,10 @@ def enrich(database, discovery: dict, *, now: datetime) -> dict:
             feature_return_24h=change,
             hourly_feature_time=hourly.get(row["symbol"]),
         )
-        if item["discovery_reason"] == "collecting":
-            if when is None:
-                reason = "features_pending"
-            elif now - when > timedelta(minutes=15):
-                reason = "features_stale"
-            elif change is None or not math.isfinite(change):
-                reason = "history_24h_pending"
-            elif change < TIMING.min_return_24h:
-                reason = "closed_return_below_15pct"
-            else:
-                reason = "waiting_hourly_confirmation"
-            item["discovery_reason"] = reason
+        if item["discovery_reason"] in {
+            "collecting", "features_pending", "features_stale", "history_24h_pending",
+            "closed_return_below_15pct", "waiting_hourly_confirmation",
+        }:
+            item["discovery_reason"] = feature_reason(now, when, change)
         items.append(item)
     return {**discovery, "features_checked_at": now, "items": items}

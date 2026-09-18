@@ -29,6 +29,9 @@ limit cooldown. Backfill repeatedly exhausted its cycle budget.
 - `discovery.backfill_cycle` reports elapsed time, request count, attempted and
   ready symbols, and explicit deferral reasons: time budget, request budget,
   per-symbol budget, rate limit, or retry backoff.
+- A new ticker pass preserves the last validated feature/return and last
+  completed backfill metrics, with their original timestamps. Their freshness
+  still expires after 15 minutes. New episodes do not inherit old feature cards.
 - Scanner logs phase durations and writes heartbeats at completed phase
   boundaries. The 15-minute data freshness threshold is unchanged; an alive
   process does not make old market/features fresh.

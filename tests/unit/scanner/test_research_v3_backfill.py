@@ -320,8 +320,24 @@ def test_discovery_refresh_preserves_progress_but_new_episode_starts_detected(ma
     jobs = bf.Jobs(settings.paths.data_dir / "research_v3")
     result = bf.attach(discovery(settings, now=START+timedelta(minutes=16)), jobs)
     assert result["items"][0]["pipeline_stage"] == "DATA_READY"
+    assert result["items"][0]["feature_return_24h"] == pytest.approx(.35)
+    assert result["items"][0]["discovery_reason"] == "waiting_hourly_confirmation"
+    old_feature = result["items"][0]["feature_time"]
+    old_metrics = result["backfill_cycle"]
+    stale = bf.attach(discovery(settings, now=START+timedelta(minutes=40)), jobs)
+    assert stale["items"][0]["feature_time"] == old_feature
+    assert stale["items"][0]["discovery_reason"] == "features_stale"
+    assert stale["backfill_cycle"] == old_metrics
+    from dao_vang.scanner.research_v3_discovery import enrich
+
+    with duckdb.connect() as conn:
+        refreshed = run(conn, market_env, stale, now=START+timedelta(minutes=40))
+        refreshed = enrich(conn, refreshed, now=START+timedelta(minutes=40))
+        assert refreshed["items"][0]["discovery_reason"] == "waiting_hourly_confirmation"
+        assert refreshed["items"][0]["feature_time"] > bf.time_value(old_feature)
     result = bf.attach(discovery(settings, now=START+timedelta(hours=7)), jobs)
     assert result["items"][0]["pipeline_stage"] == "DETECTED"
+    assert not result["items"][0].get("feature_time")
 
 
 def test_taker_request_end_boundary_keeps_original_payload_timestamp(market_env):
