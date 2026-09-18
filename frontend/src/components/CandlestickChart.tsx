@@ -304,6 +304,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
         borderColor: '#334155',
         scaleMargins: { top: 0.1, bottom: 0.25 },
         autoScale: false,
+        minimumWidth: 50,
       },
       timeScale: {
         borderColor: '#334155',
@@ -321,8 +322,15 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
           time: true,
           price: true,
         },
+        axisDoubleClickReset: {
+          time: true,
+          price: true,
+        },
         mouseWheel: true,
         pinch: true,
+      },
+      trackingMode: {
+        exitMode: 0,
       },
     });
 
@@ -521,7 +529,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     <div
       ref={chartShellRef}
       className={`relative w-full overflow-hidden bg-slate-950 ${isFullscreen ? 'h-screen p-4' : ''}`}
-      style={isFullscreen ? undefined : { height }}
+      style={{ ...(isFullscreen ? undefined : { height }), touchAction: 'none' }}
     >
       <div ref={containerRef} className="w-full" style={{ height: chartHeight, touchAction: 'none' }} />
       <div className="pointer-events-auto absolute left-2 right-2 top-2 z-20 flex max-w-[calc(100%-1rem)] items-center gap-1 overflow-x-auto rounded-md border border-slate-700/80 bg-slate-950/95 p-1 shadow-xl shadow-black/20 [&::-webkit-scrollbar]:hidden sm:left-auto sm:right-2 sm:max-w-none sm:overflow-visible">
