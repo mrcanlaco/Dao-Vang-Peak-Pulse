@@ -39,6 +39,7 @@ test -z "$(git status --porcelain)" || {{
   echo "Deployment stopped: unexpected untracked files remain after update."
   exit 1
 }}
+docker compose stop
 export DAO_VANG_RUNTIME_UID="$(id -u)"
 export DAO_VANG_RUNTIME_GID="$(id -g)"
 bash scripts/prepare_runtime_permissions.sh --apply
