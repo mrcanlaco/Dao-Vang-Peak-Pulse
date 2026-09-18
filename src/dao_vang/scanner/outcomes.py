@@ -147,6 +147,22 @@ def materialize_prediction_outcomes(
     if not requested or invalid:
         raise ValueError(f"horizons must be a subset of 6/12/24; invalid={invalid}")
 
+    # Live timelines are bounded, while immutable predictions retain all
+    # history. A missing signal can never produce a label in this snapshot.
+    # Avoid running the expensive metrics query once for every old prediction;
+    # leave those rows pending for a historical-data maintenance run.
+    source_keys = {(symbol, _normalize_ts(stamp)) for symbol, stamp in db.conn.execute(
+        f"SELECT DISTINCT symbol,feature_time FROM {timeline_table} WHERE feature_time IS NOT NULL"
+    ).fetchall()}
+    pending_count = len(pending)
+    pending = [prediction for prediction in pending
+               if isinstance(prediction.get("signal_time"), datetime)
+               and (prediction["symbol"], _normalize_ts(prediction["signal_time"])) in source_keys]
+    logger.info("prediction_outcomes_source_coverage", n_pending=pending_count, n_in_window=len(pending))
+    if not pending:
+        prediction_store.assign_materialized_event_ids()
+        return 0
+
     label_tables: dict[str, str] = {}
     try:
         pending_versions = {
@@ -171,6 +187,13 @@ def materialize_prediction_outcomes(
             )
             label_tables["distribution_short_v2"] = table
 
+        # The label contract itself decides eligibility. Missing future rows
+        # stay pending exactly as before, without calculating unused metrics.
+        ready_keys = {version: {(symbol, _normalize_ts(stamp), int(horizon))
+            for symbol, stamp, horizon in db.conn.execute(
+                f"SELECT symbol,signal_time,horizon_hours FROM {table} "
+                "WHERE exclusion_reason IS DISTINCT FROM 'missing_future_data'"
+            ).fetchall()} for version, table in label_tables.items()}
         resolved = 0
         for prediction in pending:
             horizon = int(prediction.get("horizon_hours") or 24)
@@ -196,6 +219,8 @@ def materialize_prediction_outcomes(
             # explicitly so a Windows local timezone never shifts a label.
             if isinstance(signal_time, datetime):
                 signal_time = _normalize_ts(signal_time)
+            if (prediction["symbol"], signal_time, horizon) not in ready_keys[version]:
+                continue
             row = db.conn.execute(
                 f"""
                 WITH f AS (

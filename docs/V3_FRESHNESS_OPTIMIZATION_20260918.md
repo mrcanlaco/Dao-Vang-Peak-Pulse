@@ -32,6 +32,11 @@ limit cooldown. Backfill repeatedly exhausted its cycle budget.
 - Scanner logs phase durations and writes heartbeats at completed phase
   boundaries. The 15-minute data freshness threshold is unchanged; an alive
   process does not make old market/features fresh.
+- Prediction-outcome maintenance intersects the historical backlog with exact
+  signal keys present in the current timeline, and skips metrics for labels
+  whose future window is incomplete. Absent signals remain pending, not losses
+  or exclusions; a later historical-data run can still resolve them. This
+  removes thousands of repeated queries on every maintenance cycle/startup.
 
 ## Invariants and verification
 

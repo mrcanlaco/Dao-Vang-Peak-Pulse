@@ -138,3 +138,53 @@ def test_materialize_excludes_invalid_and_leaves_missing_pending(tmp_path):
     assert "invalid" in row_invalid[2]
     
     assert row_missing is None
+
+
+def test_historical_backlog_and_missing_future_do_not_repeat_metrics_queries():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    db = DuckDBQueryLayer(":memory:")
+    db.conn.execute("""
+        CREATE TABLE raw_timeline AS
+        SELECT 'BTCUSDT' AS symbol, t AS feature_time, 100.0 AS close,
+            101.0 AS high, 99.0 AS low, 'valid' AS quality_status
+        FROM generate_series(TIMESTAMP '2024-01-01', TIMESTAMP '2024-01-01 06:00:00', INTERVAL '5 minutes') AS series(t)
+    """)
+    base = {"symbol": "BTCUSDT", "horizon_hours": 6, "signal_price": 100.0,
+            "label_version": "distribution_short_v1"}
+    pending = [{**base, "prediction_id": f"old-{i}", "signal_time": datetime(2023, 1, 1)+timedelta(minutes=5*i)}
+               for i in range(1000)]
+    pending += [{**base, "prediction_id": "ready", "signal_time": datetime(2024, 1, 1)},
+                {**base, "prediction_id": "waiting", "signal_time": datetime(2024, 1, 1, 1)}]
+    store = Mock()
+    store.pending_predictions.return_value = pending
+    store.save_outcome.return_value = True
+    metrics = []
+
+    class CountingConnection:
+        def execute(self, sql, *args):
+            if "signal_klines AS" in sql:
+                metrics.append(sql)
+            return db.conn.execute(sql, *args)
+
+    assert materialize_prediction_outcomes(store, SimpleNamespace(conn=CountingConnection()), horizons=(6,)) == 1
+    assert len(metrics) == 1
+    assert store.save_outcome.call_args.args[0] == "ready"
+    store.assign_materialized_event_ids.assert_called_once()
+    # No pending record was marked as a loss/exclusion simply for being absent.
+    assert store.save_outcome.call_count == 1
+
+
+def test_absent_signal_backlog_does_not_run_label_engine(monkeypatch):
+    from unittest.mock import Mock
+
+    db = DuckDBQueryLayer(":memory:")
+    db.conn.execute("CREATE TABLE raw_timeline(symbol VARCHAR, feature_time TIMESTAMP)")
+    store = Mock()
+    store.pending_predictions.return_value = [{"symbol": "BTCUSDT", "signal_time": datetime(2023, 1, 1)}]
+    compute = Mock(side_effect=AssertionError("no matching source"))
+    monkeypatch.setattr("dao_vang.scanner.outcomes.DistributionLabelEngineV1.compute_all_horizons_to_table", compute)
+    assert materialize_prediction_outcomes(store, db) == 0
+    compute.assert_not_called()
+    store.save_outcome.assert_not_called()
