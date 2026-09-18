@@ -183,6 +183,42 @@ test('v3 research panel opens on mobile without replacing existing dashboard', a
   await expect(page.getByTestId('main-workspace')).toBeVisible();
 });
 
+test('v3 keeps stopped trades separate from post-stop price recovery', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockApi(page, { authenticated: true, scannerTriggers: 0 });
+  await page.route('**/api/research/v3', route => route.fulfill({ json: {
+    status: 'running', candidate_count: 1, entry_count: 1, items: [{
+      id: 'dual-outcome', symbol: 'AKEUSDT', feature_time: '2026-09-14T04:05:00Z',
+      selected: true, champion: true, scout: true, score: 0.5, price: 100, reason: 'selected',
+      pattern_id: 'unknown', pattern_type: 'unknown', pattern_status: 'unknown',
+      pattern_stage: 'reversal', nearest_pattern: 'pattern_1',
+      pattern_quality: 'unconfirmed', data_quality_score: 1, quality_status: 'valid',
+      pattern_discrepancies: [{ feature: 'price_ret_24h', value: 0.3, template_value: 0.6, standardized_abs_error: 2 }],
+      entry_plan: [{ leg: 1, price: 100, notional_weight: 0.2 }],
+      outcome: { status: 'stop', actual_win: false,
+        fills: [{ leg: 1, price: 100, average_entry: 100, target_price: 80, stop_price: 116 }],
+        post_stop: { status: 'target_after_stop', target_after_stop: true,
+          frozen_average_entry: 100, frozen_target_price: 80,
+          horizon_time: '2026-09-16T04:05:00Z', target_time: '2026-09-15T04:05:00Z' },
+      },
+    }],
+  } }));
+  await page.goto('/');
+  await page.getByTestId('open-v3-research').click();
+  const panel = page.getByTestId('v3-research');
+  await expect(panel).toContainText('AKEUSDT');
+  await expect(panel).toContainText(/Chạm stop|Stop hit|Dừng lỗ|Stopped/);
+  await expect(panel).toContainText(/sau Stop|sau stop|after stop|After-stop|Post-stop/);
+  await expect(panel).toContainText(/Chưa xác định|Unknown|unknown/);
+  await expect(panel).not.toContainText('[object Object]');
+  await expect(page.getByTestId('v3-post-stop-AKEUSDT')).toContainText('80');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBeTruthy();
+  await panel.getByRole('button', { name: /Mọi chất lượng|All quality/ }).click();
+  await expect(panel).not.toContainText('AKEUSDT');
+  await panel.getByRole('button', { name: /Chỉ chất lượng cao|High-quality only/ }).click();
+  await expect(panel).toContainText('AKEUSDT');
+});
+
 test('login unlocks the dashboard without storing the password', async ({ page }) => {
   const state: ApiState = { authenticated: false, scannerTriggers: 0 };
   await mockApi(page, state);

@@ -1842,21 +1842,48 @@ class ScannerDaemon:
         ep_result = None
         episode_allows_delivery = False  # Fail-closed default
         try:
+            allowed_tiers = getattr(self._scanner_cfg, "telegram_tiers", ["HIGH_CONFIDENCE"])
+            effective_threshold = result.threshold
+            if "WATCH" in allowed_tiers and self._scanner_cfg.telegram_min_probability < effective_threshold:
+                effective_threshold = self._scanner_cfg.telegram_min_probability
+
             flap_limit = getattr(self._scanner_cfg, "alert_flap_limit", 3)
             rearm_threshold = getattr(self._scanner_cfg, "alert_rearm_probability", 0.4)
+            if effective_threshold < rearm_threshold:
+                rearm_threshold = effective_threshold * 0.95
+
             ep_result = self._alert_store.process_snapshot(
                 symbol=symbol,
                 horizon_hours=horizon_hours,
                 probability=result.calibrated_probability,
-                threshold=result.threshold,
+                threshold=effective_threshold,
                 is_usable=result.quality.is_usable,
                 timestamp=sig_time,
                 flap_limit=flap_limit,
                 alert_rearm_probability=rearm_threshold,
             )
-            # Only allow Telegram dispatch if the episode state machine actually did something relevant
-            if ep_result and ep_result.transition == "OPENED":
-                episode_allows_delivery = True
+
+            telegram_cooldown = getattr(
+                self._scanner_cfg, "telegram_cooldown_minutes", self._scanner_cfg.cooldown_minutes
+            )
+            cooldown_key = f"{symbol}:{horizon_hours}h"
+            in_cooldown = bool(
+                self._alert_store.is_in_cooldown_key(cooldown_key, telegram_cooldown)
+                or self._alert_store.is_in_cooldown(symbol, telegram_cooldown)
+                or self._scan_result_store.is_prediction_telegram_in_cooldown(
+                    symbol, horizon_hours, telegram_cooldown
+                )
+            )
+
+            # Only allow Telegram dispatch if newly opened, or if continued and cooldown has expired
+            if ep_result:
+                if ep_result.transition == "OPENED":
+                    episode_allows_delivery = True
+                elif ep_result.transition == "CONTINUED" and not in_cooldown:
+                    episode_allows_delivery = True
+            else:
+                if not in_cooldown:
+                    episode_allows_delivery = True
         except Exception as exc:
             logger.warning("episode_tracker_failed", symbol=symbol, error=str(exc))
 

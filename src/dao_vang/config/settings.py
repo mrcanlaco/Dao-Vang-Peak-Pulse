@@ -486,6 +486,10 @@ class AppSettings(BaseSettings):
     research_v3_bot_token: str | None = Field(default=None, exclude=True)
     research_v3_chat_id: str | None = Field(default=None, exclude=True)
     research_v3_model_path: Path = Path("artifacts/forward48_timing_20260913/forward48_timing_research_model.joblib")
+    # Optional offline-fitted pattern template artifact.  Missing or invalid
+    # artifacts fail closed to an explicit unknown classification; they never
+    # change the champion gate or block the scanner cycle.
+    research_v3_pattern_artifact: Path = Path("artifacts/v3_pattern_model.json")
     web: WebConfig = WebConfig()
     ai: AiConfig = AiConfig()
     updater: UpdaterConfig = UpdaterConfig()

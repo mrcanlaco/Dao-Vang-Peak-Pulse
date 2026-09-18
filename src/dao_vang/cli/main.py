@@ -141,6 +141,71 @@ def experiment_train_v3(
         "promotion_eligible": False,
     }))
 
+
+@experiment_app.command("research-v3-patterns")
+def experiment_research_v3_patterns(
+    dataset_db: Path = typer.Option(
+        Path("artifacts/distribution_v3_training.duckdb"),
+        help="Read-only DuckDB/SQLite-compatible historical feature dataset",
+    ),
+    table: str = typer.Option(
+        "distribution_v3_hourly_candidates",
+        help="Dataset table",
+    ),
+    label_column: str | None = typer.Option(
+        None,
+        "--label-column",
+        help="Explicit outcome column; compact labels still require contract provenance",
+    ),
+    output: Path = typer.Option(
+        Path("artifacts/v3_pattern_research_report.json"),
+        "--output",
+        help="Research report JSON",
+    ),
+    artifact: Path = typer.Option(
+        Path("artifacts/v3_pattern_model.json"),
+        "--artifact",
+        help="Pattern template artifact for research scanner enrichment",
+    ),
+    patterns: int = typer.Option(5, "--patterns", min=1, max=20),
+) -> None:
+    """Fit V3 market templates and run independent heldout ablations.
+
+    The command is offline and research-only.  It never changes champion
+    configuration, sends Telegram messages, or certifies legacy Entry-1
+    labels as compact weighted-average outcomes.
+    """
+    from dao_vang.experiments.pattern_research_v3 import (
+        canonical,
+        run_pattern_research_from_db,
+    )
+
+    try:
+        report = run_pattern_research_from_db(
+            dataset_db,
+            table=table,
+            label_column=label_column,
+            output_path=output,
+            artifact_path=artifact,
+            n_patterns=patterns,
+        )
+    except (ValueError, KeyError, TypeError, OSError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    typer.echo(
+        canonical(
+            {
+                "report": str(output),
+                "pattern_artifact": str(artifact),
+                "evidence_kind": report.get("evidence_kind"),
+                "evidence_status": report.get("evidence_status"),
+                "promotion_eligible": False,
+                "champion_baseline": report.get("champion_baseline"),
+                "heldout": report.get("heldout"),
+                "condition_ablation": report.get("condition_ablation"),
+            }
+        )
+    )
+
 @experiment_app.command("alert-v3")
 def experiment_alert_v3(
     symbol: str = typer.Option("BEATUSDT", "--symbol", help="Coin symbol"),
@@ -1757,4 +1822,3 @@ def execution_poll(
 
 if __name__ == "__main__":
     app()
-

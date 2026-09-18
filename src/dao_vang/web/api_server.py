@@ -3518,7 +3518,7 @@ class APIHandler(BaseHTTPRequestHandler):
             risk_level = None
             sig_time = None
 
-        signal_display_time = _system_display_datetime(sig_time)
+        signal_display_time = _system_display_datetime(sig_time) if latest_alert else None
         target_drawdown = -(_current_model_target_drawdown() * 100.0)
         detail = {
             "symbol": symbol,

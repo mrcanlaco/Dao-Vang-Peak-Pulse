@@ -556,8 +556,97 @@ class TestV3Alert:
         assert result is True
         assert captured.get("chat_id") == "-100999888777"
         text = captured.get("text", "")
-        assert "V3 CHAMPION (+1.8% EV)" in text
+        assert "V3 CHAMPION" in text
+        assert "+1.8% EV" not in text
         assert "BEATUSDT" in text
         assert "Entry 1" in text
-        assert "Mục tiêu Chốt lời (TP):* `-20%`" in text
-        assert "Cắt lỗ Cứng (Stop):* `+16%`" in text
+        assert "TP reference from initial Entry 1:* `-20%`" in text
+        assert "Stop reference from initial Entry 1:* `+16%`" in text
+
+    def test_v3_alert_renders_pattern_stage_unknown_and_reference_score(
+        self, configured_notifier: TelegramNotifier
+    ) -> None:
+        captured: dict = {}
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"ok": True, "result": {"message_id": 77}}
+        mock_response.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.side_effect = lambda url, json=None, **kw: (
+            captured.update(json or {}) or mock_response
+        )
+
+        with patch("dao_vang.alerts.telegram.httpx.Client", return_value=mock_client):
+            result = configured_notifier.send_v3_alert_with_result(
+                symbol="XRPUSDT",
+                entry_price=1.0,
+                probability=0.52,
+                pump_pct=0.3,
+                distance_from_high=-0.03,
+                funding_percentile=0.9,
+                feature_time="2026-09-15T00:00:00+00:00",
+                operating_mode="research",
+                shadow_chat_id="-1009",
+                pattern_id="unknown",
+                pattern_stage="reversal",
+                pattern_status="unknown",
+                nearest_pattern="pattern_01",
+                pattern_distance=2.1,
+                pattern_discrepancies=["funding_persistence_7d"],
+                conditions={
+                    "pump": True,
+                    "reversal": True,
+                    "funding": True,
+                    "funding_change": True,
+                    "score": True,
+                    "funding_persistence": True,
+                },
+                score_kind="reference_model_score",
+            )
+
+        assert result == {"message_id": 77}
+        text = captured["text"]
+        assert "[PATTERN:unknown]" in text
+        assert "[STAGE:REVERSAL]" in text
+        assert "Nearest pattern" in text
+        assert "Discrepancies" in text
+        assert "Reference model score" in text
+        assert "5/5 configured conditions met" in text
+        assert "reference score" in text
+        assert "52.0%" not in text
+
+    def test_v3_outcome_update_replies_and_separates_post_stop_price_only(
+        self, configured_notifier: TelegramNotifier
+    ) -> None:
+        captured: dict = {}
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"ok": True, "result": {"message_id": 78}}
+        mock_response.raise_for_status = MagicMock()
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.side_effect = lambda url, json=None, **kw: (
+            captured.update(json or {}) or mock_response
+        )
+
+        with patch("dao_vang.alerts.telegram.httpx.Client", return_value=mock_client):
+            result = configured_notifier.send_v3_outcome_update_with_result(
+                symbol="XRPUSDT",
+                outcome_type="target_after_stop",
+                status="target_after_stop",
+                operating_mode="research",
+                shadow_chat_id="-1009",
+                chat_id="-1009",
+                reply_to_message_id=77,
+                price_only_post_stop=True,
+                frozen_average_entry=100.0,
+                frozen_target_price=80.0,
+                horizon_time="2026-09-17T00:00:00+00:00",
+            )
+
+        assert result == {"message_id": 78}
+        assert captured["reply_parameters"] == {"message_id": 77}
+        assert "POST-STOP PRICE-ONLY TRACK" in captured["text"]
+        assert "not an actual outcome" in captured["text"]
+        assert "80" in captured["text"]

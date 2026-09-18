@@ -208,11 +208,12 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   }, [telemetryData?.next_scan_in_seconds]);
 
   useEffect(() => {
+    if (activeTab !== 'TELEMETRY') return;
     const timer = setInterval(() => {
       setLocalCountdown(prev => (prev != null && prev > 0) ? prev - 1 : prev);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [activeTab]);
   const executionStatusLabels: Record<string, string> = {
     'ALERT FIRED': getExecutionStatusLabel('ALERT FIRED', language),
     COMPLETED: getExecutionStatusLabel('COMPLETED', language),
@@ -315,6 +316,17 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
     ? (candleDataOverride || coinDetail?.chart_data || [])
     : (candleDataOverride || []);
 
+  const formattedCandleData = useMemo(() => {
+    return candleData.map(c => ({
+      time: c.time_iso || c.time,
+      open: c.open || c.price,
+      high: c.high || c.price,
+      low: c.low || c.price,
+      close: c.close || c.price,
+      volume: c.volume || 0,
+    }));
+  }, [candleData]);
+
   // When a signal from RADAR is selected, keep its decision fields in sync
   // while preserving live market metrics from coinDetail (especially funding).
   // Fallback to selectedSignal or first candidate if coinDetail has not loaded yet.
@@ -367,7 +379,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
           risk_level: c.risk || 'MEDIUM',
           target_drawdown: 0.05,
           target_price: c.price * 0.95,
-          signal_timestamp: new Date().toISOString(),
+          signal_timestamp: null,
           chart_data: [],
           metrics: {
             oi_change_24h: c.oi_24h ?? 'N/A',
@@ -403,14 +415,19 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
   }, [coinDetail, selectedSignal, candidates]);
 
   const decisionContainerRef = useRef<HTMLDivElement>(null);
+  const prevDecisionSymbolRef = useRef<string | null>(null);
 
-  // Reset scroll to top when coin changes or tab switches to DECISION
+  // Reset scroll to top ONLY when coin actually changes to a different symbol
   useEffect(() => {
     if (activeTab === 'DECISION') {
-      if (decisionContainerRef.current) {
-        decisionContainerRef.current.scrollTop = 0;
+      const currentSymbol = displayDetail?.symbol || null;
+      if (currentSymbol && currentSymbol !== prevDecisionSymbolRef.current) {
+        prevDecisionSymbolRef.current = currentSymbol;
+        if (decisionContainerRef.current) {
+          decisionContainerRef.current.scrollTop = 0;
+        }
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       }
-      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     }
   }, [displayDetail?.symbol, activeTab]);
 
@@ -489,7 +506,11 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
       });
     }
 
-    if (coinSignals.length === 0 && displayDetail.signal_timestamp) {
+    if (
+      coinSignals.length === 0 &&
+      displayDetail.signal_timestamp &&
+      Boolean(displayDetail.has_alert)
+    ) {
       coinSignals.push({
         id: `${displayDetail.symbol}-${displayDetail.signal_timestamp}`,
         time: displayDetail.signal_timestamp,
@@ -717,14 +738,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
                     {/* Candlestick chart (TradingView lightweight-charts) */}
                     <CandlestickChart
                       symbol={displayDetail?.symbol}
-                      data={candleData.map(c => ({
-                        time: c.time_iso || c.time,
-                        open: c.open || c.price,
-                        high: c.high || c.price,
-                        low: c.low || c.price,
-                        close: c.close || c.price,
-                        volume: c.volume || 0,
-                      }))}
+                      data={formattedCandleData}
                       targetPrice={displayDetail.target_price}
                       signalMarkers={chartSignalMarkers}
                       tradeSetup={tradeSetup}

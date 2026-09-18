@@ -16,6 +16,7 @@ from hashlib import sha256
 from math import isfinite
 from pathlib import Path
 
+from dao_vang.labels.dual_outcomes_v3 import evaluate_dual
 from dao_vang.labels.engine_v3 import Bar, Funding, aware, evaluate, positive
 from dao_vang.labels.specs.distribution_short_v3 import SPEC, TIMING
 
@@ -259,14 +260,25 @@ def replay(payload: dict) -> dict:
         ]
         through = path.get("funding_coverage_through")
         for diagnostic in (False, True):
-            outcome = evaluate(
-                signal_time=snapshot["feature_time"],
-                signal_price=snapshot["signal_price"],
-                bars=bars,
-                funding=funding,
-                funding_coverage_through=time_value(through) if through else None,
-                entry1_only=diagnostic,
-            )
+            if diagnostic:
+                # Preserve the historical Entry-1 diagnostic as a separate
+                # mode; it is never represented as compact policy evidence.
+                outcome = evaluate(
+                    signal_time=snapshot["feature_time"],
+                    signal_price=snapshot["signal_price"],
+                    bars=bars,
+                    funding=funding,
+                    funding_coverage_through=time_value(through) if through else None,
+                    entry1_only=True,
+                )
+            else:
+                outcome = evaluate_dual(
+                    signal_time=snapshot["feature_time"],
+                    signal_price=snapshot["signal_price"],
+                    bars=bars,
+                    funding=funding,
+                    funding_coverage_through=time_value(through) if through else None,
+                )
             evaluations.append({"event_id": event_id, **outcome.to_dict()})
     summary = {}
     primary = {

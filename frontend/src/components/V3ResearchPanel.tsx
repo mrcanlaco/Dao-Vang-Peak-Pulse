@@ -2,7 +2,59 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from '../i18n/LanguageContext';
 import { formatSystemTime } from '../utils/time';
 
-type Fill = { leg: number; price: number; average_entry: number; target_price: number; stop_price: number };
+type Fill = { leg: number; price: number; average_entry: number; target_price: number; stop_price: number; filled_at?: string };
+type PatternDiscrepancy = {
+  feature?: string;
+  value?: number | string | null;
+  template_value?: number | string | null;
+  standardized_abs_error?: number | null;
+  [key: string]: unknown;
+};
+type PostStopTracking = {
+  status?: string;
+  price_only?: boolean;
+  price_only_post_stop?: boolean;
+  frozen_average_at_stop?: number | null;
+  frozen_average_entry?: number | null;
+  frozen_target_price?: number | null;
+  stop_average_entry?: number | null;
+  average_entry_at_stop?: number | null;
+  return_from_frozen_average?: number | null;
+  post_stop_return?: number | null;
+  horizon_hours?: number;
+  original_horizon_hours?: number;
+  horizon_time?: string | null;
+  target_time?: string | null;
+  target_after_stop?: boolean;
+  target_price?: number | null;
+  exclusion_reason?: string | null;
+  fills?: Fill[];
+  no_fills?: boolean;
+  started_at?: string | null;
+  ended_at?: string | null;
+};
+type Outcome = {
+  status: string;
+  fills: Fill[];
+  exit_price: number | null;
+  exclusion_reason: string | null;
+  actual_outcome?: boolean | null;
+  actual_win?: boolean | null;
+  eligible?: boolean | null;
+  label?: number | null;
+  funding_verified?: boolean | null;
+  paired_evidence_eligible?: boolean | null;
+  outcome_kind?: string | null;
+  price_only_post_stop?: boolean;
+  post_stop?: PostStopTracking | null;
+  post_stop_tracking?: PostStopTracking | null;
+  stop_average_entry?: number | null;
+  frozen_average_at_stop?: number | null;
+  post_stop_return?: number | null;
+  original_horizon_hours?: number | null;
+  frozen_average_entry?: number | null;
+  frozen_target_price?: number | null;
+};
 type CriteriaProgress = {
   score: number;
   met_count: number;
@@ -11,6 +63,7 @@ type CriteriaProgress = {
     pump: { current: number; target: number; passed: boolean };
     reversal: { current: number; target: number; passed: boolean };
     funding: { current: number; target: number; passed: boolean };
+    funding_persistence: { current: number | null; target: number; passed: boolean };
     funding_change: { current: number; target: number; passed: boolean };
     score: { current: number; target: number; passed: boolean };
   };
@@ -18,10 +71,27 @@ type CriteriaProgress = {
 type Item = {
   id: string; symbol: string; feature_time: string; selected: boolean; scout: boolean; champion?: boolean;
   score: number; reason: string; price: number;
-  price_ret_24h?: number; distance_from_high_24h?: number; funding_percentile_30d?: number; funding_change_8h?: number;
+  price_ret_24h?: number; distance_from_high_24h?: number; funding_percentile_30d?: number; funding_persistence_7d?: number; funding_change_8h?: number;
   progress?: CriteriaProgress;
   entry_plan: { leg: number; price: number; notional_weight: number }[];
-  outcome?: { status: string; fills: Fill[]; exit_price: number | null; exclusion_reason: string | null } | null;
+  outcome?: Outcome | null;
+  pattern_id?: string | null;
+  pattern_type?: string | null;
+  pattern_stage?: string | null;
+  pattern_status?: string | null;
+  nearest_pattern?: string | null;
+  pattern_distance?: number | null;
+  pattern_discrepancies?: PatternDiscrepancy[] | string[] | string | null;
+  pattern_quality?: string | null;
+  quality_status?: string | null;
+  data_quality_score?: number | null;
+  high_quality?: boolean | null;
+  quality_validated?: boolean | null;
+  evidence_corroborated?: boolean | null;
+  validated_evidence?: boolean | null;
+  evidence_kind?: string | null;
+  score_kind?: string | null;
+  post_stop?: PostStopTracking | null;
 };
 type DiscoveryItem = { symbol: string; ticker_return_24h: number; feature_return_24h: number | null;
   ticker_time: string; feature_time?: string | null; first_seen: string; discovery_reason: string;
@@ -30,16 +100,84 @@ type DiscoveryItem = { symbol: string; ticker_return_24h: number; feature_return
 type Snapshot = { status: string; stale?: boolean; updated_at?: string; activated_at?: string; candidate_count?: number; entry_count?: number; items?: Item[];
   discovery?: { status: string; stale?: boolean; updated_at?: string; market_count?: number; deferred_count?: number; items: DiscoveryItem[] } };
 
+const postStopTracking = (item: Item): PostStopTracking | null => {
+  const outcome = item.outcome;
+  const tracking = outcome?.post_stop_tracking || outcome?.post_stop || item.post_stop;
+  if (tracking && String(tracking.status || '').toLowerCase() === 'not_applicable'
+    && !tracking.price_only && !tracking.price_only_post_stop
+    && !outcome?.price_only_post_stop && outcome?.outcome_kind !== 'price_only_post_stop') return null;
+  if (!tracking && !(outcome?.price_only_post_stop || outcome?.outcome_kind === 'price_only_post_stop')) return null;
+  return tracking || {
+    price_only: true,
+    price_only_post_stop: true,
+    frozen_average_at_stop: outcome?.frozen_average_at_stop ?? outcome?.stop_average_entry ?? null,
+    frozen_average_entry: outcome?.frozen_average_entry ?? null,
+    frozen_target_price: outcome?.frozen_target_price ?? null,
+    post_stop_return: outcome?.post_stop_return ?? null,
+    original_horizon_hours: outcome?.original_horizon_hours ?? 48,
+  };
+};
+
+const hasActualOutcome = (outcome?: Outcome | null): boolean => {
+  if (!outcome) return false;
+  const status = String(outcome.status).toLowerCase();
+  if (['post_stop', 'post_stop_price_only', 'target_after_stop', 'timeout_after_stop', 'price_only_post_stop'].includes(status)) return false;
+  if (outcome.actual_outcome === false || outcome.price_only_post_stop || outcome.outcome_kind === 'price_only_post_stop') return false;
+  if (outcome.actual_outcome === true) return true;
+  return ['target', 'stop', 'stop_ambiguous', 'timeout'].includes(status);
+};
+
+const isHighQuality = (item: Item): boolean => {
+  // ``quality_status=valid`` and a numeric score describe source hygiene, not
+  // validated pattern evidence.  The backend must explicitly certify the
+  // high-quality lane; corroboration flags can only veto that certification.
+  const certified = item.high_quality === true
+    || item.quality_validated === true
+    || String(item.pattern_quality || '').toLowerCase() === 'high_quality';
+  if (!certified) return false;
+  return item.evidence_corroborated !== false && item.validated_evidence !== false;
+};
+
+const patternDiscrepancyText = (value: PatternDiscrepancy[] | string[] | string | null | undefined): string => {
+  if (!Array.isArray(value)) return value || '';
+  return value.map(entry => {
+    if (typeof entry === 'string') return entry;
+    const feature = entry.feature || 'feature';
+    const current = entry.value == null ? '—' : String(entry.value);
+    const template = entry.template_value == null ? '—' : String(entry.template_value);
+    const error = entry.standardized_abs_error == null ? '' : ` (|z| ${entry.standardized_abs_error})`;
+    return `${feature}: ${current} vs ${template}${error}`;
+  }).join(', ');
+};
+
 const getProgress = (item: Item): CriteriaProgress => {
-  if (item.progress && item.progress.criteria) return item.progress;
+  if (item.progress && item.progress.criteria && item.progress.criteria.score) {
+    const criteria = item.progress.criteria;
+    const persistence = criteria.funding_persistence || {
+      current: item.funding_persistence_7d ?? null,
+      target: 0,
+      passed: Number(item.funding_persistence_7d ?? 0) > 0,
+    };
+    const market = [criteria.pump, criteria.reversal, criteria.funding, criteria.funding_change, criteria.score];
+    const met = market.filter(condition => condition.passed).length;
+    return {
+      ...item.progress,
+      score: Math.round((met / 5) * 100),
+      met_count: met,
+      total_count: 5,
+      criteria: { ...criteria, funding_persistence: persistence },
+    };
+  }
   const p = Number(item.price_ret_24h ?? 0);
   const d = Number(item.distance_from_high_24h ?? 0);
   const f = Number(item.funding_percentile_30d ?? 0);
+  const fp = Number(item.funding_persistence_7d ?? 0);
   const fc = Number(item.funding_change_8h ?? 0);
   const s = Number(item.score ?? 0);
   const c_pump = p >= 0.25;
   const c_rev = d <= -0.02;
   const c_fund = f >= 0.80;
+  const c_persistence = fp > 0;
   const c_chg = fc > 0;
   const c_score = s >= 0.39;
   const met = [c_pump, c_rev, c_fund, c_chg, c_score].filter(Boolean).length;
@@ -51,6 +189,7 @@ const getProgress = (item: Item): CriteriaProgress => {
       pump: { current: p, target: 0.25, passed: c_pump },
       reversal: { current: d, target: -0.02, passed: c_rev },
       funding: { current: f, target: 0.80, passed: c_fund },
+      funding_persistence: { current: fp, target: 0.0, passed: c_persistence },
       funding_change: { current: fc, target: 0.0, passed: c_chg },
       score: { current: s, target: 0.39, passed: c_score },
     },
@@ -63,6 +202,7 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState(false);
   const [scope, setScope] = useState<'all' | 'parent' | 'scout' | 'champion'>('all');
+  const [qualityFilter, setQualityFilter] = useState<'all' | 'high'>('all');
   useEffect(() => {
     const controller = new AbortController();
     let active = true;
@@ -78,7 +218,10 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
     const timer = window.setInterval(() => void refresh(), 30000);
     return () => { active = false; controller.abort(); window.clearInterval(timer); };
   }, []);
-  const items = (snapshot?.items || []).filter(item => scope === 'all' || (scope === 'parent' ? item.selected : scope === 'scout' ? item.scout : item.champion));
+  const items = (snapshot?.items || []).filter(item => {
+    const inScope = scope === 'all' || (scope === 'parent' ? item.selected : scope === 'scout' ? item.scout : item.champion);
+    return inScope && (qualityFilter === 'all' || isHighQuality(item));
+  });
   const price = (value: number) => new Intl.NumberFormat(vi ? 'vi-VN' : 'en-US', { maximumSignificantDigits: 7 }).format(value);
   const stateLabel: Record<string, string> = vi ? {
     DETECTED: 'Đã phát hiện', BACKFILLING: 'Đang bổ sung lịch sử', DATA_READY: 'Dữ liệu sẵn sàng',
@@ -88,8 +231,10 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
     closed_return_below_15pct: 'Mức tăng theo nến đóng chưa đạt 15%', waiting_hourly_confirmation: 'Chờ đánh giá tại mốc hàng giờ',
     ticker_stale: 'Giá thị trường đã cũ', below_volume: 'Khối lượng dưới 1 triệu USD/24h', capacity_deferred: 'Chờ lượt thu thập: đã đạt giới hạn',
     running: 'Đang thu thập', waiting: 'Chờ chu kỳ quét', disabled: 'Chưa bật trên máy chủ',
-    error: 'Nhánh thử nghiệm đang lỗi', target: 'Đạt TP theo giá', stop: 'Chạm stop', stop_ambiguous: 'Stop — nến không rõ thứ tự',
+    error: 'Nhánh thử nghiệm đang lỗi', target: 'Đạt TP theo giá thực tế', target_after_stop: 'Giá đạt TP sau stop (chỉ theo dõi giá)', stop: 'Chạm stop thực tế', stop_ambiguous: 'Stop — nến không rõ thứ tự',
     timeout: 'Hết 48h', open: 'Đang theo dõi', incomplete_final: 'Thiếu dữ liệu kết thúc',
+    price_only_post_stop: 'Theo dõi giá sau stop (không phải outcome thực tế)', post_stop: 'Theo dõi giá sau stop (không phải outcome thực tế)',
+    unknown: 'Chưa nhận diện mẫu', unmatched: 'Chưa khớp mẫu', uncertain: 'Mẫu chưa chắc chắn',
     confirmation_pending: 'Chờ đủ xác nhận', episode_too_young: 'Episode chưa đủ 4h', peak_below_30pct: 'Đỉnh tăng chưa đạt 30%',
     episode_already_consumed: 'Episode đã có quyết định', symbol_cooldown: 'Đang trong thời gian nghỉ',
     score_below_reference_threshold: 'Điểm dưới ngưỡng tham chiếu', stablecoin: 'Loại stablecoin',
@@ -101,17 +246,19 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
     features_stale: 'Stale features', closed_return_below_15pct: 'Closed-candle return below 15%', waiting_hourly_confirmation: 'Waiting for hourly assessment',
     ticker_stale: 'Stale market price', below_volume: 'Volume below $1M/24h', capacity_deferred: 'Collection capacity reached',
     running: 'Collecting', waiting: 'Waiting for scanner', disabled: 'Not enabled on server', error: 'Research lane error',
-    target: 'Price target hit', stop: 'Stop hit', stop_ambiguous: 'Ambiguous stop', timeout: '48h timeout', open: 'Tracking', incomplete_final: 'Incomplete final data',
+    target: 'Actual TP outcome', target_after_stop: 'Price target after stop (price-only tracking)', stop: 'Actual stop outcome', stop_ambiguous: 'Ambiguous stop', timeout: '48h timeout', open: 'Tracking', incomplete_final: 'Incomplete final data',
+    price_only_post_stop: 'Post-stop price-only tracking (not an actual outcome)', post_stop: 'Post-stop price-only tracking (not an actual outcome)',
+    unknown: 'Pattern unknown', unmatched: 'Pattern unmatched', uncertain: 'Pattern uncertain',
     reversal_not_confirmed: 'Awaiting ≥2% reversal from peak', funding_gate_failed: 'Funding Scout gate not met', funding_features_missing: 'Funding features missing',
     pump_below_25pct: '24h pump below 25%' };
   return <section data-testid="v3-research" className="flex flex-col gap-4 min-h-[400px] lg:h-full overflow-auto p-2 sm:p-4 text-slate-200">
     <div className="flex flex-wrap justify-between items-start gap-3">
       <div><h2 className="text-lg font-bold text-amber-400">{vi ? 'Thử nghiệm V3 · Champion (Pump ≥25% + Đảo chiều)' : 'V3 Champion · (Pump ≥25% + Reversal)'}</h2>
-        <p className="text-xs text-slate-400 mt-1">{vi ? 'Công thức tối ưu: Bơm kiệt sức ≥25% · Đảo chiều ≥2% · Cước phí Funding Scout (EV +1.80%)' : 'Optimal formula: Climax pump ≥25% · Reversal ≥2% · Funding Scout (EV +1.80%)'}</p></div>
+        <p className="text-xs text-slate-400 mt-1">{vi ? 'Các điều kiện V3 đang được quan sát: Bơm kiệt sức ≥25% · Đảo chiều ≥2% · Funding Scout' : 'Configured V3 conditions under observation: Climax pump ≥25% · Reversal ≥2% · Funding Scout'}</p></div>
       <button onClick={onClose} className="px-3 py-2 rounded-lg border border-slate-600 text-sm">{vi ? 'Về ứng dụng' : 'Back to app'}</button>
     </div>
     <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm leading-relaxed">
-      {vi ? 'Mô phỏng thử nghiệm V3 Champion: Bơm kiệt sức ≥25% + Rơi từ đỉnh ≥2% + Cước Funding Scout. TP −20% / Stop +16% từ giá trung bình theo Compact Policy (0, +3%, +6% | 20/30/50). Thời hạn 48h.' : 'V3 Champion simulation: Climax pump ≥25% + Reversal from peak ≥2% + Funding Scout. TP −20% / Stop +16% from average entry under Compact Policy (0, +3%, +6% | 20/30/50). Horizon 48h.'}
+      {vi ? 'Mô phỏng thử nghiệm V3 Champion: Bơm kiệt sức ≥25% + Rơi từ đỉnh ≥2% + Funding Scout. TP −20% / Stop +16% từ giá trung bình theo cấu hình hiện tại (0, +3%, +6% | 20/30/50). Thời hạn 48h.' : 'V3 Champion observation: Climax pump ≥25% + Reversal from peak ≥2% + Funding Scout. TP −20% / Stop +16% from average entry under the current configuration (0, +3%, +6% | 20/30/50). Horizon 48h.'}
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
       <div className="rounded-lg bg-slate-800 p-3" role="status">{error ? (vi ? 'Không tải được dữ liệu' : 'Unable to load data') : snapshot?.stale ? (vi ? 'Dữ liệu đã cũ — cần kiểm tra scanner' : 'Stale data — check scanner') : stateLabel[snapshot?.status || 'waiting'] || snapshot?.status}
@@ -141,13 +288,23 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
     <div className="flex flex-wrap gap-2" aria-label={vi ? 'Chọn nhánh' : 'Select lane'}>
       {(['all', 'parent', 'scout', 'champion'] as const).map(key => <button key={key} onClick={() => setScope(key)} aria-pressed={scope === key}
         className={`rounded-lg px-3 py-2 text-xs border ${scope === key ? 'border-amber-400 text-amber-300' : 'border-slate-700'}`}>
-        {key === 'all' ? (vi ? 'Tất cả quan sát' : 'All observations') : key === 'parent' ? 'Challenger' : key === 'scout' ? 'Funding Scout' : (vi ? '★ Champion (+1.8% EV)' : '★ Champion (+1.8% EV)')}
+        {key === 'all' ? (vi ? 'Tất cả quan sát' : 'All observations') : key === 'parent' ? 'Challenger' : key === 'scout' ? 'Funding Scout' : (vi ? '★ Champion' : '★ Champion')}
       </button>)}
+      <button onClick={() => setQualityFilter(qualityFilter === 'all' ? 'high' : 'all')} aria-pressed={qualityFilter === 'high'}
+        className={`rounded-lg px-3 py-2 text-xs border ${qualityFilter === 'high' ? 'border-emerald-400 text-emerald-300' : 'border-slate-700'}`}>
+        {qualityFilter === 'high' ? (vi ? 'Chỉ chất lượng cao' : 'High-quality only') : (vi ? 'Mọi chất lượng' : 'All quality')}
+      </button>
     </div>
+    <p className="text-[11px] text-slate-500 -mt-2">{vi ? 'Bộ lọc này chỉ thay đổi hiển thị; không chặn tín hiệu đủ điều kiện gửi Telegram.' : 'This filter changes display only; it never suppresses an eligible Telegram signal.'}</p>
     {!items.length && <p className="p-6 text-sm text-slate-400">{vi ? 'Chưa có quan sát phù hợp. Nhánh v3 chỉ ghi dữ liệu từ lúc bật; cần đủ episode 4h và xác nhận để có Entry1, không lấy backtest cũ làm tín hiệu mới.' : 'No matching observations. V3 starts at activation and needs a 4h episode plus confirmations. Old backtests are not shown as new signals.'}</p>}
     {items.map(item => {
-      const last = item.outcome?.fills.at(-1);
+      const last = item.outcome?.fills?.at(-1);
       const prog = getProgress(item);
+      const actualOutcome = hasActualOutcome(item.outcome);
+      const postStop = postStopTracking(item);
+      const patternStatus = String(item.pattern_status || 'unknown').toLowerCase();
+      const patternName = item.pattern_type || item.pattern_id || 'UNKNOWN';
+      const discrepancies = patternDiscrepancyText(item.pattern_discrepancies);
       return <article key={item.id} className="rounded-xl border border-slate-700 bg-slate-900 p-3 sm:p-4">
         <div className="flex flex-wrap gap-2 justify-between items-center">
           <h3 className="font-bold flex items-center gap-2">
@@ -158,8 +315,11 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
               item.selected ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40' :
               'bg-slate-800 text-slate-400 border border-slate-700'
             }`}>
-              {item.champion ? '★ Champion (+1.8% EV)' : item.scout ? 'Challenger + Scout' : item.selected ? 'Challenger' : (vi ? 'Quan sát' : 'Observation')}
+              {item.champion ? '★ Champion' : item.scout ? 'Challenger + Scout' : item.selected ? 'Challenger' : (vi ? 'Quan sát' : 'Observation')}
             </span>
+            {isHighQuality(item) && <span className="text-[10px] px-2 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-300">
+              {vi ? 'Bằng chứng chất lượng cao' : 'High-quality evidence'}
+            </span>}
           </h3>
           <span className="text-xs text-slate-400 font-mono">{formatSystemTime(item.feature_time)}</span>
         </div>
@@ -167,11 +327,28 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
           {stateLabel[item.outcome?.status || item.reason] || item.outcome?.status || item.reason} · {vi ? 'Điểm tham chiếu' : 'Reference score'} <span className="font-mono font-bold text-amber-400">{item.score.toFixed(3)}</span>
         </p>
 
-        {/* Bảng Tiến trình theo Công thức Win V3 Champion */}
+        <div data-testid={`v3-pattern-${item.symbol}`} className="rounded-lg border border-cyan-500/30 bg-cyan-500/5 p-2.5 text-xs">
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="font-mono text-cyan-200">[PATTERN:{patternName}]</span>
+            <span className="font-mono text-amber-200">[STAGE:{String(item.pattern_stage || 'SIGNAL').toUpperCase()}]</span>
+            <span className={patternStatus === 'unknown' || patternStatus === 'unmatched' || patternStatus === 'uncertain' ? 'text-amber-300' : 'text-emerald-300'}>
+              {stateLabel[patternStatus] || patternStatus}
+            </span>
+          </div>
+          {(patternStatus === 'unknown' || patternStatus === 'unmatched' || patternStatus === 'uncertain') && <p className="mt-1 text-slate-300">
+            {vi ? 'Mẫu gần nhất: ' : 'Nearest pattern: '}<span className="font-mono">{item.nearest_pattern || '—'}</span>
+            {item.pattern_distance != null && <> · {vi ? 'khoảng cách: ' : 'distance: '}{Number(item.pattern_distance).toFixed(3)}</>}
+          </p>}
+          {discrepancies && <p className="mt-1 text-amber-200">{vi ? 'Sai khác: ' : 'Discrepancies: '}{discrepancies}</p>}
+          <p className="mt-1 text-slate-400">{vi ? 'Bằng chứng: ' : 'Evidence: '}{isHighQuality(item) ? (vi ? 'đã xác thực chất lượng cao' : 'validated high-quality') : (vi ? 'chưa xác thực chất lượng' : 'not quality-validated')}
+            {item.evidence_kind && <> · {item.evidence_kind}</>}</p>
+        </div>
+
+        {/* Configured five-condition progress. */}
         <div className="my-2 bg-slate-800/80 rounded-lg p-2.5 border border-slate-700/60">
           <div className="flex justify-between items-center text-xs mb-1.5 font-medium">
             <span className="text-slate-300 flex items-center gap-1.5">
-              <span>{vi ? 'Tiến trình mốc Champion:' : 'Champion criteria progress:'}</span>
+              <span>{vi ? 'Tiến trình 5 điều kiện cấu hình:' : 'Configured five-condition progress:'}</span>
               <span className={`font-bold ${prog.score >= 80 ? 'text-emerald-400' : prog.score >= 60 ? 'text-amber-400' : 'text-slate-400'}`}>
                 {prog.met_count}/5 {vi ? 'điều kiện' : 'met'} ({prog.score}%)
               </span>
@@ -190,7 +367,7 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
               style={{ width: `${Math.max(6, prog.score)}%` }}
             />
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-2.5 text-[11px] font-mono">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 mt-2.5 text-[11px] font-mono">
             <div className={`p-1.5 rounded border ${prog.criteria.pump.passed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-slate-900/80 border-slate-700/50 text-slate-300'}`}>
               <div className="text-[9px] text-slate-400 font-sans">{vi ? 'Bơm 24h (Mốc ≥25%)' : '24h Pump (≥25%)'}</div>
               <div className="font-bold flex items-center justify-between mt-0.5">
@@ -212,14 +389,29 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
                 <span className="text-[10px]">{prog.criteria.funding.passed ? '✅' : '⏳'}</span>
               </div>
             </div>
-            <div className={`p-1.5 rounded border ${prog.criteria.score.passed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-slate-900/80 border-slate-700/50 text-slate-300'}`}>
-              <div className="text-[9px] text-slate-400 font-sans">{vi ? 'Score (Mốc ≥0.39)' : 'Score (≥0.39)'}</div>
+            <div className={`p-1.5 rounded border ${prog.criteria.funding_change.passed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-slate-900/80 border-slate-700/50 text-slate-300'}`}>
+              <div className="text-[9px] text-slate-400 font-sans">{vi ? 'Funding 8h (tăng)' : 'Funding change (8h)'}</div>
               <div className="font-bold flex items-center justify-between mt-0.5">
-                <span>{item.score.toFixed(3)}</span>
+                <span>{(prog.criteria.funding_change.current * 100).toFixed(2)}%</span>
+                <span className="text-[10px]">{prog.criteria.funding_change.passed ? '✅' : '⏳'}</span>
+              </div>
+            </div>
+            <div className={`p-1.5 rounded border ${prog.criteria.score.passed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-slate-900/80 border-slate-700/50 text-slate-300'}`}>
+              <div className="text-[9px] text-slate-400 font-sans">{vi ? 'Điểm tham chiếu (≥.39)' : 'Reference score (≥.39)'}</div>
+              <div className="font-bold flex items-center justify-between mt-0.5">
+                <span>{prog.criteria.score.current.toFixed(3)}</span>
                 <span className="text-[10px]">{prog.criteria.score.passed ? '✅' : '⏳'}</span>
               </div>
             </div>
+            <div className={`p-1.5 rounded border ${prog.criteria.funding_persistence.passed ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-slate-900/80 border-slate-700/50 text-slate-300'}`}>
+              <div className="text-[9px] text-slate-400 font-sans">{vi ? 'Funding bền 7 ngày' : 'Funding persistence (7d)'}</div>
+              <div className="font-bold flex items-center justify-between mt-0.5">
+                <span>{(Number(prog.criteria.funding_persistence.current ?? 0) * 100).toFixed(2)}%</span>
+                <span className="text-[10px]">{prog.criteria.funding_persistence.passed ? '✅' : '⏳'}</span>
+              </div>
+            </div>
           </div>
+          <p className="text-[10px] text-slate-400 mt-1.5">{vi ? 'Điểm tham chiếu / điều kiện thời điểm: ' : 'Reference score / timing eligibility: '}<span className="font-mono text-amber-300">{item.score.toFixed(3)}</span></p>
         </div>
         {item.selected && <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">{item.entry_plan.map(leg => <div key={leg.leg} className="bg-slate-800 rounded p-2">
@@ -229,6 +421,23 @@ export function V3ResearchPanel({ onClose }: { onClose: () => void }) {
           <p className="text-sm mt-3 break-words">{vi ? 'Giá TB' : 'Average'}: {price(last?.average_entry ?? item.price)} · TP: {price(last?.target_price ?? item.price * 0.8)} · Stop: {price(last?.stop_price ?? item.price * 1.16)}</p>
           <p className="text-xs text-slate-400 mt-1">{vi ? 'Tỷ trọng theo notional kế hoạch; không phải mức ký quỹ hoặc đòn bẩy.' : 'Weights use planned notional, not margin or leverage.'}</p>
         </>}
+        {item.outcome && <div data-testid={`v3-outcome-${item.symbol}`} className={`mt-3 rounded-lg border p-2.5 text-sm ${actualOutcome ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'}`}>
+          <div className="flex flex-wrap justify-between gap-2">
+            <strong>{actualOutcome ? (vi ? 'Đường giá outcome thực tế mô phỏng' : 'Actual simulated price-path outcome') : (vi ? 'Trạng thái chưa phải outcome thực tế' : 'Not an actual outcome')}</strong>
+            <span className="font-mono text-xs">{stateLabel[item.outcome.status] || item.outcome.status}</span>
+          </div>
+          {item.outcome.exit_price != null && <p className="text-xs mt-1">{vi ? 'Giá thoát: ' : 'Exit price: '}{price(item.outcome.exit_price)}</p>}
+          {item.outcome.exclusion_reason && <p className="text-xs text-amber-200 mt-1">{item.outcome.exclusion_reason}</p>}
+          {actualOutcome && item.outcome.eligible === false && <p className="text-xs text-amber-200 mt-1">{vi ? 'Đường giá đã kết thúc nhưng chưa đủ điều kiện/cost coverage để dùng làm nhãn đủ điều kiện.' : 'The price path resolved, but funding/cost coverage is not eligible for a fully costed label.'}</p>}
+        </div>}
+        {postStop && <div data-testid={`v3-post-stop-${item.symbol}`} className="mt-2 rounded-lg border border-sky-500/30 bg-sky-500/5 p-2.5 text-sm">
+          <strong className="text-sky-200">{vi ? 'Theo dõi giá sau stop — không phải outcome thực tế' : 'Post-stop price-only tracking — not an actual outcome'}</strong>
+          <p className="text-xs text-slate-300 mt-1">{vi ? 'Không thêm fill sau stop; giữ nguyên giá TB tại thời điểm stop trong cửa sổ gốc ' : 'No fills are added after stop; average at stop is frozen for the original '}{postStop.original_horizon_hours ?? postStop.horizon_hours ?? 48}h.</p>
+          {(postStop.frozen_average_at_stop ?? postStop.frozen_average_entry ?? postStop.stop_average_entry ?? postStop.average_entry_at_stop) != null && <p className="text-xs text-slate-300 mt-1">{vi ? 'Giá TB đóng băng: ' : 'Frozen average at stop: '}{price(Number(postStop.frozen_average_at_stop ?? postStop.frozen_average_entry ?? postStop.stop_average_entry ?? postStop.average_entry_at_stop))}</p>}
+          {postStop.frozen_target_price != null && <p className="text-xs text-sky-200 mt-1">{vi ? 'Mốc TP chỉ theo dõi giá: ' : 'Price-only target reference: '}{price(Number(postStop.frozen_target_price))}</p>}
+          {(postStop.target_time || postStop.horizon_time) && <p className="text-xs text-slate-400 mt-1">{vi ? 'Mốc giá: ' : 'Price timestamps: '}{postStop.target_time ? formatSystemTime(postStop.target_time) : '—'}{postStop.horizon_time && <> · {vi ? 'Kết thúc cửa sổ: ' : 'Horizon end: '}{formatSystemTime(postStop.horizon_time)}</>}</p>}
+          {(postStop.post_stop_return ?? postStop.return_from_frozen_average) != null && <p className="text-xs text-sky-200 mt-1">{vi ? 'Biến động chỉ theo giá: ' : 'Price-only return: '}{(Number(postStop.post_stop_return ?? postStop.return_from_frozen_average) * 100).toFixed(1)}%</p>}
+        </div>}
       </article>;
     })}
   </section>;

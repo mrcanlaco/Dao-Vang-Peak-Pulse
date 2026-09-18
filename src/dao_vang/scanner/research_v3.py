@@ -1,4 +1,4 @@
-"""Persistent observation-only v3 lane. Never submits orders or Telegram alerts."""
+"""Persistent observation-only v3 lane; optional durable research notifications, no orders."""
 
 from __future__ import annotations
 
@@ -20,7 +20,8 @@ from dao_vang.experiments.distribution_v3 import (
     time_value,
 )
 from dao_vang.experiments.distribution_v3_market import boundary, file_hash
-from dao_vang.labels.engine_v3 import Bar, evaluate
+from dao_vang.labels.dual_outcomes_v3 import evaluate_dual
+from dao_vang.labels.engine_v3 import Bar
 from dao_vang.labels.specs.distribution_short_v3 import SPEC, TIMING
 from dao_vang.scanner.watchlist import _is_stablecoin
 
@@ -95,8 +96,29 @@ def atomic_snapshot(path: Path, payload: dict) -> None:
     os.replace(temporary, path)
 
 
+def _outcome_is_terminal(payload: dict, *, now: datetime, entry_time: datetime) -> bool:
+    """Keep stopped rows open until their independent post-stop path resolves."""
+
+    status = payload.get("status")
+    if status in {"target", "timeout"}:
+        return True
+    if status == "incomplete_final":
+        return now >= entry_time + timedelta(hours=49)
+    if status in {"stop", "stop_ambiguous"}:
+        post_stop = payload.get("post_stop") or {}
+        # Old rows have no post_stop object and must be replayed once under the
+        # dual contract.  A successful post-stop target or original-horizon
+        # timeout is terminal; gaps/incomplete paths are retried for backfill.
+        return post_stop.get("status") in {
+            "target_after_stop",
+            "timeout_after_stop",
+        }
+    return False
+
+
 def observe(database, *, storage: Path, model_path: Path, now: datetime,
-            discovery: dict | None = None, settings=None) -> dict:
+            discovery: dict | None = None, settings=None,
+            pattern_artifact: Path | None = None) -> dict:
     """One bounded cycle: persist timing and inputs atomically; no fake backfill."""
     import joblib
     import pandas as pd
@@ -105,6 +127,70 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
         SERVING_FEATURE_COLS,
         _predict_calibrated,
     )
+
+    pattern_model = None
+    pattern_error: str | None = None
+    selected_pattern_artifact = pattern_artifact or getattr(
+        settings, "research_v3_pattern_artifact", None
+    )
+    if selected_pattern_artifact:
+        try:
+            from dao_vang.experiments.pattern_research_v3 import load_pattern_model
+
+            selected_pattern_artifact = Path(selected_pattern_artifact)
+            if selected_pattern_artifact.exists():
+                pattern_model = load_pattern_model(selected_pattern_artifact)
+            else:
+                pattern_error = "pattern_artifact_missing"
+        except Exception as exc:
+            # Pattern metadata is advisory.  An invalid artifact must not
+            # suppress the frozen champion lane or make the cycle fail.
+            pattern_error = f"pattern_artifact_invalid:{type(exc).__name__}"
+
+    dispatcher = None
+    if settings and getattr(settings, "research_v3_telegram_enabled", False):
+        try:
+            from dao_vang.alerts.notification_dispatcher import NotificationDispatcher
+            from dao_vang.alerts.telegram import TelegramNotifier
+            from dao_vang.config.settings import TelegramConfig
+
+            v3_bot_token = getattr(settings, "research_v3_bot_token", None) or settings.telegram.bot_token
+            v3_chat_id = (
+                getattr(settings, "research_v3_chat_id", None)
+                or getattr(settings.telegram, "shadow_chat_id", None)
+                or settings.telegram.chat_id
+            )
+            tel_cfg = TelegramConfig(
+                bot_token=v3_bot_token,
+                chat_id=v3_chat_id,
+                shadow_chat_id=v3_chat_id,
+                api_base=settings.telegram.api_base,
+                timeout_seconds=settings.telegram.timeout_seconds,
+                language=settings.telegram.language,
+            )
+            notifier = TelegramNotifier(
+                tel_cfg,
+                web_base_url=getattr(settings.web, "public_url", None),
+            )
+            dispatcher = NotificationDispatcher(
+                notifier,
+                storage_path=storage / "telegram_notifications.sqlite",
+                enabled=True,
+                operating_mode=getattr(settings.scanner, "operating_mode", "research"),
+                shadow_chat_id=v3_chat_id,
+            )
+            # Recover failed sends after a restart before adding lifecycle
+            # replies.  Outbox keys keep this idempotent.
+            dispatcher.retry_pending()
+        except Exception as exc:
+            # A notification transport failure must not stop research
+            # observation or hide the candidate from the snapshot.
+            pattern_error = pattern_error or f"notification_dispatcher_unavailable:{type(exc).__name__}"
+
+    # Stage notification payloads while observations/outcomes are inside the
+    # SQLite transaction.  They are dispatched only after the transaction
+    # commits, so a Telegram message can never refer to a rolled-back row.
+    notification_events: list[dict] = []
 
     if file_hash(model_path) != MODEL_SHA:
         raise ValueError("v3 reference model checksum mismatch")
@@ -235,12 +321,39 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                     "is_stablecoin": _is_stablecoin(symbol),
                     **features,
                 }
+                if pattern_model is not None:
+                    from dao_vang.experiments.pattern_research_v3 import (
+                        classify_snapshot,
+                    )
+
+                    pattern = classify_snapshot(snapshot, pattern_model)
+                else:
+                    pattern = {
+                        "pattern_id": "unknown",
+                        "pattern_type": "unknown",
+                        "stage": "unknown",
+                        "status": "unknown",
+                        "nearest_pattern": None,
+                        "distance": None,
+                        "radius": None,
+                        "discrepancies": [],
+                        "missing_features": list(SERVING_FEATURE_COLS),
+                        "unknown_reason": pattern_error or "pattern_artifact_unavailable",
+                        "quality_status": "unconfirmed",
+                        "model_version": None,
+                    }
                 reason, episode = timing.decide(snapshot)
                 selected = reason == "selected"
                 pump_val = float(snapshot.get("price_ret_24h", 0.0) or 0.0)
                 dist_val = float(snapshot.get("distance_from_high_24h", 0.0) or 0.0)
                 fund_pct = float(snapshot.get("funding_percentile_30d", 0.0) or 0.0)
                 fund_chg = float(snapshot.get("funding_change_8h", 0.0) or 0.0)
+                fund_persistence_raw = snapshot.get("funding_persistence_7d")
+                fund_persistence = (
+                    float(fund_persistence_raw)
+                    if fund_persistence_raw is not None and math.isfinite(float(fund_persistence_raw))
+                    else None
+                )
                 score_val = float(score)
                 c_pump = pump_val >= 0.25
                 c_rev = dist_val <= -0.02
@@ -256,6 +369,11 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                         "pump": {"current": pump_val, "target": 0.25, "passed": c_pump},
                         "reversal": {"current": dist_val, "target": -0.02, "passed": c_rev},
                         "funding": {"current": fund_pct, "target": 0.80, "passed": c_fund},
+                        "funding_persistence": {
+                            "current": fund_persistence,
+                            "target": 0.0,
+                            "passed": fund_persistence is not None and fund_persistence > 0.0,
+                        },
                         "funding_change": {"current": fund_chg, "target": 0.0, "passed": c_chg},
                         "score": {"current": score_val, "target": TIMING.score_threshold, "passed": c_score},
                     },
@@ -285,6 +403,17 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                             zip(SPEC.offsets, SPEC.notional_weights, strict=True)
                         )
                     ],
+                    # Keep a compact top-level schema for API/UI clients while
+                    # preserving the complete nested explanation object.
+                    "pattern": pattern,
+                    "pattern_id": pattern["pattern_id"],
+                    "pattern_type": pattern["pattern_type"],
+                    "pattern_stage": pattern["stage"],
+                    "pattern_status": pattern["status"],
+                    "nearest_pattern": pattern.get("nearest_pattern"),
+                    "pattern_distance": pattern.get("distance"),
+                    "pattern_discrepancies": pattern.get("discrepancies", []),
+                    "pattern_quality": pattern.get("quality_status", "unconfirmed"),
                 }
                 identity = digest(
                     {
@@ -298,42 +427,32 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                     "INSERT INTO observations VALUES (?, ?, ?, ?, ?)",
                     [identity, symbol, when.isoformat(), selected, canonical(item)],
                 )
-                if settings and getattr(settings, "research_v3_telegram_enabled", False) and selected:
-                    try:
-                        from dao_vang.alerts.telegram import TelegramNotifier
-                        from dao_vang.config.settings import TelegramConfig
-
-                        v3_bot_token = getattr(settings, "research_v3_bot_token", None) or settings.telegram.bot_token
-                        v3_chat_id = (
-                            getattr(settings, "research_v3_chat_id", None)
-                            or getattr(settings.telegram, "shadow_chat_id", None)
-                            or settings.telegram.chat_id
-                        )
-                        tel_cfg = TelegramConfig(
-                            bot_token=v3_bot_token,
-                            chat_id=v3_chat_id,
-                            shadow_chat_id=v3_chat_id,
-                            api_base=settings.telegram.api_base,
-                            timeout_seconds=settings.telegram.timeout_seconds,
-                            language=settings.telegram.language,
-                        )
-                        notifier = TelegramNotifier(tel_cfg, web_base_url=getattr(settings.web, "public_url", None))
-                        notifier.send_v3_alert(
-                            symbol=symbol,
-                            entry_price=price,
-                            probability=float(score),
-                            pump_pct=float(snapshot.get("price_ret_24h", 0.0)),
-                            distance_from_high=float(snapshot.get("distance_from_high_24h", 0.0)),
-                            funding_percentile=float(snapshot.get("funding_percentile_30d", 0.0) or 0.0),
-                            feature_time=when.isoformat(),
-                            is_champion=bool(item.get("champion")),
-                            is_scout=bool(item.get("scout")),
-                            web_url=getattr(settings.web, "public_url", None),
-                            operating_mode=getattr(settings.scanner, "operating_mode", "research"),
-                            shadow_chat_id=v3_chat_id,
-                        )
-                    except Exception:
-                        pass
+                if dispatcher is not None and item["champion"]:
+                    notification_events.append(
+                        {
+                            **item,
+                            "event_type": "signal",
+                            "id": identity,
+                            "signal_id": identity,
+                            "event_key": f"{identity}:signal",
+                            "entry_price": price,
+                            "conditions": progress_dict["criteria"],
+                            "selection_attestation": {
+                                "eligible": True,
+                                "policy_version": TIMING.version,
+                                "source_id": identity,
+                            },
+                            "quality_validated": item.get("pattern_quality") == "high_quality",
+                            "operating_mode": getattr(settings.scanner, "operating_mode", "research"),
+                            "shadow_chat_id": getattr(settings, "research_v3_chat_id", None)
+                            or getattr(settings.telegram, "shadow_chat_id", None),
+                            "web_url": getattr(settings.web, "public_url", None),
+                        }
+                    )
+                # Telegram dispatch is owned by the durable notification
+                # dispatcher.  The old inline send was removed to prevent a
+                # duplicate after scanner restarts; this observation remains
+                # the source record consumed by that dispatcher.
                 state["last_seen"][symbol] = when.isoformat()
         pending = ledger.execute("""
             SELECT o.id, o.payload FROM observations o WHERE o.selected=1 ORDER BY o.timestamp DESC
@@ -343,13 +462,11 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
             old = ledger.execute(
                 "SELECT payload FROM outcomes WHERE id=?", [identity]
             ).fetchone()
-            if old and json.loads(old[0])["status"] in {
-                "target",
-                "stop",
-                "stop_ambiguous",
-                "timeout",
-                "incomplete_final",
-            }:
+            if old and _outcome_is_terminal(
+                json.loads(old[0]),
+                now=now,
+                entry_time=time_value(item["feature_time"]),
+            ):
                 continue
             entry, source = (
                 time_value(item["feature_time"]),
@@ -363,7 +480,7 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
             """,
                 [item["symbol"], source, source + timedelta(hours=48), now],
             ).fetchall()
-            result = evaluate(
+            result = evaluate_dual(
                 signal_time=entry,
                 signal_price=item["price"],
                 bars=[
@@ -382,6 +499,85 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                 "INSERT OR REPLACE INTO outcomes VALUES (?, ?)",
                 [identity, canonical(result)],
             )
+            if dispatcher is not None and item.get("champion"):
+                fills = result.get("fills") or []
+                last_fill = fills[-1] if fills else {}
+                post_stop = result.get("post_stop") or {}
+                actual_status = result.get("engine_status", result.get("status"))
+                base_event = {
+                    "id": identity,
+                    "signal_id": identity,
+                    "symbol": item["symbol"],
+                    "feature_time": item["feature_time"],
+                    "event_time": result.get("exit_time") or now,
+                    "average_entry": last_fill.get("average_entry"),
+                    "filled_legs": len(fills),
+                    "actual_fill": actual_status in {"target", "stop", "stop_ambiguous", "timeout"},
+                    "eligible": result.get("eligible"),
+                    "exclusion_reason": result.get("exclusion_reason"),
+                    "funding_verified": bool(result.get("funding_verified", False)),
+                    "contract": result.get("contract"),
+                    "contract_checksum": result.get("contract_checksum"),
+                    "outcome_contract": result.get("outcome_contract"),
+                    "operating_mode": getattr(settings.scanner, "operating_mode", "research"),
+                    "shadow_chat_id": getattr(settings, "research_v3_chat_id", None)
+                    or getattr(settings.telegram, "shadow_chat_id", None),
+                    "web_url": getattr(settings.web, "public_url", None),
+                    "pattern_id": item.get("pattern_id"),
+                    "pattern_type": item.get("pattern_type"),
+                    "pattern_stage": item.get("pattern_stage"),
+                    "pattern_status": item.get("pattern_status"),
+                    "pattern_quality": item.get("pattern_quality"),
+                    "evidence_kind": item.get("evidence_kind"),
+                }
+                for fill in fills[1:]:
+                    # Entry2/Entry3 are lifecycle events in their own right.
+                    # Stable leg keys make retries/restarts idempotent.  They
+                    # are staged before the terminal event so replies mirror
+                    # the actual fill chronology.
+                    notification_events.append(
+                        {
+                            **base_event,
+                            "event_type": "entry_fill",
+                            "status": "entry_fill",
+                            "event_time": fill.get("timestamp"),
+                            "average_entry": fill.get("average_entry"),
+                            "entry_price": fill.get("price"),
+                            "filled_legs": fill.get("leg"),
+                            "actual_fill": True,
+                            "event_key": f"{identity}:fill:{fill.get('leg')}",
+                        }
+                    )
+                if actual_status in {"target", "stop", "stop_ambiguous", "timeout"}:
+                    notification_events.append(
+                        {
+                            **base_event,
+                            "event_type": actual_status,
+                            "status": actual_status,
+                            "exit_price": result.get("exit_price"),
+                            "event_key": f"{identity}:actual:{actual_status}",
+                        }
+                    )
+                if post_stop.get("status") in {"target_after_stop", "timeout_after_stop"}:
+                    notification_events.append(
+                        {
+                            **base_event,
+                            "event_type": "post_stop",
+                            "status": post_stop.get("status"),
+                            "price_only_post_stop": True,
+                            "stop_average_entry": post_stop.get("frozen_average_entry"),
+                            "frozen_average_entry": post_stop.get("frozen_average_entry"),
+                            "frozen_target_price": post_stop.get("frozen_target_price"),
+                            "target_time": post_stop.get("target_time"),
+                            "horizon_time": post_stop.get("horizon_time"),
+                            "contract": post_stop.get("contract"),
+                            "contract_checksum": post_stop.get("contract_checksum"),
+                            "event_time": post_stop.get("target_time")
+                            or post_stop.get("horizon_time")
+                            or now,
+                            "event_key": f"{identity}:post_stop:{post_stop.get('status')}",
+                        }
+                    )
         state["timing"] = _dump_timing(timing)
         ledger.execute("INSERT OR REPLACE INTO state VALUES (1, ?)", [canonical(state)])
         recent = ledger.execute("""
@@ -423,6 +619,17 @@ def observe(database, *, storage: Path, model_path: Path, now: datetime,
                 for identity, item, outcome in recent
             ],
         }
+    if dispatcher is not None:
+        for event in notification_events:
+            try:
+                if event.get("event_type") == "signal":
+                    dispatcher.dispatch_signal(event)
+                else:
+                    dispatcher.dispatch_outcome(event)
+            except Exception as exc:
+                # Outbox implementations normally persist failures; retain
+                # scanner progress even if an adapter itself is unavailable.
+                pattern_error = pattern_error or f"notification_dispatch_failed:{type(exc).__name__}"
     atomic_snapshot(storage / "snapshot.json", payload)
     return payload
 
@@ -443,7 +650,8 @@ def run_cycle(database, *, data_dir: Path, model_path: Path,
             discovery = enrich(database, discovery, now=now)
             atomic_snapshot(storage / "discovery.json", discovery)
         result = observe(database, storage=storage, model_path=model_path,
-                         now=datetime.now(timezone.utc), discovery=discovery, settings=settings)
+                         now=datetime.now(timezone.utc), discovery=discovery, settings=settings,
+                         pattern_artifact=getattr(settings, "research_v3_pattern_artifact", None))
         if discovery is not None and discovery.get("backfill_version"):
             from dao_vang.scanner.research_v3_backfill import publish_stages
 
