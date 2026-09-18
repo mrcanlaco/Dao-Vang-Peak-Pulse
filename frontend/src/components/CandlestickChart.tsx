@@ -64,6 +64,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   const alertMenuRef = useRef<HTMLDivElement>(null);
   const settingsMenuRef = useRef<HTMLDivElement>(null);
   const logicalRangeRef = useRef<any>(null);
+  const priceRangeRef = useRef<{ from: number; to: number } | null>(null);
   const lastKeyRef = useRef<string>('');
   const [crosshairMode, setCrosshairMode] = useState<'magnet' | 'normal' | 'hidden'>('magnet');
   const [gridVisible, setGridVisible] = useState(true);
@@ -153,6 +154,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
   const applyPriceScaleMode = (autoScale: boolean) => {
     setPriceAutoScale(autoScale);
+    if (autoScale) priceRangeRef.current = null;
     chartRef.current?.priceScale('right').applyOptions({ autoScale });
   };
 
@@ -172,6 +174,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
   const handleResetView = () => {
     const chart = chartRef.current;
     if (!chart) return;
+    priceRangeRef.current = null;
     chart.timeScale().scrollToPosition(0, false);
     chart.priceScale('right').applyOptions({ autoScale: true });
     setTimeout(() => applyPriceScaleMode(false), 50);
@@ -492,6 +495,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     if (isNewContext) {
       lastKeyRef.current = currentKey;
       logicalRangeRef.current = null;
+      priceRangeRef.current = null;
     }
 
     if (logicalRangeRef.current && candleData.length > 0 && !isNewContext) {
@@ -507,6 +511,45 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       chart.timeScale().scrollToPosition(0, false);
     }
 
+    if (priceRangeRef.current && !isNewContext) {
+      try {
+        chart.priceScale('right').setVisibleRange(priceRangeRef.current);
+      } catch (err) {
+        console.warn('Failed to restore price range:', err);
+      }
+    }
+
+    const container = containerRef.current;
+    let syncTimeout: any;
+    const syncPriceRange = () => {
+      const ps = chartRef.current?.priceScale('right');
+      if (!ps) return;
+      const visible = ps.getVisibleRange();
+      if (visible && Number.isFinite(visible.from) && Number.isFinite(visible.to)) {
+        priceRangeRef.current = visible;
+        try {
+          ps.setVisibleRange(visible);
+        } catch {}
+      }
+    };
+
+    const handlePointerUp = () => {
+      syncPriceRange();
+      clearTimeout(syncTimeout);
+      syncTimeout = setTimeout(syncPriceRange, 120);
+    };
+
+    const handleWheel = () => {
+      clearTimeout(syncTimeout);
+      syncTimeout = setTimeout(syncPriceRange, 150);
+    };
+
+    if (container) {
+      container.addEventListener('pointerup', handlePointerUp);
+      container.addEventListener('touchend', handlePointerUp);
+      container.addEventListener('wheel', handleWheel, { passive: true });
+    }
+
     const handleResize = () => {
       if (containerRef.current && chartRef.current) {
         chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
@@ -516,8 +559,18 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      if (container) {
+        container.removeEventListener('pointerup', handlePointerUp);
+        container.removeEventListener('touchend', handlePointerUp);
+        container.removeEventListener('wheel', handleWheel);
+      }
+      clearTimeout(syncTimeout);
       if (chartRef.current) {
         logicalRangeRef.current = chartRef.current.timeScale().getVisibleLogicalRange();
+        const pr = chartRef.current.priceScale('right')?.getVisibleRange();
+        if (pr && Number.isFinite(pr.from) && Number.isFinite(pr.to)) {
+          priceRangeRef.current = pr;
+        }
         signalMarkersApi?.detach();
         chartRef.current.remove();
         chartRef.current = null;
@@ -529,9 +582,9 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     <div
       ref={chartShellRef}
       className={`relative w-full overflow-hidden bg-slate-950 ${isFullscreen ? 'h-screen p-4' : ''}`}
-      style={{ ...(isFullscreen ? undefined : { height }), touchAction: 'none' }}
+      style={{ ...(isFullscreen ? undefined : { height }), touchAction: 'none', overscrollBehavior: 'none' }}
     >
-      <div ref={containerRef} className="w-full" style={{ height: chartHeight, touchAction: 'none' }} />
+      <div ref={containerRef} className="w-full" style={{ height: chartHeight, touchAction: 'none', overscrollBehavior: 'none' }} />
       <div className="pointer-events-auto absolute left-2 right-2 top-2 z-20 flex max-w-[calc(100%-1rem)] items-center gap-1 overflow-x-auto rounded-md border border-slate-700/80 bg-slate-950/95 p-1 shadow-xl shadow-black/20 [&::-webkit-scrollbar]:hidden sm:left-auto sm:right-2 sm:max-w-none sm:overflow-visible">
         {interval && onIntervalChange && (
           <>
