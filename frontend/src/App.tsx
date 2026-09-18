@@ -212,21 +212,23 @@ export function App() {
     }
   };
 
-  const loadTrackingWatchlist = async (): Promise<TrackingWatchlistItem[]> => {
+  const loadTrackingWatchlist = async (): Promise<TrackingWatchlistItem[] | null> => {
     try {
       const res = await fetch('/api/tracking-watchlist', { cache: 'no-store' });
-      if (!res.ok) return [];
+      if (!res.ok) return null;
       const payload = await res.json() as unknown;
-      return Array.isArray(payload) ? payload as TrackingWatchlistItem[] : [];
+      return Array.isArray(payload) ? payload as TrackingWatchlistItem[] : null;
     } catch {
-      return [];
+      return null;
     }
   };
 
   const refreshTrackingWatchlist = async () => {
     setIsTrackingLoading(true);
     try {
-      setTrackingItems(await loadTrackingWatchlist());
+      const freshItems = await loadTrackingWatchlist();
+      if (freshItems) setTrackingItems(freshItems);
+      else setWatchlistFeedback({ type: 'error', message: language === 'vi' ? 'Chưa tải được dữ liệu mới. Danh sách đang hiển thị là lần tải trước.' : 'Unable to refresh. Showing the previous snapshot.' });
     } finally {
       setIsTrackingLoading(false);
     }
@@ -310,7 +312,7 @@ export function App() {
         presets?: WatchlistPreset[];
       } | null>('/api/watchlist', null);
 
-      const trackingRes = await fetchJsonOr<TrackingWatchlistItem[]>('/api/tracking-watchlist', []);
+      const trackingRes = await fetchJsonOr<TrackingWatchlistItem[]>('/api/tracking-watchlist', trackingItems);
 
       setLoadingStep(getStepText('s7', language));
       const telemRes = await fetchJsonOr<ScannerTelemetry | null>('/api/scanner/telemetry', null);
@@ -398,7 +400,8 @@ export function App() {
       const freshSignals = await loadSignals();
       if (freshSignals !== null) setSignals(freshSignals);
       try {
-        setTrackingItems(await loadTrackingWatchlist());
+        const freshTracking = await loadTrackingWatchlist();
+        if (freshTracking) setTrackingItems(freshTracking);
       } catch {
         // keep previous snapshot
       }
@@ -584,6 +587,8 @@ export function App() {
   };
 
   const addTrackingItem = async (payload: {
+    source_prediction_id?: string | null;
+    source_reason?: string;
     symbol: string;
     source?: 'radar' | 'manual';
     source_signal_time?: string | null;
@@ -612,6 +617,7 @@ export function App() {
       const successMsg = t('toast_tracking_added').replace('{symbol}', symbol);
       setWatchlistFeedback({ type: 'success', message: successMsg });
       setActiveTab('WATCHLIST');
+      if (guiVersion === 'v2') setMobileTab('TRACKING');
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : t('error_failed_to_update_tracking');
@@ -624,6 +630,8 @@ export function App() {
   };
 
   const handleTrackSignal = (sig: SignalItem) => addTrackingItem({
+    source_prediction_id: sig.id.startsWith('prediction-') ? sig.id.slice('prediction-'.length) : null,
+    source_reason: sig.trigger_pattern_vi || sig.trigger_pattern || '',
     symbol: sig.symbol,
     source: 'radar',
     source_signal_time: sig.signal_time,
@@ -647,6 +655,8 @@ export function App() {
   const handleTrackCurrentCoin = (symbol: string) => {
     const signal = selectedSignal?.symbol === symbol ? selectedSignal : signals.find(item => item.symbol === symbol);
     return addTrackingItem(signal ? {
+      source_prediction_id: signal.id.startsWith('prediction-') ? signal.id.slice('prediction-'.length) : null,
+      source_reason: signal.trigger_pattern_vi || signal.trigger_pattern || '',
       symbol,
       source: 'radar',
       source_signal_time: signal.signal_time,
@@ -682,7 +692,7 @@ export function App() {
       });
       const data = await res.json().catch(() => ({})) as { item?: TrackingWatchlistItem; error?: string };
       if (!res.ok || !data.item) throw new Error(data.error || `Tracking HTTP ${res.status}`);
-      setTrackingItems(prev => prev.map(item => item.id === id ? data.item! : item));
+      setTrackingItems(prev => prev.map(item => item.id === id ? { ...item, ...data.item! } : item));
       const successMsg = t('toast_tracking_updated');
       setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
@@ -701,7 +711,9 @@ export function App() {
     try {
       const res = await fetch(`/api/tracking-watchlist/${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`Tracking HTTP ${res.status}`);
-      setTrackingItems(prev => prev.filter(item => item.id !== id));
+      setTrackingItems(prev => prev.map(item => item.id === id
+        ? { ...item, status: 'CLOSED', archived_at: new Date().toISOString() }
+        : item));
       const successMsg = t('toast_tracking_removed');
       setWatchlistFeedback({ type: 'success', message: successMsg });
       return true;
@@ -909,6 +921,11 @@ export function App() {
       />
 
       {/* Main Workspace Layout - Full 12 columns by default (or 9 cols if Action Drawer open) */}
+      {trackingItems.some(item => item.notifications?.some(n => !n.read)) && activeTab !== 'WATCHLIST' && <button
+        data-testid="tracking-notifications"
+        className="mx-auto mt-2 rounded-lg border border-amber-600 bg-amber-950/40 px-4 py-2 text-sm text-amber-200"
+        onClick={() => { setActiveTab('WATCHLIST'); if (guiVersion === 'v2') setMobileTab('TRACKING'); }}
+      >{language === 'vi' ? 'Thông báo coin theo dõi' : 'Tracked coin notifications'} · {trackingItems.reduce((count, item) => count + (item.notifications?.filter(n => !n.read).length || 0), 0)}</button>}
       {/* Main Workspace Layout - Full 100% Width */}
       <main className={`flex-1 max-w-[1750px] w-full mx-auto p-2.5 sm:p-3.5 block lg:overflow-hidden ${
         guiVersion === 'v2'
