@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   Archive,
@@ -19,13 +19,15 @@ import type {
   TrackingStatus,
   TrackingWatchlistItem,
 } from '../types';
-import { formatSystemTime } from '../utils/time';
+import { formatSystemDateTime } from '../utils/time';
 import { useTranslation, type Language } from '../i18n/LanguageContext';
+import { TrackingJourney } from './TrackingJourney';
 
-export type TrackingFilter = 'ACTIVE' | TrackingStatus;
+export type TrackingFilter = 'ACTIVE' | 'ALL' | TrackingStatus;
 export type UpdateTrackingPayload = Record<string, unknown>;
 
 interface TrackingWatchlistProps {
+  onAddTracking?: (symbol: string) => void | Promise<boolean>;
   items: TrackingWatchlistItem[];
   isLoading: boolean;
   updatingId: string | null;
@@ -107,12 +109,25 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
   onSelectCoin,
   onUpdateItem,
   onRemoveItem,
+  onAddTracking,
 }) => {
   const { language, t } = useTranslation();
 
   const [filter, setFilter] = useState<TrackingFilter>('ACTIVE');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<PositionFormState>(emptyForm);
+  const [newSymbol, setNewSymbol] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [usage, setUsage] = useState<{ visitors_7d: number; returning_visitors_7d: number } | null>(null);
+  useEffect(() => {
+    let active = true;
+    const key = 'dao_vang_tracking_visitor';
+    const visitor = localStorage.getItem(key) || crypto.randomUUID();
+    localStorage.setItem(key, visitor);
+    void fetch('/api/tracking-usage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ visitor_id: visitor }) })
+      .then(async res => { if (res.ok && active) setUsage(await res.json()); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   const getStatusLabel = (status: TrackingStatus, lang: Language): string => {
     const map: Record<TrackingStatus, Record<string, string>> = {
@@ -127,7 +142,8 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
     const map: Record<string, Record<string, string>> = {
       ACTIVE: { vi: 'Radar còn hiệu lực', en: t('track_status_radar_active'), zh: '雷达有效', ko: '레이더 유효' },
       HIT: { vi: 'Radar đã trúng mục tiêu', en: t('track_status_target_hit'), zh: '已达回撤目标', ko: '목표 도달' },
-      EXPIRED: { vi: 'Radar hết hạn', en: t('track_status_radar_expired'), zh: '雷达已过期', ko: '레이더 만료' },
+      MISS: { vi: 'Không đạt điều kiện mục tiêu', en: 'Target conditions not met' },
+      EXPIRED: { vi: 'Hết hạn · chưa có kết quả xác minh', en: 'Expired · outcome unverified', zh: '已过期 · 结果未验证', ko: '만료 · 결과 미검증' },
       NO_SIGNAL: { vi: 'Theo dõi thủ công', en: 'Manual Track', zh: '手动跟踪', ko: '수동 추적' },
     };
     return map[status]?.[lang] ?? map[status]?.['en'] ?? status;
@@ -141,6 +157,7 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
   }), [items]);
 
   const filteredItems = useMemo(() => items.filter(item => {
+    if (filter === 'ALL') return true;
     if (filter === 'ACTIVE') return item.status !== 'CLOSED';
     return item.status === filter;
   }), [filter, items]);
@@ -179,6 +196,7 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
 
   const getFilterButtons = (): Array<[TrackingFilter, string]> => [
     ['ACTIVE', t('track_filter_active')],
+    ['ALL', language === 'vi' ? 'Toàn bộ lịch sử' : 'All history'],
     ['WATCHING', t('track_filter_watching')],
     ['IN_POSITION', t('track_filter_in_pos')],
     ['CLOSED', t('track_filter_closed')],
@@ -190,10 +208,13 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
         <div>
           <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-100">
             <Target className="h-4 w-4 text-amber-400" />
-            {t('track_title')}
+            {language === 'vi' ? 'Coin của tôi' : 'My coins'}
           </h2>
           <p className="mt-1 text-[11px] text-slate-500">
-            {t('track_subtitle')}
+            {language === 'vi' ? 'Theo dõi thay đổi, kiểm chứng cảnh báo và thử bằng vốn giả lập.' : 'Follow changes, review alerts and practice with paper trades.'}
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            {language === 'vi' ? 'Chọn coin trong Radar và bấm Theo dõi. Mỗi mục giữ lại thông tin lúc lưu để đối chiếu kết quả sau này.' : 'Choose a coin in Radar and follow it. Saved observations retain their original signal details.'}
           </p>
         </div>
         <button
@@ -207,6 +228,17 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
         </button>
       </div>
 
+      {onAddTracking && <form className="flex flex-wrap items-end gap-2" onSubmit={event => {
+        event.preventDefault(); setAdding(true);
+        void Promise.resolve(onAddTracking(newSymbol.trim().toUpperCase())).then(ok => { if (ok !== false) setNewSymbol(''); }).finally(() => setAdding(false));
+      }}>
+        <label className="text-xs text-slate-300">{language === 'vi' ? 'Coin muốn theo dõi' : 'Coin to follow'}<input required pattern="[A-Za-z0-9]{2,30}" maxLength={30} placeholder="BTC, ETH, SOL…" value={newSymbol} onChange={e => setNewSymbol(e.target.value)} className="mt-1 block rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" /></label>
+        <button disabled={adding} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-50">{adding ? '…' : language === 'vi' ? 'Thêm coin theo dõi' : 'Follow coin'}</button>
+      </form>}
+      <p className="text-xs text-slate-400">{language === 'vi' ? 'Thông báo khi giá thay đổi từ 5%, dữ liệu mất/phục hồi hoặc có kết quả 24/48 giờ. Biến động giá được giãn cách tối thiểu 2 giờ; không cần mở trang liên tục.' : 'Notifications cover 5% price moves, data outages/recovery and 24/48h results. Price alerts have a two-hour cooldown; the page need not stay open.'}</p>
+      <p className="text-xs text-slate-500">{language === 'vi' ? 'Phản hồi đã nhận' : 'Feedback received'}: {items.filter(i => i.feedback).length} · {language === 'vi' ? 'Hữu ích' : 'Useful'}: {items.filter(i => i.feedback === 'USEFUL').length} · {language === 'vi' ? 'Gây phiền' : 'Noisy'}: {items.filter(i => i.feedback === 'NOISY').length}
+        {usage && Number.isFinite(usage.visitors_7d) && <> · {language === 'vi' ? 'Thiết bị quay lại / đã dùng trong 7 ngày' : 'Returning / active devices in 7 days'}: {usage.returning_visitors_7d}/{usage.visitors_7d}</>}
+      </p>
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <div className="rounded-xl border border-amber-800/60 bg-amber-950/30 p-3">
           <div className="text-[10px] uppercase text-slate-500">{t('track_stat_total')}</div>
@@ -264,7 +296,14 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
             const positivePnl = pnlValue >= 0;
             const PnlIcon = pnlValue > 0 ? ArrowUpRight : pnlValue < 0 ? ArrowDownRight : Minus;
             return (
-              <article key={item.id} className="rounded-xl border border-slate-800 bg-slate-950/80 p-3 shadow-lg shadow-black/10">
+              <article key={item.id} id={`tracking-${item.id}`} data-testid={`tracking-${item.symbol}`} className="rounded-xl border border-slate-800 bg-slate-950/80 p-3 shadow-lg shadow-black/10">
+                {item.market_data_status !== 'FRESH' && (
+                  <p role="status" className="mb-2 rounded-lg border border-amber-800/60 bg-amber-950/30 p-2 text-xs text-amber-200">
+                    {language === 'vi'
+                      ? item.market_data_status === 'STALE' ? 'Dữ liệu giá đã cũ — chưa tính lãi/lỗ hiện tại. Hãy làm mới trước khi đánh giá.' : 'Chưa xác minh được giá mới — chưa tính lãi/lỗ hiện tại.'
+                      : item.market_data_status === 'STALE' ? 'Price data is stale. Current P&L is unavailable until refreshed.' : 'A fresh price could not be verified. Current P&L is unavailable.'}
+                  </p>
+                )}
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
                   <div className="min-w-0 lg:w-48">
                     <div className="flex items-center gap-2">
@@ -283,7 +322,7 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
 
                   <div className="grid flex-1 grid-cols-2 gap-2 sm:grid-cols-4">
                     <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-2">
-                      <div className="text-[9px] uppercase text-slate-500">Radar</div>
+                      <div className="text-[9px] uppercase text-slate-500">{language === 'vi' ? 'Điểm dự báo lúc lưu' : 'Saved forecast score'}</div>
                       <div className="mt-0.5 font-mono text-xs font-bold text-red-300">
                         {item.source_probability == null ? '—' : `${(item.source_probability * 100).toFixed(1)}%`}
                       </div>
@@ -316,7 +355,7 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1.5 lg:w-48 lg:justify-end">
-                    {item.status === 'WATCHING' && (
+                    {item.status === 'WATCHING' && item.paper_trade?.status !== 'OPEN' && (
                       <button
                         type="button"
                         onClick={() => void onRemoveItem(item.id)}
@@ -336,7 +375,7 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
                         className="inline-flex h-8 items-center gap-1 rounded-lg border border-slate-700 bg-slate-900 px-2.5 text-[10px] font-semibold text-slate-300 transition hover:border-amber-500/60 hover:text-amber-300 disabled:opacity-50"
                       >
                         {isUpdating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pencil className="h-3 w-3" />}
-                        {item.status === 'IN_POSITION' ? t('track_btn_edit_pos') : t('track_btn_enter_pos')}
+                        {language === 'vi' ? 'Ghi chép vị thế' : 'Position notes'}
                       </button>
                     )}
                     {item.status === 'IN_POSITION' && (
@@ -349,20 +388,21 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
                         <CheckCircle2 className="h-3 w-3" /> {t('track_btn_close_pos')}
                       </button>
                     )}
-                    {item.status === 'CLOSED' && (
+                    {item.status === 'CLOSED' && !item.archived_at && (
                       <button
                         type="button"
                         onClick={() => void onRemoveItem(item.id)}
                         disabled={isUpdating}
                         className="inline-flex h-8 items-center gap-1 rounded-lg border border-red-900/70 bg-red-950/40 px-2.5 text-[10px] font-semibold text-red-300 transition hover:bg-red-950 disabled:opacity-50"
                       >
-                        <Archive className="h-3 w-3" /> {t('track_btn_delete')}
+                        <Archive className="h-3 w-3" /> {language === 'vi' ? 'Lưu trữ' : 'Archive'}
                       </button>
                     )}
                   </div>
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-800/80 pt-2 text-[10px] text-slate-500">
+                  <span>{language === 'vi' ? 'Điểm dự báo không phải xác suất có lãi. Đạt mục tiêu không đồng nghĩa lệnh giao dịch có lãi.' : 'Forecast score is not profit probability. A target hit does not establish trading profit.'}</span>
                   <span className="inline-flex items-center gap-1">
                     <Clock3 className="h-3 w-3 text-sky-400" />
                     {item.validity_hours_left == null 
@@ -373,8 +413,26 @@ export const TrackingWatchlist: React.FC<TrackingWatchlistProps> = ({
                   </span>
                   <span>{t('feed_target_drawdown')} {formatPrice(item.source_target_price)}</span>
                   {item.status === 'IN_POSITION' && <span>Entry {formatPrice(item.entry_price)} · {item.position_side}</span>}
-                  {item.last_market_update && <span>{t('col_time')} {formatSystemTime(item.last_market_update)}</span>}
+                  {item.last_market_update && <span>{t('col_time')} {formatSystemDateTime(item.last_market_update)}</span>}
                 </div>
+
+                {!!item.history?.length && (
+                  <details className="mt-2 rounded-lg border border-slate-800 p-2 text-xs text-slate-400">
+                    <summary className="cursor-pointer">{language === 'vi' ? 'Nhật ký theo dõi' : 'Tracking journal'}</summary>
+                    <ol className="mt-2 space-y-1">
+                      {item.history.map((event, index) => (
+                        <li key={`${event.at}-${index}`}>
+                          {formatSystemDateTime(event.at)} · {event.event === 'SAVED' ? (language === 'vi' ? 'Đã lưu tín hiệu gốc' : 'Original observation saved') : event.event === 'ARCHIVED' ? (language === 'vi' ? 'Đã ngừng theo dõi, giữ lịch sử' : 'Archived; history retained') : (language === 'vi' ? 'Đã cập nhật ghi chép' : 'Journal updated')}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
+                <p className="mt-2 text-xs text-slate-400">
+                  {language === 'vi' ? 'Lý do lúc lưu: ' : 'Saved reason: '}{item.source_reason || (language === 'vi' ? 'Chưa có giải thích được lưu.' : 'No explanation was saved.')}
+                  {item.outcome_exclusion_reason && <span className="block text-amber-300">{language === 'vi' ? 'Chưa đủ dữ liệu đánh giá: ' : 'Insufficient outcome evidence: '}{item.outcome_exclusion_reason}</span>}
+                </p>
+                <TrackingJourney item={item} onRefresh={onRefresh} onUpdate={onUpdateItem} />
 
                 {editingId === item.id && (
                   <form onSubmit={(event) => void submitPosition(event, item)} className="mt-3 rounded-xl border border-amber-800/60 bg-amber-950/20 p-3">

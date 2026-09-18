@@ -632,6 +632,7 @@ export const MainWorkspace: React.FC<MainWorkspaceProps> = ({
 
       {activeTab === 'WATCHLIST' && (
         <TrackingWatchlist
+          onAddTracking={onAddTracking}
           items={trackingItems}
           isLoading={isTrackingLoading}
           updatingId={trackingUpdatingId}

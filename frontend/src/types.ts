@@ -206,9 +206,29 @@ export interface WatchlistData {
 }
 
 export type TrackingStatus = 'WATCHING' | 'IN_POSITION' | 'CLOSED';
-export type TrackingSignalStatus = 'ACTIVE' | 'HIT' | 'EXPIRED' | 'NO_SIGNAL';
+export type TrackingSignalStatus = 'ACTIVE' | 'HIT' | 'MISS' | 'EXPIRED' | 'NO_SIGNAL';
 
 export interface TrackingWatchlistItem {
+  source_price_time?: string | null;
+  source_price_evidence?: string;
+  source_model_id?: string | null;
+  source_label_version?: string | null;
+  source_shadow_mode?: boolean | null;
+  source_stop_price?: number | null;
+  notifications_enabled?: boolean;
+  notifications?: Array<{ id: string; at: string; code: string; message: string; read: boolean }>;
+  checkpoints?: Record<string, { status: 'PENDING' | 'MISSING' | 'READY'; at?: string; due_at?: string; price?: number; return_pct?: number; max_drop_pct?: number; max_rise_pct?: number; reason?: string }>;
+  feedback?: 'USEFUL' | 'NOISY' | 'UNCLEAR' | null;
+  monitor_checked_at?: string | null;
+  paper_trade?: { status: 'OPEN' | 'CLOSED'; side: 'LONG' | 'SHORT'; notional: number; quantity: number; entry_price: number; entry_fee: number; fee_bps: number; slippage_bps: number; opened_at: string; closed_at?: string; exit_price?: number; gross_pnl?: number; fees?: number; net_pnl?: number | null; funding: { status: string; cashflow: number | null; settlements?: number } } | null;
+  source_prediction_id?: string | null;
+  source_reason?: string;
+  outcome_exclusion_reason?: string | null;
+  archived_at?: string | null;
+  history?: Array<{ at: string; event: 'SAVED' | 'UPDATED' | 'ARCHIVED' | 'PAPER_OPENED' | 'PAPER_CLOSED' | 'FUNDING_UPDATED'; changes: Record<string, unknown> }>;
+  market_data_status?: 'FRESH' | 'STALE' | 'MISSING';
+  market_data_age_minutes?: number | null;
+  market_data_source?: 'ticker' | 'scan' | null;
   id: string;
   symbol: string;
   source: 'radar' | 'manual' | string;

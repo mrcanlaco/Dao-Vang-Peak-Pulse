@@ -49,6 +49,10 @@ from dao_vang.scanner.healthcheck import inspect_heartbeat
 from dao_vang.scanner.instance_lock import ScannerAlreadyRunning, ScannerInstanceLock
 from dao_vang.scanner.pump_filter import analyze_pump, fetch_daily_klines
 from dao_vang.scanner.scan_results_store import ScanResultStore
+from dao_vang.scanner.tracking_evidence import market_observation, signal_outcome
+from dao_vang.scanner.tracking_market import fetch_funding, reference_price
+from dao_vang.scanner.tracking_monitor import start_tracking_monitor
+from dao_vang.scanner.tracking_usage import tracking_usage
 from dao_vang.scanner.tracking_watchlist import (
     TrackingWatchlistStore,
     calculate_position_metrics,
@@ -1722,10 +1726,50 @@ class APIHandler(BaseHTTPRequestHandler):
             else:
                 self._set_headers(400)
                 self.wfile.write(json.dumps({"error": "Symbol required"}).encode('utf-8'))
+        elif parsed.path == '/api/tracking-usage':
+            try:
+                if not isinstance(data, dict) or not isinstance(data.get("visitor_id"), str):
+                    raise ValueError("Anonymous visitor id required")
+                stats = tracking_usage(TRACKING_WATCHLIST_PATH.with_suffix('.usage.sqlite3'), data["visitor_id"])
+                self._set_headers(200)
+                self.wfile.write(json.dumps(stats).encode('utf-8'))
+            except ValueError as exc:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error": str(exc)}).encode('utf-8'))
+        elif parsed.path.startswith('/api/tracking-watchlist/') and parsed.path.endswith('/paper'):
+            self.post_tracking_paper(unquote(parsed.path[len('/api/tracking-watchlist/'):-len('/paper')]), data)
         elif parsed.path == '/api/tracking-watchlist':
             try:
+                prediction: dict[str, Any] = {}
                 if not isinstance(data, dict):
                     raise ValueError("JSON object required")
+                if data.get("source_prediction_id"):
+                    prediction = _scan_store.prediction(str(data["source_prediction_id"])) or {}
+                    if not prediction or normalize_symbol(prediction.get("symbol")) != normalize_symbol(data.get("symbol")):
+                        raise ValueError("Prediction does not match the tracked symbol")
+                    data = {**data,
+                            "source_signal_time": _system_history_timestamp(prediction.get("signal_time")),
+                            "source_probability": prediction.get("calibrated_probability"),
+                            "source_model_id": prediction.get("model_id"),
+                            "source_label_version": prediction.get("label_version"),
+                            "source_shadow_mode": prediction.get("shadow_mode"),
+                            "source_invalidation_time": _system_history_timestamp(prediction.get("invalidation_time"))}
+                else:
+                    data = {**data, "source_model_id": None, "source_label_version": None, "source_shadow_mode": None, "source_stop_price": None}
+                # Fetch a closed reference candle at signal time; never use the
+                # live Radar price as if it were an original prediction price.
+                data = {**data, "source_price": None, "source_target_price": None,
+                        "source_price_time": None, "source_price_evidence": "unverified_saved_observation"}
+                reference_at = _as_utc_datetime(data.get("source_signal_time")) or datetime.now(timezone.utc)
+                try:
+                    data.update(reference_price(normalize_symbol(data.get("symbol")), reference_at))
+                    if data.get("source_prediction_id"):
+                        target = prediction.get("target_drawdown")
+                        adverse = prediction.get("max_adverse_excursion")
+                        data["source_target_price"] = data["source_price"] * (1 - float(target)) if target is not None else None
+                        data["source_stop_price"] = data["source_price"] * (1 + float(adverse)) if adverse is not None else None
+                except Exception:
+                    logger.warning("tracking_reference_price_unavailable")
                 entry, created = _tracking_store.add(data)
                 self._set_headers(201 if created else 200)
                 self.wfile.write(json.dumps({
@@ -2019,6 +2063,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 "status": "removed" if removed else "not_found",
                 "id": entry_id,
             }).encode('utf-8'))
+        except ValueError as exc:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(exc)}).encode('utf-8'))
         except OSError:
             self._set_headers(503)
             self.wfile.write(json.dumps({"error": "Tracking watchlist unavailable"}).encode('utf-8'))
@@ -2026,7 +2073,7 @@ class APIHandler(BaseHTTPRequestHandler):
     def get_tracking_watchlist(self):
         """Return user tracking entries enriched with current public market data."""
 
-        entries = _tracking_store.list()
+        entries = _tracking_store.list(include_archived=True)
         if not entries:
             self._set_headers(200)
             self.wfile.write(json.dumps([], ensure_ascii=False).encode('utf-8'))
@@ -2075,6 +2122,12 @@ class APIHandler(BaseHTTPRequestHandler):
             latest_scans = {}
 
         enriched: list[dict[str, Any]] = []
+        prediction_ids = [entry["source_prediction_id"] for entry in entries if entry.get("source_prediction_id")]
+        try:
+            prediction_outcomes = _scan_store.get_prediction_outcomes(prediction_ids) if prediction_ids else {}
+        except Exception as exc:
+            logger.warning("tracking_watchlist_outcomes_failed error=%s", exc)
+            prediction_outcomes = {}
         for entry in entries:
             symbol = normalize_symbol(entry.get("symbol"))
             source_signal_time = entry.get("source_signal_time")
@@ -2094,57 +2147,40 @@ class APIHandler(BaseHTTPRequestHandler):
             invalidation_time = entry.get("source_invalidation_time")
             hit = None
             hit_time = None
-            if alert:
-                source_price = alert.get("close_price") or source_price
-                source_probability = alert.get("probability")
-                source_risk_level = _risk_bucket(float(source_probability or 0.0) * 100.0)
-                invalidation_time = _system_history_timestamp(alert.get("invalidation_time"))
-                target_price = (
-                    round(float(source_price) * (1.0 - _current_model_target_drawdown()), 8)
-                    if source_price
-                    else target_price
-                )
+            if alert and not entry.get("source_prediction_id"):
+                # Saved observations belong to the original signal, never the
+                # current model. Only fill gaps from that exact historical alert.
+                if source_price is None:
+                    source_price = alert.get("close_price")
+                if source_probability is None:
+                    source_probability = alert.get("probability")
+                if invalidation_time is None:
+                    invalidation_time = _system_history_timestamp(alert.get("invalidation_time"))
                 hit = alert.get("hit")
                 hit_time = _system_history_timestamp(alert.get("hit_time"))
 
+            outcome = prediction_outcomes.get(entry.get("source_prediction_id"), {})
+            if outcome.get("outcome_status") == "materialized" and outcome.get("label_value") in (0, 1):
+                hit = outcome["label_value"] == 1
+
             latest_scan = latest_scans.get(symbol)
             ticker = ticker_by_symbol.get(symbol, {})
-            current_price = None
-            try:
-                if ticker.get("lastPrice") is not None:
-                    current_price = float(ticker["lastPrice"])
-            except (TypeError, ValueError):
-                current_price = None
-            if current_price is None and latest_scan:
-                latest_close_price = latest_scan.get("close_price")
-                if latest_close_price is not None:
-                    try:
-                        current_price = float(latest_close_price)
-                    except (TypeError, ValueError):
-                        current_price = None
-            if current_price is None:
-                current_price = source_price
+            observation = market_observation(ticker, latest_scan, now=now)
+            current_price = observation["current_price"]
 
             invalidation_dt = _as_utc_datetime(invalidation_time)
             validity_hours_left = (
                 max(0.0, (invalidation_dt - now).total_seconds() / 3600.0)
                 if invalidation_dt is not None else None
             )
-            if hit is True:
-                signal_status = "HIT"
-            elif invalidation_dt is not None and invalidation_dt <= now:
-                signal_status = "EXPIRED"
-            elif invalidation_dt is not None:
-                signal_status = "ACTIVE"
-            else:
-                signal_status = "NO_SIGNAL"
+            signal_status = signal_outcome(hit, invalidation_time, now=now)
 
             signal_change_pct = None
             if source_price and current_price is not None:
                 signal_change_pct = round((current_price - float(source_price)) / float(source_price) * 100.0, 2)
 
             position_metrics = calculate_position_metrics(
-                current_price=current_price,
+                current_price=current_price if observation["market_data_status"] == "FRESH" else None,
                 entry_price=entry.get("entry_price"),
                 position_side=entry.get("position_side"),
                 quantity=entry.get("quantity"),
@@ -2168,6 +2204,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 "signal_status": signal_status,
                 "hit": hit,
                 "hit_time": hit_time,
+                "outcome_exclusion_reason": outcome.get("exclusion_reason"),
                 "validity_hours_left": round(validity_hours_left, 2) if validity_hours_left is not None else None,
                 "current_price": current_price,
                 "current_probability": current_probability,
@@ -2179,13 +2216,47 @@ class APIHandler(BaseHTTPRequestHandler):
                     current_price,
                 ),
                 **position_metrics,
-                "last_market_update": _system_history_timestamp(latest_scan.get("scan_time")) if latest_scan else None,
+                **observation,
             }
             enriched.append(item)
 
         enriched.sort(key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""), reverse=True)
         self._set_headers(200)
         self.wfile.write(json.dumps(enriched, ensure_ascii=False, default=str).encode('utf-8'))
+
+    def post_tracking_paper(self, entry_id: str, data: Any):
+        try:
+            if not isinstance(data, dict):
+                raise ValueError("JSON object required")
+            entry = _tracking_store.get(entry_id, include_archived=True)
+            if entry is None:
+                raise ValueError("Tracking item not found")
+            action = str(data.get("action") or "")
+            trade = entry.get("paper_trade")
+            if action == "reconcile" and trade and trade["status"] == "CLOSED":
+                closed_at = _as_utc_datetime(trade.get("closed_at"))
+                if closed_at is None:
+                    raise ValueError("No paper close time")
+                updated = _tracking_store.reconcile_funding(entry_id, fetch_funding(entry["symbol"], trade, closed_at), now=datetime.now(timezone.utc))
+            elif (action == "open" and trade) or (action == "close" and trade and trade["status"] == "CLOSED"):
+                updated = entry
+            else:
+                tickers = {row["symbol"]: row for row in fetch_all_tickers()}
+                now = datetime.now(timezone.utc)
+                quote = market_observation(tickers.get(entry["symbol"], {}), None, now=now)
+                funding = fetch_funding(entry["symbol"], trade, now) if action == "close" and trade else None
+                updated = _tracking_store.paper(entry_id, action=action, quote=quote, now=now,
+                                                side=str(data.get("side", "SHORT")), notional=float(data.get("notional", 1000)),
+                                                fee_bps=float(data.get("fee_bps", 5)), slippage_bps=float(data.get("slippage_bps", 5)), funding=funding)
+            self._set_headers(200)
+            self.wfile.write(json.dumps({"item": updated}, ensure_ascii=False).encode('utf-8'))
+        except (ValueError, TypeError) as exc:
+            self._set_headers(400)
+            self.wfile.write(json.dumps({"error": str(exc)}).encode('utf-8'))
+        except Exception:
+            logger.exception("tracking_paper_unavailable")
+            self._set_headers(503)
+            self.wfile.write(json.dumps({"error": "Paper journal unavailable"}).encode('utf-8'))
 
     def get_ai_config(self):
         """Return server-configured default AI provider settings."""
@@ -5148,13 +5219,17 @@ def run_server(port=8000, host='0.0.0.0'):
         raise SystemExit(2) from exc
 
     httpd = None
+    tracking_stop = None
     try:
         httpd = ReusableThreadingHTTPServer(server_address, APIHandler)
+        tracking_stop = start_tracking_monitor(_tracking_store)
         logger.info(f"Đảo Vàng Combined Server running on http://{host}:{port}")
         httpd.serve_forever()
     except KeyboardInterrupt:
         logger.info("Received exit signal. Shutting down server...")
     finally:
+        if tracking_stop is not None:
+            tracking_stop.set()
         if httpd is not None:
             httpd.server_close()
         web_lock.release()

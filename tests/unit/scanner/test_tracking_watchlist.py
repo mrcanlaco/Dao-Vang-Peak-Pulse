@@ -111,3 +111,30 @@ def test_remove_only_deletes_requested_entry(tmp_path: Path) -> None:
     assert store.remove(first["id"]) is True
     assert store.remove(first["id"]) is False
     assert [item["id"] for item in store.list()] == [second["id"]]
+
+
+def test_unfollow_retains_original_observation_and_journal(tmp_path: Path) -> None:
+    store = TrackingWatchlistStore(tmp_path / "tracking.json")
+    entry, _ = store.add({"symbol": "BTC", "source_price": 100, "source_target_price": 92})
+    store.update(entry["id"], {"notes": "Theo dõi thử"})
+    assert store.remove(entry["id"]) is True
+    assert store.list() == []
+    archived = store.list(include_archived=True)[0]
+    assert archived['source_price'] == 100
+    assert archived['source_target_price'] == 92
+    assert archived['archived_at']
+    assert [event['event'] for event in archived['history']] == ['SAVED', 'UPDATED', 'ARCHIVED']
+    with pytest.raises(ValueError, match='Archived'):
+        store.update(entry['id'], {'notes': 'rewrite'})
+    replacement, created = store.add({'symbol': 'BTC'})
+    assert created
+    assert replacement['id'] != entry['id']
+    assert len(store.list(include_archived=True)) == 2
+
+
+def test_source_snapshot_cannot_be_rewritten(tmp_path: Path) -> None:
+    store = TrackingWatchlistStore(tmp_path / 'tracking.json')
+    entry, _ = store.add({'symbol': 'BTC', 'source_price': 100})
+    with pytest.raises(ValueError, match='Unsupported'):
+        store.update(entry['id'], {'source_price': 200})
+    assert store.get(entry['id'])['source_price'] == 100

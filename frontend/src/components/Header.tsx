@@ -504,6 +504,7 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={onOpenTracking}
+              data-testid="open-tracking"
               className="relative inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-950/40 px-2.5 text-xs font-bold text-violet-300 shadow-sm transition hover:bg-violet-900/60 hover:border-violet-500 active:scale-95 shrink-0"
               title="Xem danh sách vị thế đang mở và quản lý PnL / SL / TP"
             >
