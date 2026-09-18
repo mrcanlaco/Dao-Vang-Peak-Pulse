@@ -106,7 +106,7 @@ class ScannerConfig(BaseModel):
     # daily budget before later, stronger candidates are seen.
     telegram_max_per_cycle: int = Field(default=2, ge=1)
     # A feature snapshot older than this must never produce an alert.
-    max_feature_age_minutes: int = Field(default=10, ge=1, le=24 * 60)
+    max_feature_age_minutes: int = Field(default=25, ge=1, le=24 * 60)
     # Quality score is an explicit gate; missing score is derived from the
     # source quality_status (valid=1.0, warning=0.75).
     min_data_quality_score: float = Field(default=0.8, ge=0.0, le=1.0)

@@ -82,7 +82,7 @@ scanner:
   coin_daily_alert_limit: 1
   telegram_daily_target_min: 12
   telegram_max_per_cycle: 3
-  max_feature_age_minutes: 10
+  max_feature_age_minutes: 25
   min_data_quality_score: 0.8
   scan_mode: gainers
   # Broaden discovery to catch distribution setups that are developing before
