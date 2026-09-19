@@ -39,36 +39,42 @@ def _display_time(value: str, lang: str = "vi") -> str:
 
 
 _RISK_EMOJI = {
-    "CAO": "🚨",
-    "HIGH": "🚨",
-    "TRUNG BÌNH": "⚠️",
-    "MEDIUM": "⚠️",
-    "THẤP": "🟡",
-    "LOW": "🟡",
+    "CRITICAL": "🟣",
+    "CAO": "🟠",
+    "HIGH": "🟠",
+    "TRUNG BÌNH": "🟡",
+    "MEDIUM": "🟡",
+    "THẤP": "⚪",
+    "LOW": "⚪",
     "RẤT THẤP": "⚪",
     "VERY LOW": "⚪",
+    "SAFE": "⚪",
 }
 
 _RISK_LABELS_VI = {
-    "CAO": "CAO",
-    "HIGH": "CAO",
-    "TRUNG BÌNH": "TRUNG BÌNH",
-    "MEDIUM": "TRUNG BÌNH",
-    "THẤP": "THẤP",
-    "LOW": "THẤP",
-    "RẤT THẤP": "RẤT THẤP",
-    "VERY LOW": "RẤT THẤP",
+    "CRITICAL": "TÍN HIỆU CỰC MẠNH",
+    "CAO": "TÍN HIỆU MẠNH",
+    "HIGH": "TÍN HIỆU MẠNH",
+    "TRUNG BÌNH": "CẦN THEO DÕI",
+    "MEDIUM": "CẦN THEO DÕI",
+    "THẤP": "TÍN HIỆU YẾU",
+    "LOW": "TÍN HIỆU YẾU",
+    "RẤT THẤP": "TÍN HIỆU YẾU",
+    "VERY LOW": "TÍN HIỆU YẾU",
+    "SAFE": "TÍN HIỆU YẾU",
 }
 
 _RISK_LABELS_EN = {
-    "CAO": "HIGH",
-    "HIGH": "HIGH",
-    "TRUNG BÌNH": "MEDIUM",
-    "MEDIUM": "MEDIUM",
-    "THẤP": "LOW",
-    "LOW": "LOW",
-    "RẤT THẤP": "VERY LOW",
-    "VERY LOW": "VERY LOW",
+    "CRITICAL": "VERY HIGH CONVICTION",
+    "CAO": "HIGH CONVICTION",
+    "HIGH": "HIGH CONVICTION",
+    "TRUNG BÌNH": "WATCHLIST",
+    "MEDIUM": "WATCHLIST",
+    "THẤP": "WEAK SIGNAL",
+    "LOW": "WEAK SIGNAL",
+    "RẤT THẤP": "VERY WEAK",
+    "VERY LOW": "VERY WEAK",
+    "SAFE": "WEAK SIGNAL",
 }
 
 _MODE_LABELS_VI = {
@@ -361,7 +367,7 @@ class TelegramNotifier:
             lines = [
                 f"{color_badge} *DISTRIBUTION ALERT — `{symbol}`* {stars}{mode_prefix}",
                 f"• *Signal Grade:* {stars} `{grade_title}` ({color_badge})",
-                f"• *Risk Level:* {_risk_label(risk_level, 'en')}",
+                f"• *Conviction:* {_risk_label(risk_level, 'en')}",
                 f"• *Model Probability:* {probability:.1%}",
                 f"• *Close Price:* {price_str}",
                 f"• *Signal Time:* {_display_time(feature_time, 'en')}",
@@ -373,7 +379,7 @@ class TelegramNotifier:
             lines = [
                 f"{color_badge} *CẢNH BÁO PHÂN PHỐI — `{symbol}`* {stars}{mode_prefix}",
                 f"• *Cấp độ tín hiệu:* {stars} `{grade_title}` ({color_badge})",
-                f"• *Mức cảnh báo:* {_risk_label(risk_level, 'vi')}",
+                f"• *Độ tin cậy:* {_risk_label(risk_level, 'vi')}",
                 f"• *Xác suất mô hình:* {probability:.1%}",
                 f"• *Giá đóng cửa:* {price_str}",
                 f"• *Thời điểm tín hiệu:* {_display_time(feature_time, 'vi')}",

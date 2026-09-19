@@ -127,7 +127,7 @@ class TestTelegramAlert:
         assert result is True
         text = captured_payload.get("text", "")
         assert "BTCUSDT" in text
-        assert "CAO" in text
+        assert "TÍN HIỆU MẠNH" in text
         assert "85.0%" in text
         assert "65,000.0000" in text
         assert "⭐⭐⭐⭐⭐" in text
@@ -301,7 +301,7 @@ class TestTelegramAlert:
 
         text = captured.get("text", "")
         assert "DISTRIBUTION ALERT" in text
-        assert "Risk Level:* HIGH" in text
+        assert "Conviction:* HIGH CONVICTION" in text
         assert "Model Probability:* 88.0%" in text
         assert "https://trade.example.com/#coin=SOLUSDT" in text
 

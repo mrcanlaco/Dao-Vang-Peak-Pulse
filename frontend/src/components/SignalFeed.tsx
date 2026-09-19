@@ -345,8 +345,8 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
     switch (level) {
       case 'CRITICAL':
         return (
-          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950/90 border border-red-600/90 text-red-400 animate-pulse inline-flex items-center gap-1">
-            🔴 {getRiskLabel('CRITICAL', language)}
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-950/90 border border-purple-500/80 text-purple-300 animate-pulse inline-flex items-center gap-1">
+            🟣 {getRiskLabel('CRITICAL', language)}
           </span>
         );
       case 'HIGH':
@@ -363,8 +363,8 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
         );
       case 'SAFE':
         return (
-          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/80 border border-emerald-500/60 text-emerald-400 inline-flex items-center gap-1">
-            🟢 {getRiskLabel('SAFE', language)}
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 border border-slate-700/80 text-slate-400 inline-flex items-center gap-1">
+            ⚪ {getRiskLabel('SAFE', language)}
           </span>
         );
     }
@@ -1063,10 +1063,12 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                               <div
                                 className={`h-full ${
                                   sig.risk_level === 'CRITICAL'
-                                    ? 'bg-red-500'
+                                    ? 'bg-purple-500'
                                     : sig.risk_level === 'HIGH'
                                     ? 'bg-amber-500'
-                                    : 'bg-yellow-400'
+                                    : sig.risk_level === 'MEDIUM'
+                                    ? 'bg-yellow-400'
+                                    : 'bg-slate-600'
                                 }`}
                                 style={{ width: `${probPct}%` }}
                               />
@@ -1690,10 +1692,12 @@ export const SignalFeed: React.FC<SignalFeedProps> = ({
                         <div
                           className={`h-full rounded-full transition-all duration-300 ${
                             sig.risk_level === 'CRITICAL'
-                              ? 'bg-gradient-to-r from-red-600 to-red-400'
+                              ? 'bg-gradient-to-r from-purple-600 to-purple-400'
                               : sig.risk_level === 'HIGH'
                               ? 'bg-gradient-to-r from-amber-600 to-amber-400'
-                              : 'bg-gradient-to-r from-yellow-500 to-amber-300'
+                              : sig.risk_level === 'MEDIUM'
+                              ? 'bg-gradient-to-r from-yellow-500 to-amber-300'
+                              : 'bg-slate-600'
                           }`}
                           style={{ width: `${probPct}%` }}
                         />

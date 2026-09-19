@@ -647,18 +647,18 @@ export const Header: React.FC<HeaderProps> = ({
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="text-slate-300 font-medium">Mức rủi ro:</span>
+                        <span className="text-slate-300 font-medium">{t('ranking_col_risk_tier')}:</span>
                         <select
                           value={selectedRiskFilter}
                           onChange={(e) => setSelectedRiskFilter(e.target.value)}
                           className="bg-slate-800 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] font-mono text-slate-200 focus:outline-none focus:border-amber-500 cursor-pointer"
-                          aria-label="Filter risk level"
+                          aria-label="Filter conviction level"
                         >
                           <option value="ALL">{t('risk_all')}</option>
-                          <option value="CRITICAL">🔴 {getRiskLabel('CRITICAL', language)}</option>
+                          <option value="CRITICAL">🟣 {getRiskLabel('CRITICAL', language)}</option>
                           <option value="HIGH">🟠 {getRiskLabel('HIGH', language)}</option>
                           <option value="MEDIUM">🟡 {getRiskLabel('MEDIUM', language)}</option>
-                          <option value="SAFE">🟢 {getRiskLabel('SAFE', language)}</option>
+                          <option value="SAFE">⚪ {getRiskLabel('SAFE', language)}</option>
                         </select>
                       </div>
                     </div>
