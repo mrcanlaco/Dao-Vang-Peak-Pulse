@@ -44,6 +44,23 @@ class RecordingDispatcher:
         self._record("outcome", event)
 
 
+def test_v3_scout_without_confirmed_reversal_stays_silent(setup_fixture, monkeypatch):  # noqa: F811
+    conn, args = setup_fixture
+    settings = AppSettings(research_v3_telegram_enabled=True, research_v3_chat_id="shadow-chat")
+    RecordingDispatcher.instances.clear()
+    monkeypatch.setattr(notification_dispatcher, "NotificationDispatcher", RecordingDispatcher)
+    monkeypatch.setattr("dao_vang.alerts.telegram.TelegramNotifier", lambda *args, **kwargs: object())
+    research_v3.observe(conn, **args, now=research_v3.time_value("2026-09-14T00:00:00+00:00"), settings=settings)
+    for hour in range(5):
+        result = research_v3.observe(
+            conn, **args, now=research_v3.time_value(f"2026-09-14T{hour:02d}:05:00+00:00"), settings=settings,
+        )
+    assert result["entry_count"] == 1
+    assert result["items"][0]["scout"]
+    assert not result["items"][0]["champion"]
+    assert not any(dispatcher.events for dispatcher in RecordingDispatcher.instances)
+
+
 def test_observe_dispatches_committed_signal_actual_and_all_entry_fills(
     setup_fixture,  # noqa: F811
     monkeypatch,

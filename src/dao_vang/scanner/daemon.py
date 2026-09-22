@@ -188,14 +188,11 @@ def _mode_allows_tier(mode: str, tier: str, alert_levels: list[str]) -> bool:
 
     if mode in {"research", "shadow"}:
         return False
-    if mode == "canary" and tier != "HIGH_CONFIDENCE":
-        return False
-    if tier not in {"HIGH_CONFIDENCE", "WATCH"}:
+    if tier != "HIGH_CONFIDENCE":
         return False
     configured = {str(level).upper() for level in alert_levels}
     aliases = {
         "HIGH_CONFIDENCE": {"HIGH_CONFIDENCE", "CAO"},
-        "WATCH": {"WATCH", "TRUNG BÌNH", "TRUNG BINH"},
     }
     return bool(configured.intersection(aliases.get(tier, set())))
 
@@ -1842,10 +1839,7 @@ class ScannerDaemon:
         ep_result = None
         episode_allows_delivery = False  # Fail-closed default
         try:
-            allowed_tiers = getattr(self._scanner_cfg, "telegram_tiers", ["HIGH_CONFIDENCE"])
             effective_threshold = result.threshold
-            if "WATCH" in allowed_tiers and self._scanner_cfg.telegram_min_probability < effective_threshold:
-                effective_threshold = self._scanner_cfg.telegram_min_probability
 
             flap_limit = getattr(self._scanner_cfg, "alert_flap_limit", 3)
             rearm_threshold = getattr(self._scanner_cfg, "alert_rearm_probability", 0.4)

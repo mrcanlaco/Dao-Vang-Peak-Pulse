@@ -146,8 +146,8 @@ def evaluate_canary_policy(
     labelled observational Telegram messages when
     ``allow_shadow_telegram`` is enabled. Shadow still respects the
     kill switch, serving bundle checks, probability thresholds, and
-    optionally cooldown & allowed tiers. Quality/tier gates remain
-    enforced for canary and production modes.
+    optionally cooldown & allowed tiers. Only HIGH_CONFIDENCE signals may
+    be delivered, including in shadow mode; watch observations stay in the UI.
     """
 
     normalized_mode = str(mode).lower()
@@ -169,14 +169,14 @@ def evaluate_canary_policy(
         normalized_allowed = {str(t).upper() for t in allowed_tiers}
         if normalized_tier not in normalized_allowed:
             return CanaryDecision(False, "tier_not_allowed", normalized_mode, normalized_tier, global_count, coin_count)
+    if normalized_tier != "HIGH_CONFIDENCE":
+        return CanaryDecision(False, "tier_not_high_confidence", normalized_mode, normalized_tier, global_count, coin_count)
     if normalized_mode == "shadow":
         if enforce_shadow_cooldown and in_cooldown:
             return CanaryDecision(False, "cooldown_active", normalized_mode, normalized_tier, global_count, coin_count)
         return CanaryDecision(True, "shadow_observation", normalized_mode, normalized_tier, global_count, coin_count)
     if quality_status.lower() != "valid":
         return CanaryDecision(False, "data_quality_invalid", normalized_mode, normalized_tier, global_count, coin_count)
-    if normalized_tier != "HIGH_CONFIDENCE":
-        return CanaryDecision(False, "tier_not_high_confidence", normalized_mode, normalized_tier, global_count, coin_count)
     if calibrated_probability is None or not math.isfinite(float(calibrated_probability)):
         return CanaryDecision(False, "calibrated_probability_missing", normalized_mode, normalized_tier, global_count, coin_count)
     if threshold is None or float(calibrated_probability) < float(threshold):

@@ -101,6 +101,8 @@ def select_top_alerts(
     deduplicated: dict[str, dict[str, Any]] = {}
     candidate_count = len(alerts)
     for raw in alerts:
+        if str(raw.get("recommendation", "")).strip().upper() not in {"HIGH_CONFIDENCE", "SHORT_CANDIDATE"}:
+            continue
         symbol = str(raw.get("symbol", "")).strip().upper()
         probability = _number(raw.get("model_probability"), float("nan"))
         quality_status = str(raw.get("quality_status", "valid")).lower()

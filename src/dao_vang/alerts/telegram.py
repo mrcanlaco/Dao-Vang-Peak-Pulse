@@ -353,6 +353,8 @@ class TelegramNotifier:
         operating_mode: str = "production",
     ) -> bool:
         """Send a compact, mobile-friendly distribution alert with star rating."""
+        if str(risk_level).strip().upper() not in {"CAO", "HIGH", "HIGH_CONFIDENCE"}:
+            return False
         stars, color_badge, grade_title = _signal_grade(
             probability=probability,
             risk_level=risk_level,
@@ -416,6 +418,8 @@ class TelegramNotifier:
     ) -> bool:
         """Send a compact composite-score distribution alert with star rating."""
         normalized_recommendation = str(recommendation).strip().upper()
+        if normalized_recommendation not in {"SHORT_CANDIDATE", "HIGH_CONFIDENCE"}:
+            return False
         stars, color_badge, grade_title = _signal_grade(
             probability=model_probability,
             total_score=total_score,
@@ -427,10 +431,9 @@ class TelegramNotifier:
         mode_label = _mode_label(operating_mode, self._lang)
         mode_prefix = f" `[{mode_label}]`" if operating_mode != "production" else ""
         detail_url = web_url or _coin_url(self._web_base_url, symbol)
-        is_fired = normalized_recommendation in {"SHORT_CANDIDATE", "HIGH_CONFIDENCE"} or total_score >= 50.0
 
         if self._lang == "en":
-            stage_badge = "⚡ *[DISTRIBUTION SIGNAL — HIGH CONFIDENCE]*" if is_fired else "🧭 *[OVERBOUGHT WATCHLIST — ARMED]*"
+            stage_badge = "⚡ *[DISTRIBUTION SIGNAL — HIGH CONFIDENCE]*"
             sig_lines = []
             for s in top_signals[:3]:
                 sig_name = _signal_label(s[0], "en")
@@ -452,7 +455,7 @@ class TelegramNotifier:
                 lines.append(f"[🔗 Open {symbol} Analysis Dashboard]({detail_url})")
             lines.extend(["", "_Distribution radar analysis from Dao Vang AI._"])
         else:
-            stage_badge = "⚡ *[CẢNH BÁO TÍN HIỆU SHORT — PHÂN PHỐI ĐỈNH]* 🚨" if is_fired else "🧭 *[THEO DÕI VÙNG ĐỈNH QUÁ MUA]*"
+            stage_badge = "⚡ *[CẢNH BÁO TÍN HIỆU SHORT — PHÂN PHỐI ĐỈNH]* 🚨"
             sig_lines = []
             for s in top_signals[:3]:
                 sig_name = _signal_label(s[0], "vi")
@@ -872,6 +875,11 @@ class TelegramNotifier:
         operating_mode: str = "production",
     ) -> bool:
         """Send a consolidated cycle digest when multiple coins are detected."""
+        alerts = [
+            item for item in alerts
+            if str(item.get("recommendation", "")).strip().upper()
+            in {"SHORT_CANDIDATE", "HIGH_CONFIDENCE"}
+        ]
         if not alerts:
             return False
         if len(alerts) == 1:
@@ -879,7 +887,7 @@ class TelegramNotifier:
             return self.send_scored_alert(
                 symbol=a["symbol"],
                 total_score=a.get("total_score", 0.0),
-                recommendation=a.get("recommendation", "HIGH_CONFIDENCE"),
+                recommendation=a["recommendation"],
                 pump_pct=a.get("pump_pct", 0.0),
                 pump_days=a.get("pump_days", 0),
                 top_signals=a.get("top_signals", []),
@@ -897,17 +905,7 @@ class TelegramNotifier:
         mode_prefix = f" `[{mode_label}]`" if operating_mode != "production" else ""
         formatted_time = _display_time(scan_time, self._lang) if scan_time else ""
 
-        # Categorize into FIRED vs ARMED
-        fired_alerts = []
-        armed_alerts = []
-        for a in alerts:
-            rec = a.get("recommendation", "")
-            prob = a.get("model_probability") or 0.0
-            score = a.get("total_score") or 0.0
-            if rec in {"SHORT_CANDIDATE", "HIGH_CONFIDENCE"} or prob >= 0.55 or score >= 50.0:
-                fired_alerts.append(a)
-            else:
-                armed_alerts.append(a)
+        fired_alerts = alerts
 
         if self._lang == "en":
             lines = [
@@ -916,7 +914,7 @@ class TelegramNotifier:
             if formatted_time:
                 lines.append(f"• *Time:* {formatted_time}")
             lines.append(f"• *BTC Context:* {_btc_regime_label(btc_regime, 'en')}")
-            lines.append(f"• *Summary:* ⚡ *{len(fired_alerts)} High Confidence* | 🧭 *{len(armed_alerts)} Overbought Watch*")
+            lines.append(f"• *Summary:* ⚡ *{len(fired_alerts)} Distribution signals*")
             lines.append("")
 
             if fired_alerts:
@@ -944,26 +942,6 @@ class TelegramNotifier:
                         lines.append(f"   • [🔗 View Analysis]({detail_url})")
                     lines.append("")
 
-            if armed_alerts:
-                lines.append("🧭 *[OVERBOUGHT WATCHLIST]*")
-                for i, a in enumerate(armed_alerts, 1):
-                    sym = a["symbol"]
-                    prob = a.get("model_probability")
-                    score_val = a.get("total_score") or 0.0
-                    c_stars, _, _ = _signal_grade(probability=prob, total_score=score_val, recommendation="WATCH", lang="en")
-                    prob_str = f"{prob:.1%}" if prob is not None else "N/A"
-                    price = a.get("close_price") or 0.0
-                    price_str = f"${price:,.4f}" if price > 0 else "N/A"
-                    pump_pct = a.get("pump_pct", 0.0)
-                    pump_str = f"+{pump_pct:.0%}"
-                    detail_url = a.get("web_url") or _coin_url(self._web_base_url, sym)
-
-                    lines.append(f"{i}. 🧭 `{sym}` {c_stars} — Price: `{price_str}` (Pumped {pump_str})")
-                    armed_line = f"   • Reasons: HTF Overbought reached (Score: {score_val:.0f}/100), monitoring 5m exhaustion."
-                    if detail_url:
-                        armed_line += f" [🔗 Chart]({detail_url})"
-                    lines.append(armed_line)
-
             lines.extend(["", "_Reference report from Dao Vang AI; analyze carefully._"])
         else:
             lines = [
@@ -972,7 +950,7 @@ class TelegramNotifier:
             if formatted_time:
                 lines.append(f"• *Thời điểm:* {formatted_time}")
             lines.append(f"• *Bối cảnh BTC:* {_btc_regime_label(btc_regime, 'vi')}")
-            lines.append(f"• *Tổng quan:* ⚡ *{len(fired_alerts)} Tín hiệu mạnh* | 🧭 *{len(armed_alerts)} Canh đỉnh quá mua*")
+            lines.append(f"• *Tổng quan:* ⚡ *{len(fired_alerts)} Tín hiệu phân phối*")
             lines.append("")
 
             if fired_alerts:
@@ -1000,26 +978,6 @@ class TelegramNotifier:
                         lines.append(f"   • [🔗 Xem phân tích {sym}]({detail_url})")
                     lines.append("")
 
-            if armed_alerts:
-                lines.append("🧭 *[DANH SÁCH CANH ĐỈNH QUÁ MUA]*")
-                for i, a in enumerate(armed_alerts, 1):
-                    sym = a["symbol"]
-                    prob = a.get("model_probability")
-                    score_val = a.get("total_score") or 0.0
-                    c_stars, _, _ = _signal_grade(probability=prob, total_score=score_val, recommendation="WATCH", lang="vi")
-                    prob_str = f"{prob:.1%}" if prob is not None else "N/A"
-                    price = a.get("close_price") or 0.0
-                    price_str = f"${price:,.4f}" if price > 0 else "N/A"
-                    pump_pct = a.get("pump_pct", 0.0)
-                    pump_str = f"+{pump_pct:.0%}"
-                    detail_url = a.get("web_url") or _coin_url(self._web_base_url, sym)
-
-                    lines.append(f"{i}. 🧭 `{sym}` {c_stars} — Giá: `{price_str}` (Đã tăng {pump_str})")
-                    armed_line = f"   • Lý do: Đã vào vùng đỉnh khung lớn (Điểm: {score_val:.0f}/100), đang theo dõi dấu hiệu hụt hơi."
-                    if detail_url:
-                        armed_line += f" [🔗 Xem chart]({detail_url})"
-                    lines.append(armed_line)
-
             lines.extend(["", "_Báo cáo tự động từ Đảo Vàng AI — Phục vụ mục đích tham khảo & phân tích._"])
         text = "\n".join(lines)
         return self.send_message(text)
@@ -1039,50 +997,32 @@ class TelegramNotifier:
         web_url: str | None = None,
         operating_mode: str = "production",
     ) -> bool:
-        """Send a 2-Tier Climax specialized alert: ARMED (Pre-alert) or FIRED (Execution)."""
+        """Send only a confirmed FIRED signal; ARMED remains an in-app watch."""
+        if str(stage).strip().upper() != "FIRED":
+            return False
         price = close_price or 0.0
         price_str = f"${price:,.4f}" if price > 0 else "N/A"
         mode_label = _mode_label(operating_mode, self._lang)
         mode_prefix = f" `[{mode_label}]`" if operating_mode != "production" else ""
         detail_url = web_url or _coin_url(self._web_base_url, symbol)
-        if stage.upper() == "ARMED":
-            if self._lang == "en":
-                lines = [
-                    f"🧭 *[OVERBOUGHT WATCHLIST — ARMED]* `{symbol}`{mode_prefix}",
-                    f"• *Market Price:* {price_str} | *Pump Amplitude:* `+{pump_pct:.0%}` ({pump_days}d)",
-                    f"• *HTF Climax Score:* `{htf_score:.0f}/100` (Tier 1 Overbought)",
-                    "• *Why Short:* Extreme overbought conditions reached on high timeframes. Order flow exhaustion being tracked.",
-                ]
-                if detail_url:
-                    lines.append(f"[🔗 Open {symbol} Dashboard]({detail_url})")
-            else:
-                lines = [
-                    f"🧭 *[THEO DÕI VÙNG ĐỈNH QUÁ MUA]* `{symbol}`{mode_prefix}",
-                    f"• *Giá thị trường:* {price_str} | *Biên độ bơm:* `+{pump_pct:.0%}` ({pump_days} ngày)",
-                    f"• *Điểm đỉnh bơm HTF:* *{htf_score:.0f}/100* (Tầng 1 Quá mua cực hạn)",
-                    "• *Lý do theo dõi Short:* Coin đã bơm nóng cực hạn trên khung lớn. Đang theo dõi dấu hiệu hụt hơi dòng tiền.",
-                ]
-                if detail_url:
-                    lines.append(f"[🔗 Mở Radar & Phân Tích {symbol}]({detail_url})")
+        if self._lang == "en":
+            lines = [
+                f"⚡ *[DISTRIBUTION SIGNAL — FIRED]* `{symbol}` 🚨{mode_prefix}",
+                f"• *Market Price:* `{price_str}` | *Pump Amplitude:* `+{pump_pct:.0%}` ({pump_days}d)",
+                f"• *2-Tier Confluence Score:* *{total_score:.0f}/100* (HTF: {htf_score:.0f} | LTF: {ltf_score:.0f})",
+                "• *Why Short:* Both HTF pump climax and 5m order flow sell pressure have confirmed.",
+            ]
+            if detail_url:
+                lines.append(f"[🔗 Open {symbol} Analysis Dashboard]({detail_url})")
         else:
-            if self._lang == "en":
-                lines = [
-                    f"⚡ *[DISTRIBUTION SIGNAL — FIRED]* `{symbol}` 🚨{mode_prefix}",
-                    f"• *Market Price:* `{price_str}` | *Pump Amplitude:* `+{pump_pct:.0%}` ({pump_days}d)",
-                    f"• *2-Tier Confluence Score:* *{total_score:.0f}/100* (HTF: {htf_score:.0f} | LTF: {ltf_score:.0f})",
-                    "• *Why Short:* Both HTF pump climax and 5m order flow sell pressure have confirmed.",
-                ]
-                if detail_url:
-                    lines.append(f"[🔗 Open {symbol} Analysis Dashboard]({detail_url})")
-            else:
-                lines = [
-                    f"⚡ *[CẢNH BÁO TÍN HIỆU SHORT — PHÂN PHỐI ĐỈNH]* `{symbol}` 🚨{mode_prefix}",
-                    f"• *Giá thị trường:* `{price_str}` | *Biên độ bơm:* `+{pump_pct:.0%}` ({pump_days} ngày)",
-                    f"• *Điểm hợp lưu 2 Tầng:* *{total_score:.0f}/100* (Khung lớn: {htf_score:.0f} | Khung 5m: {ltf_score:.0f})",
-                    "• *Lý do nên Short:* Hợp lưu đồng thời giữa đỉnh bơm khung lớn và áp lực xả chủ động khung 5m.",
-                ]
-                if detail_url:
-                    lines.append(f"[🔗 Mở Biểu Đồ & Phân Tích {symbol}]({detail_url})")
+            lines = [
+                f"⚡ *[CẢNH BÁO TÍN HIỆU SHORT — PHÂN PHỐI ĐỈNH]* `{symbol}` 🚨{mode_prefix}",
+                f"• *Giá thị trường:* `{price_str}` | *Biên độ bơm:* `+{pump_pct:.0%}` ({pump_days} ngày)",
+                f"• *Điểm hợp lưu 2 Tầng:* *{total_score:.0f}/100* (Khung lớn: {htf_score:.0f} | Khung 5m: {ltf_score:.0f})",
+                "• *Lý do nên Short:* Hợp lưu đồng thời giữa đỉnh bơm khung lớn và áp lực xả chủ động khung 5m.",
+            ]
+            if detail_url:
+                lines.append(f"[🔗 Mở Biểu Đồ & Phân Tích {symbol}]({detail_url})")
 
         lines.extend(["", "_Báo cáo phân tích xác suất từ Đảo Vàng AI._"])
         text = "\n".join(lines)

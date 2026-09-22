@@ -51,7 +51,7 @@ scanner:
   # Cooldown prevents spamming duplicate alerts for the same coin.
   cooldown_minutes: 120
   telegram_cooldown_minutes: 120
-  alert_levels: ["CAO", "TRUNG BÌNH"]
+  alert_levels: ["CAO"]
   frozen_model_id: "frozen_20260906_105716_bc3c369b"
   db_path: data_live/live.duckdb
   artifact_dir: artifacts
@@ -70,17 +70,13 @@ scanner:
   telegram_min_probability: 0.20
   # Minimum 24h volume for Telegram alerts (avoids low liquidity spam).
   telegram_min_volume_usd: 500000
-  # Only send high confidence signals to avoid weak signal noise.
-  # Prefer HIGH_CONFIDENCE; allow the strongest WATCH candidates as a
-  # labelled fallback so the rolling target of 5 can be reached when the
-  # market offers fewer high-confidence setups.  Probability/evidence gates
-  # and the hard daily cap still apply.
-  telegram_tiers: ["HIGH_CONFIDENCE", "WATCH"]
+  # Telegram only reports confirmed distribution signals. WATCH stays in the UI.
+  telegram_tiers: ["HIGH_CONFIDENCE"]
   # Send a small ranked digest per cycle when multiple coins are detected.
   telegram_digest_mode: true
   global_daily_alert_limit: 18
   coin_daily_alert_limit: 1
-  telegram_daily_target_min: 12
+  telegram_daily_target_min: 0
   telegram_max_per_cycle: 3
   max_feature_age_minutes: 25
   min_data_quality_score: 0.8

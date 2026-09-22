@@ -6,6 +6,7 @@ from dao_vang.scanner.telegram_selection import select_top_alerts
 def _alert(symbol: str, probability: float, **extra: object) -> dict[str, object]:
     return {
         "symbol": symbol,
+        "recommendation": "HIGH_CONFIDENCE",
         "model_probability": probability,
         "quality_status": "valid",
         "data_quality_score": 1.0,
@@ -54,3 +55,14 @@ def test_selection_fails_closed_for_missing_probability_and_reports_shortfall() 
     assert [item["symbol"] for item in result.selected] == ["BTCUSDT"]
     assert result.target_unmet is True
     assert result.eligible_count == 1
+
+
+def test_watch_is_never_selected_even_with_high_score_and_unmet_target():
+    result = select_top_alerts([
+        _alert("WATCHUSDT", 0.99, recommendation="WATCH", total_score=99),
+        _alert("ARMEDUSDT", 0.99, recommendation="ARMED"),
+        _alert("UNKNOWNUSDT", 0.99, recommendation=None),
+        _alert("SIGNALUSDT", 0.65),
+    ], sent_24h=0, daily_limit=18, max_per_cycle=3, target_min=12)
+    assert [item["symbol"] for item in result.selected] == ["SIGNALUSDT"]
+    assert result.target_unmet

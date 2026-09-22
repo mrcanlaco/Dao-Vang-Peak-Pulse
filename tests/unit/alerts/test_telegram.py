@@ -158,7 +158,7 @@ class TestTelegramAlert:
         with patch("dao_vang.alerts.telegram.httpx.Client", return_value=mock_client):
             configured_notifier.send_alert(
                 symbol="ETHUSDT",
-                risk_level="TRUNG BÌNH",
+                risk_level="CAO",
                 probability=0.55,
                 threshold=0.4,
                 close_price=3200.0,
@@ -650,3 +650,56 @@ class TestV3Alert:
         assert "POST-STOP PRICE-ONLY TRACK" in captured["text"]
         assert "not an actual outcome" in captured["text"]
         assert "80" in captured["text"]
+
+
+@pytest.mark.parametrize("recommendation", ["WATCH", "ARMED", "WAIT", "", None])
+def test_scored_watch_never_calls_transport(configured_notifier, recommendation):
+    with patch.object(configured_notifier, "send_message") as send:
+        assert not configured_notifier.send_scored_alert(
+            symbol="WATCHUSDT", total_score=99, recommendation=recommendation,
+            pump_pct=0.5, pump_days=1, top_signals=[], btc_regime="NEUTRAL",
+            btc_explanation="", close_price=1.0, feature_time="", invalidation_time="",
+            model_probability=0.99,
+        )
+        send.assert_not_called()
+
+
+@pytest.mark.parametrize("stage", ["ARMED", "WATCH", "WAIT", "", None])
+def test_two_tier_watch_never_calls_transport(configured_notifier, stage):
+    with patch.object(configured_notifier, "send_message") as send:
+        assert not configured_notifier.send_two_tier_alert(
+            symbol="WATCHUSDT", stage=stage, total_score=99, htf_score=99,
+            ltf_score=99, pump_pct=0.5, pump_days=1, close_price=1.0, feature_time="",
+        )
+        send.assert_not_called()
+
+
+@pytest.mark.parametrize("language", ["vi", "en"])
+@pytest.mark.parametrize("confirmed_count", [0, 1, 2])
+def test_digest_omits_watch_coins_and_watch_sections(language, confirmed_count):
+    notifier = TelegramNotifier(TelegramConfig(language=language))
+    alerts = [{"symbol": "WATCHUSDT", "recommendation": "WATCH", "total_score": 99,
+               "model_probability": 0.99}, {"symbol": "UNKNOWNUSDT", "total_score": 99}]
+    alerts += [{"symbol": f"SIGNAL{i}USDT", "recommendation": "HIGH_CONFIDENCE",
+                "model_probability": 0.65} for i in range(confirmed_count)]
+    with patch.object(notifier, "send_message", return_value=True) as send:
+        sent = notifier.send_cycle_digest(alerts)
+        assert sent == bool(confirmed_count)
+        if not confirmed_count:
+            send.assert_not_called()
+        else:
+            message = send.call_args.args[0]
+            assert "WATCHUSDT" not in message and "UNKNOWNUSDT" not in message
+            assert "WATCHLIST" not in message and "Canh đỉnh" not in message
+            for i in range(confirmed_count):
+                assert f"SIGNAL{i}USDT" in message
+
+
+@pytest.mark.parametrize("risk_level", ["TRUNG BÌNH", "MEDIUM", "WATCH", "THẤP", ""])
+def test_legacy_watch_never_calls_transport(configured_notifier, risk_level):
+    with patch.object(configured_notifier, "send_message") as send:
+        assert not configured_notifier.send_alert(
+            symbol="WATCHUSDT", risk_level=risk_level, probability=0.99,
+            threshold=0.4, close_price=1.0, feature_time="", invalidation_time="", model_id="test",
+        )
+        send.assert_not_called()

@@ -54,8 +54,8 @@ def test_canary_requires_high_confidence_and_budget():
             "allow_shadow_telegram": True,
         }
     )
-    assert shadow_observation.allowed
-    assert shadow_observation.reason == "shadow_observation"
+    assert not shadow_observation.allowed
+    assert shadow_observation.reason == "tier_not_high_confidence"
     shadow_without_probability = evaluate_canary_policy(
         **{
             **common,
@@ -66,7 +66,7 @@ def test_canary_requires_high_confidence_and_budget():
             "allow_shadow_telegram": True,
         }
     )
-    assert shadow_without_probability.allowed
+    assert not shadow_without_probability.allowed
     shadow_limits_are_ignored = evaluate_canary_policy(
         **{
             **common,
@@ -80,13 +80,13 @@ def test_canary_requires_high_confidence_and_budget():
             "allow_shadow_telegram": True,
         }
     )
-    assert shadow_limits_are_ignored.allowed
-    assert shadow_limits_are_ignored.reason == "shadow_observation"
+    assert not shadow_limits_are_ignored.allowed
+    assert shadow_limits_are_ignored.reason == "tier_not_high_confidence"
 
     telegram_threshold = {
         **common,
         "mode": "shadow",
-        "tier": "WAIT",
+        "tier": "HIGH_CONFIDENCE",
         "allow_shadow_telegram": True,
         "telegram_min_probability": 0.70,
     }
@@ -131,6 +131,19 @@ def test_canary_requires_high_confidence_and_budget():
             "enforce_shadow_cooldown": True,
         }
     ).reason == "cooldown_active"
+
+
+def test_watch_is_suppressed_even_when_old_configuration_allows_it():
+    for mode in ("shadow", "canary", "production"):
+        result = evaluate_canary_policy(
+            mode=mode, tier="WATCH", quality_status="valid",
+            calibrated_probability=0.99, threshold=0.41, in_cooldown=False,
+            global_count=0, coin_count=0, global_limit=18, coin_limit=1,
+            allow_shadow_telegram=True, telegram_min_probability=0.2,
+            allowed_tiers=["HIGH_CONFIDENCE", "WATCH"],
+        )
+        assert not result.allowed
+        assert result.reason == "tier_not_high_confidence"
 
 
 def test_drift_does_not_claim_kpi_with_small_sample():
