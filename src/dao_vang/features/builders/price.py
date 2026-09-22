@@ -199,41 +199,48 @@ def build_price_features_sql(source_table: str) -> str:
     price_base AS (
         SELECT
             *,
-            close / lag(close, 1)   OVER w_all - 1 AS {PRICE_RET_5M.id},
-            close / lag(close, 12)  OVER w_all - 1 AS {PRICE_RET_1H.id},
-            close / lag(close, 3)   OVER w_all - 1 AS {PRICE_RET_15M.id},
-            close / lag(close, 48)  OVER w_all - 1 AS {PRICE_RET_4H.id},
-            close / lag(close, 288) OVER w_all - 1 AS {PRICE_RET_24H.id},
+            -- A row offset is a time horizon only on an uninterrupted grid.
+            -- Missing bars must not turn a multi-hour move into a 5m return.
+            CASE WHEN feature_time - lag(feature_time, 1) OVER w_all = INTERVAL '5 minutes'
+                THEN close / NULLIF(lag(close, 1) OVER w_all, 0) - 1 END AS {PRICE_RET_5M.id},
+            CASE WHEN feature_time - lag(feature_time, 12) OVER w_all = INTERVAL '1 hour'
+                THEN close / NULLIF(lag(close, 12) OVER w_all, 0) - 1 END AS {PRICE_RET_1H.id},
+            CASE WHEN feature_time - lag(feature_time, 3) OVER w_all = INTERVAL '15 minutes'
+                THEN close / NULLIF(lag(close, 3) OVER w_all, 0) - 1 END AS {PRICE_RET_15M.id},
+            CASE WHEN feature_time - lag(feature_time, 48) OVER w_all = INTERVAL '4 hours'
+                THEN close / NULLIF(lag(close, 48) OVER w_all, 0) - 1 END AS {PRICE_RET_4H.id},
+            CASE WHEN feature_time - lag(feature_time, 288) OVER w_all = INTERVAL '24 hours'
+                THEN close / NULLIF(lag(close, 288) OVER w_all, 0) - 1 END AS {PRICE_RET_24H.id},
             max(high) OVER w_12_prev AS prev_max_high_12,
             max(high) OVER w_48     AS high_4h,
             sum(volume_base) OVER w_12 AS quote_volume_1h
         FROM {source_table}
         WINDOW
             w_all     AS (PARTITION BY symbol ORDER BY feature_time),
-            w_12_prev AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 12 PRECEDING AND 1 PRECEDING),
-            w_48      AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 47 PRECEDING AND CURRENT ROW),
-            w_12      AS (PARTITION BY symbol ORDER BY feature_time ROWS BETWEEN 11 PRECEDING AND CURRENT ROW)
+            w_12_prev AS (PARTITION BY symbol ORDER BY feature_time RANGE BETWEEN INTERVAL '60 minutes' PRECEDING AND INTERVAL '5 minutes' PRECEDING),
+            w_48      AS (PARTITION BY symbol ORDER BY feature_time RANGE BETWEEN INTERVAL '235 minutes' PRECEDING AND CURRENT ROW),
+            w_12      AS (PARTITION BY symbol ORDER BY feature_time RANGE BETWEEN INTERVAL '55 minutes' PRECEDING AND CURRENT ROW)
     ),
     -- Bối cảnh BTC: tính riêng trên symbol = 'BTCUSDT' rồi JOIN vào mọi altcoin
     -- theo feature_time (point-in-time, không lookahead).
     btc_raw AS (
         SELECT
             feature_time,
-            close / lag(close, 48)  OVER (ORDER BY feature_time) - 1 AS btc_raw_ret_4h,
-            close / lag(close, 288) OVER (ORDER BY feature_time) - 1 AS btc_raw_ret_24h,
-            close / lag(close, 1)   OVER (ORDER BY feature_time) - 1 AS btc_raw_ret_5m
-        FROM {source_table}
+            {PRICE_RET_4H.id} AS btc_raw_ret_4h,
+            {PRICE_RET_24H.id} AS btc_raw_ret_24h,
+            {PRICE_RET_5M.id} AS btc_raw_ret_5m
+        FROM price_base
         WHERE symbol = 'BTCUSDT'
     ),
     btc_context AS (
         SELECT
             feature_time,
-            COALESCE(btc_raw_ret_4h,  0.0) AS {BTC_RET_4H.id},
-            COALESCE(btc_raw_ret_24h, 0.0) AS {BTC_RET_24H.id},
+            btc_raw_ret_4h AS {BTC_RET_4H.id},
+            btc_raw_ret_24h AS {BTC_RET_24H.id},
             -- Biến động 24h của BTC (độ lệch chuẩn return 5m trong 288 bar)
             stddev_samp(btc_raw_ret_5m) OVER (
                 ORDER BY feature_time
-                ROWS BETWEEN 287 PRECEDING AND CURRENT ROW
+                RANGE BETWEEN INTERVAL '1435 minutes' PRECEDING AND CURRENT ROW
             ) AS {BTC_VOLATILITY_24H.id}
         FROM btc_raw
     ),
@@ -259,7 +266,7 @@ def build_price_features_sql(source_table: str) -> str:
 
             stddev_samp({PRICE_RET_5M.id}) OVER w_288 AS {PRICE_VOLATILITY_24H.id},
 
-            p.close / max(p.high) OVER w_288 - 1 AS {DISTANCE_FROM_HIGH_24H.id},
+            p.close / NULLIF(max(p.high) OVER w_288, 0) - 1 AS {DISTANCE_FROM_HIGH_24H.id},
 
             -- Khối lượng tương đối so với 24h
             volume_base / NULLIF(max(volume_base) OVER w_288, 0) AS {VOLUME_PERCENTILE_24H.id},
@@ -272,9 +279,13 @@ def build_price_features_sql(source_table: str) -> str:
                 AS {VOLUME_RATIO_1H.id},
 
             -- Tốc độ thoái trào của đà tăng
-            {PRICE_RET_1H.id} - lag({PRICE_RET_1H.id}, 36) OVER w_all AS {MOMENTUM_DECELERATION_4H.id},
-            {PRICE_RET_15M.id} - lag({PRICE_RET_15M.id}, 3) OVER w_all AS {MOMENTUM_DECEL_15M.id},
-            CASE WHEN high_4h < lag(high_4h, 48) OVER w_all THEN 1.0 ELSE 0.0 END AS {LOWER_HIGH_4H.id},
+            CASE WHEN p.feature_time - lag(p.feature_time, 36) OVER w_all = INTERVAL '3 hours'
+                THEN {PRICE_RET_1H.id} - lag({PRICE_RET_1H.id}, 36) OVER w_all END AS {MOMENTUM_DECELERATION_4H.id},
+            CASE WHEN p.feature_time - lag(p.feature_time, 3) OVER w_all = INTERVAL '15 minutes'
+                THEN {PRICE_RET_15M.id} - lag({PRICE_RET_15M.id}, 3) OVER w_all END AS {MOMENTUM_DECEL_15M.id},
+            CASE WHEN p.feature_time - lag(p.feature_time, 48) OVER w_all = INTERVAL '4 hours'
+                THEN CASE WHEN high_4h < lag(high_4h, 48) OVER w_all THEN 1.0 ELSE 0.0 END
+                END AS {LOWER_HIGH_4H.id},
             quote_volume_1h / NULLIF(avg(quote_volume_1h) OVER w_144_prev, 0) AS {VOLUME_DRY_UP_1H.id},
 
             -- Phá vỡ giả (bull trap)
@@ -290,13 +301,15 @@ def build_price_features_sql(source_table: str) -> str:
             END AS {FAKE_BREAKOUT_1H.id},
 
             -- Bối cảnh BTC (nhiệt kế thị trường)
-            COALESCE(b.{BTC_RET_4H.id},        0.0) AS {BTC_RET_4H.id},
-            COALESCE(b.{BTC_RET_24H.id},       0.0) AS {BTC_RET_24H.id},
-            COALESCE(b.{BTC_VOLATILITY_24H.id}, avg(b.{BTC_VOLATILITY_24H.id}) OVER ()) AS {BTC_VOLATILITY_24H.id},
+            b.{BTC_RET_4H.id} AS {BTC_RET_4H.id},
+            b.{BTC_RET_24H.id} AS {BTC_RET_24H.id},
+            -- Unknown context remains missing. A full-dataset average leaks
+            -- future BTC volatility into earlier decisions and backtests.
+            b.{BTC_VOLATILITY_24H.id} AS {BTC_VOLATILITY_24H.id},
 
             -- Slope BTC vs altcoin: BTC mạnh hơn median altcoin = bất lợi cho short altcoin
-            COALESCE(b.{BTC_RET_24H.id}, 0.0)
-                - COALESCE(a.median_altcoin_ret_24h, 0.0)
+            CASE WHEN p.symbol = 'BTCUSDT' THEN b.{BTC_RET_24H.id}
+                 ELSE b.{BTC_RET_24H.id} - a.median_altcoin_ret_24h END
                 AS {BTC_DOMINANCE_SLOPE_24H.id}
 
         FROM price_base p
@@ -304,9 +317,9 @@ def build_price_features_sql(source_table: str) -> str:
         LEFT JOIN altcoin_median a ON p.feature_time = a.feature_time AND p.symbol <> 'BTCUSDT'
         WINDOW
             w_all      AS (PARTITION BY p.symbol ORDER BY p.feature_time),
-            w_288      AS (PARTITION BY p.symbol ORDER BY p.feature_time ROWS BETWEEN 287 PRECEDING AND CURRENT ROW),
-            w_12       AS (PARTITION BY p.symbol ORDER BY p.feature_time ROWS BETWEEN 11 PRECEDING AND CURRENT ROW),
-            w_prev_12  AS (PARTITION BY p.symbol ORDER BY p.feature_time ROWS BETWEEN 23 PRECEDING AND 12 PRECEDING),
-            w_144_prev AS (PARTITION BY p.symbol ORDER BY p.feature_time ROWS BETWEEN 144 PRECEDING AND 1 PRECEDING)
+            w_288      AS (PARTITION BY p.symbol ORDER BY p.feature_time RANGE BETWEEN INTERVAL '1435 minutes' PRECEDING AND CURRENT ROW),
+            w_12       AS (PARTITION BY p.symbol ORDER BY p.feature_time RANGE BETWEEN INTERVAL '55 minutes' PRECEDING AND CURRENT ROW),
+            w_prev_12  AS (PARTITION BY p.symbol ORDER BY p.feature_time RANGE BETWEEN INTERVAL '115 minutes' PRECEDING AND INTERVAL '60 minutes' PRECEDING),
+            w_144_prev AS (PARTITION BY p.symbol ORDER BY p.feature_time RANGE BETWEEN INTERVAL '720 minutes' PRECEDING AND INTERVAL '5 minutes' PRECEDING)
     )
     """

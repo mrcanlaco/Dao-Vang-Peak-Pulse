@@ -1,3 +1,5 @@
+import pytest
+
 from dao_vang.scoring.evidence import (
     EVIDENCE_POLICY_VERSION,
     evaluate_evidence,
@@ -29,3 +31,13 @@ def test_evidence_requires_fresh_quality() -> None:
     assert decision.policy_version == EVIDENCE_POLICY_VERSION
     assert not decision.passed
     assert "quality_gate_failed" in decision.reason_codes
+
+
+@pytest.mark.parametrize("score", [float("nan"), float("inf"), -float("inf")])
+def test_invalid_score_cannot_create_independent_evidence(score):
+    decision = evaluate_evidence([
+        {"name": "funding_spike", "score": 80},
+        {"name": "distance_from_high", "score": score},
+    ])
+    assert decision.groups == ("derivs_abnormality",)
+    assert not decision.passed

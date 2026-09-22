@@ -143,6 +143,13 @@ def assess_snapshot_quality(
             missing.append(col)
             if col.startswith("funding") or col.startswith("oi_"):
                 reasons.append("derivative_feed_missing")
+        else:
+            try:
+                valid_numeric = math.isfinite(float(value))
+            except (TypeError, ValueError, OverflowError):
+                valid_numeric = False
+            if not valid_numeric:
+                reasons.append("invalid_required_features")
     if missing:
         reasons.append("missing_required_features")
 
@@ -156,14 +163,21 @@ def assess_snapshot_quality(
     quality_score: float | None
     try:
         quality_score = float(quality_raw) if quality_raw is not None else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
+        quality_score = None
+        reasons.append("quality_score_invalid")
+    if quality_score is not None and (
+        not math.isfinite(quality_score) or not 0.0 <= quality_score <= 1.0
+    ):
         quality_score = None
         reasons.append("quality_score_invalid")
     if quality_score is None:
         # A missing score is only acceptable when the source explicitly says
         # valid.  Warning data receives a conservative penalty.
-        quality_score = 1.0 if status == "valid" else 0.75
-    quality_score = max(0.0, min(1.0, quality_score))
+        quality_score = (
+            0.0 if "quality_score_invalid" in reasons
+            else 1.0 if status == "valid" else 0.75
+        )
     if quality_score < min_data_quality_score:
         reasons.append("quality_score_below_threshold")
 

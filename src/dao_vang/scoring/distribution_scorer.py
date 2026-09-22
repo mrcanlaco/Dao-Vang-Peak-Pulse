@@ -16,7 +16,8 @@ Higher score = more likely to distribute (short candidate).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import math
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from dao_vang.config.settings import ScoringConfig
@@ -24,6 +25,20 @@ from dao_vang.logging import get_logger
 from dao_vang.scoring.btc_context import BtcContext
 
 logger = get_logger(__name__)
+
+# Missing inputs are absence of evidence, never a bullish/bearish observation.
+# Keep weights fixed: redistributing a missing signal's weight would inflate
+# the remaining evidence and make incomplete snapshots look more confident.
+_COMPONENT_INPUTS = {
+    "price_volume_divergence": ("price_ret_24h", "volume_percentile_24h"),
+    "funding_spike": ("funding_zscore_30d", "funding_rate_raw"),
+    "momentum_exhaustion": ("momentum_deceleration_4h", "price_ret_4h"),
+    "distance_from_high": ("distance_from_high_24h",),
+    "taker_sell_pressure": ("taker_buy_ratio",),
+    "oi_divergence": ("price_ret_24h", "oi_change_24h"),
+    "fake_breakout": ("fake_breakout_1h",),
+    "multi_tf_exhaustion": ("momentum_decel_15m", "lower_high_4h", "volume_dry_up_1h"),
+}
 
 
 @dataclass(frozen=True)
@@ -390,6 +405,15 @@ def compute_distribution_score(
         logger.warning("scorer_weights_do_not_sum_to_1", total_weight=total_weight)
 
 """
+    features = dict(features)
+    inputs = {key for keys in _COMPONENT_INPUTS.values() for key in keys}
+    inputs.add("taker_buy_ratio_change_1h")  # optional bonus, not a required feed
+    for key in inputs:
+        try:
+            value = float(features[key])
+            features[key] = value if math.isfinite(value) else None
+        except (KeyError, TypeError, ValueError, OverflowError):
+            features[key] = None
     components: list[ScoreComponent] = []
 
     components.append(
@@ -456,6 +480,17 @@ def compute_distribution_score(
             weight=config.weight_multi_tf_exhaustion
         )
     )
+
+    for index, component in enumerate(components):
+        missing = [
+            key for key in _COMPONENT_INPUTS.get(component.name, ())
+            if features.get(key) is None
+        ]
+        if missing:
+            components[index] = replace(
+                component, raw_value=0.0, score=0.0, weighted_score=0.0,
+                explanation="Không chấm điểm: thiếu dữ liệu hợp lệ (" + ", ".join(missing) + ").",
+            )
 
     # Weighted sum
     total_score = sum(c.weighted_score for c in components)

@@ -8,6 +8,7 @@ the policy counts only the three domain groups defined here.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 from typing import Any, Iterable, Mapping
 
 EVIDENCE_POLICY_VERSION = "evidence_groups_v1"
@@ -77,7 +78,7 @@ def evidence_groups_for_components(
     groups: set[str] = set()
     for component in components:
         name, score, _ = _component_values(component)
-        if score < min_component_score:
+        if not isfinite(score) or score < min_component_score:
             continue
         for group, names in EVIDENCE_GROUPS.items():
             if name in names:

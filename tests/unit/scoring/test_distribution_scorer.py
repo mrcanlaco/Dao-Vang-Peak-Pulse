@@ -80,6 +80,40 @@ def _make_features(**overrides: Any) -> dict[str, Any]:
     return defaults
 
 
+@pytest.mark.parametrize("value", [None, float("nan"), float("inf"), -float("inf"), "invalid"])
+@pytest.mark.parametrize("feature, component", [
+    ("distance_from_high_24h", "distance_from_high"),
+    ("volume_percentile_24h", "price_volume_divergence"),
+    ("taker_buy_ratio", "taker_sell_pressure"),
+    ("funding_zscore_30d", "funding_spike"),
+    ("momentum_deceleration_4h", "momentum_exhaustion"),
+    ("oi_change_24h", "oi_divergence"),
+    ("fake_breakout_1h", "fake_breakout"),
+])
+def test_unavailable_feature_is_not_positive_evidence(config, neutral_btc, value, feature, component):
+    features = _make_features(**{feature: value})
+    result = compute_distribution_score("TESTUSDT", features, neutral_btc, config)
+    signal = next(c for c in result.components if c.name == component)
+    assert signal.score == signal.weighted_score == 0.0
+    assert "thiếu" in signal.explanation
+
+
+def test_absent_feature_is_not_peak_confirmation(config, neutral_btc):
+    features = _make_features()
+    del features["distance_from_high_24h"]
+    result = compute_distribution_score("TESTUSDT", features, neutral_btc, config)
+    assert next(c for c in result.components if c.name == "distance_from_high").score == 0
+
+
+def test_empty_snapshot_cannot_supply_independent_evidence(config, neutral_btc):
+    from dao_vang.scoring.evidence import evaluate_evidence
+
+    result = compute_distribution_score("TESTUSDT", {}, neutral_btc, config)
+    evidence = evaluate_evidence(result.components)
+    assert evidence.count == 0
+    assert not evidence.passed
+
+
 class TestPriceVolumeDivergence:
     def test_high_divergence(self) -> None:
         """Price +50% with low volume → high score."""
