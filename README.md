@@ -1,24 +1,26 @@
-# 🪙 DAO VANG — PeakPulse AI
+# ⚡ PeakPulse AI — Real-Time Financial Market Anomaly Detection Engine
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python: 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
+[![Tests: 484+ Passed](https://img.shields.io/badge/Tests-484%2B%20Passed-brightgreen.svg)](#)
 [![Languages](https://img.shields.io/badge/Language-Vi%E1%BA%BFt%20%7C%20English%20%7C%20%E4%B8%AD%E6%96%87%20%7C%20%D0%A0%D0%BE%D1%81%D1%81%D0%B8%D1%8F%20%7C%20%ED%95%9C%EA%B5%AD%EC%96%B4-blue)](#)
 
 [🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md) | [🇨🇳 简体中文](README.zh-CN.md) | [🇷🇺 Русский](README.ru.md) | [🇰🇷 한국어](README.ko.md)
 
 ---
 
-> **Đảo Vàng — Machine Learning Distribution Radar**  
-> *Hệ thống cảnh báo sớm và dự báo giai đoạn Phân phối (Distribution / Top Formation) trên thị trường Tiền mã hóa Phái sinh (Binance USD-M Futures) bằng Máy học.*
+> **PeakPulse AI — Time-Series Machine Learning & Anomaly Detection Radar**  
+> *Hệ thống phân tích dữ liệu lớn và dự báo các giai đoạn biến động bất thường (Volatility Regimes & Distribution Phases) trên thị trường tài chính phái sinh bằng Máy học thời gian thực.*
 
 ---
 
 ## 🎯 1. GIỚI THIỆU TỔNG QUAN
 
-**Đảo Vàng** là một nền tảng phân tích và cảnh báo sớm các dấu hiệu tạo đỉnh/phân phối giá (Distribution Phase / Pump & Dump) của thị trường Crypto dựa trên dữ liệu phái sinh thời gian thực (Point-in-Time Derivatives Data).
+**PeakPulse AI** là nền tảng phân tích dữ liệu lớn và nhận diện sớm các mẫu hình bất thường của thị trường tài chính dựa trên dữ liệu dòng tiền và sổ lệnh phái sinh thời gian thực (Point-in-Time Order-Flow & Derivatives Data).
 
-Khác với các công cụ phân tích kỹ thuật truyền thống chỉ dựa vào giá (OHLCV), **Đảo Vàng** kết hợp dữ liệu hành vi dòng tiền sâu (Funding Rate, Open Interest, Taker Buy/Sell Ratio, Long/Short Account & Position Ratios) và mô hình **Machine Learning (Walk-Forward Validated)** để đưa ra đánh giá xác suất phân phối đáng tin cậy.
+Khác với các công cụ phân tích kỹ thuật truyền thống chỉ dựa vào giá đóng/mở cửa (OHLCV), **PeakPulse AI** kết hợp dữ liệu hành vi vi mô (Funding Rates, Open Interest, Taker Volume Ratios, Account Positioning) và mô hình **Machine Learning (Walk-Forward Validated)** để đưa ra đánh giá xác suất phân phối và biến động bất thường với độ tin cậy cao.
 
-> 💡 **Triết lý vận hành:** Hệ thống hoạt động như một **Radar cảnh báo tín hiệu tĩnh** (Human-in-the-loop). Đảo Vàng **KHÔNG tự động đặt lệnh (No Auto-Trading)**, toàn bộ quyết định giao dịch hoàn toàn thuộc về người dùng.
+> 💡 **Triết lý vận hành:** Hệ thống hoạt động như một **Radar thông minh giám sát thị trường (Market Intelligence Radar)** với nguyên tắc Human-in-the-loop. PeakPulse AI hoàn toàn phi lưu ký (Non-custodial) và không can thiệp đặt lệnh tự động.
 
 ---
 

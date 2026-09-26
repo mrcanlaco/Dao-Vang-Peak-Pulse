@@ -1,8 +1,8 @@
 [project]
-name = "dao-vang"
+name = "peakpulse-ai"
 version = "2.0.0rc2"
-description = "Đảo Vàng - Predictive model for crypto distribution phases"
-authors = [{name = "DAO VANG Contributors"}]
+description = "PeakPulse AI - Predictive machine learning engine for real-time financial market anomaly detection and time-series analytics"
+authors = [{name = "PeakPulse AI Contributors"}]
 license = "MIT"
 requires-python = "==3.12.*"
 dependencies = [
@@ -28,6 +28,8 @@ dependencies = [
 ]
 
 [project.scripts]
+peakpulse = "dao_vang.cli.main:app"
+peakpulse-ui = "dao_vang.web.run:main"
 dao-vang = "dao_vang.cli.main:app"
 dao-vang-ui = "dao_vang.web.run:main"
 

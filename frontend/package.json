@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "peakpulse-dashboard",
   "private": true,
   "version": "2.0.0-rc.2",
   "type": "module",

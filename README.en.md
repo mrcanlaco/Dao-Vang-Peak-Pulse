@@ -1,24 +1,26 @@
-# 🪙 DAO VANG — PeakPulse AI
+# ⚡ PeakPulse AI — Real-Time Financial Market Anomaly Detection Engine
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python: 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
+[![Tests: 484+ Passed](https://img.shields.io/badge/Tests-484%2B%20Passed-brightgreen.svg)](#)
 [![Languages](https://img.shields.io/badge/Language-Vi%E1%BA%BFt%20%7C%20English%20%7C%20%E4%B8%AD%E6%96%87%20%7C%20%D0%A0%D0%BE%D1%81%D1%81%D0%B8%D1%8F%20%7C%20%ED%95%9C%EA%B5%AD%EC%96%B4-blue)](#)
 
 [🇻🇳 Tiếng Việt](README.md) | [🇬🇧 English](README.en.md) | [🇨🇳 简体中文](README.zh-CN.md) | [🇷🇺 Русский](README.ru.md) | [🇰🇷 한국어](README.ko.md)
 
 ---
 
-> **Dao Vang — Machine Learning Distribution Radar**  
-> *Early warning and forecasting system for Crypto Derivatives (Binance USD-M Futures) Top Formation / Distribution Phase powered by Machine Learning.*
+> **PeakPulse AI — Time-Series Machine Learning & Anomaly Detection Radar**  
+> *Real-time financial market analytics and early warning system for volatility regimes and distribution phases powered by Machine Learning.*
 
 ---
 
 ## 🎯 1. OVERVIEW & INTRODUCTION
 
-**Dao Vang** (Gold Miner) is an analytical platform designed for early detection and warning of price distribution/top formation signals (Distribution Phase / Pump & Dump) in the Crypto market based on real-time derivatives data (Point-in-Time Derivatives Data).
+**PeakPulse AI** is an advanced analytics platform engineered for early detection of anomalous market patterns, volatility spikes, and distribution phases across high-frequency financial derivatives using real-time point-in-time order-flow and liquidity data.
 
-Unlike traditional technical analysis tools relying solely on OHLCV price action, **Dao Vang** combines deep money-flow metrics (Funding Rate, Open Interest, Taker Buy/Sell Ratio, Long/Short Account & Position Ratios) with a **Walk-Forward Validated Machine Learning model** to deliver highly reliable distribution probability estimates.
+Unlike traditional technical indicators that solely rely on price action (OHLCV), **PeakPulse AI** blends microstructural money-flow metrics (Funding Rates, Open Interest, Taker Volume Dynamics, Position Imbalance Ratios) with **Walk-Forward Validated Machine Learning models** to provide calibrated, high-precision risk probabilities.
 
-> 💡 **Operating Philosophy:** The system operates as a **passive alert radar** (Human-in-the-loop). Dao Vang **DOES NOT execute auto-trades (No Auto-Trading)**; all trading decisions remain 100% with the user.
+> 💡 **Operating Philosophy:** The system operates strictly as an **Intelligent Market Decision Radar** (Human-in-the-loop). PeakPulse AI is completely non-custodial and does not perform automated order execution.
 
 ---
 
